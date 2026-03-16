@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>🚨 TIR RESTORE — Acil Geri Yükleme</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;padding:1.5rem}
+    h1{color:#f87171;font-size:1.4rem;margin-bottom:.5rem}
+    .box{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:1.25rem;margin-bottom:1rem}
+    .box h2{color:#94a3b8;font-size:.9rem;font-weight:600;margin-bottom:.75rem}
+    .btn{padding:.6rem 1.3rem;border:none;border-radius:7px;font-size:.9rem;font-weight:700;cursor:pointer}
+    .btn:disabled{opacity:.4;cursor:not-allowed}
+    .btn-red{background:#ef4444;color:#fff}
+    .btn-green{background:#10b981;color:#fff}
+    .btn-blue{background:#3b82f6;color:#fff}
+    .btns{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:.75rem}
+    #log{background:#080f1a;border:1px solid #1e293b;border-radius:8px;padding:.75rem;height:420px;overflow-y:auto;font-family:Consolas,monospace;font-size:.8rem;line-height:1.8}
+    .li{color:#94a3b8}.ok{color:#34d399}.wa{color:#fbbf24}.er{color:#f87171}.ti{color:#38bdf8;font-weight:700}
+    .progress{background:#0f172a;border-radius:999px;height:8px;margin-top:.75rem;overflow:hidden}
+    .pbar{height:100%;background:linear-gradient(90deg,#ef4444,#f97316,#10b981);border-radius:999px;transition:width .3s;width:0%}
+    .stat{display:inline-block;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:.3rem .75rem;font-size:.8rem;margin:.2rem;color:#94a3b8}
+    .stat b{color:#38bdf8}
+    .alert-red{background:#431407;border:1px solid #7c2d12;border-radius:8px;padding:.75rem 1rem;color:#fca5a5;font-size:.85rem;margin-bottom:1rem}
+  </style>
+</head>
+<body>
+  <h1>🚨 ACİL RESTORE — TIR Backup Geri Yükleme</h1>
+
+  <div class="alert-red">
+    ⛔ Firebase verileri silindi. Aşağıdaki adımlarla backup'ı geri yükle.
+  </div>
+
+  <!-- ADIM 1: Dosya Seç -->
+  <div class="box">
+    <h2>📂 1. Backup Dosyasını Seç</h2>
+    <p style="font-size:.8rem;color:#64748b;margin-bottom:.75rem">
+      <code>tir_backup_2026-03-14.json</code> dosyasını seç (İndirilenler klasöründe)
+    </p>
+    <input type="file" id="backup-file" accept=".json" style="display:none" onchange="loadFile(event)">
+    <div class="btns">
+      <button class="btn btn-blue" onclick="document.getElementById('backup-file').click()">📂 Dosya Seç</button>
+    </div>
+    <div id="file-status" style="margin-top:.5rem;font-size:.85rem;color:#64748b">Henüz dosya seçilmedi...</div>
+    <div id="stats" style="margin-top:.75rem"></div>
+  </div>
+
+  <!-- ADIM 2: Geri Yükle -->
+  <div class="box">
+    <h2>🔄 2. Geri Yükle</h2>
+    <div class="btns">
+      <button class="btn btn-red" id="btn-restore-v1" onclick="runRestore('v1')" disabled>
+        🔄 V1 Olarak Geri Yükle (ORİJİNAL — ID korunur)
+      </button>
+      <button class="btn btn-green" id="btn-restore-v2" onclick="runRestore('v2')" disabled>
+        ✨ V2 Formatında Yükle (companyId + truckId ekle)
+      </button>
+    </div>
+    <p style="font-size:.75rem;color:#475569;margin-top:.5rem">
+      ⚡ "V1 Olarak" = Her iki site de çalışır. "V2 Formatında" = V2 migration tamamlanır ama V1 de görür.
+    </p>
+    <div class="progress"><div class="pbar" id="pbar"></div></div>
+  </div>
+
+  <!-- LOG -->
+  <div class="box">
+    <h2>📋 Log</h2>
+    <div id="log"></div>
+  </div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
+import {
+  getFirestore, collection, addDoc, setDoc, doc, writeBatch, getDocs, deleteDoc
+} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
+
+const FB = {
+  apiKey:"AIzaSyAtrVO1BPABlw-ygqpCeM_Jma1TJ-s2auo",
+  authDomain:"tir-muhasebe.firebaseapp.com",
+  projectId:"tir-muhasebe",
+  storageBucket:"tir-muhasebe.firebasestorage.app",
+  messagingSenderId:"105622311370",
+  appId:"1:105622311370:web:d95e154e6a3a06d9817f33"
+};
+const app = initializeApp(FB);
+const db = getFirestore(app);
+
+const CID = 'inaner_logistics';
+const TID = 'truck_06ftn692';
+const TRUCK_COLS = new Set(['trips','fuel','maintenance','payments','penalties','invoices','maintenance_folders']);
+
+let backup = null;
+
+function log(msg, t='li') {
+  const el = document.getElementById('log');
+  const time = new Date().toLocaleTimeString('tr-TR');
+  el.innerHTML += `<div class="${t}">[${time}] ${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+function setP(v) { document.getElementById('pbar').style.width = v+'%'; }
+
+// ─── Dosya Yükle ─────────────────────────────────────────────────────────────
+window.loadFile = function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      backup = JSON.parse(e.target.result);
+      document.getElementById('file-status').textContent = '✓ ' + file.name + ' yüklendi';
+      document.getElementById('file-status').style.color = '#34d399';
+
+      // İstatistikleri göster
+      const cols = Object.keys(backup).filter(k => k !== 'company_data');
+      let html = '';
+      let total = 0;
+      for (const col of cols) {
+        const cnt = backup[col]?.length || 0;
+        if (cnt > 0) { html += `<span class="stat"><b>${cnt}</b> ${col}</span>`; total += cnt; }
+      }
+      if (backup.company_data) {
+        const cdKeys = Object.keys(backup.company_data);
+        html += `<span class="stat"><b>${cdKeys.length}</b> company_data dökümanı</span>`;
+      }
+      document.getElementById('stats').innerHTML = html;
+      log(`Backup yüklendi: ${total} kayıt, ${Object.keys(backup.company_data||{}).length} company_data dökümanı`, 'ok');
+
+      document.getElementById('btn-restore-v1').disabled = false;
+      document.getElementById('btn-restore-v2').disabled = false;
+    } catch(err) {
+      document.getElementById('file-status').textContent = 'HATA: ' + err.message;
+      document.getElementById('file-status').style.color = '#f87171';
+    }
+  };
+  reader.readAsText(file);
+};
+
+// ─── Batch set (ID korunarak) ─────────────────────────────────────────────────
+async function batchSet(colName, records) {
+  const CHUNK = 100;
+  let count = 0;
+  for (let i = 0; i < records.length; i += CHUNK) {
+    const b = writeBatch(db);
+    records.slice(i, i+CHUNK).forEach(r => {
+      const { _id, ...data } = r;
+      // _id varsa orijinal ID'yi koru, yoksa auto-id
+      const ref = _id ? doc(db, colName, _id) : doc(collection(db, colName));
+      b.set(ref, data);
+    });
+    await b.commit();
+    count += Math.min(CHUNK, records.length - i);
+    await new Promise(r => setTimeout(r, 60));
+  }
+  return count;
+}
+
+// ─── RESTORE ────────────────────────────────────────────────────────────────
+window.runRestore = async function(mode) {
+  if (!backup) return;
+  const isV2 = mode === 'v2';
+  document.getElementById('btn-restore-v1').disabled = true;
+  document.getElementById('btn-restore-v2').disabled = true;
+  log('', 'li');
+  log(`=== ${isV2 ? 'V2 FORMATINDA' : 'V1 ORİJİNAL'} GERI YÜKLEME BAŞLIYOR ===`, 'ti');
+  setP(2);
+
+  try {
+    const DATA_COLS = ['trips','fuel','maintenance','payments','penalties','invoices','maintenance_folders','spare_parts','mechanics'];
+    const AUX_COLS = ['admin_logs','approved_users','pending_users'];
+    const allCols = [...DATA_COLS, ...AUX_COLS];
+
+    let step = 0;
+    const totalSteps = allCols.length + 3; // +companies, trucks, company_data
+
+    for (const col of allCols) {
+      const records = backup[col] || [];
+      step++;
+      setP(Math.round((step/totalSteps)*90));
+
+      if (records.length === 0) { log(`${col}: boş, atlandı`, 'li'); continue; }
+
+      // V2 modunda companyId ekle
+      const mapped = records.map(r => {
+        const rec = { ...r };
+        if (isV2) {
+          rec.companyId = CID;
+          if (TRUCK_COLS.has(col)) rec.truckId = TID;
+        }
+        return rec;
+      });
+
+      const done = await batchSet(col, mapped);
+      log(`${col}: ${done} kayıt geri yüklendi ✓`, 'ok');
+    }
+
+    // company_data
+    if (backup.company_data) {
+      step++;
+      for (const [docId, data] of Object.entries(backup.company_data)) {
+        await setDoc(doc(db,'company_data',docId), data);
+      }
+      log(`company_data: ${Object.keys(backup.company_data).length} döküman ✓`, 'ok');
+
+      // V2 modunda ekstra company_data dökümanları
+      if (isV2) {
+        const infoData = backup.company_data['info'];
+        const docsData = backup.company_data['docs'];
+        if (infoData) {
+          await setDoc(doc(db,'company_data','inaner_logistics_info'), infoData);
+          if (infoData.routes?.length > 0) {
+            await setDoc(doc(db,'company_data',`${CID}_${TID}_routes`), { routes: infoData.routes });
+            log(`Rotalar (${infoData.routes.length}) → truck-specific ✓`, 'ok');
+          }
+        }
+        if (docsData) {
+          await setDoc(doc(db,'company_data',`${CID}_${TID}_docs`), docsData);
+          log(`Belge tarihleri → ${CID}_${TID}_docs ✓`, 'ok');
+        }
+      }
+    }
+
+    // V2 modunda şirket + araç yapısı
+    if (isV2) {
+      step++;
+      await setDoc(doc(db,'companies',CID), { id:CID, name:'İnaner Lojistik', status:'active', plan:'professional', createdAt:new Date().toISOString() });
+      log('companies/inaner_logistics ✓', 'ok');
+      await setDoc(doc(db,'trucks',TID), { id:TID, plate:'06 FTN 692', companyId:CID, brand:'İveco Stralis 460', trailerPlate:'06 FGN 692', createdAt:new Date().toISOString() });
+      log('trucks/truck_06ftn692 ✓', 'ok');
+
+      // kenan → super_admin
+      const usersSnap = await getDocs(collection(db,'approved_users'));
+      const kenanDoc = usersSnap.docs.find(d => d.data().username === 'kenan');
+      if (kenanDoc) {
+        const b = writeBatch(db);
+        b.update(kenanDoc.ref, { companyId: CID, role: 'super_admin' });
+        await b.commit();
+        log('kenan → super_admin ✓', 'ok');
+      }
+    }
+
+    setP(100);
+    log('', 'li');
+    if (isV2) {
+      log('🎉 V2 MIGRATION TAMAMLANDI!', 'ok');
+      log('V2 uygulamayı aç: http://localhost:5173', 'ok');
+    } else {
+      log('✅ V1 DATA RESTORE TAMAMLANDI!', 'ok');
+      log('V1 → http://localhost:5174 | V2 → http://localhost:5173', 'ok');
+      log('(V2 için şimdi migration yapman gerekiyor — yeniden migrate.html aç)', 'wa');
+    }
+
+  } catch(e) {
+    log('HATA: ' + e.message, 'er');
+    console.error(e);
+    document.getElementById('btn-restore-v1').disabled = false;
+    document.getElementById('btn-restore-v2').disabled = false;
+  }
+};
+</script>
+</body>
+</html>

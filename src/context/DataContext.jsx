@@ -1,0 +1,645 @@
+import React, { createContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { db } from '../services/firebaseConfig';
+import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, query, setDoc, getDocs, writeBatch, where, deleteField } from 'firebase/firestore';
+import { useCompany } from './CompanyContext';
+import { useTruck } from './TruckContext';
+// eslint-disable-next-line react-refresh/only-export-components
+export const DataContext = createContext();
+
+export const DataProvider = ({ children }) => {
+    const { activeCompanyId } = useCompany();
+    const { activeTruckId } = useTruck();
+
+    const [trips, setTrips] = useState([]);
+    const [fuelRecords, setFuelRecords] = useState([]);
+    const [maintenanceRecords, setMaintenanceRecords] = useState([]);
+    const [paymentRecords, setPaymentRecords] = useState([]);
+    const [maintenanceFolders, setMaintenanceFolders] = useState([]);
+    const [adminLog, setAdminLog] = useState([]);
+    const [pendingUsers, setPendingUsers] = useState([]);
+    const [approvedUsers, setApprovedUsers] = useState([]);
+    const [docs, setDocs] = useState({});
+    const [penalties, setPenalties] = useState([]);
+    const [invoices, setInvoices] = useState([]);
+
+    const [vehicleInfo, setVehicleInfo] = useState({
+        plate: '06 FTN 692', trailerPlate: '06 ABC 123', driverName: 'Ahmet Şoför',
+        model: 'İveco Stralis 460', insuranceDate: '2026-12-31', inspectionDate: '2026-10-15'
+    });
+    const [drivers, setDrivers] = useState([]);
+    const [spareParts, setSpareParts] = useState([]);
+    const [sparePartCategories, setSparePartCategories] = useState(['Yağ', 'Filtre', 'Kayış', 'Balata', 'Aydınlatma', 'Lastik', 'Genel']);
+    const [mechanics, setMechanics] = useState([]);
+    const [routes, setRoutes] = useState([]);
+    const [draftInvoice, setDraftInvoice] = useState(null);
+    const [onlineUsers, setOnlineUsers] = useState([]);
+    const [isDataLoading, setIsDataLoading] = useState(true);
+
+    const [currentSession, setCurrentSession] = useState(() => {
+        const token = localStorage.getItem('tir_auth_kenan_v1');
+        const user = localStorage.getItem('tir_current_user');
+        const role = localStorage.getItem('tir_current_role') || 'user';
+        if (token && user) return { username: user, role };
+        return null;
+    });
+
+    const loginSession = (user) => {
+        localStorage.setItem('tir_current_user', user.username);
+        localStorage.setItem('tir_current_role', user.role || 'user');
+        if (user.companyId) {
+            localStorage.setItem('tir_current_company', user.companyId);
+        } else if (user.username === 'kenan') {
+            localStorage.setItem('tir_current_company', 'inaner_logistics'); // fallback for super_admin
+        }
+        localStorage.setItem('tir_auth_kenan_v1', 'temp_token'); // Mock auth token
+        setCurrentSession({ username: user.username, role: user.role || 'user', ip: user.ip, device: user.device });
+
+        const userKey = user.username === 'kenan' ? 'admin' : user.username;
+        addLog('KULLANICI_GIRIS', `${userKey} sisteme giriş yaptı`, { ip: user.ip || 'Bilinmiyor', device: user.device || 'Bilinmiyor' }, userKey);
+    };
+
+    const logoutSession = () => {
+        localStorage.removeItem('tir_auth_kenan_v1');
+        localStorage.removeItem('tir_current_user');
+        localStorage.removeItem('tir_current_role');
+        setCurrentSession(null);
+    };
+
+    // Firebase Listener Setup
+    useEffect(() => {
+        if (!activeCompanyId) {
+            setIsDataLoading(false);
+            return;
+        }
+        // Only show loading spinner on company change, not truck switch
+        if (!activeTruckId) setIsDataLoading(true);
+
+        const unsubs = [];
+
+        // Helper function for sorting by date and createdAt
+        const sortData = (data) => data.sort((a, b) => {
+            const dateDiff = new Date(b.date) - new Date(a.date);
+            if (dateDiff !== 0) return dateDiff;
+            return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        });
+
+        // 1. Trips config
+        unsubs.push(onSnapshot(query(collection(db, 'trips'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                .filter(d => !activeTruckId || d.truckId === activeTruckId);
+            setTrips(sortData(data));
+        }));
+
+        // 2. Fuel config
+        unsubs.push(onSnapshot(query(collection(db, 'fuel'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                .filter(d => !activeTruckId || d.truckId === activeTruckId);
+            setFuelRecords(sortData(data));
+        }));
+
+        // 3. Maintenance config
+        unsubs.push(onSnapshot(query(collection(db, 'maintenance'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                .filter(d => !activeTruckId || d.truckId === activeTruckId);
+            setMaintenanceRecords(sortData(data));
+        }));
+
+        // 4. Payments config
+        unsubs.push(onSnapshot(query(collection(db, 'payments'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                .filter(d => !activeTruckId || d.truckId === activeTruckId);
+            setPaymentRecords(sortData(data));
+        }));
+
+        // 5. Penalties config
+        unsubs.push(onSnapshot(query(collection(db, 'penalties'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                .filter(d => !activeTruckId || d.truckId === activeTruckId);
+            // penalties have 'date', sort them using helper
+            setPenalties(sortData(data));
+        }));
+
+        // 6. Maintenance Folders config
+        unsubs.push(onSnapshot(query(collection(db, 'maintenance_folders'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                .filter(d => !activeTruckId || d.truckId === activeTruckId)
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            setMaintenanceFolders(data);
+        }));
+
+        // 7. AdminLogs config
+        unsubs.push(onSnapshot(query(collection(db, 'admin_logs'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            setAdminLog(data);
+        }));
+
+        // 8. Invoices config
+        unsubs.push(onSnapshot(query(collection(db, 'invoices'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                .filter(d => !activeTruckId || d.truckId === activeTruckId)
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            setInvoices(data);
+        }));
+
+        // 9. Users config
+        unsubs.push(onSnapshot(query(collection(db, 'pending_users'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            setPendingUsers(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+        }));
+
+        unsubs.push(onSnapshot(query(collection(db, 'approved_users'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            setApprovedUsers(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+        }));
+
+        // 10. Spare Parts config
+        unsubs.push(onSnapshot(query(collection(db, 'spare_parts'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            setSpareParts(data);
+        }));
+
+        // 11. Mechanics config
+        unsubs.push(onSnapshot(query(collection(db, 'mechanics'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            setMechanics(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+        }));
+
+        // 12. Docs config
+        if (activeCompanyId && activeTruckId) {
+            unsubs.push(onSnapshot(doc(db, 'company_data', `${activeCompanyId}_${activeTruckId}_docs`), (docSnapshot) => {
+                if (docSnapshot.exists()) {
+                    setDocs(docSnapshot.data() || {});
+                } else { setDocs({}); }
+            }));
+        } else {
+            setDocs({});
+        }
+
+        // 13. System Info and Defaults config
+        unsubs.push(onSnapshot(doc(db, 'company_data', activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`), (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                const data = docSnapshot.data();
+                if (data.vehicleInfo) setVehicleInfo(prev => ({ ...prev, ...data.vehicleInfo }));
+
+                if (data.drivers) setDrivers(data.drivers);
+                else setDrivers([]);
+
+                if (data.sparePartCategories && data.sparePartCategories.length > 0) {
+                    setSparePartCategories(data.sparePartCategories);
+                } else {
+                    setSparePartCategories(['Yağ', 'Filtre', 'Kayış', 'Balata', 'Aydınlatma', 'Lastik', 'Genel']);
+                }
+            } else {
+                setDrivers([]);
+                setSparePartCategories(['Yağ', 'Filtre', 'Kayış', 'Balata', 'Aydınlatma', 'Lastik', 'Genel']);
+                setDraftInvoice(null);
+            }
+            setIsDataLoading(false); // Finished loading essential config
+        }));
+
+        // 13.7 Truck-specific draft invoice
+        if (activeCompanyId && activeTruckId) {
+            unsubs.push(onSnapshot(doc(db, 'company_data', `${activeCompanyId}_${activeTruckId}_draft`), (docSnapshot) => {
+                if (docSnapshot.exists() && docSnapshot.data().draftInvoice) {
+                    setDraftInvoice(docSnapshot.data().draftInvoice);
+                } else {
+                    setDraftInvoice(null);
+                }
+            }));
+        } else {
+            setDraftInvoice(null);
+        }
+
+        // 13.5. Routes config (Truck-Specific)
+        if (activeCompanyId && activeTruckId) {
+            unsubs.push(onSnapshot(doc(db, 'company_data', `${activeCompanyId}_${activeTruckId}_routes`), (docSnapshot) => {
+                if (docSnapshot.exists() && docSnapshot.data().routes) {
+                    setRoutes(docSnapshot.data().routes);
+                } else {
+                    setRoutes([]);
+                }
+            }));
+        } else {
+            setRoutes([]);
+        }
+
+        // 14. Presence config
+        unsubs.push(onSnapshot(collection(db, 'presence'), (snapshot) => {
+            const now = new Date();
+            const active = snapshot.docs
+                .map(doc => ({ ...doc.data(), id: doc.id }))
+                .filter(u => {
+                    const last = new Date(u.lastActive);
+                    return (now - last) < 5 * 60 * 1000;
+                });
+            setOnlineUsers(active);
+        }));
+
+        return () => {
+            unsubs.forEach(unsub => unsub());
+        };
+    }, [activeCompanyId, activeTruckId]);
+
+    // Heartbeat Effect
+    useEffect(() => {
+        if (!currentSession?.username) return;
+
+        const updatePresence = async () => {
+            try {
+                const presenceDoc = doc(db, 'presence', currentSession.username);
+                await setDoc(presenceDoc, {
+                    username: currentSession.username,
+                    role: currentSession.role || 'user',
+                    lastActive: new Date().toISOString(),
+                    ip: currentSession.ip || 'Bilinmiyor',
+                    device: currentSession.device || 'PC'
+                }, { merge: true });
+            } catch { /* empty */ }
+        };
+
+        updatePresence();
+        const timer = setInterval(updatePresence, 60000); // 1 dakikada bir güncelle
+
+        return () => {
+            clearInterval(timer);
+            // Çıkış yaparken temizleme (opsiyonel ama daha hızlı güncelleme sağlar)
+            // if (currentSession?.username) deleteDoc(doc(db, 'presence', currentSession.username));
+        };
+    }, [currentSession]);
+
+    // Firebase'e veri yazan Admin Log
+    const addLog = async (action, detail, meta = null, overrideUser = null) => {
+        const user = overrideUser || localStorage.getItem('tir_current_user') || 'kenan';
+        const entry = { timestamp: new Date().toISOString(), action, detail, user, meta, companyId: activeCompanyId };
+        try {
+            await addDoc(collection(db, 'admin_logs'), entry);
+        } catch { /* empty */ }
+    };
+
+    const addTrip = async (trip) => {
+        await addDoc(collection(db, 'trips'), {
+            ...trip,
+            companyId: activeCompanyId,
+            truckId: activeTruckId,
+            deleted: false,
+            createdAt: new Date().toISOString()
+        });
+        addLog('SEFER_EKLE', `${trip.from} → ${trip.to} | ${trip.tonnage}t`);
+        if (trip.price) {
+            const nextRoutes = routes.map(r =>
+                (r.from === trip.from && r.to === trip.to) ? { ...r, lastPrice: trip.price } : r
+            );
+            await setDoc(doc(db, 'company_data', 'info'), { routes: nextRoutes }, { merge: true });
+        }
+    };
+
+    const deleteTrip = async (id) => {
+        const trip = trips.find(t => t.id === id);
+        if (trip) {
+            await updateDoc(doc(db, 'trips', id), { deleted: true });
+            addLog('SEFER_SİL', `${trip.from} → ${trip.to} | ${trip.date}`, { table: 'Trips', id });
+        }
+    };
+
+    const editTrip = async (id, updates) => {
+        await updateDoc(doc(db, 'trips', id), updates);
+        addLog('SEFER_DUZENLE', `Sefer güncellendi`);
+    };
+
+    const addFuel = async (record) => {
+        await addDoc(collection(db, 'fuel'), {
+            ...record,
+            companyId: activeCompanyId,
+            truckId: activeTruckId,
+            deleted: false,
+            createdAt: new Date().toISOString()
+        });
+        addLog('MAZOT_EKLE', `${record.station} | ${record.liters}L`);
+    };
+
+    const deleteFuel = async (id) => {
+        const rec = fuelRecords.find(r => r.id === id);
+        if (rec) {
+            await updateDoc(doc(db, 'fuel', id), { deleted: true });
+            addLog('MAZOT_SİL', `${rec.station} | ${rec.date}`, { table: 'Fuel', id });
+        }
+    };
+
+    const editFuel = async (id, updates) => {
+        await updateDoc(doc(db, 'fuel', id), updates);
+        addLog('MAZOT_DUZENLE', `Mazot fişi güncellendi`);
+    };
+
+    const addMaintenance = async (record) => {
+        await addDoc(collection(db, 'maintenance'), {
+            ...record,
+            companyId: activeCompanyId,
+            truckId: activeTruckId,
+            deleted: false,
+            createdAt: new Date().toISOString()
+        });
+        addLog('BAKIM_EKLE', `${record.type} | ₺${record.cost}`);
+    };
+
+    const deleteMaintenance = async (id) => {
+        const rec = maintenanceRecords.find(r => r.id === id);
+        if (rec) {
+            await updateDoc(doc(db, 'maintenance', id), { deleted: true });
+            addLog('BAKIM_SİL', `${rec.type} | ${rec.date}`, { table: 'Maintenance', id });
+        }
+    };
+
+    const updateMaintenance = async (id, updatedFields) => {
+        await updateDoc(doc(db, 'maintenance', id), updatedFields);
+        addLog('BAKIM_GUNCELLE', updatedFields.description || 'Bakım');
+    };
+
+    const addPayment = async (record) => {
+        await addDoc(collection(db, 'payments'), {
+            ...record,
+            companyId: activeCompanyId,
+            truckId: activeTruckId,
+            deleted: false,
+            createdAt: new Date().toISOString()
+        });
+        addLog('ODEME_EKLE', `${record.type} | ₺${record.amount}`);
+    };
+
+    const deletePayment = async (id) => {
+        const rec = paymentRecords.find(r => r.id === id);
+        if (rec) {
+            await updateDoc(doc(db, 'payments', id), { deleted: true });
+            addLog('ODEME_SIL', `${rec.type} | ₺${rec.amount} | ${rec.date}`, { table: 'Payments', id });
+        }
+    };
+
+    const updatePayment = async (id, updatedFields) => {
+        await updateDoc(doc(db, 'payments', id), updatedFields);
+        addLog('ODEME_GUNCELLE', updatedFields.description || 'Ödeme');
+    };
+
+    const updateVehicleInfo = async (newInfo) => {
+        const nextInfo = { ...vehicleInfo, ...newInfo };
+        const docId = activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`;
+        await setDoc(doc(db, 'company_data', docId), { vehicleInfo: nextInfo }, { merge: true });
+        addLog('ARAC_GUNCELLE', 'Araç bilgileri güncellendi');
+    };
+
+    const updateDrivers = async (newDrivers) => {
+        const docId = activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`;
+        await setDoc(doc(db, 'company_data', docId), { drivers: newDrivers }, { merge: true });
+    };
+
+    const addSparePartCategory = async (newCategory) => {
+        if (!sparePartCategories.includes(newCategory)) {
+            const newCats = [...sparePartCategories, newCategory];
+            const docId = activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`;
+            await setDoc(doc(db, 'company_data', docId), { sparePartCategories: newCats }, { merge: true });
+            addLog('KATEGORI_EKLE', 'Yeni stok kategorisi eklendi');
+        }
+    };
+
+    const addSparePart = async (part) => {
+        try {
+            await addDoc(collection(db, 'spare_parts'), { ...part, companyId: activeCompanyId, createdAt: new Date().toISOString() });
+            addLog('STOK_EKLE', `${part.name} stoğa eklendi`);
+        } catch { /* empty */ }
+    };
+
+    const updateSparePart = async (id, part) => {
+        try {
+            await updateDoc(doc(db, 'spare_parts', id), part);
+            addLog('STOK_GUNCELLE', `${part.name} stoğu güncellendi`);
+        } catch { /* empty */ }
+    };
+
+    const deleteSparePart = async (id, partName) => {
+        try {
+            await deleteDoc(doc(db, 'spare_parts', id));
+            addLog('STOK_SIL', `${partName} stoktan silindi`);
+        } catch { /* empty */ }
+    };
+
+    const addMechanic = async (mechanic) => {
+        await addDoc(collection(db, 'mechanics'), { ...mechanic, companyId: activeCompanyId, createdAt: new Date().toISOString() });
+        addLog('TAMIRCI_EKLE', `${mechanic.name || mechanic.shopName}`);
+    };
+
+    const deleteMechanic = async (id, name) => {
+        await deleteDoc(doc(db, 'mechanics', id));
+        addLog('TAMIRCI_SIL', name || 'Tamirci');
+    };
+
+    const updateMechanic = async (id, updatedFields) => {
+        await updateDoc(doc(db, 'mechanics', id), updatedFields);
+        addLog('TAMIRCI_GUNCELLE', updatedFields.name || updatedFields.shopName || 'Tamirci');
+    };
+
+    const addMaintenanceFolder = async (folder) => {
+        await addDoc(collection(db, 'maintenance_folders'), { ...folder, companyId: activeCompanyId, truckId: activeTruckId, createdAt: new Date().toISOString() });
+        addLog('KLASOR_EKLE', `${folder.name} klasörü oluşturuldu`);
+    };
+
+    const updateMaintenanceFolder = async (id, data) => {
+        await updateDoc(doc(db, 'maintenance_folders', id), data);
+    };
+
+    const deleteMaintenanceFolder = async (id, folderName) => {
+        await deleteDoc(doc(db, 'maintenance_folders', id));
+        addLog('KLASOR_SİL', `${folderName} klasörü silindi`);
+    };
+
+    const getRoutesDocId = () => `${activeCompanyId}_${activeTruckId}_routes`;
+
+    const addRoute = async (route) => {
+        const nextRoutes = [{ ...route, id: Date.now() }, ...routes];
+        await setDoc(doc(db, 'company_data', getRoutesDocId()), { routes: nextRoutes }, { merge: true });
+        addLog('ROTA_EKLE', `${route.from} → ${route.to}`);
+    };
+
+    const deleteRoute = async (id) => {
+        const nextRoutes = routes.filter(r => r.id !== id);
+        await setDoc(doc(db, 'company_data', getRoutesDocId()), { routes: nextRoutes }, { merge: true });
+        addLog('ROTA_SIL', `Rota silindi`);
+    };
+
+    const updateRoute = async (id, updatedFields) => {
+        const nextRoutes = routes.map(r => r.id === id ? { ...r, ...updatedFields } : r);
+        await setDoc(doc(db, 'company_data', getRoutesDocId()), { routes: nextRoutes }, { merge: true });
+        addLog('ROTA_GUNCELLE', `Rota güncellendi`);
+    };
+
+    const updateRoutePrice = async (routeId, price) => {
+        const nextRoutes = routes.map(r => r.id === routeId ? { ...r, lastPrice: price } : r);
+        await setDoc(doc(db, 'company_data', getRoutesDocId()), { routes: nextRoutes }, { merge: true });
+    };
+
+    const saveDraftInvoice = async (draft) => {
+        if (!activeCompanyId || !activeTruckId) return;
+        const docId = `${activeCompanyId}_${activeTruckId}_draft`;
+        await setDoc(doc(db, 'company_data', docId), { draftInvoice: draft }, { merge: true });
+    };
+
+    const clearDraftInvoice = async () => {
+        if (!activeCompanyId || !activeTruckId) return;
+        const docId = `${activeCompanyId}_${activeTruckId}_draft`;
+        await setDoc(doc(db, 'company_data', docId), { draftInvoice: null }, { merge: true });
+    };
+
+    const registerUser = async (userData) => {
+        const entry = { ...userData, status: 'pending', requestedAt: new Date().toISOString(), companyId: activeCompanyId };
+        await addDoc(collection(db, 'pending_users'), entry);
+        return entry;
+    };
+
+    const approveUser = async (userId, role = 'şoför', assignedCompanyId = null) => {
+        const user = pendingUsers.find(u => u.id === userId);
+        if (!user) return;
+
+        const finalCompanyId = assignedCompanyId || user.companyId || activeCompanyId;
+        const approved = { ...user, status: 'approved', role, companyId: finalCompanyId, approvedAt: new Date().toISOString() };
+        delete approved.id;
+
+        await addDoc(collection(db, 'approved_users'), approved);
+        await deleteDoc(doc(db, 'pending_users', userId));
+
+        addLog('KULLANICI_ONAYLA', `${user.username} adlı kullanıcı '${role}' yetkisiyle onaylandı`);
+    };
+
+    const addApprovedUser = async (userData) => {
+        const approved = { ...userData, status: 'approved', companyId: userData.companyId || activeCompanyId, approvedAt: new Date().toISOString() };
+        await addDoc(collection(db, 'approved_users'), approved);
+        addLog('KULLANICI_EKLE', `${userData.username} kullanıcısı manuel olarak '${userData.role}' yetkisiyle eklendi`);
+        return approved;
+    };
+
+    const editUser = async (userId, updates) => {
+        await updateDoc(doc(db, 'approved_users', userId), updates);
+        addLog('KULLANICI_DUZENLE', `Kullanıcı güncellendi: ${updates.username || 'Kullanıcı'}`);
+    };
+
+    const rejectUser = async (userId) => {
+        const user = pendingUsers.find(u => u.id === userId);
+        if (user) {
+            await deleteDoc(doc(db, 'pending_users', userId));
+            addLog('KULLANICI_RED', `${user.username} başvurusu reddedildi`);
+        }
+    };
+
+    const updateDocs = async (newDocs) => {
+        if (!activeCompanyId || !activeTruckId) return;
+        const docId = `${activeCompanyId}_${activeTruckId}_docs`;
+        await setDoc(doc(db, 'company_data', docId), newDocs, { merge: true });
+        addLog('BELGE_GUNCELLE', 'Belgeler/Ceza Listesi güncellendi');
+    };
+
+    const deleteDocField = async (fieldKey) => {
+        if (!activeCompanyId || !activeTruckId) return;
+        const docId = `${activeCompanyId}_${activeTruckId}_docs`;
+        await updateDoc(doc(db, 'company_data', docId), {
+            [fieldKey]: deleteField()
+        });
+        addLog('BELGE_SIL', 'Belge kaydı silindi');
+    };
+
+    const addPenalty = async (penalty) => {
+        await addDoc(collection(db, 'penalties'), { ...penalty, companyId: activeCompanyId, truckId: activeTruckId, deleted: false });
+        addLog('CEZA_EKLE', `${penalty.type} | ₺${penalty.amount}`);
+    };
+
+    const deletePenalty = async (id) => {
+        const p = penalties.find(r => r.id === id);
+        if (p) {
+            await deleteDoc(doc(db, 'penalties', id));
+            addLog('CEZA_SİL', `${p.type} | ₺${p.amount}`);
+        }
+    };
+
+    const togglePenaltyPaid = async (id, currentStatus) => {
+        await updateDoc(doc(db, 'penalties', id), { paid: !currentStatus });
+        addLog('CEZA_DURUM', `Ceza durumu güncellendi (Ödendi: ${!currentStatus})`);
+    }
+
+    // Invoices CRUD
+    const addInvoice = async (invoice) => {
+        await addDoc(collection(db, 'invoices'), { ...invoice, companyId: activeCompanyId, truckId: activeTruckId, deleted: false, createdAt: new Date().toISOString() });
+        addLog('FATURA_OLUSTUR', `${invoice.startDate} - ${invoice.endDate} periyodu için Fatura oluşturuldu.`);
+    };
+
+    const updateInvoice = async (id, updatedFields) => {
+        await updateDoc(doc(db, 'invoices', id), updatedFields);
+        addLog('FATURA_GUNCELLE', `Fatura ID: ${id} güncellendi.`);
+    };
+
+    const deleteInvoice = async (id) => {
+        await deleteDoc(doc(db, 'invoices', id));
+        addLog('FATURA_SIL', `Fatura silindi`, { table: 'Invoices', id });
+    };
+
+    const clearLog = async () => {
+        try {
+            const querySnapshot = await getDocs(collection(db, 'admin_logs'));
+            const batch = writeBatch(db);
+            querySnapshot.docs.forEach((doc) => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+            addLog('LOG_TEMIZLE', 'Admin logları temizlendi');
+        } catch { /* empty */ }
+    };
+
+    const restoreData = async (table, id) => {
+        const collMap = { 'Trips': 'trips', 'Fuel': 'fuel', 'Maintenance': 'maintenance', 'Payments': 'payments' };
+        if (collMap[table]) {
+            await updateDoc(doc(db, collMap[table], id), { deleted: false });
+            addLog('GERI_YUKLE', `${table} tablosundan bir veri geri yüklendi`);
+        }
+    };
+
+    const updateTruckImage = async (truckId, imageUrl) => {
+        if (!truckId) return;
+        try {
+            await updateDoc(doc(db, 'trucks', truckId), { imageUrl });
+            addLog('ARAC_RESIM_GUNCELLE', 'Araç profil resmi güncellendi');
+        } catch { /* empty */ }
+    };
+
+    const refreshUsers = useCallback(() => { }, []);
+
+    // Unified drivers list: merge manual drivers + approved şöför users
+    const allDrivers = useMemo(() => {
+        const userDrivers = (approvedUsers || []).filter(u => u.role === 'şoför').map(u => ({ id: u.id, name: u.username, phone: '', isSystem: true }));
+        const manualNames = userDrivers.map(u => u.name.toLowerCase());
+        // eslint-disable-next-line react-hooks/purity
+        const manualDrivers = (drivers || []).filter(d => !manualNames.includes((d.name || '').toLowerCase())).map(d => ({ ...d, id: d.id || `manual_${Math.random().toString(36).substr(2, 9)}`, isSystem: false }));
+        return [...userDrivers, ...manualDrivers];
+    }, [approvedUsers, drivers]);
+
+    return (
+        <DataContext.Provider value={{
+            trips, addTrip, deleteTrip, editTrip,
+            fuelRecords, addFuel, deleteFuel, editFuel,
+            maintenanceRecords, addMaintenance, deleteMaintenance, updateMaintenance,
+            paymentRecords, addPayment, deletePayment, updatePayment,
+            vehicleInfo, updateVehicleInfo,
+            mechanics, addMechanic, deleteMechanic, updateMechanic,
+            maintenanceFolders, addMaintenanceFolder, updateMaintenanceFolder, deleteMaintenanceFolder,
+            routes, addRoute, deleteRoute, updateRoutePrice,
+            adminLog, addLog, clearLog, restoreData,
+            currentSession, loginSession, logoutSession,
+            pendingUsers, approvedUsers, registerUser, approveUser, rejectUser, editUser, refreshUsers, addApprovedUser,
+            drivers, allDrivers, updateDrivers,
+            docs, updateDocs, deleteDocField,
+            spareParts, addSparePart, updateSparePart, deleteSparePart,
+            sparePartCategories, addSparePartCategory,
+            penalties, addPenalty, deletePenalty, togglePenaltyPaid,
+            invoices, addInvoice, updateInvoice, deleteInvoice,
+            updateRoute,
+            draftInvoice, saveDraftInvoice, clearDraftInvoice,
+            onlineUsers,
+            updateTruckImage,
+            isDataLoading
+        }}>
+            {children}
+        </DataContext.Provider>
+    );
+};

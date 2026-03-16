@@ -1,0 +1,12 @@
+﻿
+> tir-muhasebe-v2@2.0.0 lint
+> eslint .
+
+
+C:\Users\kenan\Documents\Kenan - IA\TIR money\tir-muhasebe-v2\src\services\cloudinaryService.js
+   8:5  error    Unnecessary try/catch wrapper                                                        no-useless-catch
+  44:9  warning  Unused eslint-disable directive (no problems were reported from 'no-useless-catch')
+
+Γ£û 2 problems (1 error, 1 warning)
+  0 errors and 1 warning potentially fixable with the `--fix` option.
+

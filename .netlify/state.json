@@ -1,0 +1,22 @@
+{
+	"siteId": "3354de2e-12a1-4d98-a3c9-b43d199fb226",
+	"liveTunnelSlug": "9ff9b420",
+	"geolocation": {
+		"data": {
+			"city": "Ankara",
+			"country": {
+				"code": "TR",
+				"name": "Türkiye"
+			},
+			"subdivision": {
+				"code": "06",
+				"name": "Ankara"
+			},
+			"timezone": "Europe/Istanbul",
+			"latitude": 39.9383,
+			"longitude": 32.8521,
+			"postalCode": "06050"
+		},
+		"timestamp": 1772638838797
+	}
+}

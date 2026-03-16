@@ -1,0 +1,474 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #fff7ed;
+  --color-brand-100: #ffedd5;
+  --color-brand-200: #fed7aa;
+  --color-brand-300: #fdba74;
+  --color-brand-400: #fb923c;
+  --color-brand-500: #f97316;
+  --color-brand-600: #ea6f10;
+  --color-brand-700: #c2570d;
+  --color-brand-800: #9a3a08;
+  --color-brand-900: #7c2d12;
+}
+
+/* ═══════════════════════════════════════════════════════
+   CSS TOKEN SYSTEM — Tüm temalar bu değişkenleri kullanır
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+  /* === Tema 1: ANTRASİT (Avant-Garde Dark) === */
+  /* Deeper, more desaturated slate for high contrast */
+  --bg-base: #0B0E14;
+  --bg-sidebar: #0D1219;
+
+  /* Panels are semi-transparent and completely minimalist */
+  --bg-panel: rgba(18, 24, 33, 0.45);
+  --bg-panel-hover: rgba(22, 30, 41, 0.7);
+
+  /* Inputs blend seamlessly, relying on subtle borders */
+  --bg-input: rgba(14, 19, 27, 0.5);
+  --bg-hover: rgba(255, 255, 255, 0.03);
+
+  /* High contrast text hierarchy */
+  --text-primary: #F1F3F5;
+  --text-secondary: #868E96;
+  --text-muted: #495057;
+
+  /* Subtle neutral borders instead of blue */
+  --border-color: rgba(255, 255, 255, 0.04);
+  --border-active: rgba(0, 0, 0, 0.8);
+
+  /* Simple single-layer shadows, no stacking */
+  --shadow-panel: 0 4px 16px rgba(0, 0, 0, 0.25);
+  --shadow-panel-hover: 0 4px 16px rgba(0, 0, 0, 0.25);
+
+  /* Accent is now neutral/black as requested */
+  --accent: #000000;
+  --accent-glow: rgba(0, 0, 0, 0.2);
+
+  /* Scrollbars perfectly invisible until needed */
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.1);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
+}
+
+/* === Tema 2: KREM (Avant-Garde Light) === */
+.light {
+  /* Ultra sheer, warm off-white */
+  --bg-base: #F8F9FA;
+  --bg-sidebar: #F1F3F5;
+
+  /* Panels are almost paper-like */
+  --bg-panel: rgba(255, 255, 255, 0.95);
+  --bg-panel-hover: rgba(255, 255, 255, 1);
+
+  --bg-input: rgba(255, 255, 255, 0.7);
+  --bg-hover: rgba(0, 0, 0, 0.02);
+
+  /* Deep charcoal instead of pure black for readability */
+  --text-primary: #212529;
+  --text-secondary: #868E96;
+  --text-muted: #ADB5BD;
+
+  /* Just enough border to distinguish shapes */
+  --border-color: rgba(0, 0, 0, 0.04);
+  --border-active: rgba(33, 37, 41, 0.15);
+
+  /* Elevation through smooth spread, no harsh drops */
+  --shadow-panel: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-panel-hover: 0 2px 8px rgba(0, 0, 0, 0.04);
+
+  /* Refined, muted green for a sophisticated touch */
+  --accent: #2B8A3E;
+  --accent-glow: rgba(43, 138, 62, 0.08);
+
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.08);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.15);
+
+  /* Replace Tailwind Brand with Sophisticated Moss/Sage */
+  --color-brand-50: #f4f6f5;
+  --color-brand-100: #e4ebe6;
+  --color-brand-200: #c9d7cc;
+  --color-brand-300: #a2bba8;
+  --color-brand-400: #76987f;
+  --color-brand-500: #577b60;
+  --color-brand-600: #42614a;
+  --color-brand-700: #364e3d;
+  --color-brand-800: #2d4033;
+  --color-brand-900: #26352b;
+}
+
+/* ═══════════════════════════════════════════════════════
+   BASE STYLES
+   ═══════════════════════════════════════════════════════ */
+
+@layer base {
+  html {
+    overscroll-behavior: none;
+    background-color: var(--bg-base);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  html::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+    background: transparent;
+  }
+  body {
+    @apply antialiased min-h-screen relative font-sans;
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    background-image: none;
+    background-attachment: fixed;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    transition: background-color 0.4s ease-out, color 0.4s ease-out;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  body::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+    background: transparent;
+  }
+  
+  * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  *::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+    background: transparent;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   COMPONENT STYLES (Token-based)
+   ═══════════════════════════════════════════════════════ */
+
+@layer components {
+  .glass-panel {
+    @apply backdrop-blur-2xl border rounded-2xl transition-all duration-500 ease-out relative z-10;
+    background: var(--bg-panel);
+    border-color: var(--border-color);
+    box-shadow: var(--shadow-panel);
+  }
+
+  .glass-panel:hover {
+    border-color: var(--border-color);
+    box-shadow: var(--shadow-panel);
+  }
+
+  .glass-input {
+    @apply border rounded-xl px-4 py-3 focus:ring-1 outline-none transition-all duration-300 placeholder:text-slate-500;
+    background: var(--bg-input);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) inset;
+  }
+
+  .glass-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent-glow) inset, 0 4px 12px rgba(0, 0, 0, 0.05);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   LIGHT THEME OVERRIDES — text & background
+   ═══════════════════════════════════════════════════════ */
+
+/* Light theme selections */
+
+.light .text-white {
+  color: var(--text-primary) !important;
+}
+
+.light .text-slate-100,
+.light .text-slate-200 {
+  color: #343A40 !important;
+}
+
+.light .text-slate-300,
+.light .text-slate-400 {
+  color: #495057 !important;
+}
+
+.light .text-slate-500,
+.light .text-slate-600 {
+  color: #868E96 !important;
+}
+
+.light .text-slate-700 {
+  color: #ADB5BD !important;
+}
+
+.light h1.text-white,
+.light h2.text-white,
+.light h3.text-white,
+.light p.text-white,
+.light .font-bold.text-white {
+  color: var(--text-primary) !important;
+}
+
+.light .glass-input {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.01) inset !important;
+}
+
+.light .glass-input::placeholder {
+  color: #ADB5BD !important;
+}
+
+.light .bg-slate-900\/50,
+.light .bg-slate-900\/90 {
+  background: rgba(255, 255, 255, 0.7) !important;
+}
+
+.light .bg-white\/5,
+.light .bg-white\/10 {
+  background: rgba(0, 0, 0, 0.03) !important;
+}
+
+.light .hover\:bg-white\/5:hover,
+.light .hover\:bg-white\/10:hover {
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+.light .border-white\/5,
+.light .border-white\/10 {
+  border-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+.light .divide-white\/5>* {
+  border-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+/* A4 Responsive Scaling Variables */
+:root {
+  --a4-scale: 0.49;
+}
+
+@media (min-width: 400px) {
+  :root {
+    --a4-scale: 0.54;
+  }
+}
+
+@media (min-width: 640px) {
+  :root {
+    --a4-scale: 0.66;
+  }
+}
+
+@media (min-width: 768px) {
+  :root {
+    --a4-scale: 0.68;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --a4-scale: 0.80;
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --a4-scale: 0.90;
+  }
+}
+
+/* Light Theme Background Overrides */
+.light .bg-slate-950 {
+  background-color: #E9ECEF !important;
+}
+
+.light .bg-slate-900 {
+  background-color: #F1F3F5 !important;
+}
+
+.light .bg-slate-800 {
+  background-color: #DEE2E6 !important;
+}
+
+.light .bg-slate-700 {
+  background-color: #CED4DA !important;
+}
+
+.light .bg-black\/20 {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+
+.light .bg-black\/30 {
+  background-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+.light .bg-black\/80 {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Refined Brand Colors for Light Mode (Sage/Moss) */
+.light .text-brand-400 {
+  color: #577b60 !important;
+}
+
+.light .text-brand-300 {
+  color: #364e3d !important;
+}
+
+.light .bg-brand-500\/20 {
+  background: rgba(87, 123, 96, 0.15) !important;
+}
+
+.light .border-brand-500\/30 {
+  border-color: rgba(87, 123, 96, 0.2) !important;
+}
+
+/* Status Badges */
+.light .text-amber-400 {
+  color: #D9480F !important;
+}
+
+.light .bg-amber-500\/10 {
+  background: rgba(217, 72, 15, 0.08) !important;
+}
+
+.light .text-emerald-400 {
+  color: #087F5B !important;
+}
+
+.light .bg-emerald-500\/10 {
+  background: rgba(8, 127, 91, 0.08) !important;
+}
+
+.light .sticky.top-0.bg-slate-900\/90 {
+  background-color: rgba(248, 249, 250, 0.85) !important;
+  backdrop-filter: blur(16px) !important;
+}
+
+
+
+/* ═══════════════════════════════════════════════════════
+   TWILIGHT THEME OVERRIDES
+   ═══════════════════════════════════════════════════════ */
+
+.twilight .text-white {
+  color: var(--text-primary) !important;
+}
+
+.twilight .text-slate-100 {
+  color: var(--text-primary) !important;
+}
+
+.twilight .text-slate-200 {
+  color: #c0c5da !important;
+}
+
+.twilight .text-slate-300 {
+  color: #9ea5c0 !important;
+}
+
+.twilight .text-slate-400 {
+  color: #7b82a0 !important;
+}
+
+.twilight .text-slate-500 {
+  color: #616882 !important;
+}
+
+.twilight .glass-input {
+  background: var(--bg-input) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.twilight .bg-white\/5 {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.twilight .bg-white\/10 {
+  background: rgba(255, 255, 255, 0.07) !important;
+}
+
+.twilight .hover\:bg-white\/5:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.twilight .hover\:bg-white\/10:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.twilight .border-white\/5 {
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.twilight .border-white\/10 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.twilight .divide-white\/5>* {
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+.twilight .bg-slate-900\/50 {
+  background: rgba(30, 33, 50, 0.8) !important;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SCROLLBAR
+   ═══════════════════════════════════════════════════════ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* ═══════════════════════════════════════════════════════
+   UTILITIES
+   ═══════════════════════════════════════════════════════ */
+
+/* iOS Safe Area */
+.pb-ios-nav {
+  padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+}
+
+/* Number input okları gizle */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}

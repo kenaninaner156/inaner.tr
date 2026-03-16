@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>TIR Migration Aracı v3</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;padding:1.5rem;min-height:100vh}
+    h1{color:#38bdf8;font-size:1.4rem;margin-bottom:.25rem}
+    .sub{color:#64748b;font-size:.8rem;margin-bottom:1.5rem}
+    .box{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:1.25rem;margin-bottom:1rem}
+    .box h2{color:#94a3b8;font-size:.9rem;font-weight:600;margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.05em}
+    .alert{border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.85rem}
+    .alert-red{background:#431407;border:1px solid #7c2d12;color:#fca5a5}
+    .alert-blue{background:#1a1f2e;border:1px solid #3b5bdb;color:#a5b4fc}
+    .alert-green{background:#052e16;border:1px solid #166534;color:#86efac}
+    .alert b{color:#fbbf24}.alert-red b{color:#fca5a5}.alert-green b{color:#86efac}
+    table{width:100%;border-collapse:collapse;font-size:.8rem}
+    th{text-align:left;color:#64748b;font-weight:600;padding:.35rem .5rem;border-bottom:1px solid #334155}
+    td{padding:.35rem .5rem;border-bottom:1px solid #1e293b}
+    .badge{display:inline-block;padding:.15rem .5rem;border-radius:999px;font-size:.7rem;font-weight:700}
+    .badge-ok{background:#064e3b;color:#34d399}
+    .badge-warn{background:#451a03;color:#fbbf24}
+    .badge-gray{background:#1e293b;color:#64748b;border:1px solid #334155}
+    .btn{padding:.55rem 1.1rem;border:none;border-radius:7px;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s}
+    .btn:disabled{opacity:.4;cursor:not-allowed}
+    .btn-red{background:#ef4444;color:#fff}.btn-red:hover:not(:disabled){background:#dc2626}
+    .btn-blue{background:#3b82f6;color:#fff}.btn-blue:hover:not(:disabled){background:#2563eb}
+    .btn-green{background:#10b981;color:#fff}.btn-green:hover:not(:disabled){background:#059669}
+    .btn-orange{background:#f97316;color:#fff}.btn-orange:hover:not(:disabled){background:#ea580c}
+    .btn-gray{background:#334155;color:#94a3b8}.btn-gray:hover:not(:disabled){background:#475569;color:#fff}
+    .btns{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.75rem}
+    #log{background:#080f1a;border:1px solid #1e293b;border-radius:8px;padding:.75rem;height:350px;overflow-y:auto;font-family:Consolas,monospace;font-size:.78rem;line-height:1.7}
+    .li{color:#94a3b8}.ok{color:#34d399}.wa{color:#fbbf24}.er{color:#f87171}.ti{color:#38bdf8;font-weight:700}
+    .progress{background:#0f172a;border-radius:999px;height:6px;margin-top:.75rem;overflow:hidden}
+    .pbar{height:100%;background:linear-gradient(90deg,#3b82f6,#10b981);border-radius:999px;transition:width .4s;width:0%}
+    .step-row{display:flex;align-items:center;gap:.75rem;padding:.6rem;border-radius:8px;margin-bottom:.4rem;background:#0f172a}
+    .step-num{width:24px;height:24px;border-radius:50%;background:#334155;color:#94a3b8;font-size:.75rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .step-num.active{background:#3b82f6;color:#fff}
+    .step-num.done{background:#10b981;color:#fff}
+    .step-label{flex:1;font-size:.85rem;color:#cbd5e1}
+    hr{border:none;border-top:1px solid #334155;margin:1rem 0}
+    #docs-detail{margin-top:.75rem;font-size:.8rem;display:none}
+  </style>
+</head>
+<body>
+  <h1>🚛 TIR Migration Aracı v3</h1>
+  <p class="sub">V2 Firebase sıfırlama + V1→V2 format aktarımı | Firebase: tir-muhasebe</p>
+
+  <!-- ÖNEMLİ UYARI -->
+  <div class="alert alert-red">
+    ⚠️ <b>V1 ve V2 AYNI Firebase projesini kullanıyor!</b><br>
+    Firebase'i temizlemek V1'deki veriyi de siler. Bu yüzden önce yedek alıp, sonra sil, sonra yeniden yükle.
+  </div>
+
+  <div class="alert alert-blue">
+    ℹ️ <b>Tamir Notları</b> (<code>tir_repair_notes</code>) sadece tarayıcı LocalStorage'ında — Firebase'de değil, migration ile aktarılamaz.<br>
+    <b>Belge Tarihleri + Sürücüler</b> → <code>company_data/docs</code> ve <code>info</code>'da — Step 2'de kopyalanacak ✓
+  </div>
+
+  <!-- SCAN -->
+  <div class="box">
+    <h2>📊 1. Mevcut Durum Taraması</h2>
+    <table id="scan-table">
+      <thead><tr><th>Koleksiyon</th><th>Toplam</th><th>V2 Formatında</th><th>Aktarılacak</th><th>Durum</th></tr></thead>
+      <tbody id="scan-body"><tr><td colspan="5" style="color:#475569;text-align:center;padding:1rem">Tara butonuna bas...</td></tr></tbody>
+    </table>
+    <div id="docs-detail">
+      <div style="color:#64748b;font-weight:600;margin-bottom:.4rem">📄 company_data/docs içeriği (belge tarihleri):</div>
+      <div id="docs-detail-inner" style="font-family:Consolas;color:#94a3b8;line-height:1.8"></div>
+    </div>
+    <div class="btns">
+      <button class="btn btn-blue" id="btn-scan" onclick="runScan()">🔍 Tara</button>
+    </div>
+  </div>
+
+  <!-- NÜKLEER RESET -->
+  <div class="box">
+    <h2>💣 2. Nükleer Reset (Tüm Veriyi Yedekle + Sil)</h2>
+    <p style="font-size:.8rem;color:#64748b;margin-bottom:.75rem">
+      Firebase'deki TÜM veriyi JSON olarak indir, sonra sil. Ardından adım 3'te yeniden yükle.
+    </p>
+    <div class="btns">
+      <button class="btn btn-orange" id="btn-backup" onclick="runBackupAndDelete()" disabled>
+        💾 Yedekle + Firebase'i Sil
+      </button>
+    </div>
+    <div id="backup-status" style="margin-top:.5rem;font-size:.8rem;color:#64748b"></div>
+  </div>
+
+  <!-- IMPORT -->
+  <div class="box">
+    <h2>📥 3. Yedeği Yükle + V2 Formatına Aktar</h2>
+    <p style="font-size:.8rem;color:#64748b;margin-bottom:.75rem">
+      Silme sonrası indirilen backup.json dosyasını seç. Veriler <code>companyId</code> + <code>truckId</code> eklenerek geri yüklenir.
+    </p>
+    <div class="btns">
+      <input type="file" id="backup-file" accept=".json" style="display:none" onchange="loadBackupFile(event)">
+      <button class="btn btn-blue" onclick="document.getElementById('backup-file').click()">📂 Backup Dosyası Seç</button>
+      <button class="btn btn-green" id="btn-import" onclick="runImport()" disabled>🚀 V2 Formatında Yükle</button>
+    </div>
+    <div id="import-status" style="margin-top:.5rem;font-size:.8rem;color:#64748b"></div>
+  </div>
+
+  <!-- STEP 2: BASE STRUCTURE (after import) -->
+  <div class="box">
+    <h2>🏗️ 4. Temel Yapı + Belge Aktarımı</h2>
+    <p style="font-size:.8rem;color:#64748b;margin-bottom:.75rem">
+      Şirket, araç, kullanıcı kaydı oluştur. Belge tarihleri ve rotaları V2 formatına kopyala.
+    </p>
+    <div class="btns">
+      <button class="btn btn-green" id="btn-structure" onclick="runStructure()" disabled>🏗️ Yapıyı Kur</button>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="box">
+    <h2>📋 Log</h2>
+    <div id="log"></div>
+    <div class="btns">
+      <button class="btn btn-gray" onclick="document.getElementById('log').innerHTML=''">Temizle</button>
+    </div>
+  </div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
+import {
+  getFirestore, collection, getDocs, addDoc, setDoc, updateDoc,
+  deleteDoc, doc, writeBatch, getDoc
+} from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
+
+const FB = {
+  apiKey:"AIzaSyAtrVO1BPABlw-ygqpCeM_Jma1TJ-s2auo",
+  authDomain:"tir-muhasebe.firebaseapp.com",
+  projectId:"tir-muhasebe",
+  storageBucket:"tir-muhasebe.firebasestorage.app",
+  messagingSenderId:"105622311370",
+  appId:"1:105622311370:web:d95e154e6a3a06d9817f33"
+};
+const app = initializeApp(FB);
+const db = getFirestore(app);
+
+const CID = 'inaner_logistics';
+const TID = 'truck_06ftn692';
+
+let backupData = null;
+
+// ─── Logging ────────────────────────────────────────────────────────────────
+function log(msg, t='li') {
+  const el = document.getElementById('log');
+  const time = new Date().toLocaleTimeString('tr-TR');
+  el.innerHTML += `<div class="${t}">[${time}] ${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+function setP(v) { document.querySelector('.pbar')?.style && (document.querySelector('.pbar').style.width = v+'%'); }
+function setStatus(id, msg, color='#64748b') {
+  const el = document.getElementById(id);
+  if(el) { el.textContent = msg; el.style.color = color; }
+}
+
+// ─── Batch helpers ───────────────────────────────────────────────────────────
+async function batchDelete(docs) {
+  const CHUNK = 100;
+  for (let i = 0; i < docs.length; i += CHUNK) {
+    const b = writeBatch(db);
+    docs.slice(i, i+CHUNK).forEach(d => b.delete(d.ref));
+    await b.commit();
+    await new Promise(r => setTimeout(r, 60));
+  }
+}
+async function batchAdd(colName, records) {
+  const CHUNK = 50;
+  let count = 0;
+  for (let i = 0; i < records.length; i += CHUNK) {
+    const b = writeBatch(db);
+    records.slice(i, i+CHUNK).forEach(r => {
+      const ref = doc(collection(db, colName));
+      b.set(ref, r);
+    });
+    await b.commit();
+    count += Math.min(CHUNK, records.length - i);
+    await new Promise(r => setTimeout(r, 60));
+  }
+  return count;
+}
+
+// ─── ALL COLLECTIONS ─────────────────────────────────────────────────────────
+const DATA_COLS = ['trips','fuel','maintenance','payments','penalties','invoices','maintenance_folders','spare_parts','mechanics'];
+const AUX_COLS  = ['admin_logs','approved_users','pending_users'];
+const SCAN_COLS = [
+  ...DATA_COLS.map(id => ({ id, label: {trips:'Seferler',fuel:'Mazot',maintenance:'Bakım',payments:'Ödemeler',penalties:'Cezalar',invoices:'Faturalar',maintenance_folders:'Bakım Klasörleri',spare_parts:'Stok',mechanics:'Tamirciler'}[id] })),
+  { id:'admin_logs', label:'Admin Logları' },
+  { id:'approved_users', label:'Onaylı Kullanıcılar' },
+  { id:'pending_users', label:'Bekleyen Kullanıcılar' },
+  { id:'companies', label:'Şirketler' },
+  { id:'trucks', label:'Araçlar' },
+];
+
+const DOC_KEYS = [
+  { key:'bandrol', label:'Bandrol (MTV)' }, { key:'inspection', label:'Çekici Muayenesi' },
+  { key:'trailerInspection', label:'Dorse Muayenesi' }, { key:'insurance', label:'Sigorta' },
+  { key:'k1', label:'K1 Yetki' }, { key:'l1', label:'L1 Yetki' },
+  { key:'srcBelgesi', label:'SRC Belgesi' }, { key:'odp', label:'ÖDP / ÖTV' },
+];
+
+// ─── SCAN ────────────────────────────────────────────────────────────────────
+window.runScan = async function() {
+  const btn = document.getElementById('btn-scan');
+  btn.disabled = true; btn.textContent = '⏳ Tarıyor...';
+  const tbody = document.getElementById('scan-body');
+  tbody.innerHTML = '';
+  log('Tarama başlıyor...', 'ti');
+
+  try {
+    for (const c of SCAN_COLS) {
+      const snap = await getDocs(collection(db, c.id));
+      const total = snap.size;
+      const migrated = snap.docs.filter(d => d.data().companyId).length;
+      const pending = total - migrated;
+      const status = total === 0 ? '<span class="badge badge-gray">Boş</span>'
+        : migrated === total ? '<span class="badge badge-ok">Hazır ✓</span>'
+        : `<span class="badge badge-warn">Aktarılacak: ${pending}</span>`;
+      tbody.innerHTML += `<tr><td>${c.label}</td><td>${total}</td><td>${migrated}</td><td>${pending}</td><td>${status}</td></tr>`;
+    }
+
+    const cdSnap = await getDocs(collection(db, 'company_data'));
+    tbody.innerHTML += `<tr><td colspan="5" style="color:#475569;font-size:.75rem;padding:.5rem"><b>company_data:</b> ${cdSnap.docs.map(d=>`<code>${d.id}</code>`).join(', ')}</td></tr>`;
+
+    // docs detail
+    const docsDoc = cdSnap.docs.find(d => d.id === 'docs');
+    if (docsDoc) {
+      const data = docsDoc.data();
+      document.getElementById('docs-detail').style.display = 'block';
+      let html = '';
+      for (const dk of DOC_KEYS) {
+        const val = data[dk.key];
+        if (val && val.date) {
+          const days = Math.ceil((new Date(val.date) - new Date()) / 86400000);
+          const color = days < 0 ? '#f87171' : days < 30 ? '#fbbf24' : '#34d399';
+          html += `<div>${dk.label}: <b style="color:${color}">${val.date}</b>`;
+          if (val.notes) html += ` <span style="color:#64748b">— ${val.notes}</span>`;
+          if (val.files?.length) html += ` <span style="color:#818cf8">📎${val.files.length}</span>`;
+          html += `</div>`;
+          log(`  ${dk.label}: ${val.date} (${days>=0?days+' gün kaldı':Math.abs(days)+' gün geçti!'})`, days<0?'er':days<30?'wa':'ok');
+        } else {
+          html += `<div style="color:#475569">${dk.label}: tarih girilmemiş</div>`;
+        }
+      }
+      document.getElementById('docs-detail-inner').innerHTML = html;
+    }
+
+    log('Tarama tamamlandı ✓', 'ok');
+    document.getElementById('btn-backup').disabled = false;
+  } catch(e) {
+    log('HATA: ' + e.message, 'er'); console.error(e);
+  }
+  btn.disabled = false; btn.textContent = '🔍 Tara';
+};
+
+// ─── BACKUP + DELETE ──────────────────────────────────────────────────────────
+window.runBackupAndDelete = async function() {
+  if (!confirm('⛔ DİKKAT!\n\nFirebase\'deki TÜM veriler silinecek (trips, fuel, payments, penalties, invoices, bakım, tamirciler, kullanıcılar, loglar, company_data, companies, trucks).\n\nÖnce JSON yedeği indirilecek. Devam etmek istiyor musun?')) return;
+
+  const btn = document.getElementById('btn-backup');
+  btn.disabled = true; btn.textContent = '⏳ Yedekleniyor...';
+  setStatus('backup-status', 'Veriler okunuyor...');
+  log('', 'li'); log('=== YEDEKLEME BAŞLIYOR ===', 'ti');
+
+  try {
+    const backup = {};
+
+    // Ana koleksiyonlar
+    const allCols = [...DATA_COLS, ...AUX_COLS, 'companies', 'trucks'];
+    for (const col of allCols) {
+      const snap = await getDocs(collection(db, col));
+      backup[col] = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+      log(`${col}: ${snap.size} kayıt okundu`, 'li');
+    }
+
+    // company_data
+    const cdSnap = await getDocs(collection(db, 'company_data'));
+    backup['company_data'] = {};
+    cdSnap.docs.forEach(d => { backup['company_data'][d.id] = d.data(); });
+    log(`company_data: ${cdSnap.size} döküman okundu`, 'li');
+
+    // Download JSON
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `tir_backup_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    log('✓ Backup JSON indirildi!', 'ok');
+    setStatus('backup-status', '✓ Backup indirildi. Silme başlıyor...', '#fbbf24');
+    await new Promise(r => setTimeout(r, 800));
+
+    // DELETE ALL
+    log('', 'li'); log('=== SİLME BAŞLIYOR ===', 'ti');
+    for (const col of allCols) {
+      const snap = await getDocs(collection(db, col));
+      if (snap.size > 0) {
+        await batchDelete(snap.docs);
+        log(`${col}: ${snap.size} kayıt silindi`, 'wa');
+      }
+    }
+
+    // Delete company_data
+    const cdSnap2 = await getDocs(collection(db, 'company_data'));
+    if (cdSnap2.size > 0) {
+      await batchDelete(cdSnap2.docs);
+      log(`company_data: ${cdSnap2.size} döküman silindi`, 'wa');
+    }
+
+    log('', 'li'); log('🗑️ Firebase tamamen temizlendi!', 'ok');
+    setStatus('backup-status', '✓ Firebase temizlendi! Şimdi "Backup Dosyası Seç" ile yükle.', '#34d399');
+    backupData = backup;
+    document.getElementById('btn-import').disabled = false;
+    document.getElementById('btn-structure').disabled = false;
+
+  } catch(e) {
+    log('HATA: ' + e.message, 'er'); console.error(e);
+    btn.disabled = false; btn.textContent = '💾 Yedekle + Firebase\'i Sil';
+    setStatus('backup-status', 'Hata oluştu: ' + e.message, '#f87171');
+  }
+};
+
+// ─── LOAD BACKUP FILE ─────────────────────────────────────────────────────────
+window.loadBackupFile = function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      backupData = JSON.parse(e.target.result);
+      setStatus('import-status', `✓ ${file.name} yüklendi. "V2 Formatında Yükle" butonuna bas.`, '#34d399');
+      document.getElementById('btn-import').disabled = false;
+      document.getElementById('btn-structure').disabled = false;
+      log(`Backup dosyası yüklendi: ${file.name}`, 'ok');
+    } catch(err) {
+      setStatus('import-status', 'JSON parse hatası: ' + err.message, '#f87171');
+    }
+  };
+  reader.readAsText(file);
+};
+
+// ─── IMPORT WITH V2 FORMAT ───────────────────────────────────────────────────
+// truckId gereken koleksiyonlar
+const TRUCK_COLS = new Set(['trips','fuel','maintenance','payments','penalties','invoices','maintenance_folders']);
+
+window.runImport = async function() {
+  if (!backupData) { log('Önce backup dosyası seç!', 'er'); return; }
+  const btn = document.getElementById('btn-import');
+  btn.disabled = true; btn.textContent = '⏳ Yükleniyor...';
+  log('', 'li'); log('=== V2 FORMATINDA YÜKLEME BAŞLIYOR ===', 'ti');
+  setStatus('import-status', 'Yükleniyor...');
+
+  try {
+    const importCols = [...DATA_COLS, ...AUX_COLS];
+    for (const col of importCols) {
+      const records = backupData[col] || [];
+      if (records.length === 0) { log(`${col}: boş, atlandı`, 'li'); continue; }
+
+      // companyId ekle
+      const mapped = records.map(r => {
+        const { _id, ...data } = r;
+        const newData = { ...data, companyId: CID };
+        if (TRUCK_COLS.has(col)) newData.truckId = TID;
+        return newData;
+      });
+
+      const done = await batchAdd(col, mapped);
+      log(`${col}: ${done} kayıt yüklendi ✓`, 'ok');
+    }
+
+    setStatus('import-status', '✓ Veriler yüklendi! Şimdi "Yapıyı Kur" butonuna bas.', '#34d399');
+    log('', 'li'); log('✓ Tüm veriler V2 formatında yüklendi!', 'ok');
+    log('Son adım: "Yapıyı Kur" butonuna bas (şirket, araç, kullanıcı, belge tarihleri)', 'ok');
+  } catch(e) {
+    log('HATA: ' + e.message, 'er'); console.error(e);
+    setStatus('import-status', 'Hata: ' + e.message, '#f87171');
+    btn.disabled = false; btn.textContent = '🚀 V2 Formatında Yükle';
+  }
+};
+
+// ─── STRUCTURE (companies, trucks, users, company_data) ──────────────────────
+window.runStructure = async function() {
+  if (!backupData) { log('Önce backup dosyasını yükle!', 'er'); return; }
+  const btn = document.getElementById('btn-structure');
+  btn.disabled = true; btn.textContent = '⏳ Kuruluyor...';
+  log('', 'li'); log('=== TEMEL YAPI KURMA ===', 'ti');
+
+  try {
+    // 1. Şirket
+    await setDoc(doc(db,'companies',CID), { id:CID, name:'İnaner Lojistik', status:'active', plan:'professional', createdAt:new Date().toISOString() });
+    log('companies/inaner_logistics ✓', 'ok');
+
+    // 2. Araç
+    await setDoc(doc(db,'trucks',TID), { id:TID, plate:'06 FTN 692', companyId:CID, brand:'İveco Stralis 460', trailerPlate:'06 FGN 692', createdAt:new Date().toISOString() });
+    log('trucks/truck_06ftn692 ✓', 'ok');
+
+    // 3. Kenan kullanıcısı — backup'tan bul veya oluştur
+    const usersFromBackup = (backupData['approved_users'] || []).find(u => u.username === 'kenan');
+    if (usersFromBackup) {
+      // Yeni kenanı approved_users'da güncelle (zaten import edildi, companyId eklendi)
+      const allUsers = await getDocs(collection(db, 'approved_users'));
+      const kenanDoc = allUsers.docs.find(d => d.data().username === 'kenan');
+      if (kenanDoc) {
+        await updateDoc(kenanDoc.ref, { role:'super_admin', companyId:CID });
+        log('kenan → super_admin ✓', 'ok');
+      }
+    } else {
+      await addDoc(collection(db,'approved_users'), { username:'kenan', password:'Kenan123!', role:'super_admin', companyId:CID, status:'approved', approvedAt:new Date().toISOString() });
+      log('kenan kullanıcısı oluşturuldu ✓', 'ok');
+    }
+
+    // 4. company_data/info — backup'tan al
+    const cdBackup = backupData['company_data'] || {};
+    if (cdBackup['info']) {
+      await setDoc(doc(db,'company_data','info'), cdBackup['info']);
+      await setDoc(doc(db,'company_data','inaner_logistics_info'), cdBackup['info']);
+      log('company_data/info + inaner_logistics_info ✓', 'ok');
+      if (cdBackup['info'].routes?.length > 0) {
+        await setDoc(doc(db,'company_data',`${CID}_${TID}_routes`), { routes: cdBackup['info'].routes });
+        log(`Rotalar (${cdBackup['info'].routes.length} adet) ✓`, 'ok');
+      }
+    } else {
+      await setDoc(doc(db,'company_data','info'), { vehicleInfo:{plate:'06 FTN 692',model:'İveco Stralis 460',trailerPlate:'06 FGN 692'}, drivers:[], sparePartCategories:['Yağ','Filtre','Kayış','Balata','Aydınlatma','Lastik','Genel'], routes:[], draftInvoice:null });
+      await setDoc(doc(db,'company_data','inaner_logistics_info'), { vehicleInfo:{plate:'06 FTN 692',model:'İveco Stralis 460'}, drivers:[], sparePartCategories:['Yağ','Filtre','Kayış','Balata','Aydınlatma','Lastik','Genel'], routes:[], draftInvoice:null });
+      log('company_data/info (boş) oluşturuldu ✓', 'ok');
+    }
+
+    // 5. company_data/docs → truck-specific
+    const docsKey = `${CID}_${TID}_docs`;
+    if (cdBackup['docs']) {
+      await setDoc(doc(db,'company_data','docs'), cdBackup['docs']);
+      await setDoc(doc(db,'company_data',docsKey), cdBackup['docs']);
+      log(`company_data/docs + ${docsKey} ✓`, 'ok');
+    } else {
+      await setDoc(doc(db,'company_data',docsKey), {});
+      log(`${docsKey} (boş) ✓`, 'ok');
+    }
+
+    log('', 'li');
+    log('🎉 MİGRATION TAMAMLANDI!', 'ok');
+    log('V2 uygulamayı aç: http://localhost:5173', 'ok');
+    log('06 FTN 692 aracı seçili, tüm veriler hazır ✅', 'ok');
+    btn.textContent = '✓ Tamamlandı';
+  } catch(e) {
+    log('HATA: ' + e.message, 'er'); console.error(e);
+    btn.disabled = false; btn.textContent = '🏗️ Yapıyı Kur';
+  }
+};
+</script>
+</body>
+</html>

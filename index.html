@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/tir-clear.png?v=20260305205110" />
+  <link rel="apple-touch-icon" href="/tir-clear.png?v=20260305205110" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0B0E14" id="theme-color-meta" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="Kamyon ve TIR taşımacılığı gelir gider hesaplama uygulaması" />
+  <meta name="apple-mobile-web-app-title" content="İnaner.tr" />
+  <title>İnaner.tr</title>
+  <script>
+    (function () {
+      const pic = localStorage.getItem('tir_profile_pic');
+      if (pic) {
+        // If it's an old default icon path, clear it to force the new one
+        if (pic.startsWith('/tir-icon') || pic.startsWith('/unnamed') || pic.startsWith('/tir-clear')) {
+          localStorage.removeItem('tir_profile_pic');
+        } else {
+          const link = document.querySelector("link[rel~='icon']");
+          if (link) link.href = pic;
+          const appleLink = document.querySelector("link[rel='apple-touch-icon']");
+          if (appleLink) appleLink.href = pic;
+        }
+      }
+      // Migrate old theme values
+      const t = localStorage.getItem('tir_theme');
+      if (t === 'ocean' || t === 'twilight') { localStorage.setItem('tir_theme', 'dark'); }
+      if (!t || (t !== 'dark' && t !== 'light')) { localStorage.removeItem('tir_theme'); }
+    })();
+  </script>
+</head>
+
+<body style="background-color:var(--bg-base); margin:0; padding:0;">
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
+</html>
