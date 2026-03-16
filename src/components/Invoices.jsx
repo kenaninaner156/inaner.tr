@@ -132,7 +132,11 @@ const Invoices = () => {
         }
 
         const totalTonnage = activeInvoice.trips.reduce((acc, t) => acc + (Number(t.tonnage) || 0), 0);
-        const subTotal = totalTonnage * unitPrice;
+        // Her seferin kendi birim fiyatını kullan, yoksa global unitPrice'a düş
+        const subTotal = activeInvoice.trips.reduce((acc, t) => {
+            const price = Number(t.unitPrice) > 0 ? Number(t.unitPrice) : unitPrice;
+            return acc + (Number(t.tonnage) || 0) * price;
+        }, 0);
         const taxAmount = subTotal * (taxRate / 100);
         const grandTotal = subTotal + taxAmount;
 

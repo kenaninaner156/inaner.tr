@@ -19,7 +19,11 @@ const A4InvoicePreview = React.forwardRef(({
     const { startDate, endDate, trips = [] } = invoiceData || {};
 
     const totalTonnage = trips.reduce((acc, trip) => acc + (Number(trip.tonnage) || 0), 0);
-    const subTotal = totalTonnage * unitPrice;
+    // Her seferin kendi birim fiyatını kullan, yoksa global unitPrice'a düş
+    const subTotal = trips.reduce((acc, trip) => {
+        const price = Number(trip.unitPrice) > 0 ? Number(trip.unitPrice) : unitPrice;
+        return acc + (Number(trip.tonnage) || 0) * price;
+    }, 0);
 
     // Yakıtları tarihe göre grupla
     const fuelByDate = {};
@@ -236,7 +240,8 @@ const A4InvoicePreview = React.forwardRef(({
                                     fuelStrLiters = fuelByDate[row.dateStr].liters.toString();
                                     fuelStrAmount = fuelByDate[row.dateStr].amount.toLocaleString('tr-TR');
                                 }
-                                const rowTotal = (Number(trip.tonnage) || 0) * unitPrice;
+                                const tripUnitPrice = Number(trip.unitPrice) > 0 ? Number(trip.unitPrice) : unitPrice;
+                                const rowTotal = (Number(trip.tonnage) || 0) * tripUnitPrice;
                                 return (
                                     <tr key={trip.id || idx} className="border-b border-slate-100/50 hover:bg-slate-50 transition-colors">
                                         <td className="py-1.5 px-1 text-slate-700 whitespace-nowrap">{localDate}</td>
@@ -244,7 +249,7 @@ const A4InvoicePreview = React.forwardRef(({
                                         <td className="py-1.5 px-1 text-slate-800 truncate max-w-[75px]">{trip.to}</td>
                                         <td className="py-1.5 px-1 text-right text-slate-800 font-bold">{Number(trip.tonnage).toFixed(2)}</td>
                                         <td className="py-1.5 px-1 text-center text-slate-600 font-mono tracking-tighter whitespace-nowrap">{vehicleInfo?.plate?.replace(/\s/g, '') || '06FTN692'}</td>
-                                        <td className="py-1.5 px-1 text-right text-slate-700">{unitPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
+                                        <td className="py-1.5 px-1 text-right text-slate-700">{tripUnitPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
                                         <td className="py-1.5 px-1 text-right text-slate-800 font-bold">{rowTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
                                         <td className="py-1.5 px-1 text-right text-slate-600">{fuelStrLiters}</td>
                                         <td className="py-1.5 px-1 text-right text-slate-600 font-medium">{fuelStrAmount}</td>
