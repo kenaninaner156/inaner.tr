@@ -19,9 +19,9 @@ const A4InvoicePreview = React.forwardRef(({
     const { startDate, endDate, trips = [] } = invoiceData || {};
 
     const totalTonnage = trips.reduce((acc, trip) => acc + (Number(trip.tonnage) || 0), 0);
-    // Her seferin kendi birim fiyatını kullan, yoksa global unitPrice'a düş
+    // Her seferin kendi birim fiyatını kullan (trip.price), yoksa global unitPrice'a düş
     const subTotal = trips.reduce((acc, trip) => {
-        const price = Number(trip.unitPrice) > 0 ? Number(trip.unitPrice) : unitPrice;
+        const price = Number(trip.price) > 0 ? Number(trip.price) : unitPrice;
         return acc + (Number(trip.tonnage) || 0) * price;
     }, 0);
 
@@ -240,7 +240,7 @@ const A4InvoicePreview = React.forwardRef(({
                                     fuelStrLiters = fuelByDate[row.dateStr].liters.toString();
                                     fuelStrAmount = fuelByDate[row.dateStr].amount.toLocaleString('tr-TR');
                                 }
-                                const tripUnitPrice = Number(trip.unitPrice) > 0 ? Number(trip.unitPrice) : unitPrice;
+                                const tripUnitPrice = Number(trip.price) > 0 ? Number(trip.price) : unitPrice;
                                 const rowTotal = (Number(trip.tonnage) || 0) * tripUnitPrice;
                                 return (
                                     <tr key={trip.id || idx} className="border-b border-slate-100/50 hover:bg-slate-50 transition-colors">

@@ -143,7 +143,7 @@ const Invoices = () => {
         const newInvoiceData = {
             startDate: activeInvoice.startDate,
             endDate: activeInvoice.endDate,
-            trips: (activeInvoice.trips || []).map(t => ({ id: t.id, date: t.date, from: t.from, to: t.to, tonnage: t.tonnage })),
+            trips: (activeInvoice.trips || []).map(t => ({ id: t.id, date: t.date, from: t.from, to: t.to, tonnage: t.tonnage, price: t.price })),
             totalTonnage,
             subTotal,
             taxRate,
