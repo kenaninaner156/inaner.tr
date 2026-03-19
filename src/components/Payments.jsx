@@ -16,6 +16,21 @@ const Payments = () => {
 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [editingPaymentId, setEditingPaymentId] = useState(null);
+    const [viewingFilesRecord, setViewingFilesRecord] = useState(null);
+
+    // Helpers for viewing files directly
+    const openFile = (f) => {
+        if ((f.type === 'application/pdf' || f.name?.toLowerCase().endsWith('.pdf')) && f.data?.startsWith('data:')) {
+            const byteStr = atob(f.data.split(',')[1]);
+            const arr = new Uint8Array(byteStr.length);
+            for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
+            const blob = new Blob([arr], { type: 'application/pdf' });
+            window.open(URL.createObjectURL(blob));
+        } else {
+            window.open(f.data, '_blank');
+        }
+    };
+    const isImage = (type) => type && type.startsWith('image/');
 
     // Form States
     const [formData, setFormData] = useState({
@@ -219,15 +234,11 @@ const Payments = () => {
                                                     <button 
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            setEditingPaymentId(record.id);
-                                                            setFormData({
-                                                                type: record.type || 'Tahsilat',
-                                                                date: record.date || new Date().toISOString().split('T')[0],
-                                                                description: record.description || '',
-                                                                amount: record.amount || '',
-                                                                files: record.files || []
-                                                            });
-                                                            setIsAddModalOpen(true);
+                                                            if (record.files.length === 1) {
+                                                                openFile(record.files[0]);
+                                                            } else {
+                                                                setViewingFilesRecord(record);
+                                                            }
                                                         }}
                                                         className="text-brand-400 hover:text-brand-300 transition-colors flex items-center bg-brand-500/10 px-1.5 py-0.5 rounded text-xs cursor-pointer"
                                                         title="Belgeyi Gör"
@@ -366,6 +377,33 @@ const Payments = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Dosya Görüntüleme Modalı (Çoklu dosya varsa) */}
+            {viewingFilesRecord && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setViewingFilesRecord(null)}>
+                    <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-[var(--text-primary)] text-lg">Ekli Belgeler</h3>
+                            <button onClick={() => setViewingFilesRecord(null)} className="text-slate-500 hover:text-[var(--text-primary)] transition-colors p-1">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+                            {viewingFilesRecord.files.map(f => (
+                                <div key={f.id} onClick={() => openFile(f)} className="flex items-center gap-3 p-3 bg-white/5 border border-[var(--border-color)] rounded-xl cursor-pointer hover:bg-white/10 hover:border-brand-500/30 transition-all group">
+                                    <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center shrink-0">
+                                        <ArrowUpRight size={18} className="text-brand-400 group-hover:scale-110 transition-transform" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-[var(--text-primary)] truncate">{f.name || 'İsimsiz Belge'}</p>
+                                        <p className="text-xs text-slate-500">{f.size ? (f.size / 1024 / 1024).toFixed(2) + ' MB' : 'Görsel/PDF'}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             )}
