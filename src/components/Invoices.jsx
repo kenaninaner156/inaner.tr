@@ -348,13 +348,9 @@ const Invoices = () => {
                                 <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
                                     <span>{inv.trips?.length || 0} Sefer | {inv.totalTonnage?.toFixed(2)} Ton</span>
                                     {(inv.note || inv.files?.length > 0) && (
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); setNoteModalInvoice(inv); setModalNote(inv.note || ''); setModalFiles(inv.files || []); }}
-                                            className="text-brand-400 hover:text-brand-300 transition-colors flex items-center bg-brand-500/10 px-1.5 py-0.5 rounded cursor-pointer"
-                                            title="Tıkla ve Gör"
-                                        >
+                                        <span className="text-brand-400 font-medium">
                                             📎 {inv.files?.length || 0}{inv.note ? ' · not' : ''}
-                                        </button>
+                                        </span>
                                     )}
                                 </div>
                             </div>

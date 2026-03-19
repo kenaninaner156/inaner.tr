@@ -1,7 +1,7 @@
 {
   "headers": [
     {
-      "source": "/(service-worker\\.js|sw\\.js|workbox-.*\\.js)",
+      "source": "/(service-worker\\.js|sw\\.js|registerSW\\.js|workbox-.*\\.js|manifest\\.json|manifest\\.webmanifest)",
       "headers": [
         {
           "key": "Cache-Control",
