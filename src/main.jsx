@@ -3,17 +3,19 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import { CompanyProvider } from './context/CompanyContext.jsx'
-import { TruckProvider } from './context/TruckContext.jsx'
-import { DataProvider } from './context/DataContext.jsx'
-
-// Service Worker güncellendiğinde sayfayı otomatik yenile
+// Kalıcı Cache Temizleyici: Tüm Service Worker'ları ve Cache Depolarını Yok Et
 if ('serviceWorker' in navigator) {
-  let refreshing = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!refreshing) {
-      refreshing = true;
-      window.location.reload();
+  navigator.serviceWorker.getRegistrations().then(function (registrations) {
+    for (let registration of registrations) {
+      registration.unregister();
     }
+  });
+}
+if ('caches' in window) {
+  caches.keys().then((names) => {
+    names.forEach(name => {
+      caches.delete(name);
+    });
   });
 }
 
