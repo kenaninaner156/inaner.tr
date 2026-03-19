@@ -327,26 +327,35 @@ const Invoices = () => {
                                 <div className="flex justify-between items-center mb-1">
                                     <span className="font-bold text-brand-400 text-sm">{inv.docId}</span>
                                     <div className="flex items-center gap-1.5">
-                                        <span className="text-xs text-[var(--text-secondary)]">{new Date(inv.endDate).toLocaleDateString('tr-TR')}</span>
+                                    <span className="text-xs text-[var(--text-secondary)]">{new Date(inv.endDate).toLocaleDateString('tr-TR')}</span>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); setNoteModalInvoice(inv); setModalNote(inv.note || ''); setModalFiles(inv.files || []); }}
-                                            className={`p-1 rounded transition-colors ${inv.note || inv.files?.length > 0 ? 'text-brand-400' : 'text-slate-600 hover:text-brand-400 md:opacity-0 group-hover:opacity-100'}`}
-                                            title="Not & Belge Ekle"
+                                            className={`p-1 rounded transition-colors ${inv.note || inv.files?.length > 0 ? 'text-brand-400' : 'text-slate-600 hover:text-brand-400'}`}
+                                            title="Not & Belge Ekle/Gör"
                                         >
-                                            <StickyNote size={13} />
+                                            <StickyNote size={15} />
                                         </button>
                                         <button
                                             onClick={(e) => handleDeleteInvoice(inv.id, inv.docId, e)}
-                                            className="text-slate-500 hover:text-red-400 p-1 md:opacity-0 group-hover:opacity-100 transition-opacity"
+                                            className="text-slate-500 hover:text-red-400 p-1 transition-colors"
                                             title="Faturayı Sil"
                                         >
-                                            <Trash2 size={14} />
+                                            <Trash2 size={15} />
                                         </button>
                                     </div>
                                 </div>
                                 <div className="text-sm text-[var(--text-primary)] font-medium">₺{inv.grandTotal?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
-                                <div className="text-xs text-slate-500 mt-1">{inv.trips?.length || 0} Sefer | {inv.totalTonnage?.toFixed(2)} Ton
-                                    {(inv.note || inv.files?.length > 0) && <span className="ml-2 text-brand-400">📎 {inv.files?.length || 0}{inv.note ? ' · not' : ''}</span>}
+                                <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                                    <span>{inv.trips?.length || 0} Sefer | {inv.totalTonnage?.toFixed(2)} Ton</span>
+                                    {(inv.note || inv.files?.length > 0) && (
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setNoteModalInvoice(inv); setModalNote(inv.note || ''); setModalFiles(inv.files || []); }}
+                                            className="text-brand-400 hover:text-brand-300 transition-colors flex items-center bg-brand-500/10 px-1.5 py-0.5 rounded cursor-pointer"
+                                            title="Tıkla ve Gör"
+                                        >
+                                            📎 {inv.files?.length || 0}{inv.note ? ' · not' : ''}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         )) : (

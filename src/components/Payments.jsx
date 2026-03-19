@@ -212,12 +212,36 @@ const Payments = () => {
                                                 {record.type}
                                             </span>
                                         </td>
-                                        <td className="p-4 text-[var(--text-primary)] font-medium">{record.description}</td>
+                                        <td className="p-4 text-[var(--text-primary)] font-medium">
+                                            <div className="flex items-center gap-2">
+                                                <span>{record.description}</span>
+                                                {record.files?.length > 0 && (
+                                                    <button 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditingPaymentId(record.id);
+                                                            setFormData({
+                                                                type: record.type || 'Tahsilat',
+                                                                date: record.date || new Date().toISOString().split('T')[0],
+                                                                description: record.description || '',
+                                                                amount: record.amount || '',
+                                                                files: record.files || []
+                                                            });
+                                                            setIsAddModalOpen(true);
+                                                        }}
+                                                        className="text-brand-400 hover:text-brand-300 transition-colors flex items-center bg-brand-500/10 px-1.5 py-0.5 rounded text-xs cursor-pointer"
+                                                        title="Belgeyi Gör"
+                                                    >
+                                                        📎 {record.files.length}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
                                         <td className="p-4 text-right font-bold text-[var(--text-primary)]">
                                             ₺{record.amount.toLocaleString('tr-TR')}
                                         </td>
                                         <td className="p-4 text-center">
-                                            <div className="flex items-center justify-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex items-center justify-center gap-1 transition-opacity">
                                                 <button
                                                     onClick={() => {
                                                         setEditingPaymentId(record.id);
