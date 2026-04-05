@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect, useRef } from 'react';
-import { Plus, Search, MapPin, Truck, X, ChevronDown, Check, Trash2, Paperclip, FileText, Pencil, StickyNote } from 'lucide-react';
+import { Plus, Search, MapPin, X, ChevronDown, Check, Trash2, Paperclip, FileText, Pencil, StickyNote } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import FileUpload from './FileUpload';
 
@@ -12,9 +12,6 @@ const Trips = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isRouteManagerOpen, setIsRouteManagerOpen] = useState(false);
     const [editingRoute, setEditingRoute] = useState(null);
-    const [isQuickAddModalOpen, setIsQuickAddModalOpen] = useState(false);
-    const [quickAddTonnage, setQuickAddTonnage] = useState('');
-    const [quickAddDate, setQuickAddDate] = useState(new Date().toISOString().split('T')[0]);
 
     // Rota Seçim State'leri
     const [useSavedRoute, setUseSavedRoute] = useState(true);
@@ -44,7 +41,6 @@ const Trips = () => {
         to: '',
         km: '',
         tonnage: '',
-        price: '',
         notes: '',
         files: []
     });
@@ -59,8 +55,7 @@ const Trips = () => {
                     ...prev,
                     from: route.from,
                     to: route.to,
-                    km: route.km || '',
-                    price: route.lastPrice ? String(route.lastPrice) : prev.price
+                    km: route.km || ''
                 }));
             }
         }
@@ -75,8 +70,7 @@ const Trips = () => {
                     ...prev,
                     from: route.from,
                     to: route.to,
-                    km: route.km || '',
-                    price: route.lastPrice ? String(route.lastPrice) : prev.price
+                    km: route.km || ''
                 }));
             }
         }
@@ -85,15 +79,15 @@ const Trips = () => {
     // Formlardaki veri değiştiğinde başarılı kayıt (Kaydedildi) buton durumlarını sıfırla
     useEffect(() => {
         setSaveRouteSuccess(false);
-    }, [formData.from, formData.to, formData.km, formData.price]);
+    }, [formData.from, formData.to, formData.km]);
 
     useEffect(() => {
         setEditSaveRouteSuccess(false);
-    }, [editForm.from, editForm.to, editForm.km, editForm.price]);
+    }, [editForm.from, editForm.to, editForm.km]);
 
     // Modallar açıkken arkaplan scroll'unu engelle
     useEffect(() => {
-        if (isRouteSelectorOpen || isModalOpen || editingTrip || isRouteManagerOpen || isQuickAddModalOpen || viewFiles) {
+        if (isRouteSelectorOpen || isModalOpen || editingTrip || isRouteManagerOpen || viewFiles) {
             document.body.style.overflow = 'hidden';
             document.documentElement.style.overflow = 'hidden';
         } else {
@@ -104,7 +98,7 @@ const Trips = () => {
             document.body.style.overflow = ''; 
             document.documentElement.style.overflow = '';
         };
-    }, [isRouteSelectorOpen, isModalOpen, editingTrip, isRouteManagerOpen, isQuickAddModalOpen, viewFiles]);
+    }, [isRouteSelectorOpen, isModalOpen, editingTrip, isRouteManagerOpen, viewFiles]);
 
     // (Önceki Dropdown click-outside temizlendi, modal mantığına geçildi)
 
@@ -141,7 +135,6 @@ const Trips = () => {
             to: trip.to,
             km: trip.km || '',
             tonnage: trip.tonnage,
-            price: trip.price,
             status: trip.status || 'Fatura Bekliyor',
             notes: trip.notes || '',
             files: trip.files || []
@@ -153,52 +146,19 @@ const Trips = () => {
         setEditSaveNewRoute(false);
     };
 
-    const calculateTotal = (tonnage, price) => {
-        return (tonnage * price).toLocaleString('tr-TR', { minimumFractionDigits: 2 });
-    };
 
-    const handleQuickAdd = () => {
-        setIsQuickAddModalOpen(true);
-        setQuickAddTonnage('');
-        setQuickAddDate(new Date().toISOString().split('T')[0]);
-    };
-
-    const confirmQuickAdd = (e) => {
-        e.preventDefault();
-        const tonnageVal = parseFloat(quickAddTonnage.replace(',', '.'));
-        if (isNaN(tonnageVal) || tonnageVal <= 0) {
-            alert('Geçerli bir tonaj giriniz.');
-            return;
-        }
-
-        const defaultRoute = routes.find(r => r.from === 'Çayırhan' && r.to.includes('Elmadağ'));
-
-        addTrip({
-            date: quickAddDate,
-            from: 'Çayırhan',
-            to: 'Bastaş Elmadağ',
-            km: defaultRoute ? defaultRoute.km : 215,
-            tonnage: tonnageVal,
-            price: 351.40,
-            status: 'Fatura Bekliyor'
-        });
-
-        setIsQuickAddModalOpen(false);
-    };
 
     const handleManualAdd = (e) => {
         e.preventDefault();
 
         const kmValue = parseInt(formData.km) || 0;
-        const priceValue = parseFloat(formData.price) || 0;
 
         // Yeni rotayı kaydetme isteği varsa
         if (!useSavedRoute && saveNewRoute && formData.from && formData.to) {
             addRoute({
                 from: formData.from,
                 to: formData.to,
-                km: kmValue,
-                lastPrice: priceValue
+                km: kmValue
             });
         }
 
@@ -208,7 +168,7 @@ const Trips = () => {
             to: formData.to,
             km: kmValue,
             tonnage: parseFloat(formData.tonnage),
-            price: priceValue,
+            price: 0,
             status: 'Fatura Bekliyor',
             notes: formData.notes,
             files: formData.files
@@ -226,8 +186,7 @@ const Trips = () => {
         await addRoute({
             from: formData.from,
             to: formData.to,
-            km: parseInt(formData.km) || 0,
-            lastPrice: parseFloat(formData.price) || 0
+            km: parseInt(formData.km) || 0
         });
         setSaveNewRoute(false);
         setSaveRouteSuccess(true);
@@ -241,8 +200,7 @@ const Trips = () => {
         await addRoute({
             from: editForm.from,
             to: editForm.to,
-            km: parseInt(editForm.km) || 0,
-            lastPrice: parseFloat(editForm.price) || 0
+            km: parseInt(editForm.km) || 0
         });
         setEditSaveNewRoute(false);
         setEditSaveRouteSuccess(true);
@@ -250,15 +208,13 @@ const Trips = () => {
 
     const handleEdit = async () => {
         const kmValue = parseInt(editForm.km) || 0;
-        const priceValue = parseFloat(editForm.price) || 0;
 
         // Yeni rotayı kaydetme isteği varsa
         if (!editUseSavedRoute && editSaveNewRoute && editForm.from && editForm.to) {
             await addRoute({
                 from: editForm.from,
                 to: editForm.to,
-                km: kmValue,
-                lastPrice: priceValue
+                km: kmValue
             });
         }
 
@@ -268,7 +224,6 @@ const Trips = () => {
             to: editForm.to,
             km: kmValue,
             tonnage: parseFloat(editForm.tonnage),
-            price: priceValue,
             status: editForm.status,
             notes: editForm.notes,
             files: editForm.files
@@ -287,7 +242,6 @@ const Trips = () => {
             to: '',
             km: '',
             tonnage: '',
-            price: '',
             notes: '',
             files: []
         });
@@ -322,19 +276,11 @@ const Trips = () => {
                 </div>
                 <div className="flex flex-col md:flex-row w-full md:w-auto gap-3">
                     <button
-                        onClick={handleQuickAdd}
-                        className="w-full md:w-auto bg-[var(--bg-panel-hover)] hover:bg-slate-700 text-brand-400 border border-brand-500/30 px-4 py-2 rounded-lg font-medium transition-all shadow-lg shadow-brand-500/10 flex items-center justify-center whitespace-nowrap"
-                        title="Çayırhan - Bastaş Elmadağ"
-                    >
-                        <Truck size={18} className="mr-2" />
-                        Hızlı Sefer Ekle
-                    </button>
-                    <button
                         onClick={() => setIsModalOpen(true)}
                         className="w-full md:w-auto bg-brand-600 hover:bg-brand-500 text-[var(--text-primary)] px-4 py-2 rounded-lg font-medium transition-all shadow-lg shadow-brand-500/20 flex items-center justify-center whitespace-nowrap"
                     >
                         <Plus size={18} className="mr-2" />
-                        Manuel Sefer Gir
+                        Sefer Ekle
                     </button>
                 </div>
             </div>
@@ -342,13 +288,12 @@ const Trips = () => {
             {/* Seferler Tablosu - Masaüstü */}
             <div className="glass-panel overflow-hidden">
                 <div className="overflow-x-auto -mx-0 md:mx-0">
-                    <table className="w-full text-left border-collapse hidden md:table" style={{ minWidth: '640px' }}>
+                    <table className="w-full text-left border-collapse hidden md:table" style={{ minWidth: '500px' }}>
                         <thead>
                             <tr className="bg-white/5 border-b border-[var(--border-color)] text-[var(--text-secondary)] text-xs uppercase tracking-wide">
                                 <th className="p-3 pl-4 font-semibold whitespace-nowrap">Tarih</th>
                                 <th className="p-3 font-semibold whitespace-nowrap">Güzergah</th>
                                 <th className="p-3 font-semibold text-center whitespace-nowrap">Tonaj</th>
-                                <th className="p-3 font-semibold text-right whitespace-nowrap">Toplam</th>
                                 <th className="p-3 font-semibold text-center whitespace-nowrap">Durum</th>
                                 <th className="p-3 font-semibold text-center whitespace-nowrap w-16"></th>
                             </tr>
@@ -365,7 +310,7 @@ const Trips = () => {
                                                 {trip.from} <span className="text-brand-400 mx-1">→</span> {trip.to}
                                             </div>
                                             {trip.km > 0 && (
-                                                <div className="text-xs text-slate-500 mt-0.5 whitespace-nowrap">{trip.km} km · ₺{trip.price?.toFixed(2)}/ton</div>
+                                                <div className="text-xs text-slate-500 mt-0.5 whitespace-nowrap">{trip.km} km</div>
                                             )}
                                             {trip.notes && (
                                                 <div className="flex items-center gap-1 mt-0.5">
@@ -376,9 +321,6 @@ const Trips = () => {
                                         </td>
                                         <td className="p-3 text-center whitespace-nowrap">
                                             <span className="text-[var(--text-primary)] font-medium text-sm">{trip.tonnage} t</span>
-                                        </td>
-                                        <td className="p-3 text-right whitespace-nowrap">
-                                            <span className="font-bold text-emerald-400 text-sm">₺{calculateTotal(trip.tonnage, trip.price)}</span>
                                         </td>
                                         <td className="p-3 text-center">
                                             <span className={`px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${trip.status === 'Faturalandı' || trip.status === 'Fatura Kesildi'
@@ -407,8 +349,8 @@ const Trips = () => {
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan="6" className="p-8 text-center text-slate-500">
-                                        <Truck size={32} className="mx-auto mb-3 opacity-30" />
+                                    <td colSpan="5" className="p-8 text-center text-slate-500">
+                                        <MapPin size={32} className="mx-auto mb-3 opacity-30" />
                                         <p className="text-lg font-medium text-[var(--text-secondary)]">Henüz Kayıtlı Sefer Yok</p>
                                         <p className="text-sm mt-1">Sisteme yeni bir sefer eklediğinizde burada listelenecektir.</p>
                                     </td>
@@ -458,19 +400,11 @@ const Trips = () => {
                                         </div>
                                     )}
 
-                                    {/* Satır 3: 3 Kolonlu Kompakt Grid */}
-                                    <div className="grid grid-cols-3 gap-2 bg-white/5 rounded-xl p-2.5 items-center mt-1">
+                                    {/* Satır 3: Tonaj */}
+                                    <div className="flex bg-white/5 rounded-xl p-2.5 items-center mt-1">
                                         <div className="flex flex-col">
                                             <div className="text-[9px] text-slate-500 uppercase font-semibold mb-0.5">TONAJ</div>
                                             <div className="text-[var(--text-primary)] font-medium text-xs">{trip.tonnage} t</div>
-                                        </div>
-                                        <div className="flex flex-col border-l border-white/10 pl-2">
-                                            <div className="text-[9px] text-slate-500 uppercase font-semibold mb-0.5">BİRİM FİYAT</div>
-                                            <div className="text-[var(--text-secondary)] font-medium text-xs">₺{parseFloat(trip.price || 0).toLocaleString('tr-TR')}</div>
-                                        </div>
-                                        <div className="flex flex-col items-end border-l border-white/10 pl-2">
-                                            <div className="text-[9px] text-slate-500 uppercase font-semibold mb-0.5 w-full text-right">TOPLAM</div>
-                                            <div className="text-emerald-400 font-bold text-sm w-full text-right">₺{calculateTotal(trip.tonnage, trip.price)}</div>
                                         </div>
                                     </div>
                                 </div>
@@ -584,30 +518,16 @@ const Trips = () => {
                                                 />
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-xs text-[var(--text-secondary)] mb-1">Mesafe (KM)</label>
-                                                <input
-                                                    type="number"
-                                                    required={!editUseSavedRoute}
-                                                    placeholder="Örn: 215"
-                                                    className="w-full glass-input px-3 py-2 text-sm"
-                                                    value={editForm.km}
-                                                    onChange={(e) => setEditForm({ ...editForm, km: e.target.value })}
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs text-[var(--text-secondary)] mb-1">Birim Fiyat (₺/ton)</label>
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    required={!editUseSavedRoute}
-                                                    placeholder="Örn: 450"
-                                                    className="w-full glass-input px-3 py-2 text-sm"
-                                                    value={editForm.price}
-                                                    onChange={(e) => setEditForm({ ...editForm, price: e.target.value })}
-                                                />
-                                            </div>
+                                        <div>
+                                            <label className="block text-xs text-[var(--text-secondary)] mb-1">Mesafe (KM)</label>
+                                            <input
+                                                type="number"
+                                                required={!editUseSavedRoute}
+                                                placeholder="Örn: 215"
+                                                className="w-full glass-input px-3 py-2 text-sm"
+                                                value={editForm.km}
+                                                onChange={(e) => setEditForm({ ...editForm, km: e.target.value })}
+                                            />
                                         </div>
                                         <div className="flex items-center justify-between border-t border-white/5 pt-3">
                                             <div className="flex items-center gap-2">
@@ -676,15 +596,6 @@ const Trips = () => {
                                 </select>
                             </div>
 
-                            {/* Toplam Önizleme */}
-                            {editForm.tonnage && editForm.price && (
-                                <div className="flex items-center justify-between bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2">
-                                    <span className="text-xs text-slate-400">Hesaplanan Toplam</span>
-                                    <span className="text-emerald-400 font-bold text-sm">
-                                        ₺{(parseFloat(editForm.tonnage || 0) * parseFloat(editForm.price || 0)).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-                                    </span>
-                                </div>
-                            )}
 
                             {editShowExtra && (
                                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300 p-3 bg-white/5 rounded-xl border border-white/5 mt-2">
@@ -768,7 +679,7 @@ const Trips = () => {
                                             onClick={() => {
                                                 setUseSavedRoute(false);
                                                 setSelectedRouteId('');
-                                                setFormData(f => ({ ...f, from: '', to: '', km: '', price: '' }));
+                                                setFormData(f => ({ ...f, from: '', to: '', km: '' }));
                                             }}
                                         >
                                             Yeni Rota
@@ -841,19 +752,7 @@ const Trips = () => {
                                                     value={formData.km}
                                                     onChange={(e) => setFormData({ ...formData, km: e.target.value })}
                                                 />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs text-[var(--text-secondary)] mb-1">Birim Fiyat (₺/ton)</label>
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    required={!useSavedRoute}
-                                                    placeholder="Örn: 450"
-                                                    className="w-full glass-input px-3 py-2 text-sm"
-                                                    value={formData.price}
-                                                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                                                />
-                                            </div>
+                                        </div>
                                         </div>
                                         <div className="flex items-center justify-between border-t border-white/5 pt-3">
                                             <div className="flex items-center gap-2">
@@ -979,10 +878,6 @@ const Trips = () => {
                                                     <span className="text-[10px] text-slate-500">KM:</span>
                                                     <input type="number" className="glass-input px-2 py-1 text-xs w-full" value={route.km} onChange={e => updateRoute(route.id, { km: parseInt(e.target.value) || 0 })} />
                                                 </div>
-                                                <div className="flex items-center gap-1">
-                                                    <span className="text-[10px] text-slate-500">Fiyat:</span>
-                                                    <input type="number" step="0.01" className="glass-input px-2 py-1 text-xs w-full" value={route.lastPrice || ''} onChange={e => updateRoute(route.id, { lastPrice: parseFloat(e.target.value) || 0 })} />
-                                                </div>
                                             </div>
                                             <div className="flex">
                                                 <button onClick={() => setEditingRoute(null)} className="ml-auto bg-brand-600 text-[var(--text-primary)] px-3 py-1 rounded text-xs">Tamam</button>
@@ -992,7 +887,7 @@ const Trips = () => {
                                         <div className="flex items-center justify-between">
                                             <div>
                                                 <p className="text-sm font-bold text-[var(--text-primary)]">{route.from} ➔ {route.to}</p>
-                                                <p className="text-xs text-slate-500">{route.km} km {route.lastPrice ? `· ₺${route.lastPrice}` : ''}</p>
+                                                <p className="text-xs text-slate-500">{route.km} km</p>
                                             </div>
                                             <div className="flex gap-1">
                                                 <button onClick={() => setEditingRoute(route.id)} className="p-1.5 text-[var(--text-secondary)] hover:text-brand-400"><Pencil size={14} /></button>
@@ -1011,60 +906,6 @@ const Trips = () => {
                         >
                             Kapat
                         </button>
-                    </div>
-                </div>
-            )}
-
-            {/* ─── HIZLI EKLE MODAL ─── */}
-            {isQuickAddModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-sm p-6 relative animate-in zoom-in-95 duration-200 border-orange-500/30">
-                        <button
-                            onClick={() => setIsQuickAddModalOpen(false)}
-                            className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                        >
-                            <X size={20} />
-                        </button>
-
-                        <h3 className="text-xl font-bold text-[var(--text-primary)] mb-6 flex items-center">
-                            <Truck className="mr-2 text-orange-500" /> Hızlı Sefer Ekle
-                        </h3>
-                        
-                        <p className="text-xs text-brand-400 font-bold mb-4 bg-brand-500/10 p-2 rounded border border-brand-500/20 text-center uppercase tracking-widest">
-                            Çayırhan ➔ Bastaş Elmadağ
-                        </p>
-
-                        <form onSubmit={confirmQuickAdd} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Sefer Tarihi</label>
-                                <input
-                                    type="date"
-                                    required
-                                    className="w-full glass-input px-4 py-2 text-sm"
-                                    value={quickAddDate}
-                                    onChange={(e) => setQuickAddDate(e.target.value)}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tonaj</label>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    required
-                                    autoFocus
-                                    placeholder="Örn: 38.50"
-                                    className="w-full glass-input px-4 py-2 text-sm"
-                                    value={quickAddTonnage}
-                                    onChange={(e) => setQuickAddTonnage(e.target.value)}
-                                />
-                            </div>
-                            <button
-                                type="submit"
-                                className="w-full bg-orange-600 hover:bg-orange-500 text-[var(--text-primary)] px-4 py-3 rounded-lg font-bold transition-all shadow-lg shadow-orange-500/20 mt-2 uppercase tracking-wide flex items-center justify-center gap-2"
-                            >
-                                <Check size={18} /> Kaydı Onayla
-                            </button>
-                        </form>
                     </div>
                 </div>
             )}

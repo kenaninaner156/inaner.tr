@@ -284,12 +284,6 @@ export const DataProvider = ({ children }) => {
             createdAt: new Date().toISOString()
         });
         addLog('SEFER_EKLE', `${trip.from} → ${trip.to} | ${trip.tonnage}t`);
-        if (trip.price) {
-            const nextRoutes = routes.map(r =>
-                (r.from === trip.from && r.to === trip.to) ? { ...r, lastPrice: trip.price } : r
-            );
-            await setDoc(doc(db, 'company_data', 'info'), { routes: nextRoutes }, { merge: true });
-        }
     };
 
     const deleteTrip = async (id) => {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Truck, Check } from 'lucide-react';
 
 const A4_WIDTH = 794;
@@ -7,41 +7,65 @@ const A4_HEIGHT = 1123;
 const A4InvoicePreview = React.forwardRef(({
     invoiceData,
     vehicleInfo,
-    note,
-    onChangeNote,
-    taxRate,
-    onChangeTaxRate,
-    unitPrice,
-    onChangeUnitPrice,
+    netPrice,
+    onChangeNetPrice,
     fuelRecords = []
 }, ref) => {
+
+    const [localPrice, setLocalPrice] = useState('');
+
+    useEffect(() => {
+        const parsedLocal = parseFloat(localPrice.replace(/\./g, '').replace(',', '.'));
+        if (netPrice !== parsedLocal && netPrice !== undefined && netPrice !== null) {
+             const parts = netPrice.toFixed(2).split('.');
+             const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+             setLocalPrice(`${intPart},${parts[1]}`);
+        } else if (!netPrice && netPrice !== 0) {
+             setLocalPrice('');
+        }
+    }, [netPrice]);
+
+    const handlePriceChange = (e) => {
+        const val = e.target.value;
+        let raw = val.replace(/[^0-9,]/g, '');
+        
+        const commaCount = (raw.match(/,/g) || []).length;
+        if (commaCount > 1) {
+            const firstComma = raw.indexOf(',');
+            raw = raw.substring(0, firstComma + 1) + raw.substring(firstComma + 1).replace(/,/g, '');
+        }
+
+        const parts = raw.split(',');
+        let intPart = parts[0];
+        let decPart = parts.length > 1 ? parts[1].substring(0, 2) : undefined;
+
+        if (intPart) {
+            intPart = intPart.replace(/^0+/, '') || '0';
+            intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        } else if (decPart !== undefined) {
+            intPart = '0';
+        }
+        
+        const formatted = decPart !== undefined ? `${intPart},${decPart}` : intPart;
+        setLocalPrice(formatted);
+        
+        const floatVal = parseFloat(raw.replace(',', '.'));
+        onChangeNetPrice(isNaN(floatVal) ? 0 : floatVal);
+    };
 
     const { startDate, endDate, trips = [] } = invoiceData || {};
 
     const totalTonnage = trips.reduce((acc, trip) => acc + (Number(trip.tonnage) || 0), 0);
-    // Her seferin kendi birim fiyatını kullan (trip.price), yoksa global unitPrice'a düş
-    const subTotal = trips.reduce((acc, trip) => {
-        const price = Number(trip.price) > 0 ? Number(trip.price) : unitPrice;
-        return acc + (Number(trip.tonnage) || 0) * price;
-    }, 0);
 
-    // Yakıtları tarihe göre grupla
-    const fuelByDate = {};
-    if (fuelRecords && fuelRecords.length > 0) {
-        fuelRecords.forEach(record => {
-            if (!record.deleted && record.date >= startDate && record.date <= endDate) {
-                if (!fuelByDate[record.date]) fuelByDate[record.date] = { liters: 0, amount: 0 };
-                fuelByDate[record.date].liters += Number(record.liters) || 0;
-                fuelByDate[record.date].amount += Number(record.price) || 0;
-            }
-        });
-    }
-
-    const totalFuelLiters = Object.values(fuelByDate).reduce((acc, curr) => acc + curr.liters, 0);
-    const totalFuelAmount = Object.values(fuelByDate).reduce((acc, curr) => acc + curr.amount, 0);
-
-    const taxAmount = subTotal * (taxRate / 100);
-    const grandTotal = subTotal + taxAmount;
+    // Güzergah bazlı özet (çok tondan az tona)
+    const routeSummary = Object.values(
+        trips.reduce((acc, trip) => {
+            const key = `${trip.from}|||${trip.to}`;
+            if (!acc[key]) acc[key] = { from: trip.from, to: trip.to, tonnage: 0 };
+            acc[key].tonnage += Number(trip.tonnage) || 0;
+            return acc;
+        }, {})
+    ).sort((a, b) => b.tonnage - a.tonnage);
 
     // Fatura Seçim Aralığındaki Günleri Oluştur
     const tableRows = [];
@@ -214,116 +238,79 @@ const A4InvoicePreview = React.forwardRef(({
                     </div>
                 </div>
 
-                {/* Sefer Tablosu */}
+                {/* Güzergah Özet Tablosu - TOPLAM TONAJ */}
+                {routeSummary.length > 0 && (
+                    <div className="mb-3">
+                        <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1 px-0.5">Toplam Tonaj</div>
+                        <table className="w-full text-left border-collapse" style={{ fontSize: '10px' }}>
+                            <thead>
+                                <tr className="bg-slate-100 text-slate-700 border-y border-slate-200 leading-tight">
+                                    <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[44%]">Alınan Yer</th>
+                                    <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[44%]">Gidilen Yer</th>
+                                    <th className="py-1.5 px-1 font-semibold text-right w-[12%]">Tonaj</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {routeSummary.map((r, i) => (
+                                    <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                        <td className="py-1.5 px-1 text-slate-700 truncate max-w-[75px]">{r.from}</td>
+                                        <td className="py-1.5 px-1 text-slate-700 truncate max-w-[75px]">{r.to}</td>
+                                        <td className="py-1.5 px-1 text-right text-slate-800 font-bold">{r.tonnage.toFixed(2)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* Sefer Detay Tablosu - SEFERLER */}
                 <div className="mb-4 min-h-[50px]">
+                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1 px-0.5">Seferler</div>
                     <table className="w-full text-left border-collapse" style={{ fontSize: '10px' }}>
                         <thead>
-                            <tr className="bg-blue-50 text-blue-900 border-y border-blue-200 leading-tight">
-                                <th className="py-2 px-1 font-semibold border-r border-[var(--border-color)] w-[10%]">Tarih</th>
-                                <th className="py-2 px-1 font-semibold border-r border-[var(--border-color)] w-[17%]">Alınan Yer</th>
-                                <th className="py-2 px-1 font-semibold border-r border-[var(--border-color)] w-[17%]">Gidilen Yer</th>
-                                <th className="py-2 px-1 text-right font-semibold border-r border-[var(--border-color)] w-[8%]">Tonaj</th>
-                                <th className="py-2 px-1 text-center font-semibold border-r border-[var(--border-color)] w-[10%]">Plaka</th>
-                                <th className="py-2 px-1 text-right font-semibold border-r border-[var(--border-color)] w-[10%]">B. Fiyat</th>
-                                <th className="py-2 px-1 text-right font-semibold border-r border-[var(--border-color)] w-[12%]">Top. Fiyat</th>
-                                <th className="py-2 px-1 text-right font-semibold border-r border-[var(--border-color)] w-[8%] leading-none text-[8px]">Mazot<br />(Litre)</th>
-                                <th className="py-2 px-1 text-right font-semibold w-[8%] leading-none text-[8px]">Mazot<br />(Tutar)</th>
+                            <tr className="bg-slate-100 text-slate-700 border-y border-slate-200 leading-tight">
+                                <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[12%]">Tarih</th>
+                                <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[44%]">Alınan Yer</th>
+                                <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[32%]">Gidilen Yer</th>
+                                <th className="py-1.5 px-1 text-right font-semibold w-[12%]">Tonaj</th>
                             </tr>
                         </thead>
                         <tbody>
                             {tableRows.length > 0 ? tableRows.map((row, idx) => {
                                 const localDate = new Date(row.dateStr).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
                                 const trip = row.data;
-                                let fuelStrLiters = "-";
-                                let fuelStrAmount = "-";
-                                if (row.isFirstOfDay && fuelByDate[row.dateStr]) {
-                                    fuelStrLiters = fuelByDate[row.dateStr].liters.toString();
-                                    fuelStrAmount = fuelByDate[row.dateStr].amount.toLocaleString('tr-TR');
-                                }
-                                const tripUnitPrice = Number(trip.price) > 0 ? Number(trip.price) : unitPrice;
-                                const rowTotal = (Number(trip.tonnage) || 0) * tripUnitPrice;
                                 return (
-                                    <tr key={trip.id || idx} className="border-b border-slate-100/50 hover:bg-slate-50 transition-colors">
-                                        <td className="py-1.5 px-1 text-slate-700 whitespace-nowrap">{localDate}</td>
-                                        <td className="py-1.5 px-1 text-slate-800 truncate max-w-[75px]">{trip.from}</td>
-                                        <td className="py-1.5 px-1 text-slate-800 truncate max-w-[75px]">{trip.to}</td>
+                                    <tr key={trip.id || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                        <td className="py-1.5 px-1 text-slate-600 whitespace-nowrap">{localDate}</td>
+                                        <td className="py-1.5 px-1 text-slate-700 truncate max-w-[75px]">{trip.from}</td>
+                                        <td className="py-1.5 px-1 text-slate-700 truncate max-w-[75px]">{trip.to}</td>
                                         <td className="py-1.5 px-1 text-right text-slate-800 font-bold">{Number(trip.tonnage).toFixed(2)}</td>
-                                        <td className="py-1.5 px-1 text-center text-slate-600 font-mono tracking-tighter whitespace-nowrap">{vehicleInfo?.plate?.replace(/\s/g, '') || '06FTN692'}</td>
-                                        <td className="py-1.5 px-1 text-right text-slate-700">{tripUnitPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
-                                        <td className="py-1.5 px-1 text-right text-slate-800 font-bold">{rowTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
-                                        <td className="py-1.5 px-1 text-right text-slate-600">{fuelStrLiters}</td>
-                                        <td className="py-1.5 px-1 text-right text-slate-600 font-medium">{fuelStrAmount}</td>
                                     </tr>
                                 );
                             }) : (
                                 <tr>
-                                    <td colSpan="9" className="py-8 text-center text-[var(--text-secondary)] italic text-sm">Bu periyotta gösterilecek veri bulunamadı.</td>
+                                    <td colSpan="4" className="py-8 text-center text-slate-400 italic text-sm">Bu periyotta gösterilecek veri bulunamadı.</td>
                                 </tr>
                             )}
                         </tbody>
-                        <tfoot>
-                            <tr className="bg-slate-50 border-y-2 border-slate-300 font-bold text-slate-800">
-                                <td colSpan="3" className="py-2 px-1 text-right">TOPLAM SEFER:</td>
-                                <td className="py-2 px-1 text-right text-blue-700">{totalTonnage.toFixed(2)}</td>
-                                <td colSpan="2"></td>
-                                <td className="py-2 px-1 text-right text-blue-700">{subTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
-                                <td className="py-2 px-1 text-right text-red-600/80">{totalFuelLiters > 0 ? totalFuelLiters : ''}</td>
-                                <td className="py-2 px-1 text-right text-red-600/80">{totalFuelAmount > 0 ? totalFuelAmount.toLocaleString('tr-TR') : ''}</td>
-                            </tr>
-                        </tfoot>
                     </table>
                 </div>
 
-                {/* Alt Toplamlar & Vergi */}
-                <div className="flex justify-between items-start mt-4 gap-4 pb-12">
-                    <div className="w-1/2 flex flex-col">
-                        <div className="print:hidden mb-1">
-                            <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">AÇIKLAMALAR / NOT:</span>
-                        </div>
-                        {note && (
-                            <h4 className="hidden print:block text-[10px] font-bold text-slate-800 uppercase mb-1 border-b border-slate-200">AÇIKLAMALAR / NOT</h4>
-                        )}
-                        <textarea
-                            className={`w-full text-xs text-slate-800 bg-slate-50 print:bg-transparent border border-dashed border-slate-200 print:border-none rounded resize-none focus:ring-0 p-2 print:p-0 italic ${!note ? 'print:hidden' : ''}`}
-                            rows={3}
-                            value={note}
-                            onChange={(e) => onChangeNote(e.target.value)}
-                            placeholder="Döküme eklemek istediğiniz not..."
-                        />
-                    </div>
-
+                {/* Net Fiyat Kutusu (sadece ekranda görünür, yazınca gizli) */}
+                <div className="print:hidden flex justify-end mt-4 pb-6">
                     <div className="w-2/5 rounded-xl bg-slate-50/50 p-4 border border-slate-200">
-                        <div className="flex justify-between items-center mb-1 pb-1 border-b border-slate-200">
-                            <span className="text-slate-600 font-medium text-[10px]">Tonaj Birim Fiyat:</span>
-                            <div className="flex items-center">
-                                <span className="text-[var(--text-secondary)] mr-1 text-[10px]">₺</span>
+                        <div className="flex justify-between items-center">
+                            <span className="text-blue-900 font-black text-xs">NET FİYAT:</span>
+                            <div className="flex items-center gap-1">
+                                <span className="text-slate-500 text-[10px]">₺</span>
                                 <input
-                                    type="number"
-                                    className="w-14 text-right bg-white border border-slate-200 rounded px-1 py-0.5 text-slate-800 font-bold text-[10px]"
-                                    value={unitPrice}
-                                    onChange={(e) => onChangeUnitPrice(Number(e.target.value))}
+                                    type="text"
+                                    placeholder="0,00"
+                                    className="w-28 text-right bg-white border border-slate-300 rounded px-2 py-1 text-blue-900 font-black text-sm focus:outline-none focus:border-blue-400"
+                                    value={localPrice}
+                                    onChange={handlePriceChange}
                                 />
                             </div>
-                        </div>
-                        <div className="flex justify-between items-center mb-1 pb-1 border-b border-slate-200">
-                            <span className="text-slate-600 font-medium text-[10px]">Ara Toplam:</span>
-                            <span className="text-slate-800 font-bold text-[10px]">₺{subTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                        <div className="flex justify-between items-center mb-1">
-                            <span className="text-slate-600 font-medium text-[10px] flex items-center gap-1">
-                                KDV (%):
-                                <input
-                                    type="number"
-                                    className="w-8 text-center bg-white border border-slate-200 rounded px-1 py-0.5 text-slate-800 font-bold text-[10px]"
-                                    value={taxRate}
-                                    onChange={(e) => onChangeTaxRate(Number(e.target.value))}
-                                />
-                            </span>
-                            <span className="text-slate-800 font-medium text-[10px]">₺{taxAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                        <div className="flex justify-between items-center pt-2 border-t-2 border-[var(--border-color)] mt-1">
-                            <span className="text-blue-900 font-black text-xs">GENEL TOPLAM:</span>
-                                <span className="text-blue-900 font-black tracking-tight text-base">₺{grandTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                     </div>
                 </div>

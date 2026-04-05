@@ -8,6 +8,49 @@ import FileUpload from './FileUpload';
 import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 
+// PDF Görüntüleme Bileşeni
+const PdfViewer = ({ files }) => {
+    return (
+        <div className="w-full flex flex-col rounded-xl overflow-hidden border border-[var(--border-color)] shadow-lg" style={{ height: '100%' }}>
+            {/* Custom dark header */}
+            <div className="flex items-center gap-2.5 px-4 py-2.5 shrink-0"
+                style={{ background: 'var(--bg-panel)', borderBottom: '1px solid var(--border-color)' }}>
+                <FileText size={14} className="text-red-400 shrink-0" />
+                <span className="text-sm font-semibold text-[var(--text-primary)] truncate flex-1">
+                    {files[0]?.name || 'Fatura Belgesi'}
+                </span>
+                {files.length > 1 && (
+                    <span className="text-xs text-slate-500 shrink-0">{files.length} dosya</span>
+                )}
+            </div>
+            {/* iframe: base64 data URL + navpanes=0 sidebar kapalı */}
+            <div style={{ minHeight: 0, overflow: 'hidden', flex: 1, position: 'relative' }}>
+                {files.map((f, i) => (
+                    <iframe
+                        key={i}
+                        src={`${f.data}#toolbar=0&navpanes=0&view=FitH`}
+                        title={f.name || `Ek ${i + 1}`}
+                        scrolling="no"
+                        style={{
+                            display: 'block',
+                            position: 'absolute',
+                            top: 0, left: 0,
+                            width: 'calc(100% + 17px)',
+                            height: '100%',
+                            border: 'none',
+                        }}
+                    />
+                ))}
+            </div>
+            {/* Alt bilgi */}
+            <div className="text-center text-[10px] text-slate-600 py-1.5 shrink-0"
+                style={{ background: 'var(--bg-panel)', borderTop: '1px solid var(--border-color)' }}>
+                Sefer dökümüne dönmek için fatura kartına tekrar tıklayın
+            </div>
+        </div>
+    );
+};
+
 const Invoices = () => {
     const { trips, invoices, addInvoice, updateInvoice, deleteInvoice, addLog, fuelRecords, draftInvoice, saveDraftInvoice, clearDraftInvoice } = useContext(DataContext);
     const { activeTruckData } = useTruck();
@@ -17,13 +60,16 @@ const Invoices = () => {
 
     // Aktif Düzenlenen Fatura State'i
     const [activeInvoice, setActiveInvoice] = useState(null);
-    const [note, setNote] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
     const [noteModalInvoice, setNoteModalInvoice] = useState(null);
     const [modalNote, setModalNote] = useState('');
     const [modalFiles, setModalFiles] = useState([]);
-    const [taxRate, setTaxRate] = useState(20); // Default 20%
-    const [unitPrice, setUnitPrice] = useState(351.40); // Default Price
+    const [netPrice, setNetPrice] = useState(0); // Net fiyat (manuel girilecek)
+    // viewMode: 'sefer' | 'pdf' — tamamlanan fatura görüntüleme modu
+    const [viewMode, setViewMode] = useState('sefer');
+    const [viewModeInvId, setViewModeInvId] = useState(null); // hangi faturanın PDF’si görüntüleniyor
+
+    const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
     // Sadece Fatura Bekleyen Seferler listesi (Yeni fatura oluşturmak için adaylar)
     const availableTrips = (trips || []).filter(t => !t.deleted && t.status === 'Fatura Bekliyor');
@@ -49,38 +95,31 @@ const Invoices = () => {
     useEffect(() => {
         setActiveInvoice(null);
         setIsViewingOldInvoice(false);
-        setNote('');
-        setTaxRate(20);
-        setUnitPrice(351.40);
+        setNetPrice(0);
+        setViewMode('sefer');
+        setViewModeInvId(null);
     }, [activeTruckId]);
 
     // Fatura listesi değişince aktif görüntülemenin geçerli olup olmadığını kontrol et
     useEffect(() => {
         if (isViewingOldInvoice && activeInvoice) {
-            // Eğer görüntülenen fatura artık listede yoksa temizle (ID veya DocId üzerinden kontrol)
             const stillExists = (invoices || []).some(inv =>
                 !inv.deleted && (inv.id === activeInvoice.id || (inv.docId && inv.docId === activeInvoice.docId))
             );
             if (!stillExists) {
                 setActiveInvoice(null);
                 setIsViewingOldInvoice(false);
-                setNote('');
             }
         } else if (!activeInvoice && !isViewingOldInvoice) {
-            // Önce taslağı yükle, yoksa son faturayı otomatik yükle
             if (draftInvoice) {
                 setActiveInvoice(draftInvoice);
-                setNote(draftInvoice.note || '');
-                setTaxRate(draftInvoice.taxRate ?? 20);
-                setUnitPrice(draftInvoice.unitPrice ?? 351.40);
+                setNetPrice(draftInvoice.grandTotal ?? 0);
                 setIsViewingOldInvoice(false);
             } else {
                 const last = (invoices || []).filter(inv => !inv.deleted)[0];
                 if (last) {
                     setActiveInvoice(last);
-                    setNote(last.note || '');
-                    setTaxRate(last.taxRate ?? 20);
-                    setUnitPrice(last.unitPrice ?? 351.40);
+                    setNetPrice(last.grandTotal ?? 0);
                     setIsViewingOldInvoice(true);
                     setShowOldInvoiceWarning(true);
                 }
@@ -103,26 +142,32 @@ const Invoices = () => {
             endDate,
             trips: selectedTrips,
             status: 'Draft',
-            note: '',
-            taxRate: 20,
-            unitPrice: 351.40
         };
         setActiveInvoice(newDraft);
         saveDraftInvoice(newDraft);
         setIsViewingOldInvoice(false);
-        setNote('');
-        setTaxRate(20);
-        setUnitPrice(351.40);
+        setNetPrice(0);
+        setViewMode('sefer');
+        setViewModeInvId(null);
     };
 
-    // Eski faturaya tıklandığında önizleleme yükle
+    // Eski faturaya tıklandığında önizlele
     const handleViewInvoice = (inv) => {
+        if (activeInvoice?.id === inv.id && isViewingOldInvoice) {
+            // Aynı faturaya tekrar tıklandı: PDF varsa toggle
+            const hasPdf = inv.files && inv.files.length > 0;
+            if (hasPdf) {
+                setViewMode(vm => vm === 'sefer' ? 'pdf' : 'sefer');
+                setViewModeInvId(inv.id);
+            }
+            return;
+        }
         setActiveInvoice(inv);
-        setNote(inv.note || '');
-        setTaxRate(inv.taxRate ?? 20);
-        setUnitPrice(inv.unitPrice ?? 351.40);
+        setNetPrice(inv.grandTotal ?? 0);
         setIsViewingOldInvoice(true);
         setShowOldInvoiceWarning(true);
+        setViewMode('sefer');
+        setViewModeInvId(inv.id);
     };
 
     const handleSaveInvoice = async () => {
@@ -132,34 +177,20 @@ const Invoices = () => {
         }
 
         const totalTonnage = activeInvoice.trips.reduce((acc, t) => acc + (Number(t.tonnage) || 0), 0);
-        // Her seferin kendi birim fiyatını kullan, yoksa global unitPrice'a düş
-        const subTotal = activeInvoice.trips.reduce((acc, t) => {
-            const price = Number(t.unitPrice) > 0 ? Number(t.unitPrice) : unitPrice;
-            return acc + (Number(t.tonnage) || 0) * price;
-        }, 0);
-        const taxAmount = subTotal * (taxRate / 100);
-        const grandTotal = subTotal + taxAmount;
 
         const newInvoiceData = {
             startDate: activeInvoice.startDate,
             endDate: activeInvoice.endDate,
-            trips: (activeInvoice.trips || []).map(t => ({ id: t.id, date: t.date, from: t.from, to: t.to, tonnage: t.tonnage, price: t.price })),
+            trips: (activeInvoice.trips || []).map(t => ({ id: t.id, date: t.date, from: t.from, to: t.to, tonnage: t.tonnage })),
             totalTonnage,
-            subTotal,
-            taxRate,
-            taxAmount,
-            grandTotal,
-            note,
-            unitPrice,
+            grandTotal: netPrice || 0,
             status: 'Sent',
-            docId: `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(3, '0')}` // Örn: INV-2026-001
+            docId: `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(3, '0')}`
         };
 
         try {
-            // Faturayı Firebase'e ekle
             await addInvoice(newInvoiceData);
 
-            // Faturası kesilen seferlerin status'ünü 'Fatura Kesildi' yap. (Batch Update)
             const batch = writeBatch(db);
             activeInvoice.trips.forEach(trip => {
                 const tripRef = doc(db, 'trips', trip.id);
@@ -170,11 +201,9 @@ const Invoices = () => {
 
             addLog('FATURA_KESILDI', `${activeInvoice.startDate} - ${activeInvoice.endDate} periyodu için fatura başarıyla kesildi.`);
 
-            // Faturayı ekranda tut ve 'Sent' durumuna çek
             setActiveInvoice({ ...newInvoiceData, id: newInvoiceData.docId });
             setIsViewingOldInvoice(false);
         } catch {
-            
             alert("Fatura kaydedilirken bir hata oluştu.");
         }
     };
@@ -258,12 +287,7 @@ const Invoices = () => {
                                     <Clock size={16} className="mr-2" /> İşlem Bekleyen Taslak
                                 </h4>
                                 <button
-                                    onClick={() => {
-                                        if (window.confirm("Taslağı iptal etmek istediğinize emin misiniz?")) {
-                                            clearDraftInvoice();
-                                            setActiveInvoice(null);
-                                        }
-                                    }}
+                                    onClick={() => setShowCancelConfirm(true)}
                                     className="text-xs text-red-400 hover:text-red-300 transition-colors"
                                 >
                                     İptal Et
@@ -285,6 +309,19 @@ const Invoices = () => {
                             >
                                 <Printer size={16} /> PDF İndir / Yazdır
                             </button>
+                            {/* Net Fiyat Güncelle butonu (tamamlanan fatura görüntüleniyorsa) */}
+                            {activeInvoice?.status === 'Sent' && isViewingOldInvoice && (
+                                <button
+                                    onClick={async () => {
+                                        if (!activeInvoice?.id) return;
+                                        await updateInvoice(activeInvoice.id, { grandTotal: netPrice });
+                                        addLog('FATURA_FIYAT', `${activeInvoice.docId} net fiyat güncellendi: ₺${netPrice?.toLocaleString('tr-TR')}`);
+                                    }}
+                                    className="w-full flex items-center justify-center gap-2 p-3 bg-blue-700 hover:bg-blue-600 text-white rounded-xl text-sm font-medium transition-colors border border-blue-500 shadow-lg shadow-blue-500/20"
+                                >
+                                    <Save size={16} /> Net Fiyatı Kaydet
+                                </button>
+                            )}
                             {activeInvoice.status === 'Sent' ? (
                                 <button
                                     disabled
@@ -321,13 +358,23 @@ const Invoices = () => {
                             <div
                                 key={inv.id}
                                 onClick={() => handleViewInvoice(inv)}
-                                className={`p-3 bg-white/5 hover:bg-white/10 border rounded-lg transition-colors group relative cursor-pointer ${activeInvoice?.id === inv.id && isViewingOldInvoice ? 'border-amber-400/50 bg-amber-400/5' : 'border-[var(--border-color)]'
-                                    }`}
+                                className={`p-3 bg-white/5 hover:bg-white/10 border rounded-lg transition-colors group relative cursor-pointer ${
+                                    activeInvoice?.id === inv.id && isViewingOldInvoice
+                                        ? viewMode === 'pdf'
+                                            ? 'border-purple-400/50 bg-purple-400/5'
+                                            : 'border-amber-400/50 bg-amber-400/5'
+                                        : 'border-[var(--border-color)]'
+                                }`}
                             >
                                 <div className="flex justify-between items-center mb-1">
                                     <span className="font-bold text-brand-400 text-sm">{inv.docId}</span>
                                     <div className="flex items-center gap-1.5">
-                                    <span className="text-xs text-[var(--text-secondary)]">{new Date(inv.endDate).toLocaleDateString('tr-TR')}</span>
+                                        <span className="text-xs text-[var(--text-secondary)]">{new Date(inv.endDate).toLocaleDateString('tr-TR')}</span>
+                                        {inv.files?.length > 0 && (
+                                            <span className="text-purple-400" title="PDF eki var — tekrar tıklıyarak görüntüleyin">
+                                                <Paperclip size={13} />
+                                            </span>
+                                        )}
                                         <button
                                             onClick={(e) => { e.stopPropagation(); setNoteModalInvoice(inv); setModalNote(inv.note || ''); setModalFiles(inv.files || []); }}
                                             className={`p-1 rounded transition-colors ${inv.note || inv.files?.length > 0 ? 'text-brand-400' : 'text-slate-600 hover:text-brand-400'}`}
@@ -347,9 +394,9 @@ const Invoices = () => {
                                 <div className="text-sm text-[var(--text-primary)] font-medium">₺{inv.grandTotal?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
                                 <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
                                     <span>{inv.trips?.length || 0} Sefer | {inv.totalTonnage?.toFixed(2)} Ton</span>
-                                    {(inv.note || inv.files?.length > 0) && (
-                                        <span className="text-brand-400 font-medium">
-                                            📎 {inv.files?.length || 0}{inv.note ? ' · not' : ''}
+                                    {inv.files?.length > 0 && (
+                                        <span className="text-purple-400 font-medium text-[10px]">
+                                            {activeInvoice?.id === inv.id && viewMode === 'pdf' ? '📎 PDF Görüntüleniyor' : '📎 PDF Ek'}
                                         </span>
                                     )}
                                 </div>
@@ -364,23 +411,24 @@ const Invoices = () => {
                 </div>
             </div>
 
-            {/* Sağ Panel: A4 Fatura Görünümü */}
+            {/* Sağ Panel: A4 Fatura Görünümü veya Ek PDF */}
             <div className="w-full md:w-[55%] lg:w-[60%] relative flex flex-col overflow-hidden md:min-h-0 pl-0 md:pl-4" style={{ minHeight: '70vh' }}>
-                {/* A4 Render Alanı (Çerçevesiz ve temiz alan) */}
                 <div className="w-full relative overflow-hidden flex flex-col" style={{ flex: 1, minHeight: '70vh' }}>
                     {activeInvoice ? (
-                        <A4InvoicePreview
-                            ref={invoicePrintRef}
-                            invoiceData={activeInvoice}
-                            vehicleInfo={{ plate: activeTruckData?.plate, trailerPlate: activeTruckData?.trailerPlate }}
-                            note={note}
-                            onChangeNote={setNote}
-                            taxRate={taxRate}
-                            onChangeTaxRate={setTaxRate}
-                            unitPrice={unitPrice}
-                            onChangeUnitPrice={setUnitPrice}
-                            fuelRecords={fuelRecords}
-                        />
+                        viewMode === 'pdf' && activeInvoice.files && activeInvoice.files.length > 0 ? (
+                            <div className="absolute inset-0">
+                                <PdfViewer files={activeInvoice.files} />
+                            </div>
+                        ) : (
+                            <A4InvoicePreview
+                                ref={invoicePrintRef}
+                                invoiceData={activeInvoice}
+                                vehicleInfo={{ plate: activeTruckData?.plate, trailerPlate: activeTruckData?.trailerPlate }}
+                                netPrice={netPrice}
+                                onChangeNetPrice={setNetPrice}
+                                fuelRecords={fuelRecords}
+                            />
+                        )
                     ) : (
                         <div className="text-center flex flex-col items-center justify-center text-slate-500 pt-20">
                             <FileText size={48} className="mb-4 opacity-30" />
@@ -401,43 +449,84 @@ const Invoices = () => {
                 fuelRecords={fuelRecords}
             />
 
-            {/* Not & Belge Modal */}
+            {/* Hızlı Not Modal */}
             {noteModalInvoice && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setNoteModalInvoice(null)}>
-                    <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl space-y-4" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center">
-                            <h3 className="font-bold text-[var(--text-primary)] flex items-center gap-2">
-                                <StickyNote size={16} className="text-brand-400" />
+                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => setNoteModalInvoice(null)}>
+                    <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-color)] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center p-4 border-b border-[var(--border-color)] bg-slate-800/50">
+                            <h3 className="font-bold flex items-center gap-2 text-[var(--text-primary)]">
+                                <StickyNote size={18} className="text-brand-400" />
                                 {noteModalInvoice.docId} — Not & Belge
                             </h3>
-                            <button onClick={() => setNoteModalInvoice(null)} className="text-slate-500 hover:text-[var(--text-primary)] transition-colors">✕</button>
+                            <button onClick={() => setNoteModalInvoice(null)} className="text-slate-400 hover:text-white transition-colors text-xl leading-none">&times;</button>
                         </div>
-                        <textarea
-                            rows={4}
-                            placeholder="Not ekle... (örn: ödeme tarihi, onay notu, müşteri yorumu)"
-                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm resize-none outline-none focus:border-brand-500"
-                            value={modalNote}
-                            onChange={e => setModalNote(e.target.value)}
-                        />
-                        <div>
-                            <p className="text-xs text-slate-500 mb-2 flex items-center gap-1"><Paperclip size={11} /> Onay Belgesi / Fotoğraf / PDF</p>
-                            <FileUpload files={modalFiles} onChange={setModalFiles} maxSizeMB={10} />
+                        <div className="p-4 space-y-4">
+                            <textarea
+                                value={modalNote}
+                                onChange={(e) => setModalNote(e.target.value)}
+                                className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg p-3 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:border-brand-500/50 min-h-[100px] resize-none"
+                                placeholder="Faturaya dair hatırlatıcı kısa notlar alın... (örn: ödeme tarihi, onay notu)"
+                            />
+                            <div>
+                                <p className="text-xs text-slate-500 mb-2 flex items-center gap-1"><Paperclip size={11} /> Onay Belgesi / Fotoğraf / PDF</p>
+                                <FileUpload files={modalFiles} onChange={setModalFiles} maxSizeMB={10} />
+                            </div>
                         </div>
-                        <button
-                            onClick={async () => {
-                                setIsSavingNote(true);
-                                try {
-                                    await updateInvoice(noteModalInvoice.id, { note: modalNote, files: modalFiles });
-                                    addLog('FATURA_NOT', `${noteModalInvoice.docId} notları güncellendi`);
-                                    setNoteModalInvoice(null);
-                                } catch { /* empty */ }
-                                setIsSavingNote(false);
-                            }}
-                            disabled={isSavingNote}
-                            className="w-full bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-[var(--text-primary)] py-2.5 rounded-xl font-medium text-sm transition-colors flex items-center justify-center gap-2"
-                        >
-                            <Save size={14} /> {isSavingNote ? 'Kaydediliyor...' : 'Kaydet'}
-                        </button>
+                        <div className="p-4 bg-slate-800/30 border-t border-[var(--border-color)] flex justify-end gap-3">
+                            <button
+                                onClick={() => setNoteModalInvoice(null)}
+                                className="px-5 py-2 rounded-lg font-medium text-slate-300 hover:bg-slate-700/50 border border-transparent transition-colors"
+                            >
+                                İptal
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    setIsSavingNote(true);
+                                    try {
+                                        await updateInvoice(noteModalInvoice.id, { note: modalNote, files: modalFiles });
+                                        addLog('FATURA_NOT', `${noteModalInvoice.docId} notları güncellendi`);
+                                        setNoteModalInvoice(null);
+                                    } catch { /* empty */ }
+                                    setIsSavingNote(false);
+                                }}
+                                disabled={isSavingNote}
+                                className="px-5 py-2 rounded-lg font-medium bg-brand-600 hover:bg-brand-500 text-white transition-colors shadow-lg shadow-brand-500/20 disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {isSavingNote ? 'Kaydediliyor...' : 'Kaydet'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Taslak İptal Onay Modalı */}
+            {showCancelConfirm && (
+                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+                    <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-color)] shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 text-center animate-in zoom-in-95 duration-200">
+                        <div className="mx-auto w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4 border border-red-500/20">
+                            <Trash2 className="text-red-400" size={24} />
+                        </div>
+                        <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">Taslağı İptal Et</h3>
+                        <p className="text-slate-400 text-sm mb-6">İşlem bekleyen taslağı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.</p>
+                        
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowCancelConfirm(false)}
+                                className="flex-1 py-2.5 rounded-lg font-bold w-full text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-all text-sm"
+                            >
+                                Vazgeç
+                            </button>
+                            <button
+                                onClick={() => {
+                                    clearDraftInvoice();
+                                    setActiveInvoice(null);
+                                    setShowCancelConfirm(false);
+                                }}
+                                className="flex-1 py-2.5 rounded-lg font-bold w-full bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 transition-all text-sm"
+                            >
+                                Evet, İptal Et
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
