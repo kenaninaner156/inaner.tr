@@ -40,13 +40,23 @@ export const DataProvider = ({ children }) => {
         const token = localStorage.getItem('tir_auth_kenan_v1');
         const user = localStorage.getItem('tir_current_user');
         const role = localStorage.getItem('tir_current_role') || 'user';
-        if (token && user) return { username: user, role };
+        const ip = localStorage.getItem('tir_current_ip') || 'Bilinmiyor';
+        const device = localStorage.getItem('tir_current_device') || 'PC';
+        const location = localStorage.getItem('tir_current_location') || 'Bilinmiyor';
+        const rawDevice = localStorage.getItem('tir_current_rawDevice') || 'Bilinmiyor';
+        
+        if (token && user) return { username: user, role, ip, device, location, rawDevice };
         return null;
     });
 
     const loginSession = async (user) => {
         localStorage.setItem('tir_current_user', user.username);
         localStorage.setItem('tir_current_role', user.role || 'user');
+        if (user.ip) localStorage.setItem('tir_current_ip', user.ip);
+        if (user.device) localStorage.setItem('tir_current_device', user.device);
+        if (user.location) localStorage.setItem('tir_current_location', user.location);
+        if (user.rawDevice) localStorage.setItem('tir_current_rawDevice', user.rawDevice);
+
         if (user.companyId) {
             localStorage.setItem('tir_current_company', user.companyId);
         } else if (user.username === 'kenan') {
@@ -59,10 +69,22 @@ export const DataProvider = ({ children }) => {
         await addLog('KULLANICI_GIRIS', `${userKey} sisteme giriş yaptı`, { ip: user.ip || 'Bilinmiyor', device: user.device || 'Bilinmiyor', location: user.location || 'Bilinmiyor', rawDevice: user.rawDevice || 'Bilinmiyor' }, userKey);
     };
 
-    const logoutSession = () => {
+    const logoutSession = async () => {
+        if (currentSession?.username) {
+            const userKey = currentSession.username === 'kenan' ? 'admin' : currentSession.username;
+            await addLog('KULLANICI_CIKIS', `${userKey} sistemden çıkış yaptı`, null, userKey);
+            try {
+                await deleteDoc(doc(db, 'presence', currentSession.username));
+            } catch { /* empty */ }
+        }
+
         localStorage.removeItem('tir_auth_kenan_v1');
         localStorage.removeItem('tir_current_user');
         localStorage.removeItem('tir_current_role');
+        localStorage.removeItem('tir_current_ip');
+        localStorage.removeItem('tir_current_device');
+        localStorage.removeItem('tir_current_location');
+        localStorage.removeItem('tir_current_rawDevice');
         setCurrentSession(null);
     };
 
@@ -268,10 +290,18 @@ export const DataProvider = ({ children }) => {
         updatePresence();
         const timer = setInterval(updatePresence, 60000); // 1 dakikada bir güncelle
 
+        const handleUnload = () => {
+            // Tarayıcı kapanırken olabildiğince hızlı silmeye çalış
+            if (currentSession?.username) {
+                const presenceDoc = doc(db, 'presence', currentSession.username);
+                deleteDoc(presenceDoc).catch(() => {});
+            }
+        };
+        window.addEventListener('beforeunload', handleUnload);
+
         return () => {
             clearInterval(timer);
-            // Çıkış yaparken temizleme (opsiyonel ama daha hızlı güncelleme sağlar)
-            // if (currentSession?.username) deleteDoc(doc(db, 'presence', currentSession.username));
+            window.removeEventListener('beforeunload', handleUnload);
         };
     }, [currentSession]);
 
