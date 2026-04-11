@@ -1,17 +1,22 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { Settings as SettingsIcon, Database, Save, Server, ShieldCheck, Camera, UploadCloud, Truck, Loader2, Globe } from 'lucide-react';
+import { Settings as SettingsIcon, Database, Save, Server, ShieldCheck, Camera, UploadCloud, Truck, Loader2, Globe, Key, AlertCircle } from 'lucide-react';
 import WipeData from './WipeData';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
 
 const Settings = () => {
-    const { updateTruckImage } = useContext(DataContext);
+    const { updateTruckImage, currentSession, approvedUsers, editUser, addLog } = useContext(DataContext);
     const { activeTruckId, activeTruckData } = useTruck();
     const [profilePic, setProfilePic] = useState(activeTruckData?.imageUrl || null);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState('');
     const fileInputRef = useRef(null);
     const IMGBB_KEY = 'b9783b951fef452d9dee0c3c0fc206cc';
+
+    // Password Change State
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmNewPassword, setConfirmNewPassword] = useState('');
+    const [passwordStatus, setPasswordStatus] = useState({ type: '', message: '' });
 
     useEffect(() => {
         setProfilePic(activeTruckData?.imageUrl || null);
@@ -44,6 +49,41 @@ const Settings = () => {
             setUploadError('Bağlantı hatası. İnternet bağlantınızı kontrol edin.');
         } finally {
             setIsUploading(false);
+        }
+    };
+
+    const handlePasswordChange = async (e) => {
+        e.preventDefault();
+        setPasswordStatus({ type: '', message: '' });
+
+        if (newPassword.length < 4) {
+            setPasswordStatus({ type: 'error', message: 'Şifreniz en az 4 karakter uzunluğunda olmalıdır.' });
+            return;
+        }
+
+        if (newPassword !== confirmNewPassword) {
+            setPasswordStatus({ type: 'error', message: 'Şifreler birbiriyle eşleşmiyor. Lütfen tekrar kontrol edin.' });
+            return;
+        }
+
+        try {
+            // "approved_users" içinden currentSession username ile ID bul
+            const currentUserDoc = approvedUsers.find(u => u.username === currentSession?.username);
+            
+            if (currentUserDoc && currentUserDoc.id) {
+                await editUser(currentUserDoc.id, { password: newPassword });
+                addLog('SIFRE_DEGISTIR', `${currentSession.username} kendi şifresini güncelledi`);
+                setPasswordStatus({ type: 'success', message: 'Şifreniz başarıyla değiştirildi!' });
+                setNewPassword('');
+                setConfirmNewPassword('');
+            } else if (currentSession?.username === 'kenan') {
+                // Eğer kenan db'de yok ama hardcoded login ise:
+                setPasswordStatus({ type: 'error', message: 'Süper admin için veritabanında "kenan" hesabını göremedik. Önce CompanyAdmin kaydı açmalısınız.' });
+            } else {
+                setPasswordStatus({ type: 'error', message: 'Hesap bilgilerinize ulaşılamadı.' });
+            }
+        } catch {
+            setPasswordStatus({ type: 'error', message: 'Şifre güncellenirken bir hata oluştu.' });
         }
     };
 
@@ -127,6 +167,47 @@ const Settings = () => {
                             </button>
                         )}
                     </div>
+                </div>
+            </div>
+
+            {/* Şifre Değiştirme */}
+            <div className="glass-panel border-amber-500/20 overflow-hidden">
+                <div className="p-6 border-b border-[var(--border-color)] flex items-center justify-between">
+                    <h4 className="font-bold text-lg text-[var(--text-primary)] flex items-center">
+                        <Key className="mr-2 text-amber-500" size={20} />
+                        Kullanıcı Güvenliği (Şifre Değiştir)
+                    </h4>
+                </div>
+                <div className="p-6">
+                    <p className="text-[var(--text-secondary)] text-sm mb-4 border-b border-[var(--border-color)] pb-4">
+                        Sisteme giriş yaptığınız hesabınızın ({currentSession?.username}) şifresini buradan güvenle değiştirebilirsiniz.
+                    </p>
+                    
+                    <form onSubmit={handlePasswordChange} className="max-w-md space-y-4">
+                        <div>
+                            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Yeni Şifre</label>
+                            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} 
+                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2.5 text-sm focus:border-amber-500 outline-none" placeholder="Yeni şifrenizi girin" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Yeni Şifre (Tekrar)</label>
+                            <input type="password" value={confirmNewPassword} onChange={e => setConfirmNewPassword(e.target.value)} 
+                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2.5 text-sm focus:border-amber-500 outline-none" placeholder="Şifrenizi doğrulayın" />
+                        </div>
+
+                        {passwordStatus.message && (
+                            <div className={`flex items-center gap-2 text-sm p-3 rounded-md border ${
+                                passwordStatus.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                            }`}>
+                                {passwordStatus.type === 'error' ? <AlertCircle size={16}/> : <ShieldCheck size={16}/>}
+                                {passwordStatus.message}
+                            </div>
+                        )}
+
+                        <button type="submit" className="w-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-500 border border-amber-500/30 py-2.5 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2">
+                            <Save size={16} /> Şifreyi Kaydet
+                        </button>
+                    </form>
                 </div>
             </div>
 

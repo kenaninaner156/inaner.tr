@@ -4,7 +4,7 @@ import { User, Lock, Eye, EyeOff, AlertCircle, UserPlus, ChevronLeft } from 'luc
 import { db } from '../services/firebaseConfig';
 import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 
-const ADMIN_USER = { username: 'kenan', password: 'Newrules1.', role: 'super_admin', displayName: 'Kenan (Admin)' };
+const ADMIN_USER = { username: 'kenan', password: 'Mert0310.', role: 'super_admin', displayName: 'Kenan (Admin)' };
 
 const Login = () => {
     const { loginSession } = useContext(DataContext);
@@ -25,41 +25,64 @@ const Login = () => {
         await new Promise(r => setTimeout(r, 500));
 
         let ip = 'Bilinmiyor';
+        let location = 'Bilinmiyor';
         try {
-            const ipRes = await fetch('https://api.ipify.org?format=json');
+            const ipRes = await fetch('https://ipapi.co/json/');
             const ipData = await ipRes.json();
-            ip = ipData.ip;
+            ip = ipData.ip || 'Bilinmiyor';
+            if (ipData.city) {
+                location = `${ipData.city}, ${ipData.country_name} (${ipData.org})`;
+            }
         } catch { /* empty */ }
 
-        const device = navigator.userAgent;
+        const rawDevice = navigator.userAgent;
+        let deviceStr = 'Bilinmeyen Cihaz';
+        if (rawDevice.includes('Windows')) deviceStr = 'Windows';
+        else if (rawDevice.includes('Mac')) deviceStr = 'MacOS';
+        else if (rawDevice.includes('Android')) deviceStr = 'Android';
+        else if (rawDevice.includes('iPhone') || rawDevice.includes('iPad')) deviceStr = 'iOS';
+        else if (rawDevice.includes('Linux')) deviceStr = 'Linux';
+        
+        let browserStr = 'Tarayıcı';
+        if (rawDevice.includes('Chrome') && !rawDevice.includes('Edg') && !rawDevice.includes('OPR')) browserStr = 'Chrome';
+        else if (rawDevice.includes('Safari') && !rawDevice.includes('Chrome')) browserStr = 'Safari';
+        else if (rawDevice.includes('Firefox')) browserStr = 'Firefox';
+        else if (rawDevice.includes('Edg')) browserStr = 'Edge';
+        else if (rawDevice.includes('OPR') || rawDevice.includes('Opera')) browserStr = 'Opera';
+
+        const device = `${deviceStr} - ${browserStr}`;
         const uname = username.toLowerCase().trim();
 
-        // Admin kontrolü
-        if (uname === ADMIN_USER.username && password === ADMIN_USER.password) {
-            localStorage.setItem('tir_auth_kenan_v1', btoa(`${uname}:${Date.now()}`));
-            localStorage.setItem('tir_active_tab', 'dashboard');
-            loginSession({ username: uname, role: ADMIN_USER.role, ip, device });
-            window.location.href = '/';
-            return;
-        }
-
-        // Firestore'dan doğrudan kullanıcı kontrolü (Login.jsx'te DataContext'e güvenmiyoruz çünkü session olmadan data yüklenmez)
         try {
             const usersRef = collection(db, 'approved_users');
             const q = query(usersRef, where('username', '==', uname));
             const querySnapshot = await getDocs(q);
 
+            let isAuthenticated = false;
+            let userRole = 'user';
+            let companyId = null;
+
             if (!querySnapshot.empty) {
                 const userDoc = querySnapshot.docs[0].data();
                 const hashedInputPassword = btoa(password);
                 if (userDoc.password === hashedInputPassword || userDoc.password === password) {
-                    localStorage.setItem('tir_auth_kenan_v1', btoa(`${uname}:${Date.now()}`));
-                    localStorage.setItem('tir_active_tab', 'dashboard');
-                    // Company admin vs. rolüne göre loginSession'a data gönderiliyor
-                    loginSession({ username: uname, role: userDoc.role || 'user', companyId: userDoc.companyId, ip, device });
-                    window.location.href = '/';
-                    return;
+                    isAuthenticated = true;
+                    userRole = userDoc.role || 'user';
+                    companyId = userDoc.companyId;
                 }
+            } else if (uname === ADMIN_USER.username && password === ADMIN_USER.password) {
+                isAuthenticated = true;
+                userRole = ADMIN_USER.role;
+                companyId = null;
+            }
+
+            if (isAuthenticated) {
+                localStorage.setItem('tir_auth_kenan_v1', btoa(`${uname}:${Date.now()}`));
+                localStorage.setItem('tir_active_tab', 'dashboard');
+                // Pass location & rawDevice for better logging
+                loginSession({ username: uname, role: userRole, companyId: companyId, ip, device, location, rawDevice });
+                window.location.href = '/';
+                return;
             }
 
             // Bekleyen kullanıcı kontrolü

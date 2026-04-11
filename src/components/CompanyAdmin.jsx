@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
 import { DataContext } from '../context/DataContext';
-import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle } from 'lucide-react';
+import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key } from 'lucide-react';
 import { db } from '../services/firebaseConfig';
 import { collection, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 
@@ -16,6 +16,11 @@ const CompanyAdmin = () => {
     // Yeni: Kullanıcı Silme Onay Modalı
     const [userToDelete, setUserToDelete] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+    // Yeni: Şifre Düzenleme
+    const [editingUserId, setEditingUserId] = useState(null);
+    const [newUserPassword, setNewUserPassword] = useState('');
+    const { editUser } = useContext(DataContext);
 
 
     // Truck Form
@@ -235,9 +240,26 @@ const CompanyAdmin = () => {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="font-bold text-[var(--text-primary)] truncate">{driver.username}</p>
-                                        <span className="text-[10px] uppercase tracking-wider font-bold text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded-full inline-block mt-1">
-                                            ŞOFÖR
-                                        </span>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-[10px] uppercase tracking-wider font-bold text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded-full inline-block">
+                                                ŞOFÖR
+                                            </span>
+                                            {editingUserId !== driver.id && (
+                                                <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full flex items-center font-mono cursor-pointer hover:bg-slate-600 transition"
+                                                      onClick={() => { setEditingUserId(driver.id); setNewUserPassword(driver.password); }}
+                                                      title="Şifreyi Değiştirmek için Tıkla">
+                                                    <Key size={10} className="mr-1" /> {driver.password}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {editingUserId === driver.id && (
+                                            <div className="mt-2 flex gap-1">
+                                                <input type="text" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)}
+                                                    className="w-full bg-[var(--bg-base)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs rounded-md px-2 py-1 outline-none" placeholder="Yeni Şifre" />
+                                                <button onClick={() => { if(newUserPassword.length>3){ editUser(driver.id, {password: newUserPassword}); setEditingUserId(null); }else{ alert('Şifre en az 4 karakter olmalı!'); } }} className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 p-1 rounded-md"><Check size={14}/></button>
+                                                <button onClick={() => setEditingUserId(null)} className="bg-slate-700 hover:bg-slate-600 text-slate-300 p-1 rounded-md"><X size={14}/></button>
+                                            </div>
+                                        )}
                                     </div>
                                     <button
                                         onClick={() => {

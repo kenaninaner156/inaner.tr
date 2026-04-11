@@ -12,6 +12,11 @@ const SuperAdmin = () => {
     const [compAdmin, setCompAdmin] = useState('');
     const [compPassword, setCompPassword] = useState('');
 
+    const [activeTab, setActiveTab] = useState('companies'); // 'companies' or 'users'
+    const [allUsers, setAllUsers] = useState([]);
+    const [editingUserId, setEditingUserId] = useState(null);
+    const [editUserForm, setEditUserForm] = useState({ password: '' });
+
     const [isExporting, setIsExporting] = useState(false);
 
     const [stats, setStats] = useState({});
@@ -37,8 +42,10 @@ const SuperAdmin = () => {
         const unsubUsers = onSnapshot(collection(db, 'approved_users'), (snapshot) => {
             const counts = {};
             const driverCounts = {};
+            const usersList = [];
             snapshot.docs.forEach(d => {
                 const data = d.data();
+                usersList.push({ ...data, id: d.id });
                 const cId = data.companyId;
                 if (cId) {
                     counts[cId] = (counts[cId] || 0) + 1;
@@ -47,6 +54,7 @@ const SuperAdmin = () => {
                     }
                 }
             });
+            setAllUsers(usersList);
             setStats(prev => ({ ...prev, users: counts, drivers: driverCounts }));
         });
 
@@ -131,6 +139,22 @@ const SuperAdmin = () => {
         }
     };
 
+    const handleEditUserPassword = async (userId) => {
+        if(editUserForm.password.length < 4) { alert("Şifre en az 4 karakter olmalı."); return; }
+        try {
+            await updateDoc(doc(db, 'approved_users', userId), { password: editUserForm.password });
+            setEditingUserId(null);
+        } catch { alert("Hata oluştu."); }
+    };
+
+    const handleDeleteUser = async (userId, username) => {
+        if(window.confirm(`DİKKAT! ${username} kullanıcısını siliyorsunuz. Emin misiniz?`)) {
+            try {
+                await deleteDoc(doc(db, 'approved_users', userId));
+            } catch { alert("Hata."); }
+        }
+    };
+
     // --- JSON Export (Yerel Yedekleme) ---
     const handleExportBackup = async () => {
         if (!window.confirm("Tüm veri tabanı bilgilerini bir JSON dosyası olarak indirmek üzeresiniz. Bu işlem veritabanı büyüklüğüne göre biraz zaman alabilir.\n\nOnaylıyor musunuz?")) return;
@@ -190,7 +214,24 @@ const SuperAdmin = () => {
                 </div>
             </div>
 
-            <div className="flex justify-between items-center bg-[var(--bg-panel-hover)] p-4 rounded-xl border border-[var(--border-color)] mb-4">
+            <div className="flex space-x-2 border-b border-[var(--border-color)] mb-6 pb-px">
+                <button
+                    onClick={() => setActiveTab('companies')}
+                    className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'companies' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                >
+                    <div className="flex items-center"><Building2 size={16} className="mr-2" /> Şirketler ({companies.length})</div>
+                </button>
+                <button
+                    onClick={() => setActiveTab('users')}
+                    className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'users' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                >
+                    <div className="flex items-center"><Users size={16} className="mr-2" /> Sistem Kullanıcıları ({allUsers.length})</div>
+                </button>
+            </div>
+
+            {activeTab === 'companies' && (
+                <>
+                    <div className="flex justify-between items-center bg-[var(--bg-panel-hover)] p-4 rounded-xl border border-[var(--border-color)] mb-4">
                 <div className="text-sm font-medium text-[var(--text-primary)] flex items-center">
                     <Activity size={16} className="text-brand-400 mr-2" />
                     Aktif Müşteri Şirketleri Listesi
@@ -325,6 +366,63 @@ const SuperAdmin = () => {
                     );
                 })}
             </div>
+            </>}
+
+            {activeTab === 'users' && (
+                <div className="glass-panel p-6">
+                    <h4 className="text-lg font-bold text-[var(--text-primary)] mb-4">Tüm Sistem Kullanıcıları ve Şifreleri</h4>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-[var(--border-color)] text-xs text-[var(--text-secondary)]">
+                                    <th className="pb-3 pl-2">Kullanıcı Adı</th>
+                                    <th className="pb-3">Rol</th>
+                                    <th className="pb-3">Şirket ID</th>
+                                    <th className="pb-3">Şifre (Açık Metin)</th>
+                                    <th className="pb-3 text-right pr-2">İşlem</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {allUsers.map(user => (
+                                    <tr key={user.id} className="border-b border-[var(--border-color)]/50 hover:bg-[var(--bg-panel-hover)] transition-colors">
+                                        <td className="py-3 pl-2 text-sm font-semibold text-[var(--text-primary)]">{user.username}</td>
+                                        <td className="py-3 text-xs">
+                                            <span className={`px-2 py-1 rounded-md bg-opacity-20 flex items-center w-max ${
+                                                user.role === 'company_admin' ? 'bg-indigo-500 text-indigo-400' 
+                                                : user.role === 'şoför' ? 'bg-emerald-500 text-emerald-400'
+                                                : 'bg-slate-500 text-slate-400'
+                                            }`}>
+                                                {user.role}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 text-xs text-slate-400 font-mono">{user.companyId || '-'}</td>
+                                        <td className="py-3">
+                                            {editingUserId === user.id ? (
+                                                <div className="flex items-center gap-1">
+                                                    <input type="text" value={editUserForm.password} onChange={e => setEditUserForm({password: e.target.value})} className="w-24 bg-[var(--bg-base)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs rounded-md px-2 py-1 outline-none" />
+                                                    <button onClick={() => handleEditUserPassword(user.id)} className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 p-1 rounded-md"><Check size={14}/></button>
+                                                    <button onClick={() => setEditingUserId(null)} className="bg-slate-700 hover:bg-slate-600 text-slate-300 p-1 rounded-md"><X size={14}/></button>
+                                                </div>
+                                            ) : (
+                                                <span className="font-mono text-xs text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">
+                                                    {user.password || 'BİLİNMİYOR'}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="py-3 text-right pr-2">
+                                            <div className="flex justify-end gap-1">
+                                                <button onClick={() => { setEditingUserId(user.id); setEditUserForm({password: user.password}); }} className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/20 rounded-md transition" title="Şifreyi Düzenle"><Edit2 size={14}/></button>
+                                                <button onClick={() => handleDeleteUser(user.id, user.username)} className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/20 rounded-md transition" title="Kullanıcıyı Sil"><Trash2 size={14}/></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 };

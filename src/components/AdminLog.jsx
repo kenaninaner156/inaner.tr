@@ -2,7 +2,7 @@ import React, { useContext, useState, useEffect } from 'react';
 import { DataContext } from '../context/DataContext';
 import { CompanyContext } from '../context/CompanyContext';
 import { db } from '../services/firebaseConfig';
-import { Shield, Trash2, Filter, AlertTriangle, CheckCircle, PlusCircle, Wrench, Fuel, CreditCard, Truck, Users, Check, X, Edit2, Save, RotateCcw } from 'lucide-react';
+import { Shield, Trash2, Filter, AlertTriangle, CheckCircle, PlusCircle, Wrench, Fuel, CreditCard, Truck, Users, Check, X, Edit2, Save, RotateCcw, Search, Calendar, MapPin, MonitorSmartphone } from 'lucide-react';
 
 const ACTION_LABELS = {
     SEFER_EKLE: { label: 'Sefer Eklendi', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
@@ -29,6 +29,10 @@ const AdminLog = () => {
     const { companies, activeCompanyId } = useContext(CompanyContext);
     const [filter, setFilter] = useState('TUMU');
     const [tab, setTab] = useState('log'); // 'log' | 'users'
+
+    // Yeni: Gelişmiş Filtreleme
+    const [searchTerm, setSearchTerm] = useState('');
+    const [dateFilter, setDateFilter] = useState('');
 
     // Yeni: Manüel Kullanıcı Modal
     const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
@@ -96,10 +100,28 @@ const AdminLog = () => {
     ];
 
     const filteredLog = adminLog.filter(entry => {
-        if (filter === 'TUMU') return true;
-        if (filter === 'EKLE') return entry.action.includes('EKLE');
-        if (filter === 'SİL') return entry.action.includes('SİL');
-        if (filter === 'KULLANICI') return entry.action.includes('KULLANICI');
+        // Kategori filtresi
+        if (filter === 'EKLE' && !entry.action.includes('EKLE')) return false;
+        if (filter === 'SİL' && !entry.action.includes('SİL')) return false;
+        if (filter === 'KULLANICI' && !entry.action.includes('KULLANICI')) return false;
+
+        // Kelime Arama
+        if (searchTerm) {
+            const term = searchTerm.toLowerCase();
+            const textToSearch = `${entry.user} ${entry.detail} ${entry.action} ${entry.meta?.ip || ''} ${entry.meta?.location || ''}`.toLowerCase();
+            if (!textToSearch.includes(term)) return false;
+        }
+
+        // Tarih Filtresi
+        if (dateFilter) {
+            try {
+                const entryDate = new Date(entry.timestamp).toISOString().split('T')[0];
+                if (entryDate !== dateFilter) return false;
+            } catch {
+                return false;
+            }
+        }
+
         return true;
     });
 
@@ -174,21 +196,36 @@ const AdminLog = () => {
             {/* Aktivite Logu */}
             {tab === 'log' && (
                 <>
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 flex-wrap bg-white/5 p-3 rounded-xl border border-[var(--border-color)]">
+                        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                             {categories.map(cat => (
                                 <button key={cat.key} onClick={() => setFilter(cat.key)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filter === cat.key ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30' : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'}`}>
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex-1 sm:flex-none ${filter === cat.key ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30 shadow-inner' : 'bg-[var(--bg-panel-hover)] text-[var(--text-secondary)] hover:bg-white/10 border border-[var(--border-color)]'}`}>
                                     {cat.label}
                                 </button>
                             ))}
                         </div>
-                        <button
-                            onClick={() => setIsClearModalOpen(true)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-all"
-                        >
-                            <Trash2 size={13} /> Logları Temizle
-                        </button>
+                        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                            <div className="relative flex-1 sm:flex-none">
+                                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                                <input type="text" placeholder="Arama..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} 
+                                    className="w-full sm:w-36 bg-[var(--bg-panel)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs rounded-lg pl-8 pr-2 py-1.5 outline-none focus:border-brand-500 transition-colors" />
+                            </div>
+                            <div className="relative flex-1 sm:flex-none">
+                                <Calendar size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                                <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} 
+                                    className="w-full sm:w-[130px] bg-[var(--bg-panel)] border border-[var(--border-color)] text-[var(--text-secondary)] text-xs rounded-lg pl-8 pr-2 py-1.5 outline-none focus:border-brand-500 transition-colors" />
+                                {dateFilter && (
+                                    <button onClick={() => setDateFilter('')} className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-400"><X size={12}/></button>
+                                )}
+                            </div>
+                            <button
+                                onClick={() => setIsClearModalOpen(true)}
+                                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-all flex-1 sm:flex-none"
+                            >
+                                <Trash2 size={13} /> Tümünü Sil
+                            </button>
+                        </div>
                     </div>
 
                     <div className="glass-panel overflow-hidden">
@@ -208,15 +245,17 @@ const AdminLog = () => {
                                                 {meta.label}
                                             </span>
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-[var(--text-primary)] text-sm truncate">{entry.detail}</p>
-                                                <p className="text-xs text-slate-600">
-                                                    {entry.user}
+                                                <p className="text-[var(--text-primary)] text-sm">{entry.detail}</p>
+                                                <div className="flex flex-wrap items-center gap-2 mt-1">
+                                                    <span className="text-xs font-semibold text-slate-400">{entry.user}</span>
                                                     {entry.action === 'KULLANICI_GIRIS' && entry.meta && (
-                                                        <span className="ml-2 text-[10px] text-slate-500">
-                                                            • IP: {entry.meta.ip} • {entry.meta.device?.split(')')[0]?.split('(')[1] || 'PC'}
-                                                        </span>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {entry.meta.ip && <span className="bg-[var(--bg-panel)] border border-[var(--border-color)] px-1.5 py-[1px] rounded text-[10px] text-sky-400 font-mono">IP: {entry.meta.ip}</span>}
+                                                            {entry.meta.location && <span className="bg-[var(--bg-panel)] border border-[var(--border-color)] px-1.5 py-[1px] rounded text-[10px] text-amber-500 flex items-center gap-1"><MapPin size={10}/> {entry.meta.location}</span>}
+                                                            {entry.meta.rawDevice && <span className="bg-[var(--bg-panel)] border border-[var(--border-color)] px-1.5 py-[1px] rounded text-[10px] text-emerald-400 flex items-center gap-1"><MonitorSmartphone size={10}/> {entry.meta.rawDevice}</span>}
+                                                        </div>
                                                     )}
-                                                </p>
+                                                </div>
                                             </div>
                                             <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
                                                 <div className="flex flex-col items-end">
