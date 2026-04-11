@@ -3,6 +3,7 @@ import { db } from '../services/firebaseConfig';
 import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, query, setDoc, getDocs, writeBatch, where, deleteField } from 'firebase/firestore';
 import { useCompany } from './CompanyContext';
 import { useTruck } from './TruckContext';
+import { sendDiscordAlert } from '../services/discordWebhook';
 // eslint-disable-next-line react-refresh/only-export-components
 export const DataContext = createContext();
 
@@ -340,6 +341,10 @@ export const DataProvider = ({ children }) => {
         const entry = { timestamp: new Date().toISOString(), action, detail, user, meta, companyId: activeCompanyId };
         try {
             await addDoc(collection(db, 'admin_logs'), entry);
+            // Uyarıcı logları discord'a gönder
+            if (['KULLANICI_GIRIS', 'KULLANICI_CIKIS', 'HATALI_GIRIS', 'ZIYARETCI_GIRIS'].includes(action)) {
+                sendDiscordAlert({ action, detail, user, meta });
+            }
         } catch { /* empty */ }
     };
 
