@@ -366,7 +366,7 @@ const SuperAdmin = () => {
                     );
                 })}
             </div>
-            </>}
+            </>)}
 
             {activeTab === 'users' && (
                 <div className="glass-panel p-6">
