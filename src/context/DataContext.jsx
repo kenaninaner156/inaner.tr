@@ -45,7 +45,13 @@ export const DataProvider = ({ children }) => {
         const location = localStorage.getItem('tir_current_location') || 'Bilinmiyor';
         const rawDevice = localStorage.getItem('tir_current_rawDevice') || 'Bilinmiyor';
         
-        if (token && user) return { username: user, role, ip, device, location, rawDevice };
+        let presenceId = localStorage.getItem('tir_presence_id');
+        if (token && user && !presenceId) {
+            presenceId = Math.random().toString(36).substring(2, 11);
+            localStorage.setItem('tir_presence_id', presenceId);
+        }
+
+        if (token && user) return { username: user, role, ip, device, location, rawDevice, presenceId };
         return null;
     });
 
@@ -63,7 +69,9 @@ export const DataProvider = ({ children }) => {
             localStorage.setItem('tir_current_company', 'inaner_logistics'); // fallback for super_admin
         }
         localStorage.setItem('tir_auth_kenan_v1', 'temp_token'); // Mock auth token
-        setCurrentSession({ username: user.username, role: user.role || 'user', ip: user.ip, device: user.device, location: user.location, rawDevice: user.rawDevice });
+        const newPresenceId = Math.random().toString(36).substring(2, 11);
+        localStorage.setItem('tir_presence_id', newPresenceId);
+        setCurrentSession({ username: user.username, role: user.role || 'user', ip: user.ip, device: user.device, location: user.location, rawDevice: user.rawDevice, presenceId: newPresenceId });
 
         const userKey = user.username === 'kenan' ? 'admin' : user.username;
         await addLog('KULLANICI_GIRIS', `${userKey} sisteme giriş yaptı`, { ip: user.ip || 'Bilinmiyor', device: user.device || 'Bilinmiyor', location: user.location || 'Bilinmiyor', rawDevice: user.rawDevice || 'Bilinmiyor' }, userKey);
@@ -74,7 +82,7 @@ export const DataProvider = ({ children }) => {
             const userKey = currentSession.username === 'kenan' ? 'admin' : currentSession.username;
             await addLog('KULLANICI_CIKIS', `${userKey} sistemden çıkış yaptı`, null, userKey);
             try {
-                await deleteDoc(doc(db, 'presence', currentSession.username));
+                await deleteDoc(doc(db, 'presence', `${currentSession.username}_${currentSession.presenceId}`));
             } catch { /* empty */ }
         }
 
@@ -85,6 +93,7 @@ export const DataProvider = ({ children }) => {
         localStorage.removeItem('tir_current_device');
         localStorage.removeItem('tir_current_location');
         localStorage.removeItem('tir_current_rawDevice');
+        localStorage.removeItem('tir_presence_id');
         setCurrentSession(null);
     };
 
@@ -272,11 +281,11 @@ export const DataProvider = ({ children }) => {
 
     // Heartbeat Effect
     useEffect(() => {
-        if (!currentSession?.username) return;
+        if (!currentSession?.username || !currentSession?.presenceId) return;
 
         const updatePresence = async () => {
             try {
-                const presenceDoc = doc(db, 'presence', currentSession.username);
+                const presenceDoc = doc(db, 'presence', `${currentSession.username}_${currentSession.presenceId}`);
                 await setDoc(presenceDoc, {
                     username: currentSession.username,
                     role: currentSession.role || 'user',
@@ -292,8 +301,8 @@ export const DataProvider = ({ children }) => {
 
         const handleUnload = () => {
             // Tarayıcı kapanırken olabildiğince hızlı silmeye çalış
-            if (currentSession?.username) {
-                const presenceDoc = doc(db, 'presence', currentSession.username);
+            if (currentSession?.username && currentSession?.presenceId) {
+                const presenceDoc = doc(db, 'presence', `${currentSession.username}_${currentSession.presenceId}`);
                 deleteDoc(presenceDoc).catch(() => {});
             }
         };
