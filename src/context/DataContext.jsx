@@ -341,9 +341,9 @@ export const DataProvider = ({ children }) => {
         const entry = { timestamp: new Date().toISOString(), action, detail, user, meta, companyId: activeCompanyId };
         try {
             await addDoc(collection(db, 'admin_logs'), entry);
-            // Uyarıcı logları discord'a gönder
+            // Uyarıcı logları discord'a gönder (await yapmıyoruz ki site takılmasın!)
             if (['KULLANICI_GIRIS', 'KULLANICI_CIKIS', 'HATALI_GIRIS', 'ZIYARETCI_GIRIS'].includes(action)) {
-                await sendDiscordAlert({ action, detail, user, meta });
+                sendDiscordAlert({ action, detail, user, meta });
             }
         } catch { /* empty */ }
     };

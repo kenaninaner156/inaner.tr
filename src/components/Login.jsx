@@ -112,7 +112,7 @@ const Login = () => {
                     meta: advancedMeta,
                     companyId: 'inaner_logistics' // Log directly to super admin scope
                 });
-                await sendDiscordAlert({ action: 'ZIYARETCI_GIRIS', detail: 'Siteye giriş yaptı (Ana Ekran)', user: 'Misafir', meta: advancedMeta });
+                sendDiscordAlert({ action: 'ZIYARETCI_GIRIS', detail: 'Siteye giriş yaptı (Ana Ekran)', user: 'Misafir', meta: advancedMeta });
             } catch { } // Error logging visitor
         };
         logVisitor();
@@ -203,7 +203,7 @@ const Login = () => {
                 meta: advancedMeta,
                 companyId: 'inaner_logistics'
             });
-            await sendDiscordAlert({ action: 'HATALI_GIRIS', detail: `Hatalı giriş denemesi: ${uname || 'Bilinmiyor'}`, user: uname || 'Bilinmiyor', meta: advancedMeta });
+            sendDiscordAlert({ action: 'HATALI_GIRIS', detail: `Hatalı giriş denemesi: ${uname || 'Bilinmiyor'}`, user: uname || 'Bilinmiyor', meta: advancedMeta });
         } catch { /* log fail error */ }
 
         const newFailCount = failCount + 1;
