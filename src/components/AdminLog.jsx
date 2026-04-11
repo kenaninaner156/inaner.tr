@@ -24,6 +24,7 @@ const ACTION_LABELS = {
     KULLANICI_DUZENLE: { label: 'Düzenleme', color: 'text-[var(--text-secondary)]', bg: 'bg-white/5 border-[var(--border-color)]' },
     KULLANICI_CIKIS: { label: 'Çıkış Yapıldı', color: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/20' },
     ZIYARETCI_GIRIS: { label: 'Yeni Ziyaretçi', color: 'text-fuchsia-400', bg: 'bg-fuchsia-500/10 border-fuchsia-500/20' },
+    HATALI_GIRIS: { label: 'Hatalı Giriş', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
 };
 
 const AdminLog = () => {
@@ -243,8 +244,14 @@ const AdminLog = () => {
                                 {filteredLog.map(entry => {
                                     const meta = ACTION_LABELS[entry.action] || { label: entry.action, color: 'text-[var(--text-secondary)]', bg: 'bg-white/5 border-[var(--border-color)]' };
                                     const date = new Date(entry.timestamp);
+
+                                    let rowBgClass = 'hover:bg-white/5';
+                                    if (entry.action === 'HATALI_GIRIS' || entry.action === 'ZIYARETCI_GIRIS') {
+                                        rowBgClass = entry.meta?.isKnownDevice ? 'bg-sky-500/10 border border-sky-500/20' : 'bg-rose-500/10 border border-rose-500/20';
+                                    }
+
                                     return (
-                                        <div key={entry.id} className="flex items-start gap-3 p-3 hover:bg-white/5 transition-colors">
+                                        <div key={entry.id} className={`flex items-start gap-3 p-3 transition-colors ${rowBgClass}`}>
                                             <span className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border whitespace-nowrap mt-0.5 flex-shrink-0 ${meta.bg} ${meta.color}`}>
                                                 {meta.label}
                                             </span>
@@ -252,11 +259,21 @@ const AdminLog = () => {
                                                 <p className="text-[var(--text-primary)] text-sm">{entry.detail}</p>
                                                 <div className="flex flex-wrap items-center gap-2 mt-1">
                                                     <span className="text-xs font-semibold text-slate-400">{entry.user}</span>
-                                                    {entry.action === 'KULLANICI_GIRIS' && entry.meta && (
-                                                        <div className="flex flex-wrap gap-1.5">
+                                                    {['KULLANICI_GIRIS', 'ZIYARETCI_GIRIS', 'HATALI_GIRIS'].includes(entry.action) && entry.meta && (
+                                                        <div className="flex flex-wrap gap-1.5 mt-1">
                                                             {entry.meta.ip && <span className="bg-[var(--bg-panel)] border border-[var(--border-color)] px-1.5 py-[1px] rounded text-[10px] text-sky-400 font-mono">IP: {entry.meta.ip}</span>}
                                                             {entry.meta.location && <span className="bg-[var(--bg-panel)] border border-[var(--border-color)] px-1.5 py-[1px] rounded text-[10px] text-amber-500 flex items-center gap-1"><MapPin size={10}/> {entry.meta.location}</span>}
-                                                            {entry.meta.rawDevice && <span className="bg-[var(--bg-panel)] border border-[var(--border-color)] px-1.5 py-[1px] rounded text-[10px] text-emerald-400 flex items-center gap-1"><MonitorSmartphone size={10}/> {entry.meta.rawDevice}</span>}
+                                                            {entry.meta.device && <span className="bg-[var(--bg-panel)] border border-[var(--border-color)] px-1.5 py-[1px] rounded text-[10px] text-emerald-400 flex items-center gap-1"><MonitorSmartphone size={10}/> {entry.meta.device}</span>}
+                                                            {entry.meta.screen && <span className="bg-[var(--bg-panel)] border border-[var(--border-color)] px-1.5 py-[1px] rounded text-[10px] text-slate-400 flex items-center gap-1">{entry.meta.screen}</span>}
+                                                            {entry.meta.cores && <span className="bg-[var(--bg-panel)] border border-[var(--border-color)] px-1.5 py-[1px] rounded text-[10px] text-slate-400 flex items-center gap-1">{entry.meta.cores}</span>}
+                                                            {entry.meta.lang && <span className="bg-slate-800 text-slate-300 font-bold px-1.5 py-[1px] rounded text-[10px] border border-slate-600">{entry.meta.lang.toUpperCase()}</span>}
+                                                            {(entry.action === 'HATALI_GIRIS' || entry.action === 'ZIYARETCI_GIRIS') && (
+                                                                <span className={`px-1.5 py-[1px] rounded text-[10px] font-bold ${entry.meta?.isKnownDevice ? 'bg-sky-500 text-slate-900' : 'bg-rose-500 text-white'}`}>
+                                                                    {entry.meta?.isKnownDevice ? '✓ Tanınan Cihaz' : '⚠ BİLİNMEYEN CİHAZ'}
+                                                                </span>
+                                                            )}
+                                                            {/* Geliştirici Tarafından Tam Browser Bilgisi İçin hover (title) attribute kullanıyoruz */}
+                                                            {entry.meta.rawDevice && <span className="text-[10px] bg-white/5 border border-white/10 px-1 py-[1px] rounded text-slate-500 truncate max-w-[200px]" title={entry.meta.rawDevice}>Tümü: {entry.meta.rawDevice}</span>}
                                                         </div>
                                                     )}
                                                 </div>

@@ -6,6 +6,48 @@ import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 
 const ADMIN_USER = { username: 'kenan', password: 'Mert0310.', role: 'super_admin', displayName: 'Kenan (Admin)' };
 
+const getAdvancedMeta = async () => {
+    let ip = 'Bilinmiyor';
+    let location = 'Bilinmiyor';
+    try {
+        const ipRes = await fetch('https://ipapi.co/json/');
+        const ipData = await ipRes.json();
+        ip = ipData.ip || 'Bilinmiyor';
+        if (ipData.city) location = `${ipData.city}, ${ipData.country_name} (${ipData.org})`;
+    } catch {
+        try {
+            const ipInfoRes = await fetch('https://ipinfo.io/json');
+            const ipInfoData = await ipInfoRes.json();
+            ip = ipInfoData.ip || 'Bilinmiyor';
+            if (ipInfoData.city) location = `${ipInfoData.city}, ${ipInfoData.country} (${ipInfoData.org})`;
+        } catch { }
+    }
+
+    const rawDevice = navigator.userAgent;
+    let deviceStr = 'Bilinmeyen Cihaz';
+    if (rawDevice.includes('Windows')) deviceStr = 'Windows';
+    else if (rawDevice.includes('Mac')) deviceStr = 'MacOS';
+    else if (rawDevice.includes('Android')) deviceStr = 'Android';
+    else if (rawDevice.includes('iPhone') || rawDevice.includes('iPad')) deviceStr = 'iOS';
+    else if (rawDevice.includes('Linux')) deviceStr = 'Linux';
+    
+    let browserStr = 'Tarayıcı';
+    if (rawDevice.includes('Chrome') && !rawDevice.includes('Edg') && !rawDevice.includes('OPR')) browserStr = 'Chrome';
+    else if (rawDevice.includes('Safari') && !rawDevice.includes('Chrome')) browserStr = 'Safari';
+    else if (rawDevice.includes('Firefox')) browserStr = 'Firefox';
+    else if (rawDevice.includes('Edg')) browserStr = 'Edge';
+    else if (rawDevice.includes('OPR') || rawDevice.includes('Opera')) browserStr = 'Opera';
+
+    const device = `${deviceStr} - ${browserStr}`;
+    const screen = typeof window !== 'undefined' ? `${window.screen.width}x${window.screen.height} (${window.screen.colorDepth}-bit)` : 'Bilinmiyor';
+    const cores = navigator.hardwareConcurrency ? `${navigator.hardwareConcurrency} Çekirdek` : 'Bilinmiyor';
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Bilinmiyor';
+    const lang = navigator.language || 'Bilinmiyor';
+    const isKnownDevice = localStorage.getItem('tir_known_device') === 'true';
+
+    return { ip, location, device, rawDevice, screen, cores, tz, lang, isKnownDevice };
+};
+
 const Login = () => {
     const { loginSession } = useContext(DataContext);
     const [mode, setMode] = useState('login'); // 'login' | 'register' | 'pending'
@@ -24,42 +66,7 @@ const Login = () => {
             if (sessionStorage.getItem('tir_visited')) return;
             sessionStorage.setItem('tir_visited', 'true');
             
-            let ip = 'Bilinmiyor';
-            let location = 'Bilinmiyor';
-            try {
-                const ipRes = await fetch('https://ipapi.co/json/');
-                const ipData = await ipRes.json();
-                ip = ipData.ip || 'Bilinmiyor';
-                if (ipData.city) {
-                    location = `${ipData.city}, ${ipData.country_name} (${ipData.org})`;
-                }
-            } catch { 
-                try {
-                    const ipInfoRes = await fetch('https://ipinfo.io/json');
-                    const ipInfoData = await ipInfoRes.json();
-                    ip = ipInfoData.ip || 'Bilinmiyor';
-                    if (ipInfoData.city) {
-                        location = `${ipInfoData.city}, ${ipInfoData.country} (${ipInfoData.org})`;
-                    }
-                } catch { /* empty */ }
-            }
-
-            const rawDevice = navigator.userAgent;
-            let deviceStr = 'Bilinmeyen Cihaz';
-            if (rawDevice.includes('Windows')) deviceStr = 'Windows';
-            else if (rawDevice.includes('Mac')) deviceStr = 'MacOS';
-            else if (rawDevice.includes('Android')) deviceStr = 'Android';
-            else if (rawDevice.includes('iPhone') || rawDevice.includes('iPad')) deviceStr = 'iOS';
-            else if (rawDevice.includes('Linux')) deviceStr = 'Linux';
-            
-            let browserStr = 'Tarayıcı';
-            if (rawDevice.includes('Chrome') && !rawDevice.includes('Edg') && !rawDevice.includes('OPR')) browserStr = 'Chrome';
-            else if (rawDevice.includes('Safari') && !rawDevice.includes('Chrome')) browserStr = 'Safari';
-            else if (rawDevice.includes('Firefox')) browserStr = 'Firefox';
-            else if (rawDevice.includes('Edg')) browserStr = 'Edge';
-            else if (rawDevice.includes('OPR') || rawDevice.includes('Opera')) browserStr = 'Opera';
-
-            const device = `${deviceStr} - ${browserStr}`;
+            const advancedMeta = await getAdvancedMeta();
             
             try {
                 await addDoc(collection(db, 'admin_logs'), {
@@ -67,7 +74,7 @@ const Login = () => {
                     action: 'ZIYARETCI_GIRIS',
                     detail: 'Siteye giriş yaptı (Ana Ekran)',
                     user: 'Misafir',
-                    meta: { ip, location, device, rawDevice },
+                    meta: advancedMeta,
                     companyId: 'inaner_logistics' // Log directly to super admin scope
                 });
             } catch { } // Error logging visitor
@@ -81,44 +88,8 @@ const Login = () => {
         setLoading(true);
         await new Promise(r => setTimeout(r, 500));
 
-        let ip = 'Bilinmiyor';
-        let location = 'Bilinmiyor';
-        try {
-            // İlk tercih: ipapi.co (detaylı)
-            const ipRes = await fetch('https://ipapi.co/json/');
-            const ipData = await ipRes.json();
-            ip = ipData.ip || 'Bilinmiyor';
-            if (ipData.city) {
-                location = `${ipData.city}, ${ipData.country_name} (${ipData.org})`;
-            }
-        } catch { 
-            // İkinci tercih: adblock'a daha az takılan ücretsiz API
-            try {
-                const ipInfoRes = await fetch('https://ipinfo.io/json');
-                const ipInfoData = await ipInfoRes.json();
-                ip = ipInfoData.ip || 'Bilinmiyor';
-                if (ipInfoData.city) {
-                    location = `${ipInfoData.city}, ${ipInfoData.country} (${ipInfoData.org})`;
-                }
-            } catch { /* empty */ }
-        }
-
-        const rawDevice = navigator.userAgent;
-        let deviceStr = 'Bilinmeyen Cihaz';
-        if (rawDevice.includes('Windows')) deviceStr = 'Windows';
-        else if (rawDevice.includes('Mac')) deviceStr = 'MacOS';
-        else if (rawDevice.includes('Android')) deviceStr = 'Android';
-        else if (rawDevice.includes('iPhone') || rawDevice.includes('iPad')) deviceStr = 'iOS';
-        else if (rawDevice.includes('Linux')) deviceStr = 'Linux';
-        
-        let browserStr = 'Tarayıcı';
-        if (rawDevice.includes('Chrome') && !rawDevice.includes('Edg') && !rawDevice.includes('OPR')) browserStr = 'Chrome';
-        else if (rawDevice.includes('Safari') && !rawDevice.includes('Chrome')) browserStr = 'Safari';
-        else if (rawDevice.includes('Firefox')) browserStr = 'Firefox';
-        else if (rawDevice.includes('Edg')) browserStr = 'Edge';
-        else if (rawDevice.includes('OPR') || rawDevice.includes('Opera')) browserStr = 'Opera';
-
-        const device = `${deviceStr} - ${browserStr}`;
+        const advancedMeta = await getAdvancedMeta();
+        const { ip, location, device, rawDevice } = advancedMeta;
         const uname = username.toLowerCase().trim();
 
         try {
@@ -145,10 +116,11 @@ const Login = () => {
             }
 
             if (isAuthenticated) {
+                localStorage.setItem('tir_known_device', 'true');
                 localStorage.setItem('tir_auth_kenan_v1', btoa(`${uname}:${Date.now()}`));
                 localStorage.setItem('tir_active_tab', 'dashboard');
                 // Pass location & rawDevice for better logging and AWAIT it
-                await loginSession({ username: uname, role: userRole, companyId: companyId, ip, device, location, rawDevice });
+                await loginSession({ username: uname, role: userRole, companyId: companyId, ip, device, location, rawDevice, ...advancedMeta });
                 
                 // --- TELEGRAM BİLDİRİMİ İÇİN (OPSİYONEL ALtyapı) ---
                 // Eğer Telegram bildirimi isterseniz aşağıdaki // fetch satırlarını açıp BOT_TOKEN ve CHAT_ID girmeniz yeterli olacaktır:
@@ -185,6 +157,18 @@ const Login = () => {
         }
 
         setError('Kullanıcı adı veya şifre hatalı.');
+
+        try {
+            await addDoc(collection(db, 'admin_logs'), {
+                timestamp: new Date().toISOString(),
+                action: 'HATALI_GIRIS',
+                detail: `Hatalı giriş denemesi: ${uname || 'Bilinmiyor'}`,
+                user: uname || 'Bilinmiyor',
+                meta: advancedMeta,
+                companyId: 'inaner_logistics'
+            });
+        } catch { /* log fail error */ }
+
         const newFailCount = failCount + 1;
         if (newFailCount >= 4) {
             setShowVideo(true);
