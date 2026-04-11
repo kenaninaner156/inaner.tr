@@ -97,7 +97,7 @@ function App() {
     if (meta) meta.setAttribute('content', next === 'light' ? '#f8f9fa' : '#0B0E14');
   }
 
-  const { currentSession, logoutSession, isDataLoading, docs, penalties } = useContext(DataContext)
+  const { currentSession, logoutSession, isDataLoading, dataError, docs, penalties } = useContext(DataContext)
   const { activeCompanyId, setActiveCompanyId, companyData, companies } = useCompany()
   const { activeTruckId, setActiveTruckId, activeTruckData, trucks } = useTruck()
   const currentUser = currentSession;
@@ -214,6 +214,24 @@ function App() {
       <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ backgroundColor: 'var(--bg-base)' }}>
         <div className="w-10 h-10 border-4 border-orange-500/30 border-t-orange-500 rounded-full animate-spin" />
         <p className="text-slate-400 text-sm font-medium">Veriler yükleniyor...</p>
+      </div>
+    );
+  }
+
+  if (dataError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-6 p-6 text-center" style={{ backgroundColor: 'var(--bg-base)' }}>
+        <div className="bg-red-500/10 p-5 rounded-full mb-2 border border-red-500/30">
+          <AlertTriangle size={56} className="text-red-500" />
+        </div>
+        <h2 className="text-3xl font-bold text-slate-100 mb-2">Sistem Hatası</h2>
+        <p className="text-red-400 font-medium max-w-lg mb-6 leading-relaxed bg-red-500/5 p-4 rounded-xl border border-red-500/10">
+          {dataError}
+        </p>
+        <button onClick={handleLogout} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-6 py-3 rounded-lg font-medium transition-colors shadow-lg">
+          <LogOut size={18} />
+          Giriş Ekranına Dön
+        </button>
       </div>
     );
   }

@@ -34,6 +34,7 @@ export const DataProvider = ({ children }) => {
     const [draftInvoice, setDraftInvoice] = useState(null);
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [isDataLoading, setIsDataLoading] = useState(true);
+    const [dataError, setDataError] = useState(null);
 
     const [currentSession, setCurrentSession] = useState(() => {
         const token = localStorage.getItem('tir_auth_kenan_v1');
@@ -194,6 +195,14 @@ export const DataProvider = ({ children }) => {
                 setDraftInvoice(null);
             }
             setIsDataLoading(false); // Finished loading essential config
+        }, (error) => {
+            console.error("Firebase Listener Error:", error);
+            if (error.code === 'permission-denied') {
+                setDataError("Firebase Veritabanı erişim izni reddedildi. Muhtemelen Test Modu süresi doldu. Lütfen Firebase Console üzerinden Rules (Kurallar) kısmını güncelleyiniz.");
+            } else {
+                setDataError(error.message);
+            }
+            setIsDataLoading(false);
         }));
 
         // 13.7 Truck-specific draft invoice
@@ -631,7 +640,7 @@ export const DataProvider = ({ children }) => {
             draftInvoice, saveDraftInvoice, clearDraftInvoice,
             onlineUsers,
             updateTruckImage,
-            isDataLoading
+            isDataLoading, dataError
         }}>
             {children}
         </DataContext.Provider>
