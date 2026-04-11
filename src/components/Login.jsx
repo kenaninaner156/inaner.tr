@@ -9,16 +9,23 @@ const ADMIN_USER = { username: 'kenan', password: 'Mert0310.', role: 'super_admi
 const getAdvancedMeta = async () => {
     let ip = 'Bilinmiyor';
     let location = 'Bilinmiyor';
+    let ipTz = null;
+    let ipOrg = '';
+
     try {
         const ipRes = await fetch('https://ipapi.co/json/');
         const ipData = await ipRes.json();
         ip = ipData.ip || 'Bilinmiyor';
+        if (ipData.timezone) ipTz = ipData.timezone;
+        if (ipData.org) ipOrg = ipData.org;
         if (ipData.city) location = `${ipData.city}, ${ipData.country_name} (${ipData.org})`;
     } catch {
         try {
             const ipInfoRes = await fetch('https://ipinfo.io/json');
             const ipInfoData = await ipInfoRes.json();
             ip = ipInfoData.ip || 'Bilinmiyor';
+            if (ipInfoData.timezone) ipTz = ipInfoData.timezone;
+            if (ipInfoData.org) ipOrg = ipInfoData.org;
             if (ipInfoData.city) location = `${ipInfoData.city}, ${ipInfoData.country} (${ipInfoData.org})`;
         } catch { }
     }
@@ -45,7 +52,34 @@ const getAdvancedMeta = async () => {
     const lang = navigator.language || 'Bilinmiyor';
     const isKnownDevice = localStorage.getItem('tir_known_device') === 'true';
 
-    return { ip, location, device, rawDevice, screen, cores, tz, lang, isKnownDevice };
+    // 1. VPN/Proxy Algılama
+    let vpnRisk = false;
+    if (ipTz && tz !== 'Bilinmiyor' && ipTz !== tz) {
+        vpnRisk = true; // IP konumu ile cihaz saat dilimi uyuşmuyor!
+    }
+    const orgL = ipOrg.toLowerCase();
+    if (orgL.includes('vpn') || orgL.includes('proxy') || orgL.includes('datacenter') || orgL.includes('digitalocean') || orgL.includes('amazon') || orgL.includes('aws') || orgL.includes('cloud') || orgL.includes('server')) {
+        vpnRisk = true;
+    }
+
+    // 2. Gizli Sekme (Incognito) Algılama Heuristic
+    let incognitoRisk = false;
+    try {
+        if (navigator.storage && navigator.storage.estimate) {
+            const { quota } = await navigator.storage.estimate();
+            // Gizli sekmeler belleği genellikle katı bir şekilde kısıtlar (Örn: ~100MB - 120MB arası). 
+            if (quota < 200000000) { 
+                incognitoRisk = true;
+            }
+        }
+    } catch {}
+
+    // Apple cihazlarında localStorage kullanımları zaten Safari Strict yapısından ötürü gizli sekme gibi davrandığından incognito'yu flagliyoruz
+    if (!isKnownDevice && deviceStr === 'iOS' && browserStr === 'Safari') {
+        incognitoRisk = true;
+    }
+
+    return { ip, location, device, rawDevice, screen, cores, tz, lang, isKnownDevice, vpnRisk, incognitoRisk };
 };
 
 const Login = () => {

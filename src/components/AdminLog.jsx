@@ -272,6 +272,16 @@ const AdminLog = () => {
                                                                     {entry.meta?.isKnownDevice ? '✓ Tanınan Cihaz' : '⚠ BİLİNMEYEN CİHAZ'}
                                                                 </span>
                                                             )}
+                                                            {entry.meta.incognitoRisk && (
+                                                                <span className="bg-fuchsia-500 text-white font-bold px-1.5 py-[1px] rounded text-[10px] flex items-center gap-1" title="Gizli Sekme veya Private Mode Algılandı">
+                                                                    🕵️ GİZLİ SEKME
+                                                                </span>
+                                                            )}
+                                                            {entry.meta.vpnRisk && (
+                                                                <span className="bg-red-500 text-white font-bold px-1.5 py-[1px] rounded text-[10px] flex items-center gap-1" title="VPN, Proxy veya Veri Merkezi IP'si Algılandı">
+                                                                    🌐 VPN / PROXY
+                                                                </span>
+                                                            )}
                                                             {/* Geliştirici Tarafından Tam Browser Bilgisi İçin hover (title) attribute kullanıyoruz */}
                                                             {entry.meta.rawDevice && <span className="text-[10px] bg-white/5 border border-white/10 px-1 py-[1px] rounded text-slate-500 truncate max-w-[200px]" title={entry.meta.rawDevice}>Tümü: {entry.meta.rawDevice}</span>}
                                                         </div>
