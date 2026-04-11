@@ -45,13 +45,19 @@ export const DataProvider = ({ children }) => {
         const location = localStorage.getItem('tir_current_location') || 'Bilinmiyor';
         const rawDevice = localStorage.getItem('tir_current_rawDevice') || 'Bilinmiyor';
         
+        let metaObj = null;
+        try {
+            const m = localStorage.getItem('tir_current_meta');
+            if (m) metaObj = JSON.parse(m);
+        } catch { }
+
         let presenceId = localStorage.getItem('tir_presence_id');
         if (token && user && !presenceId) {
             presenceId = Math.random().toString(36).substring(2, 11);
             localStorage.setItem('tir_presence_id', presenceId);
         }
 
-        if (token && user) return { username: user, role, ip, device, location, rawDevice, presenceId };
+        if (token && user) return { username: user, role, ip, device, location, rawDevice, presenceId, meta: metaObj };
         return null;
     });
 
@@ -62,6 +68,14 @@ export const DataProvider = ({ children }) => {
         if (user.device) localStorage.setItem('tir_current_device', user.device);
         if (user.location) localStorage.setItem('tir_current_location', user.location);
         if (user.rawDevice) localStorage.setItem('tir_current_rawDevice', user.rawDevice);
+        
+        // Gelişmiş meta verileri kaydet
+        if (user.isKnownDevice !== undefined) {
+             localStorage.setItem('tir_current_meta', JSON.stringify({ 
+                 screen: user.screen, cores: user.cores, tz: user.tz, lang: user.lang, 
+                 vpnRisk: user.vpnRisk, incognitoRisk: user.incognitoRisk, isKnownDevice: user.isKnownDevice 
+             }));
+        }
 
         if (user.companyId) {
             localStorage.setItem('tir_current_company', user.companyId);
@@ -71,7 +85,9 @@ export const DataProvider = ({ children }) => {
         localStorage.setItem('tir_auth_kenan_v1', 'temp_token'); // Mock auth token
         const newPresenceId = Math.random().toString(36).substring(2, 11);
         localStorage.setItem('tir_presence_id', newPresenceId);
-        setCurrentSession({ username: user.username, role: user.role || 'user', ip: user.ip, device: user.device, location: user.location, rawDevice: user.rawDevice, presenceId: newPresenceId });
+        
+        const metaObj = { screen: user.screen, cores: user.cores, tz: user.tz, lang: user.lang, vpnRisk: user.vpnRisk, incognitoRisk: user.incognitoRisk, isKnownDevice: user.isKnownDevice };
+        setCurrentSession({ username: user.username, role: user.role || 'user', ip: user.ip, device: user.device, location: user.location, rawDevice: user.rawDevice, presenceId: newPresenceId, meta: metaObj });
 
         const userKey = user.username === 'kenan' ? 'admin' : user.username;
         await addLog('KULLANICI_GIRIS', `${userKey} sisteme giriş yaptı`, { ip: user.ip || 'Bilinmiyor', device: user.device || 'Bilinmiyor', location: user.location || 'Bilinmiyor', rawDevice: user.rawDevice || 'Bilinmiyor' }, userKey);
@@ -93,6 +109,7 @@ export const DataProvider = ({ children }) => {
         localStorage.removeItem('tir_current_device');
         localStorage.removeItem('tir_current_location');
         localStorage.removeItem('tir_current_rawDevice');
+        localStorage.removeItem('tir_current_meta');
         localStorage.removeItem('tir_presence_id');
         setCurrentSession(null);
     };
@@ -291,7 +308,10 @@ export const DataProvider = ({ children }) => {
                     role: currentSession.role || 'user',
                     lastActive: new Date().toISOString(),
                     ip: currentSession.ip || 'Bilinmiyor',
-                    device: currentSession.device || 'PC'
+                    device: currentSession.device || 'PC',
+                    location: currentSession.location,
+                    rawDevice: currentSession.rawDevice,
+                    ...currentSession.meta
                 }, { merge: true });
             } catch { /* empty */ }
         };
