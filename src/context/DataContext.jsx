@@ -44,7 +44,7 @@ export const DataProvider = ({ children }) => {
         return null;
     });
 
-    const loginSession = (user) => {
+    const loginSession = async (user) => {
         localStorage.setItem('tir_current_user', user.username);
         localStorage.setItem('tir_current_role', user.role || 'user');
         if (user.companyId) {
@@ -56,7 +56,7 @@ export const DataProvider = ({ children }) => {
         setCurrentSession({ username: user.username, role: user.role || 'user', ip: user.ip, device: user.device, location: user.location, rawDevice: user.rawDevice });
 
         const userKey = user.username === 'kenan' ? 'admin' : user.username;
-        addLog('KULLANICI_GIRIS', `${userKey} sisteme giriş yaptı`, { ip: user.ip || 'Bilinmiyor', device: user.device || 'Bilinmiyor', location: user.location || 'Bilinmiyor', rawDevice: user.rawDevice || 'Bilinmiyor' }, userKey);
+        await addLog('KULLANICI_GIRIS', `${userKey} sisteme giriş yaptı`, { ip: user.ip || 'Bilinmiyor', device: user.device || 'Bilinmiyor', location: user.location || 'Bilinmiyor', rawDevice: user.rawDevice || 'Bilinmiyor' }, userKey);
     };
 
     const logoutSession = () => {

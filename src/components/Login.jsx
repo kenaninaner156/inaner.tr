@@ -27,13 +27,24 @@ const Login = () => {
         let ip = 'Bilinmiyor';
         let location = 'Bilinmiyor';
         try {
+            // İlk tercih: ipapi.co (detaylı)
             const ipRes = await fetch('https://ipapi.co/json/');
             const ipData = await ipRes.json();
             ip = ipData.ip || 'Bilinmiyor';
             if (ipData.city) {
                 location = `${ipData.city}, ${ipData.country_name} (${ipData.org})`;
             }
-        } catch { /* empty */ }
+        } catch { 
+            // İkinci tercih: adblock'a daha az takılan ücretsiz API
+            try {
+                const ipInfoRes = await fetch('https://ipinfo.io/json');
+                const ipInfoData = await ipInfoRes.json();
+                ip = ipInfoData.ip || 'Bilinmiyor';
+                if (ipInfoData.city) {
+                    location = `${ipInfoData.city}, ${ipInfoData.country} (${ipInfoData.org})`;
+                }
+            } catch { /* empty */ }
+        }
 
         const rawDevice = navigator.userAgent;
         let deviceStr = 'Bilinmeyen Cihaz';
@@ -79,8 +90,22 @@ const Login = () => {
             if (isAuthenticated) {
                 localStorage.setItem('tir_auth_kenan_v1', btoa(`${uname}:${Date.now()}`));
                 localStorage.setItem('tir_active_tab', 'dashboard');
-                // Pass location & rawDevice for better logging
-                loginSession({ username: uname, role: userRole, companyId: companyId, ip, device, location, rawDevice });
+                // Pass location & rawDevice for better logging and AWAIT it
+                await loginSession({ username: uname, role: userRole, companyId: companyId, ip, device, location, rawDevice });
+                
+                // --- TELEGRAM BİLDİRİMİ İÇİN (OPSİYONEL ALtyapı) ---
+                // Eğer Telegram bildirimi isterseniz aşağıdaki // fetch satırlarını açıp BOT_TOKEN ve CHAT_ID girmeniz yeterli olacaktır:
+                /*
+                try {
+                    const msg = `🚨 *YENİ GİRİŞ*\n👤 Kullanıcı: ${uname}\n📱 Cihaz: ${device}\n🌍 Konum: ${location}\n🌐 IP: ${ip}`;
+                    await fetch(`https://api.telegram.org/bot<BURAYA_BOT_TOKEN_GELECEK>/sendMessage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ chat_id: '<BURAYA_CHAT_ID_GELECEK>', text: msg, parse_mode: 'Markdown' })
+                    });
+                } catch { } // hata olsa da girişi engelleme
+                */
+
                 window.location.href = '/';
                 return;
             }
