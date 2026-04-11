@@ -77,15 +77,10 @@ export const DataProvider = ({ children }) => {
         await addLog('KULLANICI_GIRIS', `${userKey} sisteme giriş yaptı`, { ip: user.ip || 'Bilinmiyor', device: user.device || 'Bilinmiyor', location: user.location || 'Bilinmiyor', rawDevice: user.rawDevice || 'Bilinmiyor' }, userKey);
     };
 
-    const logoutSession = async () => {
-        if (currentSession?.username) {
-            const userKey = currentSession.username === 'kenan' ? 'admin' : currentSession.username;
-            await addLog('KULLANICI_CIKIS', `${userKey} sistemden çıkış yaptı`, null, userKey);
-            try {
-                await deleteDoc(doc(db, 'presence', `${currentSession.username}_${currentSession.presenceId}`));
-            } catch { /* empty */ }
-        }
+    const logoutSession = () => {
+        const userToLogOut = currentSession;
 
+        // Hemen state ve localStorage temizliği yaparak anında UI geçişini sağla (bekleme/animasyon sarkmasını önler)
         localStorage.removeItem('tir_auth_kenan_v1');
         localStorage.removeItem('tir_current_user');
         localStorage.removeItem('tir_current_role');
@@ -95,6 +90,16 @@ export const DataProvider = ({ children }) => {
         localStorage.removeItem('tir_current_rawDevice');
         localStorage.removeItem('tir_presence_id');
         setCurrentSession(null);
+
+        // Firebase loglama ve online presence silme işlemlerini arka planda asenkron yap
+        if (userToLogOut?.username) {
+            const userKey = userToLogOut.username === 'kenan' ? 'admin' : userToLogOut.username;
+            addLog('KULLANICI_CIKIS', `${userKey} sistemden çıkış yaptı`, null, userKey).catch(() => {});
+            
+            if (userToLogOut.presenceId) {
+                deleteDoc(doc(db, 'presence', `${userToLogOut.username}_${userToLogOut.presenceId}`)).catch(() => {});
+            }
+        }
     };
 
     // Firebase Listener Setup
