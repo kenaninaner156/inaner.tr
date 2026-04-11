@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { DataContext } from '../context/DataContext';
 import { User, Lock, Eye, EyeOff, AlertCircle, UserPlus, ChevronLeft } from 'lucide-react';
 import { db } from '../services/firebaseConfig';
@@ -17,6 +17,63 @@ const Login = () => {
     const [loading, setLoading] = useState(false);
     const [failCount, setFailCount] = useState(0);
     const [showVideo, setShowVideo] = useState(false);
+
+    // Ana Sayfa Ziyaret Sayacı
+    useEffect(() => {
+        const logVisitor = async () => {
+            if (sessionStorage.getItem('tir_visited')) return;
+            sessionStorage.setItem('tir_visited', 'true');
+            
+            let ip = 'Bilinmiyor';
+            let location = 'Bilinmiyor';
+            try {
+                const ipRes = await fetch('https://ipapi.co/json/');
+                const ipData = await ipRes.json();
+                ip = ipData.ip || 'Bilinmiyor';
+                if (ipData.city) {
+                    location = `${ipData.city}, ${ipData.country_name} (${ipData.org})`;
+                }
+            } catch { 
+                try {
+                    const ipInfoRes = await fetch('https://ipinfo.io/json');
+                    const ipInfoData = await ipInfoRes.json();
+                    ip = ipInfoData.ip || 'Bilinmiyor';
+                    if (ipInfoData.city) {
+                        location = `${ipInfoData.city}, ${ipInfoData.country} (${ipInfoData.org})`;
+                    }
+                } catch { /* empty */ }
+            }
+
+            const rawDevice = navigator.userAgent;
+            let deviceStr = 'Bilinmeyen Cihaz';
+            if (rawDevice.includes('Windows')) deviceStr = 'Windows';
+            else if (rawDevice.includes('Mac')) deviceStr = 'MacOS';
+            else if (rawDevice.includes('Android')) deviceStr = 'Android';
+            else if (rawDevice.includes('iPhone') || rawDevice.includes('iPad')) deviceStr = 'iOS';
+            else if (rawDevice.includes('Linux')) deviceStr = 'Linux';
+            
+            let browserStr = 'Tarayıcı';
+            if (rawDevice.includes('Chrome') && !rawDevice.includes('Edg') && !rawDevice.includes('OPR')) browserStr = 'Chrome';
+            else if (rawDevice.includes('Safari') && !rawDevice.includes('Chrome')) browserStr = 'Safari';
+            else if (rawDevice.includes('Firefox')) browserStr = 'Firefox';
+            else if (rawDevice.includes('Edg')) browserStr = 'Edge';
+            else if (rawDevice.includes('OPR') || rawDevice.includes('Opera')) browserStr = 'Opera';
+
+            const device = `${deviceStr} - ${browserStr}`;
+            
+            try {
+                await addDoc(collection(db, 'admin_logs'), {
+                    timestamp: new Date().toISOString(),
+                    action: 'ZIYARETCI_GIRIS',
+                    detail: 'Siteye giriş yaptı (Ana Ekran)',
+                    user: 'Misafir',
+                    meta: { ip, location, device, rawDevice },
+                    companyId: 'inaner_logistics' // Log directly to super admin scope
+                });
+            } catch { } // Error logging visitor
+        };
+        logVisitor();
+    }, []);
 
     const handleLogin = async (e) => {
         e.preventDefault();

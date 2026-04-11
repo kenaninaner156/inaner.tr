@@ -22,6 +22,8 @@ const ACTION_LABELS = {
     KULLANICI_GIRIS: { label: 'Oturum Açıldı', color: 'text-sky-400', bg: 'bg-sky-500/10 border-sky-500/20' },
     KULLANICI_EKLE: { label: 'Manüel Ekleme', color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
     KULLANICI_DUZENLE: { label: 'Düzenleme', color: 'text-[var(--text-secondary)]', bg: 'bg-white/5 border-[var(--border-color)]' },
+    KULLANICI_CIKIS: { label: 'Çıkış Yapıldı', color: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/20' },
+    ZIYARETCI_GIRIS: { label: 'Yeni Ziyaretçi', color: 'text-fuchsia-400', bg: 'bg-fuchsia-500/10 border-fuchsia-500/20' },
 };
 
 const AdminLog = () => {
@@ -97,13 +99,15 @@ const AdminLog = () => {
         { key: 'EKLE', label: 'Eklemeler' },
         { key: 'SİL', label: 'Silmeler' },
         { key: 'KULLANICI', label: 'Kullanıcılar' },
+        { key: 'ZİYARETÇİ', label: 'Ziyaretçiler' },
     ];
 
     const filteredLog = adminLog.filter(entry => {
         // Kategori filtresi
-        if (filter === 'EKLE' && !entry.action.includes('EKLE')) return false;
-        if (filter === 'SİL' && !entry.action.includes('SİL')) return false;
-        if (filter === 'KULLANICI' && !entry.action.includes('KULLANICI')) return false;
+        if (filter === 'EKLE' && (!entry.action || !entry.action.includes('EKLE'))) return false;
+        if (filter === 'SİL' && (!entry.action || !entry.action.includes('SİL'))) return false;
+        if (filter === 'KULLANICI' && (!entry.action || !entry.action.includes('KULLANICI'))) return false;
+        if (filter === 'ZİYARETÇİ' && (!entry.action || !entry.action.includes('ZIYARETCI'))) return false;
 
         // Kelime Arama
         if (searchTerm) {
