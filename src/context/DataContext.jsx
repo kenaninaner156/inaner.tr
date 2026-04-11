@@ -113,6 +113,9 @@ export const DataProvider = ({ children }) => {
         localStorage.removeItem('tir_current_meta');
         localStorage.removeItem('tir_presence_id');
         setCurrentSession(null);
+        setIsAuthenticated(false);
+        setUserRole(null);
+        window.location.href = '/';
     };
 
     // Firebase Listener Setup
