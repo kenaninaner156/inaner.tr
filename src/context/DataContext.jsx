@@ -343,7 +343,7 @@ export const DataProvider = ({ children }) => {
             await addDoc(collection(db, 'admin_logs'), entry);
             // Uyarıcı logları discord'a gönder
             if (['KULLANICI_GIRIS', 'KULLANICI_CIKIS', 'HATALI_GIRIS', 'ZIYARETCI_GIRIS'].includes(action)) {
-                sendDiscordAlert({ action, detail, user, meta });
+                await sendDiscordAlert({ action, detail, user, meta });
             }
         } catch { /* empty */ }
     };
