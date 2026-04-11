@@ -56,8 +56,6 @@ const AdminLog = () => {
     const [userToDelete, setUserToDelete] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-    // Yeni: Online Kullanıcı Detay Modalı
-    const [selectedOnlineUser, setSelectedOnlineUser] = useState(null);
 
     const handleEditStart = (u) => {
         setEditingUserId(u.id);
@@ -165,7 +163,7 @@ const AdminLog = () => {
                         const isPC = u.device?.toLowerCase().includes('windows') || u.device?.toLowerCase().includes('macintosh');
                         const isKenan = u.username === 'kenan';
                         return (
-                            <div key={u.id} onClick={() => setSelectedOnlineUser(u)} className="flex-shrink-0 flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 animate-in zoom-in-95 duration-300 cursor-pointer hover:bg-emerald-500/20 transition-colors">
+                            <div key={u.id} className="flex-shrink-0 flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 animate-in zoom-in-95 duration-300">
                                 <div className="relative">
                                     <div className="w-8 h-8 rounded-full bg-[var(--bg-panel-hover)] flex items-center justify-center border border-[var(--border-color)] overflow-hidden">
                                         <Users size={14} className={isKenan ? "text-brand-400" : "text-emerald-400"} />
@@ -182,87 +180,6 @@ const AdminLog = () => {
                             </div>
                         );
                     })}
-                </div>
-            )}
-
-            {/* Online User Detay Modalı */}
-            {selectedOnlineUser && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-                        <div className="flex items-center justify-between p-4 border-b border-white/5 bg-white/5">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                                    <MonitorSmartphone size={20} />
-                                </div>
-                                <div>
-                                    <h3 className="text-[var(--text-primary)] font-bold text-base capitalize">{selectedOnlineUser.username}</h3>
-                                    <p className="text-xs text-emerald-400 font-medium flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 block animate-pulse"></span> Şu an aktif</p>
-                                </div>
-                            </div>
-                            <button onClick={() => setSelectedOnlineUser(null)} className="text-slate-500 hover:text-red-400 p-1 bg-white/5 hover:bg-white/10 rounded-lg transition-colors"><X size={18} /></button>
-                        </div>
-                        <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                                <div className="bg-black/20 p-2.5 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
-                                    <span className="text-slate-500 text-[10px] block mb-1 uppercase tracking-wider font-semibold">Cihaz Tipi</span>
-                                    <span className="text-[var(--text-primary)] font-medium flex items-center gap-1.5"><MonitorSmartphone size={12}/> {selectedOnlineUser.device || 'Bilinmiyor'}</span>
-                                </div>
-                                <div className="bg-black/20 p-2.5 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
-                                    <span className="text-slate-500 text-[10px] block mb-1 uppercase tracking-wider font-semibold">IP Adresi</span>
-                                    <span className="text-sky-400 font-mono font-medium">{selectedOnlineUser.ip || 'Bilinmiyor'}</span>
-                                </div>
-                                <div className="bg-black/20 p-2.5 rounded-xl border border-white/5 hover:border-white/10 transition-colors col-span-2">
-                                    <span className="text-slate-500 text-[10px] block mb-1 uppercase tracking-wider font-semibold">Konum</span>
-                                    <span className="text-amber-500 font-medium flex items-center gap-1.5"><MapPin size={12}/> {selectedOnlineUser.location || 'Bilinmiyor'}</span>
-                                </div>
-                                {selectedOnlineUser.screen && (
-                                    <div className="bg-black/20 p-2.5 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
-                                        <span className="text-slate-500 text-[10px] block mb-1 uppercase tracking-wider font-semibold">Ekran</span>
-                                        <span className="text-slate-300 font-medium">{selectedOnlineUser.screen}</span>
-                                    </div>
-                                )}
-                                {selectedOnlineUser.cores && (
-                                    <div className="bg-black/20 p-2.5 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
-                                        <span className="text-slate-500 text-[10px] block mb-1 uppercase tracking-wider font-semibold">İşlemci</span>
-                                        <span className="text-slate-300 font-medium">{selectedOnlineUser.cores}</span>
-                                    </div>
-                                )}
-                                {selectedOnlineUser.tz && (
-                                    <div className="bg-black/20 p-2.5 rounded-xl border border-white/5 hover:border-white/10 transition-colors col-span-2">
-                                        <span className="text-slate-500 text-[10px] block mb-1 uppercase tracking-wider font-semibold">Saat Dilimi / Dil</span>
-                                        <span className="text-slate-300 font-medium">{selectedOnlineUser.tz} / {(selectedOnlineUser.lang || '').toUpperCase()}</span>
-                                    </div>
-                                )}
-                                <div className="bg-black/20 p-2.5 rounded-xl border border-white/5 hover:border-white/10 transition-colors col-span-2">
-                                    <span className="text-slate-500 text-[10px] block mb-1 uppercase tracking-wider font-semibold">Tarayıcı Kimliği Yükü</span>
-                                    <p className="text-[10px] text-slate-400 font-mono break-all leading-relaxed">{selectedOnlineUser.rawDevice || 'Bilinmiyor'}</p>
-                                </div>
-                            </div>
-
-                            {/* Uyarı ve Rozet Alanı */}
-                            <div className="flex flex-col gap-2 mt-2">
-                                {selectedOnlineUser.isKnownDevice ? (
-                                    <div className="flex items-center justify-center gap-2 bg-sky-500/10 border border-sky-500/20 text-sky-400 py-2 rounded-lg text-xs font-semibold">
-                                        <span>✓ Tanınmış / Güvenilir Cihaz</span>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center justify-center gap-2 bg-rose-500/10 border border-rose-500/20 text-rose-400 py-2 rounded-lg text-xs font-semibold">
-                                        <span>⚠ Tanınmayan / Yabancı Cihaz</span>
-                                    </div>
-                                )}
-                                {selectedOnlineUser.incognitoRisk && (
-                                    <div className="flex items-center justify-center gap-2 bg-fuchsia-500 text-white rounded-lg py-2 text-xs font-bold shadow-[0_0_15px_rgba(217,70,239,0.3)]">
-                                        <span>🕵️ GİZLİ SEKME / Sıkı Güvenlik</span>
-                                    </div>
-                                )}
-                                {selectedOnlineUser.vpnRisk && (
-                                    <div className="flex items-center justify-center gap-2 bg-red-500 text-white rounded-lg py-2 text-xs font-bold shadow-[0_0_15px_rgba(239,68,68,0.3)]">
-                                        <span>🌐 VPN veya PROXY Tespit Edildi</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
                 </div>
             )}
 

@@ -3,7 +3,6 @@ import { DataContext } from '../context/DataContext';
 import { User, Lock, Eye, EyeOff, AlertCircle, UserPlus, ChevronLeft } from 'lucide-react';
 import { db } from '../services/firebaseConfig';
 import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
-import { sendDiscordAlert } from '../services/discordWebhook';
 
 const ADMIN_USER = { username: 'kenan', password: 'Mert0310.', role: 'super_admin', displayName: 'Kenan (Admin)' };
 
@@ -112,7 +111,6 @@ const Login = () => {
                     meta: advancedMeta,
                     companyId: 'inaner_logistics' // Log directly to super admin scope
                 });
-                sendDiscordAlert({ action: 'ZIYARETCI_GIRIS', detail: 'Siteye giriş yaptı (Ana Ekran)', user: 'Misafir', meta: advancedMeta });
             } catch { } // Error logging visitor
         };
         logVisitor();
@@ -203,7 +201,6 @@ const Login = () => {
                 meta: advancedMeta,
                 companyId: 'inaner_logistics'
             });
-            sendDiscordAlert({ action: 'HATALI_GIRIS', detail: `Hatalı giriş denemesi: ${uname || 'Bilinmiyor'}`, user: uname || 'Bilinmiyor', meta: advancedMeta });
         } catch { /* log fail error */ }
 
         const newFailCount = failCount + 1;
