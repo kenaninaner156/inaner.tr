@@ -601,6 +601,36 @@ const AdminLog = () => {
                                 <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5">🌐 IP Adresi</span>
                                 <span className="text-sm font-mono font-bold text-sky-400">{selectedOnlineUser.ip || '0.0.0.0'}</span>
                             </div>
+
+                            <div className="flex justify-between items-center py-2 border-b border-white/5">
+                                <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5"><MonitorSmartphone size={14} className="text-slate-400"/> Çözünürlük & Ekran</span>
+                                <span className="text-sm font-semibold text-[var(--text-primary)]">
+                                    {selectedOnlineUser.screen || 'Bilinmiyor'}
+                                </span>
+                            </div>
+                            
+                            <div className="flex justify-between items-center py-2 border-b border-white/5">
+                                <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5"><MonitorSmartphone size={14} className="text-slate-400"/> İşlemci / Dil / Bölge</span>
+                                <span className="text-sm text-[var(--text-primary)] text-right">
+                                    <span className="font-mono text-xs bg-white/5 px-1 py-0.5 rounded mr-1" title="İşlemci">{selectedOnlineUser.cores || '?'}</span>
+                                    <span className="font-mono text-[10px] bg-slate-800 border border-slate-600 px-1 py-0.5 rounded mr-1 uppercase" title="Dil">{selectedOnlineUser.lang || '?'}</span>
+                                    <span className="font-mono text-[10px] bg-white/5 px-1 py-0.5 rounded text-slate-400" title="Zaman Dilimi">{selectedOnlineUser.tz || '?'}</span>
+                                </span>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 py-2 border-b border-white/5">
+                                {selectedOnlineUser.isKnownDevice ? 
+                                    <span className="bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2 py-1 rounded text-xs font-bold">✓ Tanınan Cihaz</span> : 
+                                    <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-1 rounded text-xs font-bold">⚠ Yeni/Bilinmeyen Cihaz</span>
+                                }
+                                {selectedOnlineUser.incognitoRisk && (
+                                    <span className="bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 shadow-[0_0_10px_rgba(217,70,239,0.2)] px-2 py-1 rounded text-xs font-bold flex items-center gap-1" title="Gizli Sekme Bellek Kısıtlaması">🕵️ Gizli Sekme Riski</span>
+                                )}
+                                {selectedOnlineUser.vpnRisk && (
+                                    <span className="bg-red-500/20 text-red-300 border border-red-500/40 shadow-[0_0_10px_rgba(239,68,68,0.2)] px-2 py-1 rounded text-xs font-bold flex items-center gap-1" title="Zaman dilimi tutarsızlığı veya Datacenter/VPN IP'si">🌐 VPN / PROXY Riski</span>
+                                )}
+                            </div>
+
                             <div className="flex justify-between items-center py-2 border-b border-white/5">
                                 <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5"><Calendar size={14} className="text-fuchsia-400" /> Son Sinyal (Heartbeat)</span>
                                 <span className="text-sm text-[var(--text-primary)]">
@@ -609,7 +639,7 @@ const AdminLog = () => {
                             </div>
                             <div className="flex flex-col py-2">
                                 <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5 mb-1"><Wrench size={14} className="text-slate-500" /> Teknik Cihaz Verisi (Raw String)</span>
-                                <div className="text-[10px] text-slate-400 bg-[var(--bg-base)] p-3 rounded-lg border border-[var(--border-color)] break-words font-mono shadow-inner h-24 overflow-y-auto scrollbar-thin">
+                                <div className="text-[10px] text-slate-400 bg-[var(--bg-base)] p-3 rounded-lg border border-[var(--border-color)] break-words font-mono shadow-inner h-20 overflow-y-auto scrollbar-thin">
                                     {selectedOnlineUser.rawDevice || 'Mevcut değil (Çıkış yapıp tekrar girmek gerekebilir)'}
                                 </div>
                             </div>

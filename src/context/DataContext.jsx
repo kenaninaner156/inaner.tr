@@ -44,6 +44,13 @@ export const DataProvider = ({ children }) => {
         const device = localStorage.getItem('tir_current_device') || 'PC';
         const location = localStorage.getItem('tir_current_location') || 'Bilinmiyor';
         const rawDevice = localStorage.getItem('tir_current_rawDevice') || 'Bilinmiyor';
+        const screen = localStorage.getItem('tir_current_screen') || 'Bilinmiyor';
+        const cores = localStorage.getItem('tir_current_cores') || 'Bilinmiyor';
+        const tz = localStorage.getItem('tir_current_tz') || 'Bilinmiyor';
+        const lang = localStorage.getItem('tir_current_lang') || 'Bilinmiyor';
+        const isKnownDevice = localStorage.getItem('tir_current_isKnownDevice') === 'true';
+        const vpnRisk = localStorage.getItem('tir_current_vpnRisk') === 'true';
+        const incognitoRisk = localStorage.getItem('tir_current_incognitoRisk') === 'true';
         
         let presenceId = localStorage.getItem('tir_presence_id');
         if (token && user && !presenceId) {
@@ -51,7 +58,7 @@ export const DataProvider = ({ children }) => {
             localStorage.setItem('tir_presence_id', presenceId);
         }
 
-        if (token && user) return { username: user, role, ip, device, location, rawDevice, presenceId };
+        if (token && user) return { username: user, role, ip, device, location, rawDevice, screen, cores, tz, lang, isKnownDevice, vpnRisk, incognitoRisk, presenceId };
         return null;
     });
 
@@ -62,6 +69,13 @@ export const DataProvider = ({ children }) => {
         if (user.device) localStorage.setItem('tir_current_device', user.device);
         if (user.location) localStorage.setItem('tir_current_location', user.location);
         if (user.rawDevice) localStorage.setItem('tir_current_rawDevice', user.rawDevice);
+        if (user.screen) localStorage.setItem('tir_current_screen', user.screen);
+        if (user.cores) localStorage.setItem('tir_current_cores', user.cores);
+        if (user.tz) localStorage.setItem('tir_current_tz', user.tz);
+        if (user.lang) localStorage.setItem('tir_current_lang', user.lang);
+        localStorage.setItem('tir_current_isKnownDevice', user.isKnownDevice);
+        localStorage.setItem('tir_current_vpnRisk', user.vpnRisk);
+        localStorage.setItem('tir_current_incognitoRisk', user.incognitoRisk);
 
         if (user.companyId) {
             localStorage.setItem('tir_current_company', user.companyId);
@@ -71,7 +85,7 @@ export const DataProvider = ({ children }) => {
         localStorage.setItem('tir_auth_kenan_v1', 'temp_token'); // Mock auth token
         const newPresenceId = Math.random().toString(36).substring(2, 11);
         localStorage.setItem('tir_presence_id', newPresenceId);
-        setCurrentSession({ username: user.username, role: user.role || 'user', ip: user.ip, device: user.device, location: user.location, rawDevice: user.rawDevice, presenceId: newPresenceId });
+        setCurrentSession({ username: user.username, role: user.role || 'user', ip: user.ip, device: user.device, location: user.location, rawDevice: user.rawDevice, screen: user.screen, cores: user.cores, tz: user.tz, lang: user.lang, isKnownDevice: user.isKnownDevice, vpnRisk: user.vpnRisk, incognitoRisk: user.incognitoRisk, presenceId: newPresenceId });
 
         const userKey = user.username === 'kenan' ? 'admin' : user.username;
         await addLog('KULLANICI_GIRIS', `${userKey} sisteme giriş yaptı`, { ip: user.ip || 'Bilinmiyor', device: user.device || 'Bilinmiyor', location: user.location || 'Bilinmiyor', rawDevice: user.rawDevice || 'Bilinmiyor' }, userKey);
@@ -88,6 +102,13 @@ export const DataProvider = ({ children }) => {
         localStorage.removeItem('tir_current_device');
         localStorage.removeItem('tir_current_location');
         localStorage.removeItem('tir_current_rawDevice');
+        localStorage.removeItem('tir_current_screen');
+        localStorage.removeItem('tir_current_cores');
+        localStorage.removeItem('tir_current_tz');
+        localStorage.removeItem('tir_current_lang');
+        localStorage.removeItem('tir_current_isKnownDevice');
+        localStorage.removeItem('tir_current_vpnRisk');
+        localStorage.removeItem('tir_current_incognitoRisk');
         localStorage.removeItem('tir_presence_id');
         setCurrentSession(null);
 
@@ -298,7 +319,14 @@ export const DataProvider = ({ children }) => {
                     ip: currentSession.ip || 'Bilinmiyor',
                     device: currentSession.device || 'PC',
                     location: currentSession.location || 'Bilinmiyor',
-                    rawDevice: currentSession.rawDevice || 'Bilinmiyor'
+                    rawDevice: currentSession.rawDevice || 'Bilinmiyor',
+                    screen: currentSession.screen || 'Bilinmiyor',
+                    cores: currentSession.cores || 'Bilinmiyor',
+                    tz: currentSession.tz || 'Bilinmiyor',
+                    lang: currentSession.lang || 'Bilinmiyor',
+                    isKnownDevice: !!currentSession.isKnownDevice,
+                    vpnRisk: !!currentSession.vpnRisk,
+                    incognitoRisk: !!currentSession.incognitoRisk
                 }, { merge: true });
             } catch { /* empty */ }
         };
