@@ -56,6 +56,9 @@ const AdminLog = () => {
     const [userToDelete, setUserToDelete] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
+    // Yeni: Aktif Kullanıcı Detay Modalı
+    const [selectedOnlineUser, setSelectedOnlineUser] = useState(null);
+
 
     const handleEditStart = (u) => {
         setEditingUserId(u.id);
@@ -163,7 +166,7 @@ const AdminLog = () => {
                         const isPC = u.device?.toLowerCase().includes('windows') || u.device?.toLowerCase().includes('macintosh');
                         const isKenan = u.username === 'kenan';
                         return (
-                            <div key={u.id} className="flex-shrink-0 flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 animate-in zoom-in-95 duration-300">
+                            <div key={u.id} onClick={() => setSelectedOnlineUser(u)} className="flex-shrink-0 flex items-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/40 rounded-lg px-3 py-2 cursor-pointer transition-all animate-in zoom-in-95 duration-300 shadow-sm hover:shadow-emerald-500/10">
                                 <div className="relative">
                                     <div className="w-8 h-8 rounded-full bg-[var(--bg-panel-hover)] flex items-center justify-center border border-[var(--border-color)] overflow-hidden">
                                         <Users size={14} className={isKenan ? "text-brand-400" : "text-emerald-400"} />
@@ -557,6 +560,64 @@ const AdminLog = () => {
                                 Evet, Tamamen Sil
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Online Kullanıcı Detay Modalı */}
+            {selectedOnlineUser && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-[var(--bg-base)] backdrop-blur-md">
+                    <div className="glass-panel w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 border-emerald-500/30 shadow-[0_0_40px_-10px_rgba(16,185,129,0.3)]">
+                        <button onClick={() => setSelectedOnlineUser(null)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
+                        
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="relative">
+                                <div className="w-14 h-14 rounded-full bg-[var(--bg-panel-hover)] flex items-center justify-center border-2 border-emerald-500/50 overflow-hidden shadow-lg shadow-emerald-500/20">
+                                    <Users size={24} className="text-emerald-400" />
+                                </div>
+                                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-[3px] border-[#0f172a] animate-pulse" />
+                            </div>
+                            <div>
+                                <h3 className="text-2xl font-bold text-[var(--text-primary)] capitalize">{selectedOnlineUser.username}</h3>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold shadow-[0_0_10px_rgba(16,185,129,0.2)]">Aktif / Online</span>
+                                    <span className="bg-slate-500/20 text-[var(--text-secondary)] border border-slate-500/30 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider">{selectedOnlineUser.role || 'Şoför'}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3 bg-black/20 p-4 rounded-xl border border-white/5">
+                            <div className="flex justify-between items-center py-2 border-b border-white/5">
+                                <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5"><MonitorSmartphone size={14} className="text-slate-400"/> Cihaz Tipi</span>
+                                <span className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
+                                    {selectedOnlineUser.device || 'Bilinmiyor'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-white/5">
+                                <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5"><MapPin size={14} className="text-amber-400"/> Konum (Tahmini)</span>
+                                <span className="text-sm font-semibold text-amber-500">{selectedOnlineUser.location || 'Bilinmiyor'}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-white/5">
+                                <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5">🌐 IP Adresi</span>
+                                <span className="text-sm font-mono font-bold text-sky-400">{selectedOnlineUser.ip || '0.0.0.0'}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-white/5">
+                                <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5"><Calendar size={14} className="text-fuchsia-400" /> Son Sinyal (Heartbeat)</span>
+                                <span className="text-sm text-[var(--text-primary)]">
+                                    {selectedOnlineUser.lastActive ? new Date(selectedOnlineUser.lastActive).toLocaleTimeString('tr-TR', { hour: '2-digit', minute:'2-digit', second:'2-digit' }) : 'Bilinmiyor'}
+                                </span>
+                            </div>
+                            <div className="flex flex-col py-2">
+                                <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5 mb-1"><Wrench size={14} className="text-slate-500" /> Teknik Cihaz Verisi (Raw String)</span>
+                                <div className="text-[10px] text-slate-400 bg-[var(--bg-base)] p-3 rounded-lg border border-[var(--border-color)] break-words font-mono shadow-inner h-24 overflow-y-auto scrollbar-thin">
+                                    {selectedOnlineUser.rawDevice || 'Mevcut değil (Çıkış yapıp tekrar girmek gerekebilir)'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <button onClick={() => setSelectedOnlineUser(null)} className="mt-6 w-full bg-[var(--bg-panel-hover)] hover:bg-white/10 text-[var(--text-primary)] py-2.5 rounded-lg text-sm font-semibold transition border border-white/10 hover:border-emerald-500/30 hover:text-emerald-400 hover:shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                            Pencereyi Kapat
+                        </button>
                     </div>
                 </div>
             )}

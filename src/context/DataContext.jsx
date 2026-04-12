@@ -296,7 +296,9 @@ export const DataProvider = ({ children }) => {
                     role: currentSession.role || 'user',
                     lastActive: new Date().toISOString(),
                     ip: currentSession.ip || 'Bilinmiyor',
-                    device: currentSession.device || 'PC'
+                    device: currentSession.device || 'PC',
+                    location: currentSession.location || 'Bilinmiyor',
+                    rawDevice: currentSession.rawDevice || 'Bilinmiyor'
                 }, { merge: true });
             } catch { /* empty */ }
         };
