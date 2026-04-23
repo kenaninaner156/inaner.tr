@@ -1,5 +1,5 @@
-import React, { useState, useContext } from 'react';
-import { Droplet, Plus, MapPin, X, Trash2, Paperclip, FileText, Download, Pencil, StickyNote, ChevronDown } from 'lucide-react';
+import React, { useState, useContext, useRef, useEffect } from 'react';
+import { Droplet, Plus, MapPin, X, Trash2, Paperclip, FileText, Download, Pencil, StickyNote, ChevronDown, Calendar, Activity, Wallet } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import FileUpload from './FileUpload';
 
@@ -11,22 +11,140 @@ const Fuel = () => {
     const [editForm, setEditForm] = useState({});
     const [showExtra, setShowExtra] = useState(false);
     const [editShowExtra, setEditShowExtra] = useState(false);
+    const [showAddSuggestions, setShowAddSuggestions] = useState(false);
+    const [showEditSuggestions, setShowEditSuggestions] = useState(false);
+    const [timeFilter, setTimeFilter] = useState('all');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsDropdownOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
         station: '',
         liters: '',
         price: '',
+        odometer: '',
         notes: '',
         files: []
     });
+
+    const formatKM = (val) => {
+        if (val === undefined || val === null) return '';
+        const num = val.toString().replace(/\D/g, '');
+        return num.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    };
+
+    const formatDecimal = (val) => {
+        if (val === undefined || val === null || val === '') return '';
+        
+        // Sayısal değer ise (number type) önce Türkçe formata çevir
+        if (typeof val === 'number') {
+            const str = val.toString();
+            const [intPart, decPart] = str.split('.');
+            const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+            return decPart && decPart !== '0' ? `${formattedInt},${decPart}` : formattedInt;
+        }
+
+        let str = val.toString();
+        
+        // Kullanıcının ondalık ayraç olarak nokta kullanmasını destekle:
+        // Eğer string'in son karakteri noktaysa (kullanıcı az önce nokta tuşuna bastıysa), virgüle çevir.
+        if (str.endsWith('.')) {
+            str = str.slice(0, -1) + ',';
+        } else if (!str.includes(',')) {
+            const lastDot = str.lastIndexOf('.');
+            if (lastDot !== -1) {
+                const afterDot = str.length - lastDot - 1;
+                // Eğer noktadan sonra 1 veya 2 karakter varsa, bu büyük ihtimalle ondalık ayracıdır (örn: 12.5)
+                // 3 karakterse binlik ayracıdır (örn: 1.234)
+                // 4 veya daha fazlaysa, binlik ayracına sayı eklenmiştir (örn: 1.2345), ondalık değildir.
+                if (afterDot === 1 || afterDot === 2) {
+                    str = str.slice(0, lastDot) + ',' + str.slice(lastDot + 1);
+                }
+            }
+        }
+
+        // Birden fazla virgül varsa, sadece ilkini tut, diğerlerini sil
+        const commaIndex = str.indexOf(',');
+        if (commaIndex !== -1) {
+            str = str.slice(0, commaIndex + 1) + str.slice(commaIndex + 1).replace(/,/g, '');
+        }
+
+        // Virgülü geçici bir karaktere al
+        str = str.replace(',', 'TEMP_COMMA');
+        
+        // Tüm noktaları ve rakam olmayanları temizle
+        str = str.replace(/[^0-9TEMP_COMMA]/g, '');
+        
+        // Virgüle geri çevir
+        str = str.replace('TEMP_COMMA', ',');
+
+        // Tam ve ondalık kısmı ayır
+        let [intStr, decStr] = str.split(',');
+        
+        // Tam kısmı binlik ayraçla formatla
+        intStr = (intStr || '').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        
+        // Ondalık kısım varsa virgülle birleştir
+        return decStr !== undefined ? `${intStr},${decStr}` : intStr;
+    };
+
+    const parseDecimal = (val) => {
+        if (!val) return 0;
+        return parseFloat(val.toString().replace(/\./g, '').replace(',', '.'));
+    };
+
+    const toTitleCase = (str) => {
+        if (!str) return '';
+        return str.split(' ').map(word => {
+            if (!word) return '';
+            return word.charAt(0).toLocaleUpperCase('tr-TR') + word.slice(1).toLocaleLowerCase('tr-TR');
+        }).join(' ');
+    };
+
+    const handleOdometerClick = (e) => {
+        const val = e.target.value;
+        if (val && val.length >= 3) {
+            e.target.setSelectionRange(val.length - 3, val.length);
+        }
+    };
+
+    const openAddModal = () => {
+        // En son girilen KM değerini bulup form'a otomatik yerleştir
+        const activeRecords = fuelRecords.filter(r => !r.deleted);
+        const sortedRecords = [...activeRecords].sort((a,b) => new Date(b.date) - new Date(a.date));
+        const lastRecordWithOdometer = sortedRecords.find(r => r.odometer);
+        const lastOdometerValue = lastRecordWithOdometer ? lastRecordWithOdometer.odometer : '';
+        
+        setFormData({
+            date: new Date().toISOString().split('T')[0],
+            station: '',
+            liters: '',
+            price: '',
+            odometer: formatKM(lastOdometerValue),
+            notes: '',
+            files: []
+        });
+        setIsModalOpen(true);
+    };
 
     const openEditModal = (record) => {
         setEditingFuel(record);
         setEditForm({
             date: record.date,
             station: record.station,
-            liters: record.liters,
-            price: record.price,
+            liters: formatDecimal(record.liters),
+            price: formatDecimal(record.price),
+            odometer: formatKM(record.odometer) || '',
             notes: record.notes || '',
             files: record.files || []
         });
@@ -37,22 +155,24 @@ const Fuel = () => {
         addFuel({
             date: formData.date,
             station: formData.station,
-            liters: parseFloat(formData.liters),
-            price: parseFloat(formData.price),
+            liters: parseDecimal(formData.liters),
+            price: parseDecimal(formData.price),
+            odometer: formData.odometer ? parseFloat(formData.odometer.toString().replace(/\./g, '')) : null,
             notes: formData.notes,
             files: formData.files
         });
         setIsModalOpen(false);
         setShowExtra(false);
-        setFormData({ date: new Date().toISOString().split('T')[0], station: '', liters: '', price: '', notes: '', files: [] });
+        setFormData({ date: new Date().toISOString().split('T')[0], station: '', liters: '', price: '', odometer: '', notes: '', files: [] });
     };
 
     const handleEdit = async () => {
         await editFuel(editingFuel.id, {
             date: editForm.date,
             station: editForm.station,
-            liters: parseFloat(editForm.liters),
-            price: parseFloat(editForm.price),
+            liters: parseDecimal(editForm.liters),
+            price: parseDecimal(editForm.price),
+            odometer: editForm.odometer ? parseFloat(editForm.odometer.toString().replace(/\./g, '')) : null,
             notes: editForm.notes,
             files: editForm.files
         });
@@ -64,33 +184,195 @@ const Fuel = () => {
     };
 
     const activeFuelRecords = fuelRecords.filter(r => !r.deleted);
-    const totalLiters = activeFuelRecords.reduce((acc, r) => acc + r.liters, 0);
-    const totalCost = activeFuelRecords.reduce((acc, r) => acc + r.price, 0);
+    
+    // Kümülatif Yakıt Tüketimi Hesaplama Algoritması
+    const processedRecords = React.useMemo(() => {
+        // Hesaplamayı yapabilmek için kayıtları kronolojik (eskiden yeniye) sıralayalım.
+        // DataContext'te b-a (yeni -> eski) sıralandığı için tersine çeviriyoruz.
+        const chronological = [...activeFuelRecords].reverse();
+        
+        let lastOdometer = null;
+        let accumulatedLiters = 0;
+        let accumulatedPrice = 0;
+        
+        const enriched = chronological.map((record) => {
+            const enrichedRecord = { ...record };
+            
+            if (record.odometer && record.odometer > 0) {
+                if (lastOdometer && record.odometer > lastOdometer) {
+                    const distance = record.odometer - lastOdometer;
+                    const totalLitersForDistance = accumulatedLiters + record.liters;
+                    const totalCostForDistance = accumulatedPrice + record.price;
+                    
+                    enrichedRecord.consumptionStats = {
+                        distance,
+                        totalLiters: totalLitersForDistance,
+                        ltPer100km: (totalLitersForDistance / distance) * 100,
+                        costPerKm: totalCostForDistance / distance
+                    };
+                }
+                // Yeni referans KM'yi güncelle ve birikimleri sıfırla
+                lastOdometer = record.odometer;
+                accumulatedLiters = 0;
+                accumulatedPrice = 0;
+            } else {
+                // KM girilmediyse biriktirmeye devam et
+                if (lastOdometer) {
+                    accumulatedLiters += record.liters;
+                    accumulatedPrice += record.price;
+                }
+            }
+            return enrichedRecord;
+        });
+        
+        // Gösterim için tekrar eskiden yeniye ters çeviriyoruz
+        return enriched.reverse();
+    }, [activeFuelRecords]);
+
+    const monthOptions = React.useMemo(() => {
+        const options = [];
+        const currentYear = new Date().getFullYear();
+        
+        const uniqueMonths = [...new Set(activeFuelRecords.map(r => {
+            const d = new Date(r.date);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        }))].sort().reverse();
+        
+        uniqueMonths.forEach(ym => {
+            const [y, m] = ym.split('-');
+            const year = parseInt(y);
+            const monthIndex = parseInt(m) - 1;
+            const date = new Date(year, monthIndex, 1);
+            const monthName = date.toLocaleString('tr-TR', { month: 'long' });
+            
+            const label = year === currentYear ? monthName : `${monthName} ${year}`;
+            options.push({ value: ym, label });
+        });
+        
+        return options;
+    }, [activeFuelRecords]);
+
+    const filteredRecords = React.useMemo(() => {
+        if (timeFilter === 'all') return processedRecords;
+        
+        return processedRecords.filter(r => {
+            const d = new Date(r.date);
+            const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            return ym === timeFilter;
+        });
+    }, [processedRecords, timeFilter]);
+
+    const summaryStats = React.useMemo(() => {
+        let totalLiters = 0;
+        let totalCost = 0;
+        let totalDistanceForConsumption = 0;
+        let totalLitersForConsumption = 0;
+        let totalCostForConsumption = 0;
+        
+        filteredRecords.forEach(r => {
+            totalLiters += r.liters;
+            totalCost += r.price;
+            
+            if (r.consumptionStats) {
+                totalDistanceForConsumption += r.consumptionStats.distance;
+                totalLitersForConsumption += r.consumptionStats.totalLiters;
+                totalCostForConsumption += (r.consumptionStats.costPerKm * r.consumptionStats.distance);
+            }
+        });
+        
+        const avgLtPer100km = totalDistanceForConsumption > 0 ? (totalLitersForConsumption / totalDistanceForConsumption) * 100 : null;
+        const avgCostPerKm = totalDistanceForConsumption > 0 ? (totalCostForConsumption / totalDistanceForConsumption) : null;
+        
+        return { totalLiters, totalCost, avgLtPer100km, avgCostPerKm, totalDistanceForConsumption };
+    }, [filteredRecords]);
+
+    const uniqueStations = [...new Set(activeFuelRecords.filter(r => r.station).map(r => toTitleCase(r.station)))];
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 relative pb-ios-nav">
-            {/* Özet ve Ekleme */}
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="flex gap-4 w-full md:w-auto">
-                    <div className="glass-panel px-4 py-2 flex items-center gap-3 flex-1">
-                        <div className="bg-orange-500/20 p-2 rounded-lg text-orange-400"><Droplet size={20} /></div>
-                        <div>
-                            <p className="text-xs text-[var(--text-secondary)]">Toplam Alınan</p>
-                            <p className="font-bold text-[var(--text-primary)]">{totalLiters.toFixed(2)} Lt</p>
-                        </div>
-                    </div>
-                    <div className="glass-panel px-4 py-2 flex items-center gap-3 flex-1">
-                        <div className="bg-brand-500/20 p-2 rounded-lg text-brand-400"><span className="font-bold text-lg leading-none">₺</span></div>
-                        <div>
-                            <p className="text-xs text-[var(--text-secondary)]">Toplam Tutar</p>
-                            <p className="font-bold text-[var(--text-primary)]">₺{totalCost.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</p>
-                        </div>
+            {/* Üst Bar: Başlık, Filtre ve Aksiyon */}
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="flex items-center gap-4 w-full sm:w-auto">
+                    {/* Masaüstünde Başlık */}
+                    <h2 className="hidden md:block text-2xl font-bold text-[var(--text-primary)] mr-2 tracking-tight">Mazot Fişleri</h2>
+                    
+                    {/* Custom Dropdown */}
+                    <div className="relative w-full sm:w-auto min-w-[200px]" ref={dropdownRef}>
+                        <button 
+                            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                            className="w-full glass-panel px-4 py-2.5 rounded-xl text-sm font-bold text-[var(--text-primary)] flex items-center justify-between gap-3 hover:border-[var(--text-secondary)] transition-all border border-white/5 shadow-lg group"
+                        >
+                            <div className="flex items-center gap-2">
+                                <Calendar size={16} className="text-orange-400 group-hover:text-orange-300 transition-colors" />
+                                <span>{timeFilter === 'all' ? 'Tüm Zamanlar' : monthOptions.find(o => o.value === timeFilter)?.label}</span>
+                            </div>
+                            <ChevronDown size={16} className={`text-[var(--text-secondary)] transition-transform duration-300 ${isDropdownOpen ? 'rotate-180 text-orange-400' : ''}`} />
+                        </button>
+                        
+                        {isDropdownOpen && (
+                            <div className="absolute z-50 top-full left-0 right-0 mt-2 bg-[#0B0E14]/95 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl shadow-black/80 animate-in fade-in slide-in-from-top-2 duration-200">
+                                <div className="max-h-[300px] overflow-y-auto custom-scrollbar flex flex-col p-1.5 gap-0.5">
+                                    <button 
+                                        onClick={() => { setTimeFilter('all'); setIsDropdownOpen(false); }}
+                                        className={`w-full text-left px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${timeFilter === 'all' ? 'bg-orange-500/10 text-orange-400' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}`}
+                                    >
+                                        Tüm Zamanlar
+                                    </button>
+                                    {monthOptions.map(opt => (
+                                        <button 
+                                            key={opt.value}
+                                            onClick={() => { setTimeFilter(opt.value); setIsDropdownOpen(false); }}
+                                            className={`w-full text-left px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${timeFilter === opt.value ? 'bg-orange-500/10 text-orange-400' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
-                <button onClick={() => setIsModalOpen(true)}
-                    className="w-full md:w-auto bg-orange-600 hover:bg-orange-500 text-[var(--text-primary)] px-4 py-2 rounded-lg font-medium transition-all shadow-lg shadow-orange-500/20 flex items-center justify-center">
-                    <Plus size={18} className="mr-2" /> Yeni Fiş Ekle
+
+                <button onClick={() => openAddModal()}
+                    className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(249,115,22,0.2)] hover:shadow-[0_0_25px_rgba(249,115,22,0.4)] hover:-translate-y-0.5 flex items-center justify-center flex-shrink-0">
+                    <Plus size={18} className="mr-2" /> Yeni Fiş
                 </button>
+            </div>
+
+            {/* İstatistik Kartları */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="glass-panel p-4 flex flex-col gap-1 relative overflow-hidden group border-orange-500/10 hover:border-orange-500/30 transition-colors">
+                    <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-orange-500"><Droplet size={80}/></div>
+                    <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-orange-500/80 tracking-widest mb-1"><Droplet size={12}/> Toplam Alınan</div>
+                    <div className="font-black text-2xl text-[var(--text-primary)]">{summaryStats.totalLiters.toFixed(2)} <span className="text-sm font-semibold text-[var(--text-secondary)]">Lt</span></div>
+                </div>
+                
+                <div className="glass-panel p-4 flex flex-col gap-1 relative overflow-hidden group border-emerald-500/10 hover:border-emerald-500/30 transition-colors">
+                    <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-emerald-500"><Wallet size={80}/></div>
+                    <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-emerald-500/80 tracking-widest mb-1"><Wallet size={12}/> Toplam Tutar</div>
+                    <div className="font-black text-2xl text-[var(--text-primary)]"><span className="text-lg font-semibold text-emerald-500 mr-1">₺</span>{summaryStats.totalCost.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
+                </div>
+
+                {summaryStats.totalDistanceForConsumption > 0 ? (
+                    <>
+                        <div className="glass-panel p-4 flex flex-col gap-1 relative overflow-hidden group border-sky-500/10 hover:border-sky-500/30 transition-colors animate-in fade-in zoom-in duration-500">
+                            <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-sky-500"><Activity size={80}/></div>
+                            <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-sky-500/80 tracking-widest mb-1"><Activity size={12}/> Ort. Tüketim</div>
+                            <div className="font-black text-2xl text-[var(--text-primary)]">{summaryStats.avgLtPer100km.toFixed(1)} <span className="text-sm font-semibold text-sky-500/80">L/100km</span></div>
+                        </div>
+                        
+                        <div className="glass-panel p-4 flex flex-col gap-1 relative overflow-hidden group border-brand-500/10 hover:border-brand-500/30 transition-colors animate-in fade-in zoom-in duration-500">
+                            <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-brand-500"><MapPin size={80}/></div>
+                            <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-brand-500/80 tracking-widest mb-1"><MapPin size={12}/> KM Maliyeti</div>
+                            <div className="font-black text-2xl text-[var(--text-primary)]"><span className="text-lg font-semibold text-brand-500 mr-1">₺</span>{summaryStats.avgCostPerKm.toFixed(2)} <span className="text-sm font-semibold text-[var(--text-secondary)]">/km</span></div>
+                        </div>
+                    </>
+                ) : (
+                    <div className="col-span-2 glass-panel p-4 flex flex-col items-center justify-center text-center opacity-50 border-dashed border-2 border-white/5">
+                        <MapPin size={24} className="mb-2 text-[var(--text-secondary)]" />
+                        <p className="text-xs font-bold text-[var(--text-secondary)]">Ortalama Tüketim İçin KM Verisi Bekleniyor</p>
+                    </div>
+                )}
             </div>
 
             {/* Tablo */}
@@ -107,7 +389,7 @@ const Fuel = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
-                            {activeFuelRecords.length > 0 ? activeFuelRecords.map((record) => (
+                            {filteredRecords.length > 0 ? filteredRecords.map((record) => (
                                 <tr key={record.id} className="hover:bg-white/5 transition-colors group">
                                     <td className="p-3 pl-4 text-[var(--text-primary)] text-sm whitespace-nowrap">
                                         {new Date(record.date).toLocaleDateString('tr-TR')}
@@ -117,17 +399,39 @@ const Fuel = () => {
                                             <MapPin size={10} className="text-orange-400 flex-shrink-0" />
                                             <span className="text-[var(--text-primary)] text-sm">{record.station}</span>
                                         </div>
-                                        {record.notes && (
-                                            <div className="flex items-center gap-1 mt-0.5">
-                                                <StickyNote size={9} className="text-slate-500" />
-                                                <span className="text-xs text-slate-500 truncate max-w-[200px]">{record.notes}</span>
+                                        {(record.notes || record.odometer) && (
+                                            <div className="flex flex-col gap-0.5 mt-0.5">
+                                                {record.odometer && (
+                                                    <div className="flex items-center gap-1 text-emerald-400/80">
+                                                        <span className="text-[10px] font-bold tracking-wide">KM:</span>
+                                                        <span className="text-xs font-medium">{record.odometer.toLocaleString('tr-TR')}</span>
+                                                    </div>
+                                                )}
+                                                {record.notes && (
+                                                    <div className="flex items-center gap-1">
+                                                        <StickyNote size={9} className="text-slate-500" />
+                                                        <span className="text-xs text-slate-500 truncate max-w-[200px]">{record.notes}</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </td>
-                                    <td className="p-3 text-center text-[var(--text-primary)] font-medium text-sm">{record.liters} Lt</td>
-                                    <td className="p-3 text-right text-orange-400 font-bold text-sm">
-                                        ₺{record.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                                    <td className="p-3 text-center">
+                                        <div className="text-[var(--text-primary)] font-medium text-sm">{record.liters} Lt</div>
+                                        {record.consumptionStats && (
+                                            <div className="text-[10px] text-emerald-400 bg-emerald-400/10 inline-block px-1.5 py-0.5 rounded font-medium mt-1">
+                                                {record.consumptionStats.ltPer100km.toFixed(1)} L/100km
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td className="p-3 text-right">
+                                        <div className="text-orange-400 font-bold text-sm">₺{record.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
                                         <div className="text-xs text-slate-500 font-normal">₺{(record.price / record.liters).toFixed(2)}/Lt</div>
+                                        {record.consumptionStats && (
+                                            <div className="text-[10px] text-brand-400 mt-0.5 font-medium">
+                                                ₺{record.consumptionStats.costPerKm.toFixed(2)} / km
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="p-2 text-center">
                                         <div className="flex items-center justify-center gap-0.5">
@@ -156,8 +460,8 @@ const Fuel = () => {
 
                     {/* Mobil Kart Görünümü */}
                     <div className="md:hidden flex flex-col gap-3 p-2">
-                        {activeFuelRecords.length > 0 ? (
-                            activeFuelRecords.map((record) => (
+                        {filteredRecords.length > 0 ? (
+                            filteredRecords.map((record) => (
                                 <div key={record.id} className="bg-[var(--bg-panel)] border border-[var(--border-color)] rounded-2xl p-4 shadow-sm relative overflow-hidden">
                                     <div className="flex justify-between items-start mb-2">
                                         <div className="flex flex-col">
@@ -165,10 +469,20 @@ const Fuel = () => {
                                                 <MapPin size={14} className="text-orange-500" />
                                                 {record.station}
                                             </div>
-                                            {record.notes && (
-                                                <div className="flex items-center gap-1 mt-1">
-                                                    <StickyNote size={9} className="text-slate-500" />
-                                                    <span className="text-[10px] text-slate-500 truncate max-w-[160px]">{record.notes}</span>
+                                            {(record.notes || record.odometer) && (
+                                                <div className="flex flex-col gap-1 mt-1">
+                                                    {record.odometer && (
+                                                        <div className="flex items-center gap-1 text-emerald-400/80">
+                                                            <span className="text-[10px] font-bold tracking-wide">KM:</span>
+                                                            <span className="text-xs font-medium">{record.odometer.toLocaleString('tr-TR')}</span>
+                                                        </div>
+                                                    )}
+                                                    {record.notes && (
+                                                        <div className="flex items-center gap-1">
+                                                            <StickyNote size={9} className="text-slate-500" />
+                                                            <span className="text-[10px] text-slate-500 truncate max-w-[160px]">{record.notes}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -203,6 +517,24 @@ const Fuel = () => {
                                             <div className="text-orange-400 font-bold text-sm w-full text-right">₺{parseFloat(record.price).toLocaleString('tr-TR')}</div>
                                         </div>
                                     </div>
+                                    
+                                    {/* Mobil Tüketim Performans Satırı */}
+                                    {record.consumptionStats && (
+                                        <div className="mt-2.5 grid grid-cols-3 gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-2.5 items-center">
+                                            <div className="flex flex-col">
+                                                <div className="text-[9px] text-emerald-500/70 uppercase font-bold mb-0.5">Menzil</div>
+                                                <div className="text-emerald-400 font-medium text-xs">{record.consumptionStats.distance.toLocaleString('tr-TR')} km</div>
+                                            </div>
+                                            <div className="flex flex-col border-l border-emerald-500/20 pl-2">
+                                                <div className="text-[9px] text-emerald-500/70 uppercase font-bold mb-0.5">Tüketim</div>
+                                                <div className="text-emerald-400 font-medium text-xs">{record.consumptionStats.ltPer100km.toFixed(1)} L/100</div>
+                                            </div>
+                                            <div className="flex flex-col items-end border-l border-emerald-500/20 pl-2">
+                                                <div className="text-[9px] text-emerald-500/70 uppercase font-bold mb-0.5 w-full text-right">Maliyet</div>
+                                                <div className="text-brand-400 font-bold text-xs w-full text-right">₺{record.consumptionStats.costPerKm.toFixed(2)}/km</div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ))
                         ) : (
@@ -224,63 +556,112 @@ const Fuel = () => {
                             <Pencil size={16} className="text-orange-400" /> Fişi Düzenle
                         </h3>
                         <div className="space-y-4">
-                            {/* Tarih */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tarih</label>
-                                <input type="date" className="w-full glass-input px-3 py-2 text-sm"
-                                    value={editForm.date}
-                                    onChange={e => setEditForm({ ...editForm, date: e.target.value })} />
-                            </div>
-                            {/* İstasyon */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">İstasyon / Konum</label>
-                                <input type="text" className="w-full glass-input px-3 py-2 text-sm"
-                                    value={editForm.station}
-                                    onChange={e => setEditForm({ ...editForm, station: e.target.value })} />
-                            </div>
-
-                            {/* Litre & Ek Bilgiler Toggle */}
                             <div className="grid grid-cols-2 gap-3">
+                                {/* Tarih */}
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Litre</label>
-                                    <input type="number" step="0.01" className="w-full glass-input px-3 py-2 text-sm"
-                                        value={editForm.liters}
-                                        onChange={e => setEditForm({ ...editForm, liters: e.target.value })} />
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tarih</label>
+                                    <input type="date" className="w-full glass-input px-3 py-2.5 text-sm"
+                                        value={editForm.date}
+                                        onChange={e => setEditForm({ ...editForm, date: e.target.value })} />
                                 </div>
                                 <div className="flex items-end">
                                     <button
                                         type="button"
                                         onClick={() => setEditShowExtra(!editShowExtra)}
-                                        className={`w-full py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 ${editShowExtra ? 'bg-orange-500/10 border-orange-500/50 text-orange-400 shadow-lg shadow-orange-500/10' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                                        className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 ${editShowExtra ? 'bg-orange-500/10 border-orange-500/50 text-orange-400 shadow-lg shadow-orange-500/10' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                                     >
                                         <StickyNote size={14} className={editShowExtra ? "animate-pulse" : ""} />
                                         Ek Bilgiler {editShowExtra ? <ChevronDown size={14} className="rotate-180" /> : <ChevronDown size={14} />}
                                     </button>
                                 </div>
                             </div>
-
-                            {/* Tutar Alanı */}
-                            <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 flex flex-col items-center justify-center shadow-lg shadow-emerald-500/5">
-                                <label className="text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.2em] mb-1">Toplam Tutar</label>
-                                <div className="relative">
-                                    <span className="absolute -left-5 top-1 font-bold text-xl text-emerald-500/40">₺</span>
-                                    <input 
-                                        type="number" 
-                                        step="0.01" 
-                                        className="bg-transparent text-3xl font-black text-emerald-400 text-center focus:outline-none w-40 placeholder:text-emerald-900"
-                                        value={editForm.price}
-                                        onChange={e => setEditForm({ ...editForm, price: e.target.value })}
-                                        placeholder="0.00"
-                                    />
-                                </div>
-                                {editForm.liters > 0 && editForm.price > 0 && (
-                                    <div className="text-[10px] bg-emerald-500/10 text-emerald-500/80 px-2 py-0.5 rounded-full mt-2 font-bold transition-all animate-in fade-in slide-in-from-top-1">
-                                        BİRİM: ₺{(editForm.price / editForm.liters).toFixed(2)} / Lt
-                                    </div>
+                            
+                            {/* İstasyon */}
+                            {/* İstasyon */}
+                            <div className="relative z-[100]">
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">İstasyon / Konum</label>
+                                <input 
+                                    type="text" 
+                                    className="w-full glass-input px-3 py-2 text-sm"
+                                    value={editForm.station}
+                                    onFocus={() => setShowEditSuggestions(true)}
+                                    onBlur={() => setTimeout(() => setShowEditSuggestions(false), 200)}
+                                    onChange={e => setEditForm({ ...editForm, station: toTitleCase(e.target.value) })} 
+                                />
+                                {showEditSuggestions && uniqueStations.filter(s => s.toLowerCase('tr-TR').includes((editForm.station || '').toLowerCase('tr-TR'))).length > 0 && (
+                                    <ul className="absolute z-50 w-full mt-1 bg-black/90 backdrop-blur-2xl border border-white/[0.07] shadow-[0_16px_48px_rgba(0,0,0,0.95)] rounded-xl max-h-48 overflow-y-auto">
+                                        {uniqueStations.filter(s => s.toLowerCase('tr-TR').includes((editForm.station || '').toLowerCase('tr-TR'))).map(station => (
+                                            <li 
+                                                key={station}
+                                                className="px-4 py-2 hover:bg-white/10 cursor-pointer text-sm text-[var(--text-secondary)] hover:text-white transition-colors"
+                                                onMouseDown={() => {
+                                                    setEditForm({...editForm, station});
+                                                    setShowEditSuggestions(false);
+                                                }}
+                                            >
+                                                {station}
+                                            </li>
+                                        ))}
+                                    </ul>
                                 )}
                             </div>
 
-                            {/* Ek Bilgiler (Not & Dosya) */}
+                            {/* Litre, Tutar ve KM Alanı - Liste Tasarımı */}
+                            <div className="flex flex-col gap-2 my-3">
+                                {/* Litre Row */}
+                                <div className="bg-orange-500/5 border border-orange-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm relative overflow-hidden">
+                                    <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-orange-500/40 to-transparent"></div>
+                                    <label className="text-[11px] font-bold text-orange-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap"><Droplet size={14}/> Litre</label>
+                                    <div className="flex-1 ml-4 flex justify-end">
+                                        <input 
+                                            type="tel" 
+                                            required
+                                            className="bg-transparent text-xl font-black text-orange-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-orange-900/30"
+                                            value={editForm.liters}
+                                            onChange={e => setEditForm({ ...editForm, liters: formatDecimal(e.target.value) })}
+                                            placeholder="0,00"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Tutar Row */}
+                                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between shadow-sm relative overflow-hidden">
+                                    <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-emerald-500/40 to-transparent"></div>
+                                    <label className="text-[11px] font-bold text-emerald-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap">Toplam Tutar</label>
+                                    <div className="flex-1 ml-2 flex justify-end items-center">
+                                        <input 
+                                            type="tel" 
+                                            required
+                                            className="bg-transparent text-xl font-black text-emerald-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-emerald-900/30"
+                                            value={editForm.price}
+                                            onChange={e => setEditForm({ ...editForm, price: formatDecimal(e.target.value) })}
+                                            placeholder="0,00"
+                                        />
+                                        <span className={`font-bold text-lg mt-0.5 shrink-0 ml-1 transition-colors duration-300 ${editForm.price ? 'text-emerald-400' : 'text-emerald-900/30'}`}>₺</span>
+                                    </div>
+                                    {parseDecimal(editForm.liters) > 0 && parseDecimal(editForm.price) > 0 && (
+                                        <div className="w-full text-right text-[10px] text-emerald-500/60 mt-1.5 font-bold animate-in fade-in zoom-in duration-300">
+                                            BİRİM: ₺{(parseDecimal(editForm.price) / parseDecimal(editForm.liters)).toFixed(2)} / Lt
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Araç KM Row */}
+                                <div className="bg-brand-500/5 border border-brand-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm relative overflow-hidden">
+                                    <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-brand-500/40 to-transparent"></div>
+                                    <label className="text-[11px] font-bold text-brand-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap"><MapPin size={14}/> Araç KM</label>
+                                    <div className="flex-1 ml-4 flex justify-end">
+                                        <input 
+                                            type="tel" 
+                                            className="bg-transparent text-xl font-black text-brand-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-brand-900/30"
+                                            value={editForm.odometer}
+                                            onClick={handleOdometerClick}
+                                            onChange={e => setEditForm({ ...editForm, odometer: formatKM(e.target.value) })}
+                                            placeholder="Km Girin"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
                             {editShowExtra && (
                                 <div className="space-y-4 pt-2 border-t border-white/5 animate-in slide-in-from-top-4 duration-300">
                                     <div>
@@ -301,13 +682,13 @@ const Fuel = () => {
                             )}
 
                             {/* Aksiyon Butonları */}
-                            <div className="grid grid-cols-5 gap-3 mt-2">
+                            <div className="flex gap-3 mt-4">
                                 <button onClick={handleEdit}
-                                    className="col-span-4 bg-orange-600 hover:bg-orange-500 text-[var(--text-primary)] py-3 rounded-xl font-bold transition-all shadow-lg shadow-orange-500/20">
+                                    className="flex-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white py-3.5 rounded-2xl font-black transition-all shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-0.5 uppercase tracking-wide">
                                     Kaydet
                                 </button>
                                 <button onClick={() => { handleDelete(editingFuel.id); setEditingFuel(null); }}
-                                    className="col-span-1 flex items-center justify-center text-red-500 hover:bg-red-500/10 border border-red-500/20 rounded-xl transition-all">
+                                    className="w-14 flex items-center justify-center bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 hover:border-red-500 rounded-2xl transition-all shadow-lg shadow-red-500/5 hover:shadow-red-500/30 hover:-translate-y-0.5">
                                     <Trash2 size={20} />
                                 </button>
                             </div>
@@ -327,22 +708,11 @@ const Fuel = () => {
                             <Droplet className="mr-2 text-orange-500" /> Yeni Mazot Fişi
                         </h3>
                         <form onSubmit={handleAdd} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tarih</label>
-                                <input type="date" required className="w-full glass-input px-4 py-2.5 text-sm font-medium" value={formData.date}
-                                    onChange={e => setFormData({ ...formData, date: e.target.value })} />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">İstasyon / Konum</label>
-                                <input type="text" required placeholder="Örn: Shell Eryaman" className="w-full glass-input px-4 py-2.5 text-sm" value={formData.station}
-                                    onChange={e => setFormData({ ...formData, station: e.target.value })} />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Litre</label>
-                                    <input type="number" step="0.01" required placeholder="0.00" className="w-full glass-input px-4 py-2.5 text-sm" value={formData.liters}
-                                        onChange={e => setFormData({ ...formData, liters: e.target.value })} />
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tarih</label>
+                                    <input type="date" required className="w-full glass-input px-4 py-2.5 text-sm font-medium" value={formData.date}
+                                        onChange={e => setFormData({ ...formData, date: e.target.value })} />
                                 </div>
                                 <div className="flex items-end">
                                     <button
@@ -355,27 +725,92 @@ const Fuel = () => {
                                     </button>
                                 </div>
                             </div>
-
-                            <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-3xl p-6 flex flex-col items-center justify-center shadow-lg shadow-emerald-500/5 my-2 relative overflow-hidden group">
-                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500/20 to-transparent"></div>
-                                <label className="text-[10px] font-bold text-emerald-500/60 uppercase tracking-[0.3em] mb-2">Toplam Tutar</label>
-                                <div className="relative">
-                                    <span className="absolute -left-6 top-1.5 font-bold text-2xl text-emerald-500/40">₺</span>
-                                    <input 
-                                        type="number" 
-                                        step="0.01" 
-                                        required
-                                        className="bg-transparent text-4xl font-black text-emerald-400 text-center focus:outline-none w-48 placeholder:text-emerald-900/30"
-                                        value={formData.price}
-                                        onChange={e => setFormData({ ...formData, price: e.target.value })}
-                                        placeholder="0.00"
-                                    />
-                                </div>
-                                {formData.liters > 0 && formData.price > 0 && (
-                                    <div className="text-[11px] bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-full mt-3 font-bold border border-emerald-500/20 animate-in fade-in zoom-in duration-300">
-                                        BİRİM: ₺{(formData.price / formData.liters).toFixed(2)} / Lt
-                                    </div>
+                            {/* İstasyon */}
+                            <div className="relative z-[100]">
+                                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">İstasyon / Konum</label>
+                                <input 
+                                    type="text" 
+                                    required 
+                                    placeholder="Örn: Shell Eryaman" 
+                                    className="w-full glass-input px-4 py-2.5 text-sm" 
+                                    value={formData.station}
+                                    onFocus={() => setShowAddSuggestions(true)}
+                                    onBlur={() => setTimeout(() => setShowAddSuggestions(false), 200)}
+                                    onChange={e => setFormData({ ...formData, station: toTitleCase(e.target.value) })} 
+                                />
+                                {showAddSuggestions && uniqueStations.filter(s => s.toLowerCase('tr-TR').includes((formData.station || '').toLowerCase('tr-TR'))).length > 0 && (
+                                    <ul className="absolute z-50 w-full mt-1 bg-black/90 backdrop-blur-2xl border border-white/[0.07] shadow-[0_16px_48px_rgba(0,0,0,0.95)] rounded-xl max-h-48 overflow-y-auto">
+                                        {uniqueStations.filter(s => s.toLowerCase('tr-TR').includes((formData.station || '').toLowerCase('tr-TR'))).map(station => (
+                                            <li 
+                                                key={station}
+                                                className="px-4 py-2 hover:bg-white/10 cursor-pointer text-sm text-[var(--text-secondary)] hover:text-white transition-colors"
+                                                onMouseDown={() => {
+                                                    setFormData({...formData, station});
+                                                    setShowAddSuggestions(false);
+                                                }}
+                                            >
+                                                {station}
+                                            </li>
+                                        ))}
+                                    </ul>
                                 )}
+                            </div>
+
+                            {/* Litre, Tutar ve KM Alanı - Liste Tasarımı */}
+                            <div className="flex flex-col gap-2 my-3">
+                                {/* Litre Row */}
+                                <div className="bg-orange-500/5 border border-orange-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm relative overflow-hidden">
+                                    <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-orange-500/40 to-transparent"></div>
+                                    <label className="text-[11px] font-bold text-orange-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap"><Droplet size={14}/> Litre</label>
+                                    <div className="flex-1 ml-4 flex justify-end">
+                                        <input 
+                                            type="tel" 
+                                            required
+                                            className="bg-transparent text-xl font-black text-orange-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-orange-900/30"
+                                            value={formData.liters}
+                                            onChange={e => setFormData({ ...formData, liters: formatDecimal(e.target.value) })}
+                                            placeholder="0,00"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Tutar Row */}
+                                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between shadow-sm relative overflow-hidden">
+                                    <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-emerald-500/40 to-transparent"></div>
+                                    <label className="text-[11px] font-bold text-emerald-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap">Toplam Tutar</label>
+                                    <div className="flex-1 ml-2 flex justify-end items-center">
+                                        <input 
+                                            type="tel" 
+                                            required
+                                            className="bg-transparent text-xl font-black text-emerald-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-emerald-900/30"
+                                            value={formData.price}
+                                            onChange={e => setFormData({ ...formData, price: formatDecimal(e.target.value) })}
+                                            placeholder="0,00"
+                                        />
+                                        <span className={`font-bold text-lg mt-0.5 shrink-0 ml-1 transition-colors duration-300 ${formData.price ? 'text-emerald-400' : 'text-emerald-900/30'}`}>₺</span>
+                                    </div>
+                                    {parseDecimal(formData.liters) > 0 && parseDecimal(formData.price) > 0 && (
+                                        <div className="w-full text-right text-[10px] text-emerald-500/60 mt-1.5 font-bold animate-in fade-in zoom-in duration-300">
+                                            BİRİM: ₺{(parseDecimal(formData.price) / parseDecimal(formData.liters)).toFixed(2)} / Lt
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Araç KM Row */}
+                                <div className="bg-brand-500/5 border border-brand-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm relative overflow-hidden">
+                                    <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-brand-500/40 to-transparent"></div>
+                                    <label className="text-[11px] font-bold text-brand-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap"><MapPin size={14}/> Araç KM</label>
+                                    <div className="flex-1 ml-4 flex justify-end">
+                                        <input 
+                                            type="tel" 
+                                            className="bg-transparent text-xl font-black text-brand-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-brand-900/30"
+                                            value={formData.odometer}
+                                            onClick={handleOdometerClick}
+                                            onChange={e => setFormData({ ...formData, odometer: formatKM(e.target.value) })}
+                                            placeholder="Km Girin"
+                                        />
+                                    </div>
+                                </div>
                             </div>
 
                             {showExtra && (
@@ -398,7 +833,7 @@ const Fuel = () => {
                             )}
 
                             <button type="submit"
-                                className="w-full bg-orange-600 hover:bg-orange-500 text-[var(--text-primary)] px-4 py-4 rounded-xl font-bold transition-all shadow-lg shadow-orange-500/20 mt-2 uppercase tracking-wide">
+                                className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white px-4 py-3.5 rounded-2xl font-black transition-all shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-0.5 mt-4 uppercase tracking-wider">
                                 Fişi Kaydet
                             </button>
                         </form>
