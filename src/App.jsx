@@ -440,6 +440,7 @@ function App() {
 
           {/* Content Area */}
           <div className="flex-1 p-4 md:p-6 xl:p-8">
+            <div key={activeTab} className="page-transition">
             {activeTab === 'dashboard' && <Dashboard />}
             {activeTab === 'trips' && <Trips />}
             {activeTab === 'fuel' && <Fuel />}
@@ -451,6 +452,7 @@ function App() {
             {activeTab === 'company_admin' && <CompanyAdmin />}
             {activeTab === 'super_admin' && <SuperAdmin />}
             {activeTab === 'adminlog' && (userRole === 'super_admin' || userRole === 'company_admin') && <AdminLog />}
+            </div>
           </div>
         </div>
       </main>

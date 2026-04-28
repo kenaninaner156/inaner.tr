@@ -262,7 +262,7 @@ const Trips = () => {
         <div className="space-y-6 animate-in fade-in duration-500 relative pb-ios-nav">
 
             {/* Üst Kısım / Filtreleme */}
-            <div className="glass-panel p-4 flex flex-col md:flex-row justify-between items-center gap-4 mb-2">
+            <div className="glass-panel p-4 flex flex-col md:flex-row justify-between items-center gap-4 mb-2 isolate overflow-hidden" style={{ contain: 'paint', willChange: 'transform', transform: 'translateZ(0)' }}>
                 <div className="relative w-full md:w-96 flex-1">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none" size={16} />
                     <input
@@ -277,7 +277,7 @@ const Trips = () => {
                 <div className="flex flex-col md:flex-row w-full md:w-auto gap-3">
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="w-full md:w-auto bg-brand-600 hover:bg-brand-500 text-[var(--text-primary)] px-4 py-2 rounded-lg font-medium transition-all shadow-lg shadow-brand-500/20 flex items-center justify-center whitespace-nowrap"
+                        className="w-full md:w-auto bg-brand-600 hover:bg-brand-500 text-[var(--text-primary)] px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center whitespace-nowrap"
                     >
                         <Plus size={18} className="mr-2" />
                         Sefer Ekle
@@ -286,7 +286,7 @@ const Trips = () => {
             </div>
 
             {/* Seferler Tablosu - Masaüstü */}
-            <div className="glass-panel overflow-hidden">
+            <div className="glass-panel overflow-hidden" style={{ background: 'var(--bg-base)' }}>
                 <div className="overflow-x-auto -mx-0 md:mx-0">
                     <table className="w-full text-left border-collapse hidden md:table" style={{ minWidth: '500px' }}>
                         <thead>

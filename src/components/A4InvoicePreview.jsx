@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 const A4_WIDTH = 794;
 const A4_HEIGHT = 1123;
@@ -105,6 +105,9 @@ const A4InvoicePreview = React.forwardRef(({
     const [ownerName, setOwnerName] = React.useState(() => localStorage.getItem(storageKey) || 'GÖKSEL İNANER');
     const [isEditingName, setIsEditingName] = React.useState(false);
     const [editNameValue, setEditNameValue] = React.useState(ownerName);
+    
+    const [activePage, setActivePage] = React.useState(1);
+    const isTwoPages = tableRows.length > 15;
 
     const handleSaveName = () => {
         const trimmed = editNameValue.trim().toLocaleUpperCase('tr-TR') || 'GÖKSEL İNANER';
@@ -184,136 +187,236 @@ const A4InvoicePreview = React.forwardRef(({
             boxSizing: 'border-box'
         };
 
+    const renderHeader = () => (
+        <div className="flex justify-between items-end border-b-2 border-blue-800 pb-4 mb-6 shrink-0">
+            <div className="flex flex-col">
+                <h1 className="text-3xl font-black text-blue-900 mb-1 tracking-tight">SEFER DÖKÜMÜ</h1>
+                <p className="text-xs font-semibold text-slate-500">
+                    Periyot: {startDate ? new Date(startDate).toLocaleDateString('tr-TR') : '-'} - {endDate ? new Date(endDate).toLocaleDateString('tr-TR') : '-'}
+                </p>
+                <p className="text-xs font-semibold text-slate-500">Tarih: {new Date().toLocaleDateString('tr-TR')}</p>
+            </div>
+
+            <div className="flex flex-col items-end">
+                <div className="flex flex-col text-right border-r-[4px] border-[var(--border-color)] pr-3">
+                    {isEditingName ? (
+                        <div className="flex items-center gap-1 mb-1.5">
+                            <input
+                                type="text"
+                                value={editNameValue}
+                                onChange={e => setEditNameValue(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                onKeyDown={e => e.key === 'Enter' && handleSaveName()}
+                                className="text-[14px] font-black tracking-tight text-slate-800 uppercase border-b border-blue-500 outline-none text-right bg-transparent w-40"
+                                autoFocus
+                            />
+                            <button onClick={handleSaveName} className="p-0.5 hover:text-blue-600 text-slate-600 print:hidden"><Check size={13} /></button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-1 mb-1.5 justify-end">
+                            <h2
+                                onDoubleClick={() => { setEditNameValue(ownerName); setIsEditingName(true); }}
+                                className="text-[18px] font-black tracking-tight text-slate-800 leading-none uppercase cursor-text select-none print:cursor-default"
+                                title="Düzenlemek için çift tıklayın"
+                            >{ownerName}</h2>
+                        </div>
+                    )}
+                    <p className="text-[10px] font-extrabold text-slate-600 uppercase tracking-[0.2em] leading-none mb-1.5">ARAÇ BİLGİSİ</p>
+                    <p className="text-[18px] font-mono text-slate-700 font-extrabold tracking-[0.05em] leading-none mb-1">{vehicleInfo?.plate || '06 FTN 692'}</p>
+                    {vehicleInfo?.trailerPlate && (
+                        <p className="text-[9px] font-mono text-slate-500 leading-none tracking-widest font-semibold">Dorse: {vehicleInfo.trailerPlate}</p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+
+    const renderToplamTonaj = () => (
+        routeSummary.length > 0 && (
+            <div className="mb-3">
+                <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1 px-0.5">Toplam Tonaj</div>
+                <table className="w-full text-left border-collapse" style={{ fontSize: '10px' }}>
+                    <thead>
+                        <tr className="bg-slate-100 text-slate-700 border-y border-slate-200 leading-tight">
+                            <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[44%]">Alınan Yer</th>
+                            <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[44%]">Gidilen Yer</th>
+                            <th className="py-1.5 px-1 font-semibold text-right w-[12%]">Tonaj</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {routeSummary.map((r, i) => (
+                            <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                <td className="py-1.5 px-1 text-slate-700 truncate max-w-[75px]">{r.from}</td>
+                                <td className="py-1.5 px-1 text-slate-700 truncate max-w-[75px]">{r.to}</td>
+                                <td className="py-1.5 px-1 text-right text-slate-800 font-bold">{r.tonnage.toFixed(2)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        )
+    );
+
+    const renderSeferler = () => (
+        <div className="mb-4 min-h-[50px]">
+            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1 px-0.5">Seferler</div>
+            <table className="w-full text-left border-collapse" style={{ fontSize: '10px' }}>
+                <thead>
+                    <tr className="bg-slate-100 text-slate-700 border-y border-slate-200 leading-tight">
+                        <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[12%]">Tarih</th>
+                        <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[44%]">Alınan Yer</th>
+                        <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[32%]">Gidilen Yer</th>
+                        <th className="py-1.5 px-1 text-right font-semibold w-[12%]">Tonaj</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {tableRows.length > 0 ? tableRows.map((row, idx) => {
+                        const localDate = new Date(row.dateStr).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                        const trip = row.data;
+                        return (
+                            <tr key={trip.id || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                <td className="py-1.5 px-1 text-slate-600 whitespace-nowrap">{localDate}</td>
+                                <td className="py-1.5 px-1 text-slate-700 truncate max-w-[75px]">{trip.from}</td>
+                                <td className="py-1.5 px-1 text-slate-700 truncate max-w-[75px]">{trip.to}</td>
+                                <td className="py-1.5 px-1 text-right text-slate-800 font-bold">{Number(trip.tonnage).toFixed(2)}</td>
+                            </tr>
+                        );
+                    }) : (
+                        <tr>
+                            <td colSpan="4" className="py-8 text-center text-slate-400 italic text-sm">Bu periyotta gösterilecek veri bulunamadı.</td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+        </div>
+    );
+
+    const renderNetFiyat = () => (
+        <div className="print:hidden flex justify-end mt-4 pb-6">
+            <div className="w-2/5 rounded-xl bg-slate-50/50 p-4 border border-slate-200">
+                <div className="flex justify-between items-center">
+                    <span className="text-blue-900 font-black text-xs">NET FİYAT:</span>
+                    <div className="flex items-center gap-1">
+                        <span className="text-slate-500 text-[10px]">₺</span>
+                        <input
+                            type="text"
+                            placeholder="0,00"
+                            className="w-28 text-right bg-white border border-slate-300 rounded px-2 py-1 text-blue-900 font-black text-sm focus:outline-none focus:border-blue-400"
+                            value={localPrice}
+                            onChange={handlePriceChange}
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
     return (
         <div
             ref={containerRef}
-            className="w-full overflow-hidden bg-transparent print:h-auto print:overflow-visible print:p-0"
+            className="w-full overflow-hidden bg-transparent print:h-auto print:overflow-visible print:p-0 relative flex justify-center"
             style={containerStyle}
         >
-            {/* A4 Gövde */}
-            <div
-                ref={ref}
-                className="bg-white text-black shrink-0 flex flex-col print:!scale-100 print:!min-h-0 print:!m-0 print:!shadow-none print:!static"
-                style={paperStyle}
-            >
-                {/* Antetli Kısım (Header) */}
-                <div className="flex justify-between items-end border-b-2 border-blue-800 pb-4 mb-6">
-                    <div className="flex flex-col">
-                        <h1 className="text-3xl font-black text-blue-900 mb-1 tracking-tight">SEFER DÖKÜMÜ</h1>
-                        <p className="text-xs font-semibold text-slate-500">
-                            Periyot: {startDate ? new Date(startDate).toLocaleDateString('tr-TR') : '-'} - {endDate ? new Date(endDate).toLocaleDateString('tr-TR') : '-'}
-                        </p>
-                        <p className="text-xs font-semibold text-slate-500">Tarih: {new Date().toLocaleDateString('tr-TR')}</p>
-                    </div>
-
-                    <div className="flex flex-col items-end">
-                        <div className="flex flex-col text-right border-r-[4px] border-[var(--border-color)] pr-3">
-                            {isEditingName ? (
-                                <div className="flex items-center gap-1 mb-1.5">
-                                    <input
-                                        type="text"
-                                        value={editNameValue}
-                                        onChange={e => setEditNameValue(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                        onKeyDown={e => e.key === 'Enter' && handleSaveName()}
-                                        className="text-[14px] font-black tracking-tight text-slate-800 uppercase border-b border-blue-500 outline-none text-right bg-transparent w-40"
-                                        autoFocus
-                                    />
-                                    <button onClick={handleSaveName} className="p-0.5 hover:text-blue-600 text-slate-600 print:hidden"><Check size={13} /></button>
-                                </div>
-                            ) : (
-                                <div className="flex items-center gap-1 mb-1.5 justify-end">
-                                    <h2
-                                        onDoubleClick={() => { setEditNameValue(ownerName); setIsEditingName(true); }}
-                                        className="text-[18px] font-black tracking-tight text-slate-800 leading-none uppercase cursor-text select-none print:cursor-default"
-                                        title="Düzenlemek için çift tıklayın"
-                                    >{ownerName}</h2>
-                                </div>
-                            )}
-                            <p className="text-[10px] font-extrabold text-slate-600 uppercase tracking-[0.2em] leading-none mb-1.5">ARAÇ BİLGİSİ</p>
-                            <p className="text-[18px] font-mono text-slate-700 font-extrabold tracking-[0.05em] leading-none mb-1">{vehicleInfo?.plate || '06 FTN 692'}</p>
-                            {vehicleInfo?.trailerPlate && (
-                                <p className="text-[9px] font-mono text-slate-500 leading-none tracking-widest font-semibold">Dorse: {vehicleInfo.trailerPlate}</p>
-                            )}
-                        </div>
+            {isTwoPages && (
+                <div className="absolute top-3 right-3 z-50 print:hidden">
+                    {/* Glow keyframes */}
+                    <style>{`
+                        @keyframes pageGlow {
+                            0%, 100% { box-shadow: 0 0 12px rgba(99,102,241,0.4), 0 4px 24px rgba(0,0,0,0.5); }
+                            50% { box-shadow: 0 0 20px rgba(99,102,241,0.6), 0 4px 24px rgba(0,0,0,0.5); }
+                        }
+                    `}</style>
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            background: 'rgba(15, 20, 40, 0.85)',
+                            backdropFilter: 'blur(16px)',
+                            WebkitBackdropFilter: 'blur(16px)',
+                            borderRadius: '8px',
+                            padding: '3px',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            animation: 'pageGlow 3s ease-in-out infinite',
+                            position: 'relative',
+                            gap: '2px',
+                        }}
+                    >
+                        {/* Sliding highlight */}
+                        <div
+                            style={{
+                                position: 'absolute',
+                                top: '3px',
+                                left: activePage === 1 ? '3px' : 'calc(50% + 1px)',
+                                width: 'calc(50% - 4px)',
+                                height: 'calc(100% - 6px)',
+                                borderRadius: '6px',
+                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                transition: 'left 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
+                                boxShadow: '0 2px 10px rgba(99,102,241,0.5)',
+                            }}
+                        />
+                        {[1, 2].map(page => (
+                            <button
+                                key={page}
+                                onClick={() => setActivePage(page)}
+                                style={{
+                                    position: 'relative',
+                                    zIndex: 1,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '4px',
+                                    width: '32px',
+                                    height: '20px',
+                                    borderRadius: '5px',
+                                    border: 'none',
+                                    background: 'transparent',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.3s ease',
+                                    padding: 0,
+                                }}
+                            >
+                                <span style={{
+                                    fontSize: '9px',
+                                    fontWeight: 800,
+                                    letterSpacing: '0.02em',
+                                    color: activePage === page ? '#fff' : 'rgba(255,255,255,0.35)',
+                                    transition: 'color 0.3s ease',
+                                    fontFamily: "'Inter', sans-serif",
+                                }}>{page}</span>
+                            </button>
+                        ))}
                     </div>
                 </div>
+            )}
 
-                {/* Güzergah Özet Tablosu - TOPLAM TONAJ */}
-                {routeSummary.length > 0 && (
-                    <div className="mb-3">
-                        <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1 px-0.5">Toplam Tonaj</div>
-                        <table className="w-full text-left border-collapse" style={{ fontSize: '10px' }}>
-                            <thead>
-                                <tr className="bg-slate-100 text-slate-700 border-y border-slate-200 leading-tight">
-                                    <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[44%]">Alınan Yer</th>
-                                    <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[44%]">Gidilen Yer</th>
-                                    <th className="py-1.5 px-1 font-semibold text-right w-[12%]">Tonaj</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {routeSummary.map((r, i) => (
-                                    <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                                        <td className="py-1.5 px-1 text-slate-700 truncate max-w-[75px]">{r.from}</td>
-                                        <td className="py-1.5 px-1 text-slate-700 truncate max-w-[75px]">{r.to}</td>
-                                        <td className="py-1.5 px-1 text-right text-slate-800 font-bold">{r.tonnage.toFixed(2)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+            <div ref={ref} className="bg-transparent print:bg-white w-full flex flex-col print:flex-col print:gap-0">
+                {/* SAYFA 1 */}
+                <div
+                    className={`bg-white text-black shrink-0 flex-col print:!scale-100 print:!min-h-0 print:!m-0 print:!shadow-none print:!static
+                        ${isTwoPages && activePage !== 1 ? 'hidden print:flex' : 'flex'}
+                        ${isTwoPages ? 'print:break-after-page' : ''}
+                    `}
+                    style={paperStyle}
+                >
+                    {renderHeader()}
+                    {renderToplamTonaj()}
+                    {!isTwoPages && renderSeferler()}
+                    {!isTwoPages && renderNetFiyat()}
+                </div>
+
+                {/* SAYFA 2 */}
+                {isTwoPages && (
+                    <div
+                        className={`bg-white text-black shrink-0 flex-col print:!scale-100 print:!min-h-0 print:!m-0 print:!shadow-none print:!static
+                            ${activePage !== 2 ? 'hidden print:flex' : 'flex'}
+                        `}
+                        style={paperStyle}
+                    >
+                        {renderHeader()}
+                        {renderSeferler()}
+                        {renderNetFiyat()}
                     </div>
                 )}
-
-                {/* Sefer Detay Tablosu - SEFERLER */}
-                <div className="mb-4 min-h-[50px]">
-                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1 px-0.5">Seferler</div>
-                    <table className="w-full text-left border-collapse" style={{ fontSize: '10px' }}>
-                        <thead>
-                            <tr className="bg-slate-100 text-slate-700 border-y border-slate-200 leading-tight">
-                                <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[12%]">Tarih</th>
-                                <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[44%]">Alınan Yer</th>
-                                <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[32%]">Gidilen Yer</th>
-                                <th className="py-1.5 px-1 text-right font-semibold w-[12%]">Tonaj</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {tableRows.length > 0 ? tableRows.map((row, idx) => {
-                                const localDate = new Date(row.dateStr).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                                const trip = row.data;
-                                return (
-                                    <tr key={trip.id || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                                        <td className="py-1.5 px-1 text-slate-600 whitespace-nowrap">{localDate}</td>
-                                        <td className="py-1.5 px-1 text-slate-700 truncate max-w-[75px]">{trip.from}</td>
-                                        <td className="py-1.5 px-1 text-slate-700 truncate max-w-[75px]">{trip.to}</td>
-                                        <td className="py-1.5 px-1 text-right text-slate-800 font-bold">{Number(trip.tonnage).toFixed(2)}</td>
-                                    </tr>
-                                );
-                            }) : (
-                                <tr>
-                                    <td colSpan="4" className="py-8 text-center text-slate-400 italic text-sm">Bu periyotta gösterilecek veri bulunamadı.</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Net Fiyat Kutusu (sadece ekranda görünür, yazınca gizli) */}
-                <div className="print:hidden flex justify-end mt-4 pb-6">
-                    <div className="w-2/5 rounded-xl bg-slate-50/50 p-4 border border-slate-200">
-                        <div className="flex justify-between items-center">
-                            <span className="text-blue-900 font-black text-xs">NET FİYAT:</span>
-                            <div className="flex items-center gap-1">
-                                <span className="text-slate-500 text-[10px]">₺</span>
-                                <input
-                                    type="text"
-                                    placeholder="0,00"
-                                    className="w-28 text-right bg-white border border-slate-300 rounded px-2 py-1 text-blue-900 font-black text-sm focus:outline-none focus:border-blue-400"
-                                    value={localPrice}
-                                    onChange={handlePriceChange}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     );
