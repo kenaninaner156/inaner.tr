@@ -233,7 +233,7 @@ const SuperAdmin = () => {
                 <>
                     <div className="flex justify-between items-center bg-[var(--bg-panel-hover)] p-4 rounded-xl border border-[var(--border-color)] mb-4">
                 <div className="text-sm font-medium text-[var(--text-primary)] flex items-center">
-                    <Activity size={16} className="text-brand-400 mr-2" />
+                    <Activity size={16} className="text-fuchsia-400 mr-2" />
                     Aktif Müşteri Şirketleri Listesi
                 </div>
                 <div className="flex gap-2">
@@ -342,7 +342,7 @@ const SuperAdmin = () => {
                                             localStorage.setItem('tir_current_company', comp.id);
                                         }}
                                         className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full transition-all ${activeCompanyId === comp.id
-                                            ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30'
+                                            ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30'
                                             : 'bg-[var(--bg-panel-hover)] text-slate-500 hover:text-indigo-400 hover:bg-indigo-500/10 border border-[var(--border-color)]'
                                             }`}
                                         title="Bu Şirketi Yönet"

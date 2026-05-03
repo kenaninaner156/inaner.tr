@@ -297,7 +297,7 @@ const Login = () => {
                                 <h2 className="text-base font-semibold text-[var(--text-primary)]">Başvurunuz Alındı</h2>
                                 <p className="text-[var(--text-secondary)] text-xs">Admin onayından sonra giriş yapabilirsiniz.</p>
                                 <button onClick={() => { setMode('login'); setUsername(''); setPassword(''); }}
-                                    className="text-brand-400 text-xs hover:underline">Giriş ekranına dön</button>
+                                    className="text-amber-400 text-xs hover:underline">Giriş ekranına dön</button>
                             </div>
                         )}
 
@@ -333,7 +333,7 @@ const Login = () => {
                                         </div>
                                     )}
                                     <button type="submit" disabled={loading}
-                                        className="w-full bg-brand-600 hover:bg-brand-500 disabled:bg-brand-800 disabled:cursor-not-allowed text-[var(--text-primary)] text-sm font-medium py-2 rounded-lg transition-all shadow-lg flex items-center justify-center gap-2 mt-2">
+                                        className="w-full bg-amber-600 hover:bg-amber-500 disabled:bg-amber-800 disabled:cursor-not-allowed text-[var(--text-primary)] text-sm font-medium py-2 rounded-lg transition-all shadow-lg flex items-center justify-center gap-2 mt-2">
                                         {loading ? <div className="w-4 h-4 border-2 border-[var(--border-color)] border-t-white rounded-full animate-spin" /> : 'Giriş Yap'}
                                     </button>
                                     <button type="button" onClick={() => { setMode('register'); setError(''); }}
@@ -394,7 +394,7 @@ const Login = () => {
                                         </div>
                                     )}
                                     <button type="submit" disabled={loading}
-                                        className="w-full bg-brand-600 hover:bg-brand-500 disabled:bg-brand-800 text-[var(--text-primary)] text-sm font-medium py-2 rounded-lg transition-all flex items-center justify-center gap-2 mt-2">
+                                        className="w-full bg-amber-600 hover:bg-amber-500 disabled:bg-amber-800 text-[var(--text-primary)] text-sm font-medium py-2 rounded-lg transition-all flex items-center justify-center gap-2 mt-2">
                                         {loading ? <div className="w-4 h-4 border-2 border-[var(--border-color)] border-t-white rounded-full animate-spin" /> : 'Başvuru Gönder'}
                                     </button>
                                 </form>

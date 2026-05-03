@@ -1,5 +1,6 @@
 import { useState, useEffect, useContext, useRef } from 'react'
 import { DataContext } from './context/DataContext'
+import { motion, AnimatePresence } from 'framer-motion'
 
 import {
   Menu, X, Truck, MapPin, FileText, Droplet, Wrench,
@@ -19,6 +20,7 @@ import CompanyAdmin from './components/CompanyAdmin'
 import SuperAdmin from './components/SuperAdmin'
 import { useCompany } from './context/CompanyContext'
 import { useTruck } from './context/TruckContext'
+import PremiumLogo from './components/PremiumLogo'
 
 function App() {
   const [activeTab, setActiveTab] = useState(() => {
@@ -105,6 +107,7 @@ function App() {
 
   const [showCompanyDrop, setShowCompanyDrop] = useState(false);
   const [showTruckDrop, setShowTruckDrop] = useState(false);
+  const [showCompanyExpand, setShowCompanyExpand] = useState(false);
   const companyDropRef = useRef(null);
   const truckDropRef = useRef(null);
 
@@ -179,16 +182,16 @@ function App() {
   const notifCount = unreadDocsCount + unreadPenaltiesCount;
 
   const menuItems = [
-    { id: 'dashboard', label: 'Özet', icon: <PieChart size={20} /> },
-    { id: 'trips', label: 'Seferler', icon: <MapPin size={20} /> },
-    { id: 'fuel', label: 'Mazot Fişleri', icon: <Droplet size={20} /> },
-    { id: 'maintenance', label: 'Araç Bakım', icon: <Wrench size={20} /> },
-    { id: 'detaylar', label: 'Ceza & Belgeler', icon: <AlertTriangle size={20} />, badge: notifCount },
-    { id: 'invoices', label: 'Fatura Durumu', icon: <FileText size={20} /> },
-    { id: 'payments', label: 'Ödeme Takibi', icon: <CreditCard size={20} /> },
-    { id: 'company_admin', label: 'Şirket Yönetimi', icon: <Building2 size={20} /> },
-    { id: 'super_admin', label: 'SaaS Yönetimi', icon: <Server size={20} /> },
-    { id: 'adminlog', label: 'Admin Logu', icon: <Shield size={20} /> },
+    { id: 'dashboard', label: 'Özet', icon: <PieChart size={20} />, theme: 'from-violet-500/80 to-violet-600/80 shadow-[0_2px_12px_rgba(139,92,246,0.3)] border-violet-400/30', hoverText: 'group-hover:text-violet-400' },
+    { id: 'trips', label: 'Seferler', icon: <MapPin size={20} />, theme: 'from-sky-500/80 to-sky-600/80 shadow-[0_2px_12px_rgba(14,165,233,0.3)] border-sky-400/30', hoverText: 'group-hover:text-sky-400' },
+    { id: 'fuel', label: 'Mazot Fişleri', icon: <Droplet size={20} />, theme: 'from-cyan-500/80 to-cyan-600/80 shadow-[0_2px_12px_rgba(6,182,212,0.3)] border-cyan-400/30', hoverText: 'group-hover:text-cyan-400' },
+    { id: 'maintenance', label: 'Araç Bakım', icon: <Wrench size={20} />, theme: 'from-amber-500/80 to-amber-600/80 shadow-[0_2px_12px_rgba(245,158,11,0.3)] border-amber-400/30', hoverText: 'group-hover:text-amber-400' },
+    { id: 'detaylar', label: 'Ceza & Belgeler', icon: <AlertTriangle size={20} />, badge: notifCount, theme: 'from-red-500/80 to-red-600/80 shadow-[0_2px_12px_rgba(239,68,68,0.3)] border-red-400/30', hoverText: 'group-hover:text-red-400' },
+    { id: 'invoices', label: 'Fatura Durumu', icon: <FileText size={20} />, theme: 'from-emerald-500/80 to-emerald-600/80 shadow-[0_2px_12px_rgba(16,185,129,0.3)] border-emerald-400/30', hoverText: 'group-hover:text-emerald-400' },
+    { id: 'payments', label: 'Ödeme Takibi', icon: <CreditCard size={20} />, theme: 'from-green-500/80 to-green-600/80 shadow-[0_2px_12px_rgba(34,197,94,0.3)] border-green-400/30', hoverText: 'group-hover:text-green-400' },
+    { id: 'company_admin', label: 'Şirket Yönetimi', icon: <Building2 size={20} />, theme: 'from-indigo-500/80 to-indigo-600/80 shadow-[0_2px_12px_rgba(99,102,241,0.3)] border-indigo-400/30', hoverText: 'group-hover:text-indigo-400' },
+    { id: 'super_admin', label: 'SaaS Yönetimi', icon: <Server size={20} />, theme: 'from-fuchsia-500/80 to-fuchsia-600/80 shadow-[0_2px_12px_rgba(217,70,239,0.3)] border-fuchsia-400/30', hoverText: 'group-hover:text-fuchsia-400' },
+    { id: 'adminlog', label: 'Admin Logu', icon: <Shield size={20} />, theme: 'from-slate-500/80 to-slate-600/80 shadow-[0_2px_12px_rgba(100,116,139,0.3)] border-slate-400/30', hoverText: 'group-hover:text-slate-400' },
   ]
 
 
@@ -281,112 +284,238 @@ function App() {
         <div className="px-5 pb-4 flex flex-col gap-3"
           style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
 
-          {userRole === 'super_admin' && (companies || []).length > 1 && (
-            <div ref={companyDropRef} className="relative">
-              <button
-                onClick={() => setShowCompanyDrop(v => !v)}
-                className="w-full bg-indigo-500/10 rounded-xl p-3 border border-indigo-500/30 hover:border-indigo-500/60 transition-all shadow-inner shadow-indigo-500/5 flex flex-col text-left"
-              >
-                <span className="text-[10px] text-indigo-400 font-bold tracking-widest uppercase mb-1">Müşteri Seçimi (SaaS)</span>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Building2 size={15} className="text-indigo-400 flex-shrink-0" />
-                    <span className="text-sm font-bold text-slate-100 truncate">{(companies || []).find(c => c.id === activeCompanyId)?.name || 'Seç...'}</span>
-                  </div>
-                  <ChevronDown size={14} className={`text-indigo-400/60 transition-transform duration-200 ${showCompanyDrop ? 'rotate-180' : ''}`} />
-                </div>
-              </button>
-              {showCompanyDrop && (
-                <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-slate-900 border border-indigo-500/30 rounded-xl overflow-hidden shadow-2xl shadow-black/50 backdrop-blur-xl">
-                  {(companies || []).map(c => (
-                    <button key={c.id} onClick={() => { setActiveCompanyId(c.id); localStorage.setItem('tir_current_company', c.id); setShowCompanyDrop(false); }}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors text-left ${activeCompanyId === c.id ? 'bg-indigo-500/20 text-indigo-300 font-semibold' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
-                      <Building2 size={13} className={activeCompanyId === c.id ? 'text-indigo-400' : 'text-slate-500'} />
-                      {c.name}
-                      {activeCompanyId === c.id && <span className="ml-auto text-[9px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded-full font-bold">✓</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          <PremiumLogo />
 
           {trucks.length <= 1 ? (
             /* Tek tır varsa: sadece bilgi kartı, dropdown yok */
-            <div className="glass-panel !bg-orange-500/10 rounded-xl p-3 border border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.15)] dark:shadow-none flex items-center gap-3 transition-colors duration-300">
-              <div className="w-11 h-11 rounded-lg overflow-hidden glass-panel border border-orange-500/30 flex items-center justify-center flex-shrink-0 cursor-pointer" onClick={() => setActiveTab('settings')}>
-                {profilePic
-                  ? <img src={profilePic} alt="Profile" className="w-full h-full object-cover bg-[var(--bg-base)]" />
-                  : <div className="w-full h-full flex items-center justify-center"><Truck size={20} className="text-orange-500" /></div>}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-orange-500 drop-shadow-sm truncate leading-tight">
-                  {trucks.length === 0 ? 'Tır Bulunmuyor' : trucks[0]?.plate}
-                </p>
-                <p className="text-[11px] text-orange-400 font-medium tracking-wide truncate mt-0.5">
-                  {activeTruckData?.brand || companyData?.name || 'Yükleniyor...'}
-                </p>
+            <div className="relative p-[1px] rounded-2xl bg-gradient-to-b from-white/10 via-white/5 to-transparent group hover:from-amber-500/40 hover:via-amber-500/10 hover:to-transparent transition-all duration-500 shadow-xl shadow-black/40 cursor-pointer" onClick={() => setActiveTab('settings')}>
+              <div className="relative h-full w-full bg-[#0a0a0c]/90 backdrop-blur-xl rounded-[15px] p-3 flex items-center gap-3 overflow-hidden">
+                {/* Ambient background glow */}
+                <div className="absolute -inset-2 bg-gradient-to-r from-amber-500/0 via-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-700 pointer-events-none" />
+                
+                {/* Profile Pic wrapper */}
+                <div className="w-12 h-12 rounded-[14px] p-[1px] bg-gradient-to-b from-white/10 to-transparent group-hover:from-amber-400/50 group-hover:to-amber-600/20 transition-all duration-500 flex-shrink-0 shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+                  <div className="w-full h-full rounded-[13px] overflow-hidden bg-slate-900 flex items-center justify-center relative">
+                    <div className="absolute inset-0 bg-amber-500/20 mix-blend-overlay z-10 group-hover:bg-transparent transition-colors duration-500" />
+                    {profilePic
+                      ? <img src={profilePic} alt="Profile" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-out" />
+                      : <Truck size={22} className="text-amber-500/80 transform group-hover:scale-110 transition-transform duration-700 ease-out" />}
+                  </div>
+                </div>
+
+                {/* Text Info */}
+                <div className="flex-1 min-w-0 z-10">
+                  <h3 className="text-[15px] font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-100 to-slate-300 group-hover:from-amber-200 group-hover:to-amber-400 tracking-tight transition-all duration-500 truncate drop-shadow-sm">
+                    {trucks.length === 0 ? 'Tır Bulunmuyor' : trucks[0]?.plate}
+                  </h3>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
+                    <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest truncate group-hover:text-amber-100/70 transition-colors duration-500">
+                      {activeTruckData?.brand || companyData?.name || 'Yükleniyor...'}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           ) : (
-            <div ref={truckDropRef} className="relative">
+            <div ref={truckDropRef} className="relative z-50">
               <button
                 onClick={() => setShowTruckDrop(v => !v)}
-                className="w-full glass-panel !bg-orange-500/10 rounded-xl p-3 border border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.15)] hover:shadow-[0_0_20px_rgba(249,115,22,0.25)] dark:shadow-none dark:hover:shadow-none transition-all duration-300 flex items-center gap-3 text-left"
+                className="w-full text-left relative p-[1px] rounded-2xl bg-gradient-to-b from-white/10 via-white/5 to-transparent group hover:from-amber-500/40 hover:via-amber-500/10 hover:to-transparent transition-all duration-500 shadow-xl shadow-black/40 outline-none"
               >
-                <div className="w-11 h-11 rounded-lg overflow-hidden glass-panel border border-orange-500/30 flex items-center justify-center flex-shrink-0" onClick={(e) => { e.stopPropagation(); setActiveTab('settings'); }}>
-                  {profilePic
-                    ? <img src={profilePic} alt="Profile" className="w-full h-full object-cover bg-[var(--bg-base)]" />
-                    : <div className="w-full h-full flex items-center justify-center"><Truck size={20} className="text-orange-500" /></div>}
+                <div className="relative h-full w-full bg-[#0a0a0c]/90 backdrop-blur-xl rounded-[15px] p-3 flex items-center gap-3 overflow-hidden">
+                  {/* Ambient background glow */}
+                  <div className="absolute -inset-2 bg-gradient-to-r from-amber-500/0 via-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-700 pointer-events-none" />
+                  
+                  {/* Profile Pic wrapper */}
+                  <div className="w-12 h-12 rounded-[14px] p-[1px] bg-gradient-to-b from-white/10 to-transparent group-hover:from-amber-400/50 group-hover:to-amber-600/20 transition-all duration-500 flex-shrink-0 shadow-[0_0_15px_rgba(0,0,0,0.5)]" onClick={(e) => { e.stopPropagation(); setActiveTab('settings'); }}>
+                    <div className="w-full h-full rounded-[13px] overflow-hidden bg-slate-900 flex items-center justify-center relative">
+                      <div className="absolute inset-0 bg-amber-500/20 mix-blend-overlay z-10 group-hover:bg-transparent transition-colors duration-500" />
+                      {profilePic
+                        ? <img src={profilePic} alt="Profile" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-out" />
+                        : <Truck size={22} className="text-amber-500/80 transform group-hover:scale-110 transition-transform duration-700 ease-out" />}
+                    </div>
+                  </div>
+
+                  {/* Text Info */}
+                  <div className="flex-1 min-w-0 z-10">
+                    <h3 className="text-[15px] font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-100 to-slate-300 group-hover:from-amber-200 group-hover:to-amber-400 tracking-tight transition-all duration-500 truncate drop-shadow-sm">
+                      {trucks.length === 0 ? 'Tır Bulunmuyor' : (trucks.find(t => t.id === activeTruckId)?.plate || 'Seç...')}
+                    </h3>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
+                      <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest truncate group-hover:text-amber-100/70 transition-colors duration-500">
+                        {activeTruckData?.brand || companyData?.name || 'Yükleniyor...'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Chevron */}
+                  <div className="w-6 h-6 rounded-full border border-white/5 bg-white/5 flex items-center justify-center group-hover:bg-amber-500/20 group-hover:border-amber-500/40 transition-all duration-500 flex-shrink-0 z-10">
+                    <ChevronDown size={14} className={`text-slate-400 transition-transform duration-500 ${showTruckDrop ? 'rotate-180 text-amber-400' : 'group-hover:text-amber-400'}`} />
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-orange-500 drop-shadow-sm truncate leading-tight">
-                    {trucks.length === 0 ? 'Tır Bulunmuyor' : (trucks.find(t => t.id === activeTruckId)?.plate || 'Seç...')}
-                  </p>
-                  <p className="text-[11px] text-orange-400 font-medium tracking-wide truncate mt-0.5">
-                    {activeTruckData?.brand || companyData?.name || 'Yükleniyor...'}
-                  </p>
-                </div>
-                <ChevronDown size={15} className={`text-orange-500 transition-transform duration-200 flex-shrink-0 ${showTruckDrop ? 'rotate-180 drop-shadow-[0_0_5px_rgba(249,115,22,0.5)] dark:drop-shadow-none' : ''}`} />
               </button>
 
-              {showTruckDrop && trucks.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-slate-900 border border-slate-700/80 rounded-xl overflow-hidden shadow-2xl shadow-black/60">
-                  {trucks.map(t => (
-                    <button key={t.id} onClick={() => { setActiveTruckId(t.id); setShowTruckDrop(false); }}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 transition-colors text-left ${activeTruckId === t.id ? 'bg-brand-500/15 text-brand-300' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
-                      <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${activeTruckId === t.id ? 'bg-brand-500/20' : 'bg-slate-800'}`}>
-                        <Truck size={13} className={activeTruckId === t.id ? 'text-brand-400' : 'text-slate-500'} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate">{t.plate}</p>
-                        <p className="text-[10px] text-slate-500 truncate">{t.brand}</p>
-                      </div>
-                      {activeTruckId === t.id && <span className="text-[9px] bg-brand-500/20 text-brand-400 px-1.5 py-0.5 rounded-full font-bold">✓</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <AnimatePresence>
+                {showTruckDrop && trucks.length > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10, filter: 'blur(10px)' }}
+                    animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                    exit={{ opacity: 0, y: -10, filter: 'blur(10px)' }}
+                    transition={{ duration: 0.3, type: 'spring', stiffness: 300, damping: 25 }}
+                    className="absolute left-0 right-0 top-full mt-3 z-50 p-[1px] bg-gradient-to-b from-white/10 via-white/5 to-transparent rounded-2xl shadow-2xl shadow-black/80"
+                  >
+                    <div className="bg-[#0a0a0c]/95 backdrop-blur-2xl rounded-[15px] p-2 overflow-hidden flex flex-col gap-1">
+                      {trucks.map(t => {
+                        const isActive = activeTruckId === t.id;
+                        return (
+                          <button key={t.id} onClick={() => { setActiveTruckId(t.id); setShowTruckDrop(false); }}
+                            className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 text-left group overflow-hidden outline-none ${isActive ? '' : 'hover:bg-white/5'}`}>
+                            {/* Active bg sweep */}
+                            {isActive && <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent" />}
+                            
+                            {/* Icon wrapper */}
+                            <div className={`relative z-10 w-8 h-8 rounded-[10px] flex items-center justify-center flex-shrink-0 transition-all duration-300 border ${isActive ? 'bg-amber-500/20 border-amber-500/30 text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.2)]' : 'bg-slate-800 border-white/5 text-slate-400 group-hover:text-slate-200'}`}>
+                              <Truck size={14} />
+                            </div>
+                            
+                            {/* Text */}
+                            <div className="relative z-10 flex-1 min-w-0">
+                               <p className={`text-sm font-bold tracking-wide truncate transition-colors duration-300 ${isActive ? 'text-amber-400' : 'text-slate-300 group-hover:text-white'}`}>{t.plate}</p>
+                               <p className={`text-[10px] uppercase tracking-wider font-medium truncate transition-colors duration-300 mt-0.5 ${isActive ? 'text-amber-500/70' : 'text-slate-500 group-hover:text-slate-400'}`}>{t.brand}</p>
+                            </div>
+                            
+                            {/* Status indicator */}
+                            {isActive && (
+                               <div className="relative z-10 flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/30">
+                                 <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
+                               </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
         </div>
 
         {/* Nav Links */}
-        <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
-          {filteredMenuItems.map((item) => (
-            <button key={item.id} onClick={() => { setActiveTab(item.id); if (isMobile) setIsMenuOpen(false); }}
-              className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg group ${activeTab === item.id
-                ? 'bg-transparent text-orange-500 border border-orange-500/50 shadow-[0_0_10px_rgba(249,115,22,0.2)] dark:shadow-none font-medium'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-panel-hover)]'}`}>
-              <div className={`${activeTab === item.id ? 'scale-110 drop-shadow-[0_0_5px_rgba(249,115,22,0.5)] dark:drop-shadow-none' : 'group-hover:scale-110'}`}>
-                {item.icon}
-              </div>
-              <span className="flex-1 text-left text-sm tracking-wide">{item.label}</span>
-              {item.badge > 0 && (
-                <span className="bg-red-500/10 text-red-500 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center justify-center flex-shrink-0">{item.badge}</span>
-              )}
-            </button>
-          ))}
+        <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto relative">
+          {filteredMenuItems.map((item) => {
+            const isActive = activeTab === item.id;
+
+            // ── SaaS Yönetimi: morph eden buton + ayrı expand ──
+            if (item.id === 'super_admin') {
+              const activeCompanyName = (companies || []).find(c => c.id === activeCompanyId)?.name || '—';
+              const otherCompanies = (companies || []).filter(c => c.id !== activeCompanyId);
+              return (
+                <div key={item.id}>
+                  <button onClick={() => { setActiveTab(item.id); if (isMobile) setIsMenuOpen(false); }}
+                    className={`w-full relative flex items-center space-x-3 px-4 h-10 rounded-xl text-left group transition-all duration-300 outline-none ${isActive ? 'font-medium text-white' : 'text-slate-400 hover:text-slate-200'}`}>
+                    {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 rounded-xl transition-colors duration-300 -z-10" />}
+                    {isActive && (
+                      <motion.div layoutId="sidebar-active-apple"
+                        className={`absolute inset-0 bg-gradient-to-b rounded-xl border ${item.theme}`}
+                        style={{ zIndex: 0 }} initial={false}
+                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}
+                      />
+                    )}
+                    <div className={`relative z-10 flex items-center flex-shrink-0 transition-transform duration-300 ${isActive ? 'scale-110 drop-shadow-md text-white/90' : `text-slate-500 group-hover:scale-110 ${item.hoverText}`}`}>
+                      {item.icon}
+                    </div>
+                    {/* Clip container — flex-col justify-center keeps label naturally left-aligned */}
+                    <div className="flex-1 self-stretch overflow-hidden relative z-10 flex flex-col justify-center">
+                      {/* Label — normal flow, left-aligned, slides up slightly when active */}
+                      <motion.span
+                        className="text-sm tracking-wide drop-shadow-md leading-none text-left"
+                        animate={{ y: isActive ? -3 : 0 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}>
+                        {item.label}
+                      </motion.span>
+                      {/* Company name — absolute, slides from below clip */}
+                      <motion.span
+                        className="absolute left-0 right-0 text-[10px] text-fuchsia-200/75 font-medium truncate leading-none"
+                        style={{ top: 0 }}
+                        animate={{ y: isActive ? 27 : 50, opacity: isActive ? 1 : 0 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}>
+                        {activeCompanyName}
+                      </motion.span>
+                    </div>
+                    {/* Expand chevron — always in DOM, opacity only */}
+                    <motion.button
+                      animate={{ opacity: isActive ? 1 : 0 }}
+                      transition={{ duration: 0.15 }}
+                      onClick={(e) => { e.stopPropagation(); if (isActive) setShowCompanyExpand(v => !v); }}
+                      className="relative z-20 p-1 rounded-md hover:bg-white/15 transition-colors flex-shrink-0"
+                      style={{ pointerEvents: isActive ? 'auto' : 'none' }}>
+                      <motion.div animate={{ rotate: showCompanyExpand ? 180 : 0 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}>
+                        <ChevronDown size={12} className="text-fuchsia-300/70" />
+                      </motion.div>
+                    </motion.button>
+                  </button>
+
+                  {/* Şirket listesi - sadece expand açıkken ve aktifken */}
+                  <AnimatePresence>
+                    {isActive && showCompanyExpand && (
+                      <motion.div key="saas-companies"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
+                        className="overflow-hidden">
+                        <div className="mx-1 mt-1 mb-0.5 bg-fuchsia-500/5 border border-fuchsia-500/15 rounded-xl overflow-hidden">
+                          {/* Aktif şirket */}
+                          <div className="flex items-center gap-2.5 px-3 py-2.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-fuchsia-400 flex-shrink-0 shadow-[0_0_6px_rgba(217,70,239,0.5)]" />
+                            <span className="text-xs font-semibold text-fuchsia-200 flex-1 truncate">{activeCompanyName}</span>
+                            <span className="text-[8px] bg-fuchsia-500/20 text-fuchsia-400 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide">Aktif</span>
+                          </div>
+                          {/* Diğer şirketler */}
+                          {otherCompanies.map((c, i) => (
+                            <div key={c.id}>
+                              {i === 0 && <div className="h-px bg-fuchsia-500/10 mx-3" />}
+                              <button onClick={() => { setActiveCompanyId(c.id); localStorage.setItem('tir_current_company', c.id); setShowCompanyExpand(false); }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-fuchsia-500/10 transition-colors group/co">
+                                <Building2 size={11} className="text-slate-600 group-hover/co:text-fuchsia-400 transition-colors flex-shrink-0" />
+                                <span className="text-xs text-slate-400 group-hover/co:text-white transition-colors truncate">{c.name}</span>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            }
+
+            // ── Normal nav itemları ──
+            return (
+              <button key={item.id} onClick={() => { setActiveTab(item.id); if (isMobile) setIsMenuOpen(false); }}
+                className={`w-full relative flex items-center space-x-3 px-4 py-2.5 rounded-xl group transition-all duration-300 outline-none ${isActive ? 'font-medium text-white' : 'text-slate-400 hover:text-slate-200'}`}>
+                {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 rounded-xl transition-colors duration-300 -z-10" />}
+                {isActive && (
+                  <motion.div layoutId="sidebar-active-apple"
+                    className={`absolute inset-0 bg-gradient-to-b rounded-xl border ${item.theme}`}
+                    style={{ zIndex: 0 }} initial={false}
+                    transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}
+                  />
+                )}
+                <div className={`relative z-10 flex items-center transition-transform duration-300 ${isActive ? 'scale-110 drop-shadow-md text-white/90' : `text-slate-500 group-hover:scale-110 ${item.hoverText}`}`}>
+                  {item.icon}
+                </div>
+                <span className="flex-1 text-left text-sm tracking-wide relative z-10 drop-shadow-md">{item.label}</span>
+                {item.badge > 0 && (
+                  <span className="relative z-10 bg-red-500/20 border border-red-500/30 text-red-100 drop-shadow-md text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center justify-center flex-shrink-0">{item.badge}</span>
+                )}
+              </button>
+            );
+          })}
 
           <div className="pt-6 pb-2">
             <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-700/30 to-transparent"></div>

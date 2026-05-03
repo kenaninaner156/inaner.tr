@@ -21,6 +21,7 @@ export const DataProvider = ({ children }) => {
     const [docs, setDocs] = useState({});
     const [penalties, setPenalties] = useState([]);
     const [invoices, setInvoices] = useState([]);
+    const [shoppingItems, setShoppingItems] = useState([]);
 
     const [vehicleInfo, setVehicleInfo] = useState({
         plate: '06 FTN 692', trailerPlate: '06 ABC 123', driverName: 'Ahmet Şoför',
@@ -219,6 +220,14 @@ export const DataProvider = ({ children }) => {
         // 11. Mechanics config
         unsubs.push(onSnapshot(query(collection(db, 'mechanics'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             setMechanics(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+        }));
+
+        // 11.5 Shopping List config
+        unsubs.push(onSnapshot(query(collection(db, 'shopping_list'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                .filter(d => !activeTruckId || d.truckId === activeTruckId)
+                .sort((a, b) => (a.order || 0) - (b.order || 0));
+            setShoppingItems(data);
         }));
 
         // 12. Docs config
@@ -680,6 +689,39 @@ export const DataProvider = ({ children }) => {
         } catch { /* empty */ }
     };
 
+    // Shopping List CRUD
+    const addShoppingItem = async (item) => {
+        const order = shoppingItems.length > 0 ? Math.max(...shoppingItems.map(i => i.order || 0)) + 1 : 0;
+        await addDoc(collection(db, 'shopping_list'), {
+            ...item,
+            order,
+            companyId: activeCompanyId,
+            truckId: activeTruckId,
+            createdAt: new Date().toISOString()
+        });
+        addLog('ALINACAK_EKLE', `${item.name} listeye eklendi`);
+    };
+
+    const updateShoppingItem = async (id, updates) => {
+        await updateDoc(doc(db, 'shopping_list', id), updates);
+        addLog('ALINACAK_GUNCELLE', `${updates.name || 'Ürün'} güncellendi`);
+    };
+
+    const deleteShoppingItem = async (id, name) => {
+        await deleteDoc(doc(db, 'shopping_list', id));
+        addLog('ALINACAK_SIL', `${name} listeden silindi`);
+    };
+
+    const updateShoppingItemsOrder = async (newOrderItems) => {
+        const batch = writeBatch(db);
+        newOrderItems.forEach((item, index) => {
+            const itemRef = doc(db, 'shopping_list', item.id);
+            batch.update(itemRef, { order: index });
+        });
+        await batch.commit();
+        setShoppingItems(newOrderItems); // Optimistic update
+    };
+
     const refreshUsers = useCallback(() => { }, []);
 
     // Unified drivers list: merge manual drivers + approved şöför users
@@ -713,6 +755,7 @@ export const DataProvider = ({ children }) => {
             updateRoute,
             draftInvoice, saveDraftInvoice, clearDraftInvoice,
             onlineUsers,
+            shoppingItems, addShoppingItem, updateShoppingItem, deleteShoppingItem, updateShoppingItemsOrder,
             updateTruckImage,
             isDataLoading, dataError
         }}>

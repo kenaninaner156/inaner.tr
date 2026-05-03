@@ -101,7 +101,7 @@ const FileUpload = ({ files = [], onChange, maxSizeMB = 3 }) => {
             {/* Ekle butonu */}
             <button type="button" onClick={() => !uploading && inputRef.current?.click()}
                 disabled={uploading}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-[var(--border-color)] hover:border-brand-500/50 hover:bg-brand-500/5 text-[var(--text-secondary)] hover:text-brand-300 transition-all text-sm w-full justify-center ${uploading ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-[var(--border-color)] hover:border-slate-500/50 hover:bg-slate-500/5 text-[var(--text-secondary)] hover:text-slate-300 transition-all text-sm w-full justify-center ${uploading ? 'opacity-60 cursor-not-allowed' : ''}`}>
                 {uploading ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />}
                 {uploading ? 'Yükleniyor...' : 'Fotoğraf / Dosya Ekle'}
             </button>

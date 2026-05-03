@@ -132,15 +132,15 @@ const Payments = () => {
                 </div>
 
                 <div className="glass-panel p-5 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-brand-500/10 rounded-full blur-2xl transition-all"></div>
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/10 rounded-full blur-2xl transition-all"></div>
                     <div className="flex justify-between items-start">
                         <div>
                             <p className="text-[var(--text-secondary)] text-sm font-medium">Net Kasa (Bakiye)</p>
-                            <h3 className={`text-3xl font-bold mt-2 ${netBalance >= 0 ? 'text-brand-400' : 'text-red-400'}`}>
+                            <h3 className={`text-3xl font-bold mt-2 ${netBalance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                 ₺{netBalance.toLocaleString('tr-TR')}
                             </h3>
                         </div>
-                        <div className="p-2 bg-brand-500/20 rounded-lg text-brand-400">
+                        <div className="p-2 bg-green-500/20 rounded-lg text-green-400">
                             <Wallet size={24} />
                         </div>
                     </div>
@@ -150,7 +150,7 @@ const Payments = () => {
             {/* Aksiyon Barı */}
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-2">
                 <div className="flex flex-wrap items-center gap-4">
-                    <div className="glass-input flex items-center px-4 py-2 hover:border-brand-500/30 transition-colors">
+                    <div className="glass-input flex items-center px-4 py-2 hover:border-green-500/30 transition-colors">
                         <Filter size={16} className="text-[var(--text-secondary)] mr-2" />
                         <span className="text-sm font-medium text-[var(--text-secondary)] mr-2">Tür:</span>
                         <select className="bg-transparent text-sm font-semibold focus:outline-none cursor-pointer"
@@ -160,8 +160,8 @@ const Payments = () => {
                             <option className="text-slate-900 font-medium" value="Ödeme">Ödemeler</option>
                         </select>
                     </div>
-                    <div className="glass-input flex items-center px-4 py-2 hover:border-brand-500/30 transition-colors relative group">
-                        <Calendar size={16} className={`mr-1 transition-colors ${filterMonth ? 'text-brand-400' : 'text-[var(--text-secondary)] group-hover:text-brand-400'}`} />
+                    <div className="glass-input flex items-center px-4 py-2 hover:border-green-500/30 transition-colors relative group">
+                        <Calendar size={16} className={`mr-1 transition-colors ${filterMonth ? 'text-green-400' : 'text-[var(--text-secondary)] group-hover:text-green-400'}`} />
                         <div className="relative flex items-center">
                             {/* Gerçek input (şeffaf ve üstte) */}
                             <input
@@ -172,7 +172,7 @@ const Payments = () => {
                             />
                             {/* Görünen sahte input (içi boşken hiçbir string göstermeyecek) */}
                             {filterMonth && (
-                                <span className="text-sm font-semibold pointer-events-none text-brand-400 ml-1">
+                                <span className="text-sm font-semibold pointer-events-none text-green-400 ml-1">
                                     {new Date(filterMonth + '-01').toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' })}
                                 </span>
                             )}
@@ -186,7 +186,7 @@ const Payments = () => {
                 </div>
                 <button
                     onClick={() => setIsAddModalOpen(true)}
-                    className="w-full sm:w-auto bg-brand-600 hover:bg-brand-500 text-[var(--text-primary)] px-5 py-2.5 rounded-xl font-semibold transition-all shadow-lg shadow-brand-500/20 flex items-center justify-center whitespace-nowrap"
+                    className="w-full sm:w-auto bg-green-600 hover:bg-green-500 text-[var(--text-primary)] px-5 py-2.5 rounded-xl font-semibold transition-all shadow-lg shadow-green-500/20 flex items-center justify-center whitespace-nowrap"
                 >
                     <Plus size={18} className="mr-2" />
                     Yeni İşlem Ekle
@@ -240,7 +240,7 @@ const Payments = () => {
                                                                 setViewingFilesRecord(record);
                                                             }
                                                         }}
-                                                        className="text-brand-400 hover:text-brand-300 transition-colors flex items-center bg-brand-500/10 px-1.5 py-0.5 rounded text-xs cursor-pointer"
+                                                        className="text-green-400 hover:text-green-300 transition-colors flex items-center bg-green-500/10 px-1.5 py-0.5 rounded text-xs cursor-pointer"
                                                         title="Belgeyi Gör"
                                                     >
                                                         📎 {record.files.length}
@@ -265,7 +265,7 @@ const Payments = () => {
                                                         });
                                                         setIsAddModalOpen(true);
                                                     }}
-                                                    className="p-1.5 rounded-lg transition-all text-slate-500 hover:text-brand-400 hover:bg-white/5"
+                                                    className="p-1.5 rounded-lg transition-all text-slate-500 hover:text-green-400 hover:bg-white/5"
                                                     title="Kaydı Düzenle"
                                                 >
                                                     <Pencil size={18} />
@@ -292,7 +292,7 @@ const Payments = () => {
                 <div className="fixed inset-0 bg-[var(--bg-panel)] backdrop-blur-sm flex items-center justify-center p-4 z-50">
                     <div className="glass-panel w-full max-w-md p-6 border border-[var(--border-color)] rounded-2xl animate-in zoom-in-95 duration-200">
                         <h2 className="text-xl font-bold mb-4 flex items-center text-[var(--text-primary)]">
-                            <Wallet className="mr-2 text-brand-400" />
+                            <Wallet className="mr-2 text-green-400" />
                             {editingPaymentId ? 'İşlemi Düzenle' : 'Yeni İşlem (Para Giriş/Çıkış)'}
                         </h2>
 
@@ -300,7 +300,7 @@ const Payments = () => {
                             <div>
                                 <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">İşlem Türü</label>
                                 <select
-                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all appearance-none"
+                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all appearance-none"
                                     value={formData.type}
                                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                                 >
@@ -314,7 +314,7 @@ const Payments = () => {
                                 <input
                                     type="date"
                                     required
-                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-brand-500 transition-all"
+                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-green-500 transition-all"
                                     value={formData.date}
                                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                                 />
@@ -326,7 +326,7 @@ const Payments = () => {
                                     type="text"
                                     required
                                     placeholder={formData.type === 'Tahsilat' ? "Örn: Çayırhan Nakliye Tahsilatı" : "Örn: Lastikçi Ahmet Usta Ödemesi"}
-                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-brand-500 transition-all"
+                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-green-500 transition-all"
                                     value={formData.description}
                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                 />
@@ -340,7 +340,7 @@ const Payments = () => {
                                     min="0"
                                     step="0.01"
                                     placeholder="0.00"
-                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-brand-500 transition-all"
+                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-green-500 transition-all"
                                     value={formData.amount}
                                     onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                                 />
@@ -371,7 +371,7 @@ const Payments = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 bg-brand-600 hover:bg-brand-500 text-[var(--text-primary)] py-2.5 rounded-lg font-medium shadow-lg shadow-brand-500/25 transition-all"
+                                    className="flex-1 bg-green-600 hover:bg-green-500 text-[var(--text-primary)] py-2.5 rounded-lg font-medium shadow-lg shadow-green-500/25 transition-all"
                                 >
                                     Kaydet
                                 </button>
@@ -393,9 +393,9 @@ const Payments = () => {
                         </div>
                         <div className="space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
                             {viewingFilesRecord.files.map(f => (
-                                <div key={f.id} onClick={() => openFile(f)} className="flex items-center gap-3 p-3 bg-white/5 border border-[var(--border-color)] rounded-xl cursor-pointer hover:bg-white/10 hover:border-brand-500/30 transition-all group">
+                                <div key={f.id} onClick={() => openFile(f)} className="flex items-center gap-3 p-3 bg-white/5 border border-[var(--border-color)] rounded-xl cursor-pointer hover:bg-white/10 hover:border-green-500/30 transition-all group">
                                     <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center shrink-0">
-                                        <ArrowUpRight size={18} className="text-brand-400 group-hover:scale-110 transition-transform" />
+                                        <ArrowUpRight size={18} className="text-green-400 group-hover:scale-110 transition-transform" />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium text-[var(--text-primary)] truncate">{f.name || 'İsimsiz Belge'}</p>

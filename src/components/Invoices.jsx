@@ -276,7 +276,7 @@ const Invoices = () => {
                 <div className="glass-panel p-6">
                     <button
                         onClick={handleOpenPeriodModal}
-                        className="w-full bg-brand-600 hover:bg-brand-500 text-[var(--text-primary)] p-3 rounded-lg font-bold flex items-center justify-center transition-all shadow-lg shadow-brand-500/20"
+                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-[var(--text-primary)] p-3 rounded-lg font-bold flex items-center justify-center transition-all shadow-lg shadow-emerald-500/20"
                     >
                         <PlusCircle className="mr-2" size={20} /> Yeni Fatura Periyodu Seç
                     </button>
@@ -349,7 +349,7 @@ const Invoices = () => {
                 <div className="glass-panel flex-1 min-h-0 flex flex-col">
                     <div className="p-4 border-b border-[var(--border-color)] sticky top-0 bg-[var(--bg-panel)] backdrop-blur z-10 rounded-t-xl">
                         <h4 className="font-bold text-[var(--text-primary)] flex items-center">
-                            <CheckCircle className="mr-2 text-brand-400" size={18} />
+                            <CheckCircle className="mr-2 text-emerald-400" size={18} />
                             Tamamlanan Faturalar
                         </h4>
                     </div>
@@ -367,7 +367,7 @@ const Invoices = () => {
                                 }`}
                             >
                                 <div className="flex justify-between items-center mb-1">
-                                    <span className="font-bold text-brand-400 text-sm">{inv.docId}</span>
+                                    <span className="font-bold text-emerald-400 text-sm">{inv.docId}</span>
                                     <div className="flex items-center gap-1.5">
                                         <span className="text-xs text-[var(--text-secondary)]">{new Date(inv.endDate).toLocaleDateString('tr-TR')}</span>
                                         {inv.files?.length > 0 && (
@@ -377,7 +377,7 @@ const Invoices = () => {
                                         )}
                                         <button
                                             onClick={(e) => { e.stopPropagation(); setNoteModalInvoice(inv); setModalNote(inv.note || ''); setModalFiles(inv.files || []); }}
-                                            className={`p-1 rounded transition-colors ${inv.note || inv.files?.length > 0 ? 'text-brand-400' : 'text-slate-600 hover:text-brand-400'}`}
+                                            className={`p-1 rounded transition-colors ${inv.note || inv.files?.length > 0 ? 'text-emerald-400' : 'text-slate-600 hover:text-emerald-400'}`}
                                             title="Not & Belge Ekle/Gör"
                                         >
                                             <StickyNote size={15} />
@@ -455,7 +455,7 @@ const Invoices = () => {
                     <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-color)] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center p-4 border-b border-[var(--border-color)] bg-slate-800/50">
                             <h3 className="font-bold flex items-center gap-2 text-[var(--text-primary)]">
-                                <StickyNote size={18} className="text-brand-400" />
+                                <StickyNote size={18} className="text-emerald-400" />
                                 {noteModalInvoice.docId} — Not & Belge
                             </h3>
                             <button onClick={() => setNoteModalInvoice(null)} className="text-slate-400 hover:text-white transition-colors text-xl leading-none">&times;</button>
@@ -464,7 +464,7 @@ const Invoices = () => {
                             <textarea
                                 value={modalNote}
                                 onChange={(e) => setModalNote(e.target.value)}
-                                className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg p-3 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:border-brand-500/50 min-h-[100px] resize-none"
+                                className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg p-3 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 min-h-[100px] resize-none"
                                 placeholder="Faturaya dair hatırlatıcı kısa notlar alın... (örn: ödeme tarihi, onay notu)"
                             />
                             <div>
@@ -490,7 +490,7 @@ const Invoices = () => {
                                     setIsSavingNote(false);
                                 }}
                                 disabled={isSavingNote}
-                                className="px-5 py-2 rounded-lg font-medium bg-brand-600 hover:bg-brand-500 text-white transition-colors shadow-lg shadow-brand-500/20 disabled:opacity-50 flex items-center gap-2"
+                                className="px-5 py-2 rounded-lg font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-2"
                             >
                                 {isSavingNote ? 'Kaydediliyor...' : 'Kaydet'}
                             </button>

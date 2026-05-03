@@ -89,7 +89,7 @@ const Settings = () => {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 max-w-4xl mx-auto">
-            <div className="glass-panel p-6 border-l-4 border-l-brand-500">
+            <div className="glass-panel p-6 border-l-4 border-l-zinc-500">
                 <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2 flex items-center">
                     <SettingsIcon className="mr-2" size={24} />
                     Sistem Ayarları
@@ -103,7 +103,7 @@ const Settings = () => {
             <div className="glass-panel border-[var(--border-color)] overflow-hidden">
                 <div className="p-6 border-b border-[var(--border-color)] flex items-center justify-between">
                     <h4 className="font-bold text-lg text-[var(--text-primary)] flex items-center">
-                        <Camera className="mr-2 text-brand-400" size={20} />
+                        <Camera className="mr-2 text-zinc-400" size={20} />
                         Araç Profil Resmi
                     </h4>
                 </div>
@@ -117,7 +117,7 @@ const Settings = () => {
                                 onError={() => setProfilePic(null)}
                             />
                         ) : (
-                            <div className="w-full h-full bg-brand-500 flex items-center justify-center">
+                            <div className="w-full h-full bg-zinc-500 flex items-center justify-center">
                                 <Truck size={48} className="text-[var(--text-primary)] opacity-90" />
                             </div>
                         )}
@@ -215,7 +215,7 @@ const Settings = () => {
             <div className="glass-panel border-[var(--border-color)] overflow-hidden">
                 <div className="p-6 border-b border-[var(--border-color)] flex items-center justify-between">
                     <h4 className="font-bold text-lg text-[var(--text-primary)] flex items-center">
-                        <Database className="mr-2 text-brand-400" size={20} />
+                        <Database className="mr-2 text-zinc-400" size={20} />
                         Sunucu Entegrasyon Durumu
                     </h4>
                     <span className="bg-emerald-500/20 text-emerald-400 text-xs px-2 py-1 rounded-md font-medium flex items-center">

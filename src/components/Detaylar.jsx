@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     AlertTriangle, FileText, Shield, Car, Calendar, Plus, Trash2,
     Bell, CheckCircle, Clock, X, ChevronDown, Paperclip, User,
@@ -20,7 +21,7 @@ const DOC_TYPES = [
     { key: 'insurance', label: 'Çekici Kasko', icon: '🛡️', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', warningDays: 30 },
     { key: 'trailerInsurance', label: 'Dorse Kasko', icon: '🛡️', color: 'text-teal-400', bg: 'bg-teal-500/10 border-teal-500/20', warningDays: 30 },
     { key: 'odp', label: 'Sigorta', icon: '📄', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', warningDays: 30 },
-    { key: 'l1', label: 'Yetki Belgesi', icon: '📋', color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20', warningDays: 60 },
+    { key: 'l1', label: 'Yetki Belgesi', icon: '📋', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20', warningDays: 60 },
     { key: 'bandrol', label: 'Bandrol (MTV)', icon: '🏷️', color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20', warningDays: 30 },
     { key: 'srcBelgesi', label: 'SRC Belgesi (Şoför)', icon: '👤', color: 'text-pink-400', bg: 'bg-pink-500/10 border-pink-500/20', warningDays: 60 },
 ];
@@ -170,9 +171,9 @@ const Detaylar = () => {
     };
 
     const tabs = [
-        { id: 'belgeler', label: 'Belgeler & Tarihler', icon: <FileText size={15} />, badge: unreadDocsCount },
-        { id: 'cezalar', label: 'Cezalar', icon: <AlertTriangle size={15} />, badge: unreadPenaltiesCount },
-        { id: 'bildirimler', label: 'Bildirimler', icon: <Bell size={15} />, badge: totalNotifications > 0 && (unreadDocsCount + unreadPenaltiesCount) > 0 ? (unreadDocsCount + unreadPenaltiesCount) : 0 },
+        { id: 'belgeler', label: 'Belgeler & Tarihler', icon: <FileText size={15} />, badge: unreadDocsCount, theme: 'from-blue-500/80 to-blue-600/80 shadow-[0_2px_12px_rgba(59,130,246,0.3)] border-blue-400/30', hoverText: 'group-hover:text-blue-400' },
+        { id: 'cezalar', label: 'Cezalar', icon: <AlertTriangle size={15} />, badge: unreadPenaltiesCount, theme: 'from-red-500/80 to-red-600/80 shadow-[0_2px_12px_rgba(239,68,68,0.3)] border-red-400/30', hoverText: 'group-hover:text-red-400' },
+        { id: 'bildirimler', label: 'Bildirimler', icon: <Bell size={15} />, badge: totalNotifications > 0 && (unreadDocsCount + unreadPenaltiesCount) > 0 ? (unreadDocsCount + unreadPenaltiesCount) : 0, theme: 'from-amber-500/80 to-amber-600/80 shadow-[0_2px_12px_rgba(245,158,11,0.3)] border-amber-400/30', hoverText: 'group-hover:text-amber-400' },
     ];
 
     return (
@@ -211,24 +212,55 @@ const Detaylar = () => {
             </div>
 
             {/* Tab Bar */}
-            <div className="flex gap-1 bg-white/5 p-1 rounded-xl">
-                {tabs.map(tab => (
-                    <button key={tab.id} onClick={() => handleTabChange(tab.id)}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>
-                        {tab.icon}
-                        <span className="hidden sm:inline">{tab.label}</span>
-                        <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
-                        {tab.badge > 0 && (
-                            <span className="bg-red-500 text-[var(--text-primary)] text-xs w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0">{tab.badge}</span>
-                        )}
-                    </button>
-                ))}
+            <div className="flex bg-[#111113]/80 backdrop-blur-xl p-1.5 rounded-2xl shadow-inner ring-1 ring-black/20 w-full border border-white/5 items-center">
+                {tabs.map(tab => {
+                    const isActive = activeTab === tab.id;
+                    return (
+                        <button key={tab.id} onClick={() => handleTabChange(tab.id)}
+                            className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-300 flex-1 justify-center whitespace-nowrap outline-none group ${
+                                isActive ? 'text-white font-medium' : 'text-slate-400 font-medium hover:text-slate-200'
+                            }`}>
+
+                            {/* Hover arka plan */}
+                            {!isActive && (
+                                <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 rounded-xl transition-colors duration-300 -z-10" />
+                            )}
+
+                            {/* Aktif pill */}
+                            {isActive && (
+                                <motion.div
+                                    layoutId="detaylar-active-tab"
+                                    className={`absolute inset-0 bg-gradient-to-b rounded-xl border ${tab.theme}`}
+                                    style={{ zIndex: 0 }}
+                                    initial={false}
+                                    transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}
+                                />
+                            )}
+
+                            <span className={`relative z-10 transition-colors duration-300 ${isActive ? 'text-white/90 drop-shadow-md' : `text-slate-500 ${tab.hoverText}`}`}>
+                                {tab.icon}
+                            </span>
+                            <span className="hidden sm:inline relative z-10 drop-shadow-md">{tab.label}</span>
+                            <span className="sm:hidden relative z-10 drop-shadow-md">{tab.label.split(' ')[0]}</span>
+                            {tab.badge > 0 && (
+                                <span className="relative z-10 bg-white/20 border border-white/30 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center justify-center flex-shrink-0 drop-shadow-md">{tab.badge}</span>
+                            )}
+                        </button>
+                    );
+                })}
             </div>
 
-            {/* ─── BELGELER & TARİHLER ─── */}
+            {/* ─── TAB İÇERİKLERİ ─── */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                transition={{ duration: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+              >
             {activeTab === 'belgeler' && (
                 <div className="space-y-3">
-                    <p className="text-xs text-slate-500 px-1">Her belge için son geçerlilik tarihini girin. Belge yaklaşınca otomatik uyarı alırsınız.</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {DOC_TYPES.map(dt => {
                             const docData = docs[dt.key];
@@ -244,7 +276,7 @@ const Detaylar = () => {
                                                     {dt.label} {dt.key === 'l1' && docData?.subType ? `(${docData.subType})` : ''}
                                                 </p>
                                                 {docData?.isNone ? (
-                                                    <p className="text-xs text-orange-400 font-medium tracking-wide">Kasko Yok</p>
+                                                    <p className="text-xs text-red-400 font-medium tracking-wide">Kasko Yok</p>
                                                 ) : docData?.date ? (
                                                     <p className="text-xs text-[var(--text-secondary)]">{new Date(docData.date).toLocaleDateString('tr-TR')}</p>
                                                 ) : (
@@ -254,7 +286,7 @@ const Detaylar = () => {
                                         </div>
                                         <div className="flex items-center gap-2 flex-shrink-0">
                                             {docData?.isNone ? (
-                                                <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-orange-500/10 border-orange-500/20 text-orange-400">
+                                                <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-red-500/10 border-red-500/20 text-red-400">
                                                     Kasko Yok
                                                 </span>
                                             ) : docData?.date && (
@@ -263,7 +295,7 @@ const Detaylar = () => {
                                                 </span>
                                             )}
                                             <button onClick={() => openEditDoc(dt.key)}
-                                                className="text-slate-500 hover:text-brand-400 p-1 rounded transition text-xs border border-[var(--border-color)] hover:border-brand-500/30 px-2">
+                                                className="text-slate-500 hover:text-red-400 p-1 rounded transition text-xs border border-[var(--border-color)] hover:border-red-500/30 px-2">
                                                 Düzenle
                                             </button>
                                         </div>
@@ -272,7 +304,7 @@ const Detaylar = () => {
                                         <p className="text-xs text-slate-500 mt-2 border-t border-[var(--border-color)] pt-2">{docData.notes}</p>
                                     )}
                                     {docData?.files?.length > 0 && (
-                                        <p className="text-xs text-brand-400 mt-1">📎 {docData.files.length} belge eklendi</p>
+                                        <p className="text-xs text-red-400 mt-1">📎 {docData.files.length} belge eklendi</p>
                                     )}
 
                                     {/* Edit Modal (inline) */}
@@ -280,8 +312,8 @@ const Detaylar = () => {
                                         <div className="mt-3 border-t border-[var(--border-color)] pt-3 space-y-3">
                                             {(dt.key === 'insurance' || dt.key === 'trailerInsurance') && (
                                                 <label className="flex items-center gap-2 text-sm text-[var(--text-primary)] bg-[var(--bg-panel-hover)] border border-[var(--border-color)] p-2 rounded-lg cursor-pointer">
-                                                    <input type="checkbox" checked={docForm.isNone} onChange={e => setDocForm({ ...docForm, isNone: e.target.checked, date: e.target.checked ? '' : docForm.date })} className="accent-orange-500 w-4 h-4 rounded border-[var(--border-color)] bg-[var(--bg-base)]" />
-                                                    <span className={docForm.isNone ? 'text-orange-400 font-medium' : ''}>Kasko Yok</span>
+                                                    <input type="checkbox" checked={docForm.isNone} onChange={e => setDocForm({ ...docForm, isNone: e.target.checked, date: e.target.checked ? '' : docForm.date })} className="accent-red-500 w-4 h-4 rounded border-[var(--border-color)] bg-[var(--bg-base)]" />
+                                                    <span className={docForm.isNone ? 'text-red-400 font-medium' : ''}>Kasko Yok</span>
                                                 </label>
                                             )}
                                             {!docForm.isNone && (
@@ -296,11 +328,11 @@ const Detaylar = () => {
                                                     <label className="block text-xs text-[var(--text-secondary)] mb-1">Belge Türü</label>
                                                     <div className="flex gap-4">
                                                         <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-                                                            <input type="radio" name="subType" value="L1" checked={docForm.subType === 'L1'} onChange={e => setDocForm({ ...docForm, subType: e.target.value })} className="accent-brand-500" />
+                                                            <input type="radio" name="subType" value="L1" checked={docForm.subType === 'L1'} onChange={e => setDocForm({ ...docForm, subType: e.target.value })} className="accent-red-500" />
                                                             L1
                                                         </label>
                                                         <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
-                                                            <input type="radio" name="subType" value="K1" checked={docForm.subType === 'K1'} onChange={e => setDocForm({ ...docForm, subType: e.target.value })} className="accent-brand-500" />
+                                                            <input type="radio" name="subType" value="K1" checked={docForm.subType === 'K1'} onChange={e => setDocForm({ ...docForm, subType: e.target.value })} className="accent-red-500" />
                                                             K1
                                                         </label>
                                                     </div>
@@ -316,7 +348,7 @@ const Detaylar = () => {
                                                 <FileUpload files={docForm.files} onChange={f => setDocForm({ ...docForm, files: f })} maxSizeMB={5} />
                                             </div>
                                             <div className="flex gap-2">
-                                                <button onClick={saveDoc} className="flex-1 bg-brand-600 hover:bg-brand-500 text-[var(--text-primary)] py-2 rounded-lg text-sm font-medium transition">Kaydet</button>
+                                                <button onClick={saveDoc} className="flex-1 bg-red-600 hover:bg-red-500 text-[var(--text-primary)] py-2 rounded-lg text-sm font-medium transition">Kaydet</button>
                                                 <button onClick={deleteDocEntry} className="px-3 py-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg text-sm font-medium transition border border-transparent hover:border-red-500/30" title="Belgeyi Sil">
                                                     <Trash2 size={16} />
                                                 </button>
@@ -425,7 +457,7 @@ const Detaylar = () => {
                                                     <span className="text-xs text-slate-500">{new Date(p.date).toLocaleDateString('tr-TR')}</span>
                                                 </div>
                                                 {p.description && <p className="text-[var(--text-secondary)] text-xs mt-0.5">{p.description}</p>}
-                                                {p.files?.length > 0 && <p className="text-brand-400 text-xs mt-0.5">📎 {p.files.length} belge</p>}
+                                                {p.files?.length > 0 && <p className="text-red-400 text-xs mt-0.5">📎 {p.files.length} belge</p>}
                                             </div>
                                             <div className="flex items-center gap-2 flex-shrink-0">
                                                 <span className={`font-bold text-sm ${p.paid ? 'text-emerald-400 line-through' : 'text-red-400'}`}>
@@ -516,6 +548,8 @@ const Detaylar = () => {
                     )}
                 </div>
             )}
+              </motion.div>
+            </AnimatePresence>
 
         </div>
     );

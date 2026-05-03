@@ -193,10 +193,10 @@ const Dashboard = () => {
             {/* İstatistik Kartları */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
                 <div className="glass-panel p-6 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-brand-500/10 rounded-full blur-2xl group-hover:bg-brand-500/20 transition-all"></div>
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/10 rounded-full blur-2xl group-hover:bg-violet-500/20 transition-all"></div>
                     <div className="flex justify-between items-start mb-4">
                         <p className="text-[var(--text-secondary)] text-sm font-semibold tracking-wide uppercase">Toplam Gelir</p>
-                        <Wallet className="text-brand-400 opacity-80" size={24} />
+                        <Wallet className="text-violet-400 opacity-80" size={24} />
                     </div>
                     <h3 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight">
                         {totalRevenue > 0 ? `₺${totalRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '₺0'}
@@ -252,7 +252,7 @@ const Dashboard = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
                     <div className="flex items-center gap-3 flex-wrap">
                         <h3 className="font-semibold text-lg flex items-center text-[var(--text-primary)]">
-                            <Activity className="mr-2 text-brand-400" size={20} />
+                            <Activity className="mr-2 text-violet-400" size={20} />
                             Aylık Operasyon Hacmi
                         </h3>
                     </div>
@@ -261,7 +261,7 @@ const Dashboard = () => {
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => setIsAllTime(true)}
-                            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${isAllTime ? 'bg-brand-500/20 text-brand-400 border border-brand-500/40' : 'text-slate-400 hover:text-slate-200 border border-transparent hover:border-slate-700'}`}
+                            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${isAllTime ? 'bg-violet-500/20 text-violet-400 border border-violet-500/40' : 'text-slate-400 hover:text-slate-200 border border-transparent hover:border-slate-700'}`}
                         >
                             Tüm Zamanlar
                         </button>

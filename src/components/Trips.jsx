@@ -277,7 +277,7 @@ const Trips = () => {
                 <div className="flex flex-col md:flex-row w-full md:w-auto gap-3">
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="w-full md:w-auto bg-brand-600 hover:bg-brand-500 text-[var(--text-primary)] px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center whitespace-nowrap"
+                        className="w-full md:w-auto bg-sky-600 hover:bg-sky-500 text-[var(--text-primary)] px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center whitespace-nowrap"
                     >
                         <Plus size={18} className="mr-2" />
                         Sefer Ekle
@@ -307,7 +307,7 @@ const Trips = () => {
                                         </td>
                                         <td className="p-3">
                                             <div className="text-sm font-semibold text-[var(--text-primary)] whitespace-nowrap">
-                                                {trip.from} <span className="text-brand-400 mx-1">→</span> {trip.to}
+                                                {trip.from} <span className="text-sky-400 mx-1">→</span> {trip.to}
                                             </div>
                                             {trip.km > 0 && (
                                                 <div className="text-xs text-slate-500 mt-0.5 whitespace-nowrap">{trip.km} km</div>
@@ -335,12 +335,12 @@ const Trips = () => {
                                                 {trip.files && trip.files.length > 0 && (
                                                     <button onClick={() => setViewFiles({ title: `${trip.from} → ${trip.to}`, files: trip.files })}
                                                         title={`${trip.files.length} ek`}
-                                                        className="p-1.5 rounded-lg text-slate-500 hover:text-brand-400 hover:bg-brand-500/10">
+                                                        className="p-1.5 rounded-lg text-slate-500 hover:text-sky-400 hover:bg-sky-500/10">
                                                         <Paperclip size={14} />
                                                     </button>
                                                 )}
                                                 <button onClick={() => openEditModal(trip)}
-                                                    className="p-1.5 rounded-lg text-slate-500 hover:text-brand-400 hover:bg-brand-500/10">
+                                                    className="p-1.5 rounded-lg text-slate-500 hover:text-sky-400 hover:bg-sky-500/10">
                                                     <Pencil size={14} />
                                                 </button>
                                             </div>
@@ -376,12 +376,12 @@ const Trips = () => {
                                             </div>
                                             {trip.files && trip.files.length > 0 && (
                                                 <button onClick={() => setViewFiles({ title: `${trip.from} → ${trip.to}`, files: trip.files })}
-                                                    className="p-1 bg-brand-500/10 hover:bg-brand-500/20 rounded-md text-brand-400 transition-colors flex items-center">
+                                                    className="p-1 bg-sky-500/10 hover:bg-sky-500/20 rounded-md text-sky-400 transition-colors flex items-center">
                                                     <Paperclip size={12} />
                                                 </button>
                                             )}
                                             <button onClick={() => openEditModal(trip)}
-                                                className="p-1 bg-white/5 hover:bg-white/10 rounded-md text-[var(--text-secondary)] hover:text-brand-400 transition-colors">
+                                                className="p-1 bg-white/5 hover:bg-white/10 rounded-md text-[var(--text-secondary)] hover:text-sky-400 transition-colors">
                                                 <Pencil size={13} />
                                             </button>
                                         </div>
@@ -389,7 +389,7 @@ const Trips = () => {
 
                                     {/* Satır 2: Tam genislikte Guzergah */}
                                     <div className="font-bold text-[var(--text-primary)] text-[13px] leading-snug mb-1 break-words">
-                                        {trip.from} <span className="text-brand-400">→</span> {trip.to}
+                                        {trip.from} <span className="text-sky-400">→</span> {trip.to}
                                     </div>
 
                                     {/* Not gösterimi */}
@@ -426,7 +426,7 @@ const Trips = () => {
                     <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto">
                         <button onClick={() => setEditingTrip(null)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
                         <h3 className="text-lg font-bold text-[var(--text-primary)] mb-5 flex items-center gap-2">
-                            <Pencil size={16} className="text-brand-400" /> Seferi Düzenle
+                            <Pencil size={16} className="text-sky-400" /> Seferi Düzenle
                         </h3>
                         <div className="space-y-4">
                             {/* Tarih */}
@@ -437,22 +437,22 @@ const Trips = () => {
                                     onChange={e => setEditForm({ ...editForm, date: e.target.value })} />
                             </div>
                             {/* Güzergah Belirleme */}
-                            <div className="p-4 bg-brand-500/5 border border-brand-500/20 rounded-2xl space-y-4 shadow-lg shadow-brand-500/5 transition-all duration-300 border-dashed md:border-solid">
+                            <div className="p-4 bg-sky-500/5 border border-sky-500/20 rounded-2xl space-y-4 shadow-lg shadow-sky-500/5 transition-all duration-300 border-dashed md:border-solid">
                                 <div className="flex items-center justify-between mb-2">
-                                    <label className="text-xs font-bold text-brand-400 uppercase tracking-widest flex items-center gap-2">
+                                    <label className="text-xs font-bold text-sky-400 uppercase tracking-widest flex items-center gap-2">
                                         <MapPin size={14} /> Güzergah Belirleme
                                     </label>
                                     <div className="flex items-center space-x-2 bg-[var(--bg-panel-hover)] p-1 rounded-lg">
                                         <button
                                             type="button"
-                                            className={`px-3 py-1 text-xs font-medium rounded ${editUseSavedRoute ? 'bg-brand-500 text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}
+                                            className={`px-3 py-1 text-xs font-medium rounded ${editUseSavedRoute ? 'bg-sky-500 text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}
                                             onClick={() => setEditUseSavedRoute(true)}
                                         >
                                             Kayıtlı Rota
                                         </button>
                                         <button
                                             type="button"
-                                            className={`px-3 py-1 text-xs font-medium rounded ${!editUseSavedRoute ? 'bg-brand-500 text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}
+                                            className={`px-3 py-1 text-xs font-medium rounded ${!editUseSavedRoute ? 'bg-sky-500 text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}
                                             onClick={() => {
                                                 setEditUseSavedRoute(false);
                                                 setEditSelectedRouteId('');
@@ -464,7 +464,7 @@ const Trips = () => {
                                         <div className="w-[1px] h-3 bg-white/10 mx-1"></div>
                                         <button
                                             type="button"
-                                            className="px-2 py-1 text-[10px] font-bold text-brand-400 hover:text-brand-300 uppercase tracking-tighter"
+                                            className="px-2 py-1 text-[10px] font-bold text-sky-400 hover:text-sky-300 uppercase tracking-tighter"
                                             onClick={() => setIsRouteManagerOpen(true)}
                                         >
                                             Yönet
@@ -480,7 +480,7 @@ const Trips = () => {
                                                 setRouteSelectorMode('edit');
                                                 setIsRouteSelectorOpen(true);
                                             }}
-                                            className="w-full glass-input px-4 py-3 flex items-center justify-between text-sm group hover:border-brand-500/40 hover:bg-brand-500/5 transition-all"
+                                            className="w-full glass-input px-4 py-3 flex items-center justify-between text-sm group hover:border-sky-500/40 hover:bg-sky-500/5 transition-all"
                                         >
                                             <span className={editSelectedRouteId ? "text-[var(--text-primary)] font-medium" : "text-slate-500"}>
                                                 {editSelectedRouteId
@@ -488,7 +488,7 @@ const Trips = () => {
                                                     : "Kayıtlı Rotalarımdan Seçin..."}
                                             </span>
                                             <div className="flex items-center">
-                                                <span className="text-[10px] uppercase font-bold text-brand-500 bg-brand-500/10 px-2 py-1 rounded">SEÇ</span>
+                                                <span className="text-[10px] uppercase font-bold text-sky-500 bg-sky-500/10 px-2 py-1 rounded">SEÇ</span>
                                             </div>
                                         </button>
                                     </div>
@@ -532,7 +532,7 @@ const Trips = () => {
                                         <div className="flex items-center justify-between border-t border-white/5 pt-3">
                                             <div className="flex items-center gap-2">
                                                 <label className="flex items-center space-x-2 text-sm text-[var(--text-primary)] cursor-pointer whitespace-nowrap">
-                                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${editSaveNewRoute ? 'bg-brand-500 border-brand-500' : 'border-slate-500'}`}>
+                                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${editSaveNewRoute ? 'bg-sky-500 border-sky-500' : 'border-slate-500'}`}>
                                                         {editSaveNewRoute && <Check size={14} className="text-[var(--text-primary)]" />}
                                                     </div>
                                                     <input
@@ -547,7 +547,7 @@ const Trips = () => {
                                                     type="button"
                                                     onClick={handleEditSaveRouteOnly}
                                                     disabled={!editForm.from || !editForm.to || editSaveRouteSuccess}
-                                                    className={`px-2 py-1 flex items-center gap-1 text-[10px] font-bold rounded border transition-all uppercase ${editSaveRouteSuccess ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : (!editForm.from || !editForm.to) ? 'bg-white/5 text-slate-600 border-white/5 cursor-not-allowed' : 'bg-brand-500/20 text-brand-400 border-brand-500/30 hover:bg-brand-500/30'}`}
+                                                    className={`px-2 py-1 flex items-center gap-1 text-[10px] font-bold rounded border transition-all uppercase ${editSaveRouteSuccess ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : (!editForm.from || !editForm.to) ? 'bg-white/5 text-slate-600 border-white/5 cursor-not-allowed' : 'bg-sky-500/20 text-sky-400 border-sky-500/30 hover:bg-sky-500/30'}`}
                                                 >
                                                     {editSaveRouteSuccess ? (
                                                         <><Check size={12} /> Kaydedildi</>
@@ -573,7 +573,7 @@ const Trips = () => {
                                 <button
                                     type="button"
                                     onClick={() => setEditShowExtra(!editShowExtra)}
-                                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-300 ${editShowExtra ? 'bg-brand-500/10 border-brand-500/30 text-brand-400' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-300 ${editShowExtra ? 'bg-sky-500/10 border-sky-500/30 text-sky-400' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                                 >
                                     <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
                                         <StickyNote size={12} /> Ek Bilgiler
@@ -619,7 +619,7 @@ const Trips = () => {
                             )}
                             {/* Kaydet */}
                             <button onClick={handleEdit}
-                                className="w-full bg-brand-600 hover:bg-brand-500 text-[var(--text-primary)] py-2.5 rounded-lg font-medium transition-all mt-1">
+                                className="w-full bg-sky-600 hover:bg-sky-500 text-[var(--text-primary)] py-2.5 rounded-lg font-medium transition-all mt-1">
                                 Kaydet
                             </button>
                             {/* Sil */}
@@ -635,7 +635,7 @@ const Trips = () => {
             {/* ─── MANUEL EKLE MODAL ─── */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 border-brand-500/30 max-h-[92vh] overflow-y-visible flex flex-col">
+                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 border-sky-500/30 max-h-[92vh] overflow-y-visible flex flex-col">
                         <button
                             onClick={() => setIsModalOpen(false)}
                             className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)] z-[80]"
@@ -644,7 +644,7 @@ const Trips = () => {
                         </button>
 
                         <h3 className="text-xl font-bold text-[var(--text-primary)] mb-6 flex items-center flex-shrink-0">
-                            <MapPin className="mr-2 text-brand-500" /> Yeni Sefer / Rota
+                            <MapPin className="mr-2 text-sky-500" /> Yeni Sefer / Rota
                         </h3>
 
                         <form onSubmit={handleManualAdd} className="space-y-5 overflow-y-auto custom-scrollbar pr-2 flex-1 pb-4">
@@ -660,22 +660,22 @@ const Trips = () => {
                             </div>
 
                             {/* Rota Seçim Alanı */}
-                            <div className="p-4 bg-brand-500/5 border border-brand-500/20 rounded-2xl space-y-4 shadow-lg shadow-brand-500/5 transition-all duration-300 border-dashed md:border-solid">
+                            <div className="p-4 bg-sky-500/5 border border-sky-500/20 rounded-2xl space-y-4 shadow-lg shadow-sky-500/5 transition-all duration-300 border-dashed md:border-solid">
                                 <div className="flex items-center justify-between mb-2">
-                                    <label className="text-xs font-bold text-brand-400 uppercase tracking-widest flex items-center gap-2">
+                                    <label className="text-xs font-bold text-sky-400 uppercase tracking-widest flex items-center gap-2">
                                         <MapPin size={14} /> Güzergah Belirleme
                                     </label>
                                     <div className="flex items-center space-x-2 bg-[var(--bg-panel-hover)] p-1 rounded-lg">
                                         <button
                                             type="button"
-                                            className={`px-3 py-1 text-xs font-medium rounded ${useSavedRoute ? 'bg-brand-500 text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}
+                                            className={`px-3 py-1 text-xs font-medium rounded ${useSavedRoute ? 'bg-sky-500 text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}
                                             onClick={() => setUseSavedRoute(true)}
                                         >
                                             Kayıtlı Rota
                                         </button>
                                         <button
                                             type="button"
-                                            className={`px-3 py-1 text-xs font-medium rounded ${!useSavedRoute ? 'bg-brand-500 text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}
+                                            className={`px-3 py-1 text-xs font-medium rounded ${!useSavedRoute ? 'bg-sky-500 text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}
                                             onClick={() => {
                                                 setUseSavedRoute(false);
                                                 setSelectedRouteId('');
@@ -687,7 +687,7 @@ const Trips = () => {
                                         <div className="w-[1px] h-3 bg-white/10 mx-1"></div>
                                         <button
                                             type="button"
-                                            className="px-2 py-1 text-[10px] font-bold text-brand-400 hover:text-brand-300 uppercase tracking-tighter"
+                                            className="px-2 py-1 text-[10px] font-bold text-sky-400 hover:text-sky-300 uppercase tracking-tighter"
                                             onClick={() => setIsRouteManagerOpen(true)}
                                         >
                                             Yönet
@@ -703,7 +703,7 @@ const Trips = () => {
                                                 setRouteSelectorMode('add');
                                                 setIsRouteSelectorOpen(true);
                                             }}
-                                            className="w-full glass-input px-4 py-3 flex items-center justify-between text-sm group hover:border-brand-500/40 hover:bg-brand-500/5 transition-all"
+                                            className="w-full glass-input px-4 py-3 flex items-center justify-between text-sm group hover:border-sky-500/40 hover:bg-sky-500/5 transition-all"
                                         >
                                             <span className={selectedRouteId ? "text-[var(--text-primary)] font-medium" : "text-slate-500"}>
                                                 {selectedRouteId 
@@ -711,7 +711,7 @@ const Trips = () => {
                                                     : "Kayıtlı Rotalarımdan Seçin..."}
                                             </span>
                                                 <div className="flex items-center">
-                                                    <span className="text-[10px] uppercase font-bold text-brand-500 bg-brand-500/10 px-2 py-1 rounded">SEÇ</span>
+                                                    <span className="text-[10px] uppercase font-bold text-sky-500 bg-sky-500/10 px-2 py-1 rounded">SEÇ</span>
                                                 </div>
                                         </button>
                                     </div>
@@ -757,7 +757,7 @@ const Trips = () => {
                                         <div className="flex items-center justify-between border-t border-white/5 pt-3">
                                             <div className="flex items-center gap-2">
                                                 <label className="flex items-center space-x-2 text-sm text-[var(--text-primary)] cursor-pointer whitespace-nowrap">
-                                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${saveNewRoute ? 'bg-brand-500 border-brand-500' : 'border-slate-500'}`}>
+                                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${saveNewRoute ? 'bg-sky-500 border-sky-500' : 'border-slate-500'}`}>
                                                         {saveNewRoute && <Check size={14} className="text-[var(--text-primary)]" />}
                                                     </div>
                                                     <input
@@ -772,7 +772,7 @@ const Trips = () => {
                                                     type="button"
                                                     onClick={handleSaveRouteOnly}
                                                     disabled={!formData.from || !formData.to || saveRouteSuccess}
-                                                    className={`px-2 py-1 flex items-center gap-1 text-[10px] font-bold rounded border transition-all uppercase ${saveRouteSuccess ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : (!formData.from || !formData.to) ? 'bg-white/5 text-slate-600 border-white/5 cursor-not-allowed' : 'bg-brand-500/20 text-brand-400 border-brand-500/30 hover:bg-brand-500/30'}`}
+                                                    className={`px-2 py-1 flex items-center gap-1 text-[10px] font-bold rounded border transition-all uppercase ${saveRouteSuccess ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : (!formData.from || !formData.to) ? 'bg-white/5 text-slate-600 border-white/5 cursor-not-allowed' : 'bg-sky-500/20 text-sky-400 border-sky-500/30 hover:bg-sky-500/30'}`}
                                                 >
                                                     {saveRouteSuccess ? (
                                                         <><Check size={12} /> Kaydedildi</>
@@ -804,7 +804,7 @@ const Trips = () => {
                                 <button
                                     type="button"
                                     onClick={() => setShowExtra(!showExtra)}
-                                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-300 ${showExtra ? 'bg-brand-500/10 border-brand-500/30 text-brand-400' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-300 ${showExtra ? 'bg-sky-500/10 border-sky-500/30 text-sky-400' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                                 >
                                     <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
                                         <StickyNote size={12} /> Ek Bilgiler
@@ -848,7 +848,7 @@ const Trips = () => {
 
                             <button
                                 type="submit"
-                                className="w-full bg-brand-600 hover:bg-brand-500 text-[var(--text-primary)] px-4 py-3 rounded-lg font-medium transition-all shadow-lg mt-2"
+                                className="w-full bg-sky-600 hover:bg-sky-500 text-[var(--text-primary)] px-4 py-3 rounded-lg font-medium transition-all shadow-lg mt-2"
                             >
                                 Seferi Kaydet
                             </button>
@@ -860,9 +860,9 @@ const Trips = () => {
             {/* ─── ROTA YÖNETİMİ MODAL ─── */}
             {isRouteManagerOpen && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-                    <div className="glass-panel w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 border-brand-500/30">
+                    <div className="glass-panel w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 border-sky-500/30">
                         <button onClick={() => setIsRouteManagerOpen(false)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
-                        <h3 className="text-xl font-bold text-[var(--text-primary)] mb-6 flex items-center"><MapPin className="mr-2 text-brand-500" /> Rota Yönetimi</h3>
+                        <h3 className="text-xl font-bold text-[var(--text-primary)] mb-6 flex items-center"><MapPin className="mr-2 text-sky-500" /> Rota Yönetimi</h3>
 
                         <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
                             {routes.map(route => (
@@ -880,7 +880,7 @@ const Trips = () => {
                                                 </div>
                                             </div>
                                             <div className="flex">
-                                                <button onClick={() => setEditingRoute(null)} className="ml-auto bg-brand-600 text-[var(--text-primary)] px-3 py-1 rounded text-xs">Tamam</button>
+                                                <button onClick={() => setEditingRoute(null)} className="ml-auto bg-sky-600 text-[var(--text-primary)] px-3 py-1 rounded text-xs">Tamam</button>
                                             </div>
                                         </div>
                                     ) : (
@@ -890,7 +890,7 @@ const Trips = () => {
                                                 <p className="text-xs text-slate-500">{route.km} km</p>
                                             </div>
                                             <div className="flex gap-1">
-                                                <button onClick={() => setEditingRoute(route.id)} className="p-1.5 text-[var(--text-secondary)] hover:text-brand-400"><Pencil size={14} /></button>
+                                                <button onClick={() => setEditingRoute(route.id)} className="p-1.5 text-[var(--text-secondary)] hover:text-sky-400"><Pencil size={14} /></button>
                                                 <button onClick={() => deleteRoute(route.id)} className="p-1.5 text-[var(--text-secondary)] hover:text-red-400"><Trash2 size={14} /></button>
                                             </div>
                                         </div>
@@ -928,7 +928,7 @@ const Trips = () => {
                                     ) : (
                                         <a href={f.data} download={f.name}
                                             className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                                            <FileText size={24} className="text-brand-400 flex-shrink-0" />
+                                            <FileText size={24} className="text-sky-400 flex-shrink-0" />
                                             <div>
                                                 <p className="text-sm font-medium text-[var(--text-primary)]">{f.name}</p>
                                                 <p className="text-xs text-slate-500">İndirmek için tıklayın</p>
@@ -946,11 +946,11 @@ const Trips = () => {
             {/* ─── ROTA SEÇİCİ MODAL (YENİ PENCERE) ─── */}
             {isRouteSelectorOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-                    <div className="glass-panel w-full max-w-lg p-0 relative animate-in zoom-in-95 duration-200 border-brand-500/30 overflow-hidden flex flex-col h-[80vh] md:h-auto md:max-h-[85vh]">
+                    <div className="glass-panel w-full max-w-lg p-0 relative animate-in zoom-in-95 duration-200 border-sky-500/30 overflow-hidden flex flex-col h-[80vh] md:h-auto md:max-h-[85vh]">
                         {/* Modal Header */}
                         <div className="p-4 flex items-center justify-between border-b border-white/5 bg-white/5 shrink-0">
                             <h3 className="text-lg font-bold text-[var(--text-primary)] flex items-center">
-                                <Search className="mr-2 text-brand-500" size={18} /> Rota Seç
+                                <Search className="mr-2 text-sky-500" size={18} /> Rota Seç
                             </h3>
                             <button
                                 onClick={() => {
@@ -971,7 +971,7 @@ const Trips = () => {
                                     type="text"
                                     autoFocus
                                     placeholder="Rota ara (Nereden veya Nereye)..."
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:border-brand-500/50 focus:bg-white/10 transition-all placeholder:text-slate-500"
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:border-sky-500/50 focus:bg-white/10 transition-all placeholder:text-slate-500"
                                     value={routeSearchTerm}
                                     onChange={(e) => setRouteSearchTerm(e.target.value)}
                                 />
@@ -1001,12 +1001,12 @@ const Trips = () => {
                                                 setIsRouteSelectorOpen(false);
                                                 setRouteSearchTerm('');
                                             }}
-                                            className="w-full flex items-center justify-between p-4 rounded-xl transition-all text-left bg-white/5 hover:bg-brand-500/10 border border-transparent hover:border-brand-500/30 group"
+                                            className="w-full flex items-center justify-between p-4 rounded-xl transition-all text-left bg-white/5 hover:bg-sky-500/10 border border-transparent hover:border-sky-500/30 group"
                                         >
                                             <div className="flex flex-col gap-1.5 flex-1">
                                                 <div className="flex items-center gap-2">
-                                                    <MapPin size={14} className="text-slate-500 group-hover:text-brand-400 transition-colors" />
-                                                    <span className="text-sm font-bold text-[var(--text-primary)] tracking-wide">{r.from} <span className="text-brand-500 mx-1">➔</span> {r.to}</span>
+                                                    <MapPin size={14} className="text-slate-500 group-hover:text-sky-400 transition-colors" />
+                                                    <span className="text-sm font-bold text-[var(--text-primary)] tracking-wide">{r.from} <span className="text-sky-500 mx-1">➔</span> {r.to}</span>
                                                 </div>
                                                 <div className="flex items-center gap-4 pl-6 opacity-70">
                                                     <div className="flex items-center gap-1.5 text-xs text-slate-400">
@@ -1019,7 +1019,7 @@ const Trips = () => {
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="w-8 h-8 rounded-full bg-white/5 group-hover:bg-brand-500 flex items-center justify-center transition-colors shrink-0">
+                                            <div className="w-8 h-8 rounded-full bg-white/5 group-hover:bg-sky-500 flex items-center justify-center transition-colors shrink-0">
                                                 <ChevronDown size={14} className="text-slate-400 group-hover:text-[var(--text-primary)] -rotate-90" />
                                             </div>
                                         </button>

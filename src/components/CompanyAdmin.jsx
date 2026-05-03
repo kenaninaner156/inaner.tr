@@ -69,10 +69,10 @@ const CompanyAdmin = () => {
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             {/* Header */}
-            <div className="glass-panel p-6 border-l-4 border-l-brand-500 flex justify-between items-center">
+            <div className="glass-panel p-6 border-l-4 border-l-indigo-500 flex justify-between items-center">
                 <div>
                     <h3 className="text-xl font-bold flex items-center mb-1 text-[var(--text-primary)]">
-                        <Building2 className="mr-3 text-brand-400" size={24} />
+                        <Building2 className="mr-3 text-indigo-400" size={24} />
                         Şirket Yönetimi: {companyData?.name || 'Yükleniyor...'}
                     </h3>
                     <p className="text-[var(--text-secondary)] text-sm">
@@ -85,13 +85,13 @@ const CompanyAdmin = () => {
             <div className="flex space-x-2 border-b border-[var(--border-color)] pb-px">
                 <button
                     onClick={() => setActiveTab('trucks')}
-                    className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'trucks' ? 'border-brand-500 text-brand-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                    className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'trucks' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
                 >
                     <div className="flex items-center"><Truck size={16} className="mr-2" /> Araçlar ({trucks.length})</div>
                 </button>
                 <button
                     onClick={() => setActiveTab('drivers')}
-                    className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'drivers' ? 'border-brand-500 text-brand-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                    className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'drivers' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
                 >
                     <div className="flex items-center"><Users size={16} className="mr-2" /> Şoförler</div>
                 </button>
@@ -102,20 +102,20 @@ const CompanyAdmin = () => {
                 <div className="space-y-4">
                     <div className="flex justify-between items-center bg-[var(--bg-panel-hover)] p-4 rounded-xl border border-[var(--border-color)]">
                         <div className="text-sm text-[var(--text-primary)]">Sisteme kayıtlı toplam <strong>{trucks.length}</strong> araç bulunuyor.</div>
-                        <button onClick={() => setShowTruckForm(!showTruckForm)} className="bg-brand-500 hover:bg-brand-600 text-[var(--text-primary)] px-4 py-2 rounded-lg text-sm font-medium flex items-center transition-colors">
+                        <button onClick={() => setShowTruckForm(!showTruckForm)} className="bg-indigo-500 hover:bg-indigo-600 text-[var(--text-primary)] px-4 py-2 rounded-lg text-sm font-medium flex items-center transition-colors">
                             <Plus size={16} className="mr-1.5" /> Yeni Araç Ekle
                         </button>
                     </div>
 
                     {showTruckForm && (
-                        <form onSubmit={handleAddTruck} className="glass-panel p-5 grid grid-cols-1 md:grid-cols-3 gap-4 border border-brand-500/20">
+                        <form onSubmit={handleAddTruck} className="glass-panel p-5 grid grid-cols-1 md:grid-cols-3 gap-4 border border-indigo-500/20">
                             <div>
                                 <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Plaka</label>
-                                <input type="text" required value={truckPlate} onChange={e => setTruckPlate(e.target.value.toUpperCase())} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none" placeholder="Örn: 34 ABC 123" />
+                                <input type="text" required value={truckPlate} onChange={e => setTruckPlate(e.target.value.toUpperCase())} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none" placeholder="Örn: 34 ABC 123" />
                             </div>
                             <div>
                                 <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Marka & Model</label>
-                                <input type="text" required value={truckBrand} onChange={e => setTruckBrand(e.target.value)} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none" placeholder="Örn: Mercedes Actros" />
+                                <input type="text" required value={truckBrand} onChange={e => setTruckBrand(e.target.value)} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none" placeholder="Örn: Mercedes Actros" />
                             </div>
                             <div className="flex items-end">
                                 <button type="submit" className="w-full bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
@@ -127,10 +127,10 @@ const CompanyAdmin = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {trucks.map(truck => (
-                            <div key={truck.id} className={`glass-panel p-5 relative group transition-all ${activeTruckId === truck.id ? 'border-brand-500 bg-brand-500/5' : 'border-[var(--border-color)] hover:border-slate-600'}`}>
+                            <div key={truck.id} className={`glass-panel p-5 relative group transition-all ${activeTruckId === truck.id ? 'border-indigo-500 bg-indigo-500/5' : 'border-[var(--border-color)] hover:border-slate-600'}`}>
                                 <div className="flex justify-between items-start mb-3">
                                     <div className="w-10 h-10 rounded-lg bg-[var(--bg-panel-hover)] flex items-center justify-center border border-[var(--border-color)]">
-                                        <Truck size={20} className={activeTruckId === truck.id ? 'text-brand-400' : 'text-[var(--text-secondary)]'} />
+                                        <Truck size={20} className={activeTruckId === truck.id ? 'text-indigo-400' : 'text-[var(--text-secondary)]'} />
                                     </div>
                                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                         activeTruckId === truck.id
@@ -154,15 +154,15 @@ const CompanyAdmin = () => {
 
                                 {editingTruckId === truck.id ? (
                                     <div className="space-y-3 mb-4">
-                                        <input type="text" value={editTruckForm.plate} onChange={e => setEditTruckForm({ ...editTruckForm, plate: e.target.value })} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-sm outline-none focus:border-brand-500" placeholder="Plaka" />
-                                        <input type="text" value={editTruckForm.brand} onChange={e => setEditTruckForm({ ...editTruckForm, brand: e.target.value })} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-sm outline-none focus:border-brand-500" placeholder="Marka" />
-                                        <select value={editTruckForm.status} onChange={e => setEditTruckForm({ ...editTruckForm, status: e.target.value })} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-sm outline-none focus:border-brand-500">
+                                        <input type="text" value={editTruckForm.plate} onChange={e => setEditTruckForm({ ...editTruckForm, plate: e.target.value })} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-sm outline-none focus:border-indigo-500" placeholder="Plaka" />
+                                        <input type="text" value={editTruckForm.brand} onChange={e => setEditTruckForm({ ...editTruckForm, brand: e.target.value })} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-sm outline-none focus:border-indigo-500" placeholder="Marka" />
+                                        <select value={editTruckForm.status} onChange={e => setEditTruckForm({ ...editTruckForm, status: e.target.value })} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-sm outline-none focus:border-indigo-500">
                                             <option value="active">Aktif (Çalışıyor)</option>
                                             <option value="inactive">Pasif (Yatıyor)</option>
                                             <option value="maintenance">Bakımda</option>
                                         </select>
                                         <div className="flex gap-2">
-                                            <button onClick={() => handleEditSaveTruck(truck.id)} className="flex-1 bg-brand-500/20 hover:bg-brand-500/30 text-brand-400 py-1.5 rounded-md text-xs font-semibold transition border border-brand-500/30 flex justify-center items-center gap-1">
+                                            <button onClick={() => handleEditSaveTruck(truck.id)} className="flex-1 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 py-1.5 rounded-md text-xs font-semibold transition border border-indigo-500/30 flex justify-center items-center gap-1">
                                                 <Check size={12} /> Kaydet
                                             </button>
                                             <button onClick={() => setEditingTruckId(null)} className="flex-1 bg-slate-700/50 hover:bg-slate-700/80 text-[var(--text-primary)] py-1.5 rounded-md text-xs font-semibold transition border border-slate-600/50 flex justify-center items-center gap-1">
@@ -180,12 +180,12 @@ const CompanyAdmin = () => {
                                 <div className="mt-auto pt-4 border-t border-[var(--border-color)] flex justify-between items-center">
                                     <button
                                         onClick={() => setActiveTruckId(truck.id)}
-                                        className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${activeTruckId === truck.id ? 'bg-brand-500 text-[var(--text-primary)]' : 'bg-[var(--bg-panel-hover)] text-[var(--text-primary)] hover:bg-slate-700'}`}
+                                        className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${activeTruckId === truck.id ? 'bg-indigo-500 text-[var(--text-primary)]' : 'bg-[var(--bg-panel-hover)] text-[var(--text-primary)] hover:bg-slate-700'}`}
                                     >
                                         {activeTruckId === truck.id ? 'Şu An Seçili' : 'Bu Araca Geç'}
                                     </button>
                                     <div className="flex gap-1.5 ml-3">
-                                        <button onClick={() => { setEditingTruckId(truck.id); setEditTruckForm({ plate: truck.plate, brand: truck.brand, status: truck.status || 'active' }); }} className="text-slate-500 hover:text-brand-400 p-1.5 bg-[var(--bg-panel-hover)] hover:bg-brand-500/10 rounded-md transition-colors" title="Düzenle">
+                                        <button onClick={() => { setEditingTruckId(truck.id); setEditTruckForm({ plate: truck.plate, brand: truck.brand, status: truck.status || 'active' }); }} className="text-slate-500 hover:text-indigo-400 p-1.5 bg-[var(--bg-panel-hover)] hover:bg-indigo-500/10 rounded-md transition-colors" title="Düzenle">
                                             <Edit2 size={13} />
                                         </button>
                                         <button onClick={() => handleDeleteTruck(truck.id, truck.plate)} className="text-slate-500 hover:text-red-400 p-1.5 bg-[var(--bg-panel-hover)] hover:bg-red-500/10 rounded-md transition-colors" title="Aracı Sil">
@@ -241,7 +241,7 @@ const CompanyAdmin = () => {
                                     <div className="flex-1 min-w-0">
                                         <p className="font-bold text-[var(--text-primary)] truncate">{driver.username}</p>
                                         <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-[10px] uppercase tracking-wider font-bold text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded-full inline-block">
+                                            <span className="text-[10px] uppercase tracking-wider font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full inline-block">
                                                 ŞOFÖR
                                             </span>
                                             {editingUserId !== driver.id && (

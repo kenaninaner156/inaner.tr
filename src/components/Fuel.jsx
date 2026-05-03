@@ -303,10 +303,10 @@ const Fuel = () => {
                             className="w-full glass-panel px-4 py-2.5 rounded-xl text-sm font-bold text-[var(--text-primary)] flex items-center justify-between gap-3 hover:border-[var(--text-secondary)] transition-all border border-white/5 shadow-lg group"
                         >
                             <div className="flex items-center gap-2">
-                                <Calendar size={16} className="text-orange-400 group-hover:text-orange-300 transition-colors" />
+                                <Calendar size={16} className="text-cyan-400 group-hover:text-cyan-300 transition-colors" />
                                 <span>{timeFilter === 'all' ? 'Tüm Zamanlar' : monthOptions.find(o => o.value === timeFilter)?.label}</span>
                             </div>
-                            <ChevronDown size={16} className={`text-[var(--text-secondary)] transition-transform duration-300 ${isDropdownOpen ? 'rotate-180 text-orange-400' : ''}`} />
+                            <ChevronDown size={16} className={`text-[var(--text-secondary)] transition-transform duration-300 ${isDropdownOpen ? 'rotate-180 text-cyan-400' : ''}`} />
                         </button>
                         
                         {isDropdownOpen && (
@@ -314,7 +314,7 @@ const Fuel = () => {
                                 <div className="max-h-[300px] overflow-y-auto custom-scrollbar flex flex-col p-1.5 gap-0.5">
                                     <button 
                                         onClick={() => { setTimeFilter('all'); setIsDropdownOpen(false); }}
-                                        className={`w-full text-left px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${timeFilter === 'all' ? 'bg-orange-500/10 text-orange-400' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}`}
+                                        className={`w-full text-left px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${timeFilter === 'all' ? 'bg-cyan-500/10 text-cyan-400' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}`}
                                     >
                                         Tüm Zamanlar
                                     </button>
@@ -322,7 +322,7 @@ const Fuel = () => {
                                         <button 
                                             key={opt.value}
                                             onClick={() => { setTimeFilter(opt.value); setIsDropdownOpen(false); }}
-                                            className={`w-full text-left px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${timeFilter === opt.value ? 'bg-orange-500/10 text-orange-400' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}`}
+                                            className={`w-full text-left px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${timeFilter === opt.value ? 'bg-cyan-500/10 text-cyan-400' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}`}
                                         >
                                             {opt.label}
                                         </button>
@@ -334,16 +334,16 @@ const Fuel = () => {
                 </div>
 
                 <button onClick={() => openAddModal()}
-                    className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(249,115,22,0.2)] hover:shadow-[0_0_25px_rgba(249,115,22,0.4)] hover:-translate-y-0.5 flex items-center justify-center flex-shrink-0">
+                    className="w-full sm:w-auto bg-gradient-to-r from-cyan-500 to-cyan-500 hover:from-cyan-400 hover:to-cyan-400 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(249,115,22,0.2)] hover:shadow-[0_0_25px_rgba(249,115,22,0.4)] hover:-translate-y-0.5 flex items-center justify-center flex-shrink-0">
                     <Plus size={18} className="mr-2" /> Yeni Fiş
                 </button>
             </div>
 
             {/* İstatistik Kartları */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="glass-panel p-4 flex flex-col gap-1 relative overflow-hidden group border-orange-500/10 hover:border-orange-500/30 transition-colors">
-                    <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-orange-500"><Droplet size={80}/></div>
-                    <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-orange-500/80 tracking-widest mb-1"><Droplet size={12}/> Toplam Alınan</div>
+                <div className="glass-panel p-4 flex flex-col gap-1 relative overflow-hidden group border-cyan-500/10 hover:border-cyan-500/30 transition-colors">
+                    <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-cyan-500"><Droplet size={80}/></div>
+                    <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-cyan-500/80 tracking-widest mb-1"><Droplet size={12}/> Toplam Alınan</div>
                     <div className="font-black text-2xl text-[var(--text-primary)]">{summaryStats.totalLiters.toFixed(2)} <span className="text-sm font-semibold text-[var(--text-secondary)]">Lt</span></div>
                 </div>
                 
@@ -361,10 +361,10 @@ const Fuel = () => {
                             <div className="font-black text-2xl text-[var(--text-primary)]">{summaryStats.avgLtPer100km.toFixed(1)} <span className="text-sm font-semibold text-sky-500/80">L/100km</span></div>
                         </div>
                         
-                        <div className="glass-panel p-4 flex flex-col gap-1 relative overflow-hidden group border-brand-500/10 hover:border-brand-500/30 transition-colors animate-in fade-in zoom-in duration-500">
-                            <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-brand-500"><MapPin size={80}/></div>
-                            <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-brand-500/80 tracking-widest mb-1"><MapPin size={12}/> KM Maliyeti</div>
-                            <div className="font-black text-2xl text-[var(--text-primary)]"><span className="text-lg font-semibold text-brand-500 mr-1">₺</span>{summaryStats.avgCostPerKm.toFixed(2)} <span className="text-sm font-semibold text-[var(--text-secondary)]">/km</span></div>
+                        <div className="glass-panel p-4 flex flex-col gap-1 relative overflow-hidden group border-cyan-500/10 hover:border-cyan-500/30 transition-colors animate-in fade-in zoom-in duration-500">
+                            <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-cyan-500"><MapPin size={80}/></div>
+                            <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-cyan-500/80 tracking-widest mb-1"><MapPin size={12}/> KM Maliyeti</div>
+                            <div className="font-black text-2xl text-[var(--text-primary)]"><span className="text-lg font-semibold text-cyan-500 mr-1">₺</span>{summaryStats.avgCostPerKm.toFixed(2)} <span className="text-sm font-semibold text-[var(--text-secondary)]">/km</span></div>
                         </div>
                     </>
                 ) : (
@@ -396,7 +396,7 @@ const Fuel = () => {
                                     </td>
                                     <td className="p-3">
                                         <div className="flex items-center gap-1.5">
-                                            <MapPin size={10} className="text-orange-400 flex-shrink-0" />
+                                            <MapPin size={10} className="text-cyan-400 flex-shrink-0" />
                                             <span className="text-[var(--text-primary)] text-sm">{record.station}</span>
                                         </div>
                                         {(record.notes || record.odometer) && (
@@ -428,7 +428,7 @@ const Fuel = () => {
                                         <div className="text-orange-400 font-bold text-sm">₺{record.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
                                         <div className="text-xs text-slate-500 font-normal">₺{(record.price / record.liters).toFixed(2)}/Lt</div>
                                         {record.consumptionStats && (
-                                            <div className="text-[10px] text-brand-400 mt-0.5 font-medium">
+                                            <div className="text-[10px] text-orange-400 mt-0.5 font-medium">
                                                 ₺{record.consumptionStats.costPerKm.toFixed(2)} / km
                                             </div>
                                         )}
@@ -438,12 +438,12 @@ const Fuel = () => {
                                             {record.files && record.files.length > 0 && (
                                                 <button onClick={() => setViewFiles({ title: record.station, files: record.files })}
                                                     title={`${record.files.length} ek`}
-                                                    className="p-1.5 rounded-lg text-slate-500 hover:text-brand-400 hover:bg-brand-500/10">
+                                                    className="p-1.5 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/10">
                                                     <Paperclip size={14} />
                                                 </button>
                                             )}
                                             <button onClick={() => openEditModal(record)}
-                                                className="p-1.5 rounded-lg text-slate-500 hover:text-brand-400 hover:bg-brand-500/10">
+                                                className="p-1.5 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/10">
                                                 <Pencil size={14} />
                                             </button>
                                         </div>
@@ -466,7 +466,7 @@ const Fuel = () => {
                                     <div className="flex justify-between items-start mb-2">
                                         <div className="flex flex-col">
                                             <div className="font-bold text-[var(--text-primary)] leading-tight flex items-center gap-1.5 text-[13px]">
-                                                <MapPin size={14} className="text-orange-500" />
+                                                <MapPin size={14} className="text-cyan-500" />
                                                 {record.station}
                                             </div>
                                             {(record.notes || record.odometer) && (
@@ -492,12 +492,12 @@ const Fuel = () => {
                                             </div>
                                             {record.files && record.files.length > 0 && (
                                                 <button onClick={() => setViewFiles({ title: `Fiş Eki`, files: record.files })}
-                                                    className="p-1 bg-brand-500/10 hover:bg-brand-500/20 rounded-md text-brand-400 transition-colors flex items-center">
+                                                    className="p-1 bg-cyan-500/10 hover:bg-cyan-500/20 rounded-md text-cyan-400 transition-colors flex items-center">
                                                     <Paperclip size={12} />
                                                 </button>
                                             )}
                                             <button onClick={() => openEditModal(record)}
-                                                className="p-1.5 bg-white/5 hover:bg-white/10 rounded-md text-[var(--text-secondary)] hover:text-orange-400 transition-colors">
+                                                className="p-1.5 bg-white/5 hover:bg-white/10 rounded-md text-[var(--text-secondary)] hover:text-cyan-400 transition-colors">
                                                 <Pencil size={14} />
                                             </button>
                                         </div>
@@ -531,7 +531,7 @@ const Fuel = () => {
                                             </div>
                                             <div className="flex flex-col items-end border-l border-emerald-500/20 pl-2">
                                                 <div className="text-[9px] text-emerald-500/70 uppercase font-bold mb-0.5 w-full text-right">Maliyet</div>
-                                                <div className="text-brand-400 font-bold text-xs w-full text-right">₺{record.consumptionStats.costPerKm.toFixed(2)}/km</div>
+                                                <div className="text-orange-400 font-bold text-xs w-full text-right">₺{record.consumptionStats.costPerKm.toFixed(2)}/km</div>
                                             </div>
                                         </div>
                                     )}
@@ -553,7 +553,7 @@ const Fuel = () => {
                     <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto">
                         <button onClick={() => setEditingFuel(null)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
                         <h3 className="text-lg font-bold text-[var(--text-primary)] mb-5 flex items-center gap-2">
-                            <Pencil size={16} className="text-orange-400" /> Fişi Düzenle
+                            <Pencil size={16} className="text-cyan-400" /> Fişi Düzenle
                         </h3>
                         <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-3">
@@ -568,7 +568,7 @@ const Fuel = () => {
                                     <button
                                         type="button"
                                         onClick={() => setEditShowExtra(!editShowExtra)}
-                                        className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 ${editShowExtra ? 'bg-orange-500/10 border-orange-500/50 text-orange-400 shadow-lg shadow-orange-500/10' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                                        className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 ${editShowExtra ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-lg shadow-cyan-500/10' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                                     >
                                         <StickyNote size={14} className={editShowExtra ? "animate-pulse" : ""} />
                                         Ek Bilgiler {editShowExtra ? <ChevronDown size={14} className="rotate-180" /> : <ChevronDown size={14} />}
@@ -609,14 +609,14 @@ const Fuel = () => {
                             {/* Litre, Tutar ve KM Alanı - Liste Tasarımı */}
                             <div className="flex flex-col gap-2 my-3">
                                 {/* Litre Row */}
-                                <div className="bg-orange-500/5 border border-orange-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm relative overflow-hidden">
-                                    <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-orange-500/40 to-transparent"></div>
-                                    <label className="text-[11px] font-bold text-orange-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap"><Droplet size={14}/> Litre</label>
+                                <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm relative overflow-hidden">
+                                    <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-cyan-500/40 to-transparent"></div>
+                                    <label className="text-[11px] font-bold text-cyan-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap"><Droplet size={14}/> Litre</label>
                                     <div className="flex-1 ml-4 flex justify-end">
                                         <input 
                                             type="tel" 
                                             required
-                                            className="bg-transparent text-xl font-black text-orange-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-orange-900/30"
+                                            className="bg-transparent text-xl font-black text-cyan-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-cyan-900/30"
                                             value={editForm.liters}
                                             onChange={e => setEditForm({ ...editForm, liters: formatDecimal(e.target.value) })}
                                             placeholder="0,00"
@@ -647,13 +647,13 @@ const Fuel = () => {
                                 </div>
 
                                 {/* Araç KM Row */}
-                                <div className="bg-brand-500/5 border border-brand-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm relative overflow-hidden">
-                                    <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-brand-500/40 to-transparent"></div>
-                                    <label className="text-[11px] font-bold text-brand-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap"><MapPin size={14}/> Araç KM</label>
+                                <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm relative overflow-hidden">
+                                    <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-cyan-500/40 to-transparent"></div>
+                                    <label className="text-[11px] font-bold text-cyan-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap"><MapPin size={14}/> Araç KM</label>
                                     <div className="flex-1 ml-4 flex justify-end">
                                         <input 
                                             type="tel" 
-                                            className="bg-transparent text-xl font-black text-brand-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-brand-900/30"
+                                            className="bg-transparent text-xl font-black text-cyan-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-cyan-900/30"
                                             value={editForm.odometer}
                                             onClick={handleOdometerClick}
                                             onChange={e => setEditForm({ ...editForm, odometer: formatKM(e.target.value) })}
@@ -684,7 +684,7 @@ const Fuel = () => {
                             {/* Aksiyon Butonları */}
                             <div className="flex gap-3 mt-4">
                                 <button onClick={handleEdit}
-                                    className="flex-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white py-3.5 rounded-2xl font-black transition-all shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-0.5 uppercase tracking-wide">
+                                    className="flex-1 bg-gradient-to-r from-cyan-500 to-cyan-500 hover:from-cyan-400 hover:to-cyan-400 text-white py-3.5 rounded-2xl font-black transition-all shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:-translate-y-0.5 uppercase tracking-wide">
                                     Kaydet
                                 </button>
                                 <button onClick={() => { handleDelete(editingFuel.id); setEditingFuel(null); }}
@@ -700,12 +700,12 @@ const Fuel = () => {
             {/* ─── YENİ FİŞ MODAL ─── */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto border-orange-500/30">
+                    <div className="glass-panel w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto border-cyan-500/30">
                         <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                             <X size={20} />
                         </button>
                         <h3 className="text-xl font-bold text-[var(--text-primary)] mb-6 flex items-center">
-                            <Droplet className="mr-2 text-orange-500" /> Yeni Mazot Fişi
+                            <Droplet className="mr-2 text-cyan-500" /> Yeni Mazot Fişi
                         </h3>
                         <form onSubmit={handleAdd} className="space-y-4">
                             <div className="grid grid-cols-2 gap-3">
@@ -718,7 +718,7 @@ const Fuel = () => {
                                     <button
                                         type="button"
                                         onClick={() => setShowExtra(!showExtra)}
-                                        className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 ${showExtra ? 'bg-orange-500/10 border-orange-500/50 text-orange-400 shadow-lg shadow-orange-500/10' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                                        className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 ${showExtra ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-lg shadow-cyan-500/10' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                                     >
                                         <StickyNote size={14} className={showExtra ? "animate-pulse" : ""} />
                                         Ek Bilgiler {showExtra ? <ChevronDown size={14} className="rotate-180" /> : <ChevronDown size={14} />}
@@ -759,14 +759,14 @@ const Fuel = () => {
                             {/* Litre, Tutar ve KM Alanı - Liste Tasarımı */}
                             <div className="flex flex-col gap-2 my-3">
                                 {/* Litre Row */}
-                                <div className="bg-orange-500/5 border border-orange-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm relative overflow-hidden">
-                                    <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-orange-500/40 to-transparent"></div>
-                                    <label className="text-[11px] font-bold text-orange-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap"><Droplet size={14}/> Litre</label>
+                                <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm relative overflow-hidden">
+                                    <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-cyan-500/40 to-transparent"></div>
+                                    <label className="text-[11px] font-bold text-cyan-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap"><Droplet size={14}/> Litre</label>
                                     <div className="flex-1 ml-4 flex justify-end">
                                         <input 
                                             type="tel" 
                                             required
-                                            className="bg-transparent text-xl font-black text-orange-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-orange-900/30"
+                                            className="bg-transparent text-xl font-black text-cyan-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-cyan-900/30"
                                             value={formData.liters}
                                             onChange={e => setFormData({ ...formData, liters: formatDecimal(e.target.value) })}
                                             placeholder="0,00"
@@ -797,13 +797,13 @@ const Fuel = () => {
                                 </div>
 
                                 {/* Araç KM Row */}
-                                <div className="bg-brand-500/5 border border-brand-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm relative overflow-hidden">
-                                    <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-brand-500/40 to-transparent"></div>
-                                    <label className="text-[11px] font-bold text-brand-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap"><MapPin size={14}/> Araç KM</label>
+                                <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm relative overflow-hidden">
+                                    <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-cyan-500/40 to-transparent"></div>
+                                    <label className="text-[11px] font-bold text-cyan-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap"><MapPin size={14}/> Araç KM</label>
                                     <div className="flex-1 ml-4 flex justify-end">
                                         <input 
                                             type="tel" 
-                                            className="bg-transparent text-xl font-black text-brand-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-brand-900/30"
+                                            className="bg-transparent text-xl font-black text-cyan-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-cyan-900/30"
                                             value={formData.odometer}
                                             onClick={handleOdometerClick}
                                             onChange={e => setFormData({ ...formData, odometer: formatKM(e.target.value) })}
@@ -833,7 +833,7 @@ const Fuel = () => {
                             )}
 
                             <button type="submit"
-                                className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white px-4 py-3.5 rounded-2xl font-black transition-all shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:-translate-y-0.5 mt-4 uppercase tracking-wider">
+                                className="w-full bg-gradient-to-r from-cyan-500 to-cyan-500 hover:from-cyan-400 hover:to-cyan-400 text-white px-4 py-3.5 rounded-2xl font-black transition-all shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:-translate-y-0.5 mt-4 uppercase tracking-wider">
                                 Fişi Kaydet
                             </button>
                         </form>
@@ -847,7 +847,7 @@ const Fuel = () => {
                     <div className="glass-panel w-full max-w-2xl p-6 relative animate-in zoom-in-95 duration-200">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
-                                <FileText className="text-orange-400" />
+                                <FileText className="text-cyan-400" />
                                 {viewFiles.title} İçin Ekler
                             </h3>
                             <button onClick={() => setViewFiles(null)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
@@ -870,7 +870,7 @@ const Fuel = () => {
                                     <div className="p-4 bg-white/5 border-t border-[var(--border-color)] flex justify-between items-center">
                                         <span className="text-sm text-[var(--text-secondary)] truncate max-w-[70%] font-medium">{file.name || 'Ek_Belge'}</span>
                                         <a href={file.data} download={file.name || 'Belge'}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-brand-400 hover:text-[var(--text-primary)] bg-brand-500/10 hover:bg-brand-500/30 border border-brand-500/20 rounded-lg transition-colors">
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-cyan-400 hover:text-[var(--text-primary)] bg-cyan-500/10 hover:bg-cyan-500/30 border border-cyan-500/20 rounded-lg transition-colors">
                                             <Download size={14} /> İndir
                                         </a>
                                     </div>

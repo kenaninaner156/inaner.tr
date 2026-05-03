@@ -1,5 +1,7 @@
-import React, { useState, useContext } from 'react';
-import { Wrench, Plus, Calendar, X, MapPin, Truck, Trash2, Pencil, Check, User, Users, FileText, StickyNote, AlertCircle, ChevronDown, Download, Eye, Paperclip, FolderOpen, FolderPlus, Map, Phone, Package } from 'lucide-react';
+import React, { useState, useContext, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { Wrench, Plus, Calendar, X, MapPin, Truck, Trash2, Pencil, Check, User, Users, FileText, StickyNote, AlertCircle, ChevronDown, Download, Eye, Paperclip, FolderOpen, FolderPlus, Map, Phone, Package, ShoppingCart, Link, GripVertical, ExternalLink } from 'lucide-react';
+import { motion, Reorder, AnimatePresence } from 'framer-motion';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
 import { db } from '../services/firebaseConfig';
@@ -16,6 +18,7 @@ const Maintenance = () => {
         drivers, allDrivers, updateDrivers,
         spareParts, addSparePart, updateSparePart, deleteSparePart,
         sparePartCategories, addSparePartCategory,
+        shoppingItems, addShoppingItem, updateShoppingItem, deleteShoppingItem, updateShoppingItemsOrder,
         addLog, docs
     } = useContext(DataContext);
 
@@ -149,18 +152,56 @@ const Maintenance = () => {
     const totalCost = activeMaintenanceRecords.reduce((acc, r) => acc + r.cost, 0);
 
     const tabs = [
-        { id: 'info', label: 'Araç Bilgileri', icon: <Truck size={16} /> },
-        { id: 'records', label: 'Bakım Kayıları', icon: <Wrench size={16} /> },
-        { id: 'stock', label: 'Stok / Parça', icon: <Package size={16} /> },
-        { id: 'mechanics', label: 'Servis Rehberi', icon: <MapPin size={16} /> },
-        { id: 'photos', label: 'Fotoğraflar', icon: <FolderOpen size={16} /> },
+        { id: 'info', label: 'Araç Bilgileri', icon: <Truck size={16} />, theme: 'from-blue-500 to-blue-600 shadow-[0_2px_12px_rgba(59,130,246,0.3)] border-blue-400/30', hoverText: 'group-hover:text-blue-400' },
+        { id: 'records', label: 'Bakım Kayıtları', icon: <Wrench size={16} />, theme: 'from-amber-500 to-amber-600 shadow-[0_2px_12px_rgba(245,158,11,0.3)] border-amber-400/30', hoverText: 'group-hover:text-amber-400' },
+        { id: 'shopping', label: 'İhtiyaç Listesi', icon: <ShoppingCart size={16} />, theme: 'from-emerald-500 to-emerald-600 shadow-[0_2px_12px_rgba(16,185,129,0.3)] border-emerald-400/30', hoverText: 'group-hover:text-emerald-400' },
+        { id: 'stock', label: 'Stok / Parça', icon: <Package size={16} />, theme: 'from-violet-500 to-violet-600 shadow-[0_2px_12px_rgba(139,92,246,0.3)] border-violet-400/30', hoverText: 'group-hover:text-violet-400' },
+        { id: 'mechanics', label: 'Servis Rehberi', icon: <MapPin size={16} />, theme: 'from-rose-500 to-rose-600 shadow-[0_2px_12px_rgba(244,63,94,0.3)] border-rose-400/30', hoverText: 'group-hover:text-rose-400' },
+        { id: 'photos', label: 'Fotoğraflar', icon: <FolderOpen size={16} />, theme: 'from-sky-500 to-sky-600 shadow-[0_2px_12px_rgba(14,165,233,0.3)] border-sky-400/30', hoverText: 'group-hover:text-sky-400' },
     ];
+
 
     const [isStockModalOpen, setIsStockModalOpen] = useState(false);
     const [editingStockId, setEditingStockId] = useState(null);
     const [stockForm, setStockForm] = useState({ name: '', category: 'Genel', count: '', price: '', notes: '', files: [] });
     const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
+
+    // ─── İhtiyaç Listesi ──────────────────────────────────────────────────
+    const [isShoppingModalOpen, setIsShoppingModalOpen] = useState(false);
+    const [editingShoppingId, setEditingShoppingId] = useState(null);
+    const [shoppingForm, setShoppingForm] = useState({ name: '', description: '', price: '', link: '' });
+    const [localShoppingItems, setLocalShoppingItems] = useState([]);
+
+    useEffect(() => {
+        setLocalShoppingItems(shoppingItems || []);
+    }, [shoppingItems]);
+
+    const handleAddShoppingItem = (e) => {
+        e.preventDefault();
+        const payload = {
+            name: shoppingForm.name,
+            description: shoppingForm.description,
+            price: parseFloat(shoppingForm.price) || 0,
+            link: shoppingForm.link,
+            status: 'pending'
+        };
+
+        if (editingShoppingId) {
+            updateShoppingItem(editingShoppingId, payload);
+        } else {
+            addShoppingItem(payload);
+        }
+
+        setIsShoppingModalOpen(false);
+        setEditingShoppingId(null);
+        setShoppingForm({ name: '', description: '', price: '', link: '' });
+    };
+
+    const handleReorder = (newOrder) => {
+        setLocalShoppingItems(newOrder);
+        updateShoppingItemsOrder(newOrder);
+    };
 
     const handleAddStock = (e) => {
         e.preventDefault();
@@ -193,24 +234,117 @@ const Maintenance = () => {
         setNewCategoryName('');
     };
 
+    const getDynamicActionButton = () => {
+        if (activeTab === 'records') {
+            return { id: 'records', label: 'Bakım Ekle', icon: <Plus size={16} />, className: 'bg-gradient-to-b from-amber-500 to-amber-600 text-white shadow-[0_2px_12px_rgba(245,158,11,0.3)] border border-amber-400/30', onClick: () => { setEditingMaintenanceId(null); setMaintenanceForm({ date: new Date().toISOString().split('T')[0], type: 'Periyodik Bakım', description: '', mechanicId: '', km: '', cost: '', files: [] }); setIsMaintenanceModalOpen(true); } };
+        }
+        if (activeTab === 'shopping') {
+            return { id: 'shopping', label: 'İhtiyaç Ekle', icon: <Plus size={16} />, className: 'bg-gradient-to-b from-emerald-500 to-emerald-600 text-white shadow-[0_2px_12px_rgba(16,185,129,0.3)] border border-emerald-400/30', onClick: () => { setEditingShoppingId(null); setShoppingForm({ name: '', description: '', price: '', link: '' }); setIsShoppingModalOpen(true); } };
+        }
+        if (activeTab === 'stock') {
+            return { id: 'stock', label: 'Stok Ekle', icon: <Plus size={16} />, className: 'bg-gradient-to-b from-violet-500 to-violet-600 text-white shadow-[0_2px_12px_rgba(139,92,246,0.3)] border border-violet-400/30', onClick: () => { setEditingStockId(null); setStockForm({ name: '', category: (sparePartCategories && sparePartCategories.length > 0) ? sparePartCategories[0] : 'Genel', count: '', price: '', notes: '', files: [] }); setShowNewCategoryInput(false); setIsStockModalOpen(true); } };
+        }
+        if (activeTab === 'mechanics') {
+            return { id: 'mechanics', label: 'Tamirci Ekle', icon: <Plus size={16} />, className: 'bg-gradient-to-b from-rose-500 to-rose-600 text-white shadow-[0_2px_12px_rgba(244,63,94,0.3)] border border-rose-400/30', onClick: () => { setEditingMechanicId(null); setMechanicForm({ name: '', masterName: '', phone: '', location: '', mapLink: '', type: 'Genel Bakım', notes: '' }); setIsMechanicModalOpen(true); } };
+        }
+        if (activeTab === 'photos') {
+            if (openedFolder) {
+                return { id: 'photos-file', label: 'Dosya Ekle', icon: <Plus size={16} />, className: 'bg-white/10 hover:bg-white/20 text-sky-300 border border-white/10', onClick: () => { setEditingFolderId(openedFolder.id); setFolderForm({ name: openedFolder.name, description: openedFolder.description, files: openedFolder.files || [] }); setIsFolderModalOpen(true); } };
+            }
+            return { id: 'photos-album', label: 'Yeni Albüm', icon: <FolderPlus size={16} />, className: 'bg-gradient-to-b from-sky-500 to-sky-600 text-white shadow-[0_2px_12px_rgba(14,165,233,0.3)] border border-sky-400/30', onClick: () => { setEditingFolderId(null); setFolderForm({ name: '', description: '', files: [] }); setIsFolderModalOpen(true); } };
+        }
+        return null;
+    };
+    const dynamicActionBtn = getDynamicActionButton();
+
     return (
         <div className="space-y-5 animate-in fade-in duration-500 relative pb-ios-nav">
 
-            {/* Tab Bar */}
-            <div className="flex gap-1 bg-white/5 p-1 rounded-xl flex-wrap">
-                {tabs.map(tab => (
-                    <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all flex-1 justify-center whitespace-nowrap ${activeTab === tab.id ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>
-                        {tab.icon} {tab.label}
-                    </button>
-                ))}
+            {/* Tab Bar Container (Integrated Apple Style) */}
+            <div className="flex items-center w-full z-20 relative">
+                {/* Segmented Control Bar */}
+                <div className="flex bg-[#111113]/80 backdrop-blur-xl p-1.5 rounded-2xl shadow-inner ring-1 ring-black/20 w-full border border-white/5 items-center flex-wrap">
+                    
+                    {/* Tabs */}
+                    {tabs.map(tab => {
+                        const isActive = activeTab === tab.id;
+                        return (
+                            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                                className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-300 flex-1 justify-center whitespace-nowrap outline-none group ${
+                                    isActive ? 'text-white font-medium' : 'text-slate-400 font-medium hover:text-slate-200'
+                                }`}>
+                                
+                                {/* Hover Arka Planı */}
+                                {!isActive && (
+                                    <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 rounded-xl transition-colors duration-300 -z-10" />
+                                )}
+
+                                {/* Aktif Tab Göstergesi (Pill) */}
+                                {isActive && (
+                                    <motion.div
+                                        layoutId="maintenance-active-tab-apple"
+                                        className={`absolute inset-0 bg-gradient-to-b rounded-xl border ${tab.theme}`}
+                                        style={{ zIndex: 0 }}
+                                        initial={false}
+                                        transition={{ type: "spring", stiffness: 400, damping: 32, mass: 0.8 }}
+                                    />
+                                )}
+                                <span className="relative z-10 flex items-center gap-2 drop-shadow-md">
+                                    <span className={`${isActive ? 'text-white/90' : `text-slate-500 ${tab.hoverText}`} transition-colors duration-300`}>
+                                        {tab.icon}
+                                    </span>
+                                    {tab.label}
+                                </span>
+                            </button>
+                        );
+                    })}
+
+                    {/* Integrated Dynamic Action Button */}
+                    <AnimatePresence>
+                        {dynamicActionBtn && (
+                            <motion.div
+                                key="dynamic-action-wrapper"
+                                initial={{ width: 0, opacity: 0, marginLeft: 0 }}
+                                animate={{ width: 'auto', opacity: 1, marginLeft: 8 }}
+                                exit={{ width: 0, opacity: 0, marginLeft: 0 }}
+                                transition={{ type: "spring", bounce: 0, duration: 0.35 }}
+                                className="overflow-hidden flex-shrink-0 flex items-stretch"
+                            >
+                                <AnimatePresence mode="popLayout">
+                                    <motion.button
+                                        key={dynamicActionBtn.id}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.2, ease: "easeInOut" }}
+                                        onClick={dynamicActionBtn.onClick}
+                                        className={`px-4 py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 whitespace-nowrap outline-none border-none transition-colors ${dynamicActionBtn.className}`}
+                                    >
+                                        {dynamicActionBtn.icon}
+                                        <span className="text-sm">{dynamicActionBtn.label}</span>
+                                    </motion.button>
+                                </AnimatePresence>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </div>
 
-            {/* ─── ARAÇ BİLGİLERİ ─── */}
-            {activeTab === 'info' && (
+            {/* ─── TAB İÇERİKLERİ ─── */}
+            <AnimatePresence mode="wait">
+                <motion.div
+                    key={activeTab}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    transition={{ duration: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+                    className="w-full"
+                >
+                    {/* ─── ARAÇ BİLGİLERİ ─── */}
+                    {activeTab === 'info' && (
                 <div className="space-y-4">
                     <div className="glass-panel p-5">
-                        <h3 className="font-bold text-[var(--text-primary)] mb-4 flex items-center gap-2"><Truck size={18} className="text-brand-400" /> Araç Bilgileri</h3>
+                        <h3 className="font-bold text-[var(--text-primary)] mb-4 flex items-center gap-2"><Truck size={18} className="text-amber-400" /> Araç Bilgileri</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {[
                                 { key: 'plate', label: 'Çekici Plakası', src: 'truck' },
@@ -246,7 +380,7 @@ const Maintenance = () => {
                                         </div>
                                         {!isDoc && editingField !== field.key && (
                                             <button onClick={() => startEdit(field.key, rawValue)}
-                                                className="text-slate-600 hover:text-brand-400 p-1 rounded transition flex-shrink-0">
+                                                className="text-slate-600 hover:text-amber-400 p-1 rounded transition flex-shrink-0">
                                                 <Pencil size={14} />
                                             </button>
                                         )}
@@ -264,15 +398,15 @@ const Maintenance = () => {
                     {/* Şoförler */}
                     <div className="glass-panel p-5">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold text-[var(--text-primary)] flex items-center gap-2"><Users size={18} className="text-brand-400" /> Şoförler</h3>
+                            <h3 className="font-bold text-[var(--text-primary)] flex items-center gap-2"><Users size={18} className="text-amber-400" /> Şoförler</h3>
                             <span className="text-[10px] text-slate-500 italic">Admin Paneli &gt; Kullanıcılar &gt; Yeni Kullanıcı &gt; Rol: Şoför</span>
                         </div>
 
                         <div className="space-y-2">
                             {(allDrivers && allDrivers.length > 0) ? allDrivers.map((d, i) => (
                                 <div key={d.id || i} className="flex items-center gap-3 bg-white/5 rounded-xl px-3 py-2 border border-transparent hover:border-white/10 transition-colors">
-                                    <div className="bg-brand-500/20 p-1.5 rounded-lg">
-                                        <User size={14} className="text-brand-400" />
+                                    <div className="bg-amber-500/20 p-1.5 rounded-lg">
+                                        <User size={14} className="text-amber-400" />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-[var(--text-primary)] text-sm font-medium truncate">{d.name}</p>
@@ -285,7 +419,7 @@ const Maintenance = () => {
                                     >
                                         <Trash2 size={16} />
                                     </button>
-                                    <span className="text-[10px] bg-brand-500/10 text-brand-400 border border-brand-500/20 px-2 py-0.5 rounded-full flex-shrink-0">
+                                    <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full flex-shrink-0">
                                         Şoför
                                     </span>
                                 </div>
@@ -304,24 +438,6 @@ const Maintenance = () => {
             {/* ─── BAKIM KAYITLARI ─── */}
             {activeTab === 'records' && (
                 <div className="space-y-4">
-                    <div className="flex justify-between items-center gap-4 flex-wrap">
-                        <div className="glass-panel px-4 py-2 flex items-center gap-3">
-                            <div className="bg-amber-500/20 p-2 rounded-lg text-amber-400"><Wrench size={16} /></div>
-                            <div>
-                                <p className="text-xs text-[var(--text-secondary)]">Toplam Bakım Gideri</p>
-                                <p className="font-bold text-[var(--text-primary)]">₺{totalCost.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</p>
-                            </div>
-                        </div>
-                        <button onClick={() => {
-                            setEditingMaintenanceId(null);
-                            setMaintenanceForm({ date: new Date().toISOString().split('T')[0], type: 'Periyodik Bakım', description: '', mechanicId: '', km: '', cost: '', files: [] });
-                            setIsMaintenanceModalOpen(true);
-                        }}
-                            className="bg-amber-600 hover:bg-amber-500 text-[var(--text-primary)] px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2">
-                            <Plus size={18} /> Bakım Ekle
-                        </button>
-                    </div>
-
                     <div className="glass-panel overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full border-collapse" style={{ minWidth: '480px' }}>
@@ -356,7 +472,7 @@ const Maintenance = () => {
                                             <td className="p-3 text-center">
                                                 {rec.files && rec.files.length > 0 ? (
                                                     <button onClick={() => setViewFiles({ title: rec.description || 'Bakım Kaydı', files: rec.files })}
-                                                        className="text-xs text-brand-400 hover:text-brand-300 flex items-center justify-center gap-1 transition-colors whitespace-nowrap mx-auto">
+                                                        className="text-xs text-amber-400 hover:text-amber-300 flex items-center justify-center gap-1 transition-colors whitespace-nowrap mx-auto">
                                                         <Paperclip size={11} /> {rec.files.length} Ek
                                                     </button>
                                                 ) : <span className="text-slate-700">—</span>}
@@ -400,24 +516,80 @@ const Maintenance = () => {
                 </div>
             )}
 
-            {/* ─── STOK / YEDEK PARÇA ─── */}
+            {/* ─── İHTİYAÇ LİSTESİ ─── */}
+            {activeTab === 'shopping' && (
+                <div className="space-y-4">
+
+
+                    <div className="space-y-2">
+                        <Reorder.Group axis="y" values={localShoppingItems} onReorder={handleReorder} className="space-y-2">
+                            {localShoppingItems.map((item) => (
+                                <Reorder.Item key={item.id} value={item} className="relative group">
+                                    <div className="glass-panel p-4 flex items-center gap-4 group-hover:bg-white/5 transition-all border border-white/5">
+                                        <div className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400 p-1">
+                                            <GripVertical size={20} />
+                                        </div>
+                                        
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-bold text-[var(--text-primary)] truncate">{item.name}</h4>
+                                            <p className="text-sm text-[var(--text-secondary)] mt-0.5 line-clamp-1">{item.description || 'Açıklama yok'}</p>
+                                        </div>
+
+                                        <div className="flex items-center gap-4 shrink-0">
+                                            {item.price > 0 && (
+                                                <div className="text-right hidden sm:block">
+                                                    <p className="text-[10px] text-slate-500 uppercase tracking-wider">Tahmini Fiyat</p>
+                                                    <p className="font-bold text-emerald-400">₺{item.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</p>
+                                                </div>
+                                            )}
+                                            
+                                            <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                                {item.link && (
+                                                    <a href={item.link} target="_blank" rel="noopener noreferrer" 
+                                                       className="p-2 text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"
+                                                       title="Ürün Linki">
+                                                        <ExternalLink size={18} />
+                                                    </a>
+                                                )}
+                                                <button onClick={() => {
+                                                    setEditingShoppingId(item.id);
+                                                    setShoppingForm({
+                                                        name: item.name,
+                                                        description: item.description || '',
+                                                        price: item.price || '',
+                                                        link: item.link || ''
+                                                    });
+                                                    setIsShoppingModalOpen(true);
+                                                }}
+                                                    className="p-2 text-slate-500 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-all"
+                                                    title="Düzenle">
+                                                    <Pencil size={18} />
+                                                </button>
+                                                <button onClick={() => deleteShoppingItem(item.id, item.name)}
+                                                    className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                                                    title="Sil">
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Reorder.Item>
+                            ))}
+                        </Reorder.Group>
+
+                        {localShoppingItems.length === 0 && (
+                            <div className="glass-panel p-10 text-center text-slate-500">
+                                <ShoppingCart size={40} className="mx-auto mb-4 opacity-30 text-amber-400" />
+                                <h4 className="text-[var(--text-primary)] font-medium mb-1">Liste Boş</h4>
+                                <p className="text-sm">Henüz bir ihtiyaç eklemediniz. "İhtiyaç Ekle" butonu ile başlayın.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
             {activeTab === 'stock' && (
                 <div className="space-y-4">
-                    <div className="flex justify-between items-center bg-brand-500/10 p-3 rounded-xl border border-brand-500/20">
-                        <div className="flex items-center gap-2 text-brand-400">
-                            <Package size={18} />
-                            <span className="text-sm font-medium">Elinizdeki yedek parçaları ve bakım malzemelerini takip edin.</span>
-                        </div>
-                        <button onClick={() => {
-                            setEditingStockId(null);
-                            setStockForm({ name: '', category: (sparePartCategories && sparePartCategories.length > 0) ? sparePartCategories[0] : 'Genel', count: '', price: '', notes: '', files: [] });
-                            setShowNewCategoryInput(false);
-                            setIsStockModalOpen(true);
-                        }}
-                            className="bg-brand-600 hover:bg-brand-500 text-[var(--text-primary)] px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition">
-                            <Plus size={18} /> Yeni Stok Ekle
-                        </button>
-                    </div>
+
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {(spareParts || []).filter(p => !p.deleted).map(item => (
@@ -427,7 +599,7 @@ const Maintenance = () => {
                                         setEditingStockId(item.id);
                                         setStockForm(item);
                                         setIsStockModalOpen(true);
-                                    }} className="text-slate-600 hover:text-brand-400 p-1 rounded">
+                                    }} className="text-slate-600 hover:text-amber-400 p-1 rounded">
                                         <Pencil size={16} />
                                     </button>
                                     <button onClick={() => deleteSparePart(item.id, item.name)} className="text-slate-600 hover:text-red-400 p-1 rounded">
@@ -439,7 +611,7 @@ const Maintenance = () => {
                                     {item.files && item.files.length > 0 && item.files[0].type?.startsWith('image/') ? (
                                         <img src={item.files[0].data} className="w-12 h-12 rounded-lg object-cover bg-black/50 border border-[var(--border-color)]" alt="" />
                                     ) : (
-                                        <div className="bg-brand-500/20 w-12 h-12 flex items-center justify-center rounded-lg text-brand-400 border border-brand-500/20 flex-shrink-0"><Package size={24} /></div>
+                                        <div className="bg-amber-500/20 w-12 h-12 flex items-center justify-center rounded-lg text-amber-400 border border-amber-500/20 flex-shrink-0"><Package size={24} /></div>
                                     )}
                                     <div className="flex-1 min-w-0 pr-2 pt-0.5">
                                         <h4 className="font-bold text-[var(--text-primary)] text-base truncate">{item.name}</h4>
@@ -468,7 +640,7 @@ const Maintenance = () => {
 
                         {(spareParts || []).filter(p => !p.deleted).length === 0 && (
                             <div className="col-span-full glass-panel p-10 text-center text-slate-500 mt-2">
-                                <Package size={40} className="mx-auto mb-4 opacity-30 text-brand-400" />
+                                <Package size={40} className="mx-auto mb-4 opacity-30 text-amber-400" />
                                 <h4 className="text-[var(--text-primary)] font-medium mb-1">Stokta Ürün Yok</h4>
                                 <p className="text-sm">Elinizdeki yedek parçaları, yağ ve filtre gibi bakım malzemelerini buraya ekleyebilirsiniz.</p>
                             </div>
@@ -480,16 +652,7 @@ const Maintenance = () => {
             {/* ─── SERVİS REHBERİ ─── */}
             {activeTab === 'mechanics' && (
                 <div className="space-y-4">
-                    <div className="flex justify-between items-center bg-brand-500/10 p-3 rounded-xl border border-brand-500/20">
-                        <div className="flex items-center gap-2 text-brand-400">
-                            <AlertCircle size={18} />
-                            <span className="text-sm font-medium">Uzman servislerinizi ve iletişim bilgilerini burada saklayın.</span>
-                        </div>
-                        <button onClick={() => setIsMechanicModalOpen(true)}
-                            className="bg-brand-600 hover:bg-brand-500 text-[var(--text-primary)] px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition">
-                            <Plus size={18} /> Tamirci Ekle
-                        </button>
-                    </div>
+
                     <div className="flex flex-col gap-4">
                         {mechanics.map(m => (
                             <div key={m.id} className="glass-panel p-5 flex flex-col gap-3 relative group">
@@ -501,7 +664,7 @@ const Maintenance = () => {
                                             location: m.location || '', mapLink: m.mapLink || '', notes: m.notes || '', type: m.type || 'Genel Bakım'
                                         });
                                         setIsMechanicModalOpen(true);
-                                    }} className="text-slate-600 hover:text-brand-400 p-1 rounded">
+                                    }} className="text-slate-600 hover:text-amber-400 p-1 rounded">
                                         <Pencil size={16} />
                                     </button>
                                     <button onClick={() => deleteMechanic(m.id)} className="text-slate-600 hover:text-red-400 p-1 rounded">
@@ -510,7 +673,7 @@ const Maintenance = () => {
                                 </div>
 
                                 <div className="flex items-start gap-3">
-                                    <div className="bg-brand-500/20 p-2.5 rounded-xl text-brand-400"><Wrench size={20} /></div>
+                                    <div className="bg-amber-500/20 p-2.5 rounded-xl text-amber-400"><Wrench size={20} /></div>
                                     <div className="flex-1 min-w-0 pr-6">
                                         <h4 className="font-bold text-[var(--text-primary)] text-base">{m.name}</h4>
                                         <span className="text-[10px] bg-white/5 border border-[var(--border-color)] text-[var(--text-secondary)] px-2 py-0.5 rounded-full mt-1 inline-block uppercase tracking-wider">{m.type}</span>
@@ -527,7 +690,7 @@ const Maintenance = () => {
                                     {m.phone && (
                                         <div className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
                                             <Phone size={14} className="text-slate-500 flex-shrink-0" />
-                                            <a href={`tel:${m.phone}`} className="hover:text-brand-400 transition">{m.phone}</a>
+                                            <a href={`tel:${m.phone}`} className="hover:text-amber-400 transition">{m.phone}</a>
                                         </div>
                                     )}
                                     {m.location && (
@@ -560,7 +723,7 @@ const Maintenance = () => {
                         ))}
                         {mechanics.length === 0 && (
                             <div className="glass-panel p-10 text-center text-slate-500">
-                                <Wrench size={40} className="mx-auto mb-4 opacity-30 text-brand-400" />
+                                <Wrench size={40} className="mx-auto mb-4 opacity-30 text-amber-400" />
                                 <h4 className="text-[var(--text-primary)] font-medium mb-1">Kayıtlı Servis Yok</h4>
                                 <p className="text-sm">Araçlarınızın bakımını yapan sürekli çalıştığınız ustaları ve servisleri buraya ekleyebilirsiniz.</p>
                             </div>
@@ -574,15 +737,7 @@ const Maintenance = () => {
                 <div className="space-y-4">
                     {!openedFolder ? (
                         <>
-                            <div className="flex justify-end">
-                                <button onClick={() => {
-                                    setEditingFolderId(null);
-                                    setFolderForm({ name: '', description: '', files: [] });
-                                    setIsFolderModalOpen(true);
-                                }} className="bg-emerald-600 hover:bg-emerald-500 text-[var(--text-primary)] px-4 py-2 rounded-lg flex items-center gap-2 font-medium transition">
-                                    <FolderPlus size={18} /> Yeni Albüm Ekle
-                                </button>
-                            </div>
+
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                                 {maintenanceFolders.map(folder => (
                                     <div key={folder.id} onClick={() => setOpenedFolder(folder)}
@@ -595,7 +750,7 @@ const Maintenance = () => {
                                             setEditingFolderId(folder.id);
                                             setFolderForm({ name: folder.name, description: folder.description, files: folder.files || [] });
                                             setIsFolderModalOpen(true);
-                                        }} className="absolute top-2 left-2 text-slate-600 hover:text-brand-400 p-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition rounded z-10">
+                                        }} className="absolute top-2 left-2 text-slate-600 hover:text-amber-400 p-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition rounded z-10">
                                             <Pencil size={14} />
                                         </button>
                                         <FolderOpen size={48} className="text-amber-400 mb-3 group-hover:scale-110 transition-transform duration-300" strokeWidth={1.5} />
@@ -624,13 +779,6 @@ const Maintenance = () => {
                                         {openedFolder.description && <p className="text-xs text-[var(--text-secondary)] mt-0.5">{openedFolder.description}</p>}
                                     </div>
                                 </div>
-                                <button onClick={() => {
-                                    setEditingFolderId(openedFolder.id);
-                                    setFolderForm({ name: openedFolder.name, description: openedFolder.description, files: openedFolder.files || [] });
-                                    setIsFolderModalOpen(true);
-                                }} className="bg-brand-500/20 hover:bg-brand-500/40 text-brand-300 px-3 md:px-4 py-2 rounded-lg flex items-center gap-2 text-xs md:text-sm font-medium transition">
-                                    <Plus size={16} /> Dosya Ekle
-                                </button>
                             </div>
 
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -643,7 +791,7 @@ const Maintenance = () => {
                                                     <button onClick={() => setViewFiles({ title: openedFolder.name, files: [file] })} className="bg-white/20 hover:bg-white/40 p-2 rounded-full text-[var(--text-primary)] transition">
                                                         <Eye size={18} />
                                                     </button>
-                                                    <a href={file.data} download={file.name || 'foto'} className="bg-brand-500/50 hover:bg-brand-500 p-2 rounded-full text-[var(--text-primary)] transition">
+                                                    <a href={file.data} download={file.name || 'foto'} className="bg-amber-500/50 hover:bg-amber-500 p-2 rounded-full text-[var(--text-primary)] transition">
                                                         <Download size={18} />
                                                     </a>
                                                 </div>
@@ -653,7 +801,7 @@ const Maintenance = () => {
                                                 <FileText size={40} className="text-[var(--text-secondary)] mb-3" />
                                                 <p className="text-xs text-[var(--text-primary)] font-medium text-center truncate w-full">{file.name || 'Belge'}</p>
                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-sm">
-                                                    <a href={file.data} download={file.name || 'belge'} className="bg-brand-500/50 hover:bg-brand-500 p-2 rounded-full text-[var(--text-primary)] transition flex items-center gap-1 text-sm font-medium px-4">
+                                                    <a href={file.data} download={file.name || 'belge'} className="bg-amber-500/50 hover:bg-amber-500 p-2 rounded-full text-[var(--text-primary)] transition flex items-center gap-1 text-sm font-medium px-4">
                                                         <Download size={16} />
                                                     </a>
                                                 </div>
@@ -671,11 +819,66 @@ const Maintenance = () => {
                     )}
                 </div>
             )}
+                </motion.div>
+            </AnimatePresence>
+
+            {/* İhtiyaç Ekleme Modalı */}
+            {typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
+                    {isShoppingModalOpen && (
+                    <motion.div key="shopping" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeInOut" }} className="fixed inset-0 bg-[var(--bg-panel)] backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
+                        <motion.div initial={{ scale: 0.96, opacity: 0, y: 15 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0, y: 15 }} transition={{ duration: 0.25, ease: "easeOut" }} className="glass-panel w-full max-w-md p-6 border border-[var(--border-color)] rounded-2xl">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold flex items-center text-[var(--text-primary)]">
+                                <ShoppingCart className="mr-2 text-amber-400" />
+                                {editingShoppingId ? 'İhtiyacı Düzenle' : 'Yeni İhtiyaç Ekle'}
+                            </h2>
+                            <button onClick={() => {
+                                setIsShoppingModalOpen(false);
+                                setEditingShoppingId(null);
+                            }} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <form onSubmit={handleAddShoppingItem} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Ürün / İhtiyaç Adı</label>
+                                <input type="text" required placeholder="Örn: 10W-40 Motor Yağı" className="w-full glass-input px-3 py-2" value={shoppingForm.name}
+                                    onChange={e => setShoppingForm({ ...shoppingForm, name: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Açıklama</label>
+                                <textarea rows={2} className="w-full glass-input px-3 py-2 text-sm resize-none"
+                                    placeholder="Ürün detayı, marka tercihi vb..." value={shoppingForm.description}
+                                    onChange={e => setShoppingForm({ ...shoppingForm, description: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Tahmini Fiyat (₺)</label>
+                                <input type="number" step="0.01" placeholder="0.00" className="w-full glass-input px-3 py-2" value={shoppingForm.price}
+                                    onChange={e => setShoppingForm({ ...shoppingForm, price: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1 flex items-center gap-1"><Link size={14} /> Ürün Linki (Opsiyonel)</label>
+                                <input type="url" placeholder="https://..." className="w-full glass-input px-3 py-2 text-sm" value={shoppingForm.link}
+                                    onChange={e => setShoppingForm({ ...shoppingForm, link: e.target.value })} />
+                            </div>
+                            <button type="submit" className="w-full bg-amber-600 hover:bg-amber-500 text-[var(--text-primary)] py-3 rounded-lg font-medium transition mt-2">
+                                {editingShoppingId ? 'Güncelle' : 'Listeye Ekle'}
+                            </button>
+                        </form>
+                    </motion.div>
+                    </motion.div>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
 
             {/* Bakım Ekleme Modalı */}
-            {isMaintenanceModalOpen && (
-                <div className="fixed inset-0 bg-[var(--bg-panel)] backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <div className="glass-panel w-full max-w-md p-6 border border-[var(--border-color)] rounded-2xl animate-in zoom-in-95 duration-200">
+            {typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
+                    {isMaintenanceModalOpen && (
+                    <motion.div key="maintenance" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeInOut" }} className="fixed inset-0 bg-[var(--bg-panel)] backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
+                        <motion.div initial={{ scale: 0.96, opacity: 0, y: 15 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0, y: 15 }} transition={{ duration: 0.25, ease: "easeOut" }} className="glass-panel w-full max-w-md p-6 border border-[var(--border-color)] rounded-2xl">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold flex items-center text-[var(--text-primary)]">
                                 <Wrench className="mr-2 text-amber-400" />
@@ -743,20 +946,25 @@ const Maintenance = () => {
                                 <button type="submit" className="w-full bg-amber-600 hover:bg-amber-500 text-[var(--text-primary)] py-3 rounded-lg font-medium transition mt-2">{editingMaintenanceId ? 'Bakımı Güncelle' : 'Bakımı Kaydet'}</button>
                             </form>
                         </div>
-                    </div>
-                </div>
+                    </motion.div>
+                    </motion.div>
+                    )}
+                </AnimatePresence>,
+                document.body
             )}
 
             {/* ─── TAMİRCİ EKLEME MODALİ ─── */}
-            {isMechanicModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--bg-panel)] backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            {typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
+                    {isMechanicModalOpen && (
+                    <motion.div key="mechanic" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeInOut" }} className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-[var(--bg-panel)] backdrop-blur-sm">
+                        <motion.div initial={{ scale: 0.96, opacity: 0, y: 15 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0, y: 15 }} transition={{ duration: 0.25, ease: "easeOut" }} className="glass-panel w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
                         <button onClick={() => {
                             setIsMechanicModalOpen(false);
                             setEditingMechanicId(null);
                         }} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
                         <h3 className="text-xl font-bold text-[var(--text-primary)] mb-5 flex items-center gap-2">
-                            <MapPin className="text-brand-500" /> {editingMechanicId ? 'Tamirciyi Düzenle' : 'Tamirci / Servis Ekle'}
+                            <MapPin className="text-amber-500" /> {editingMechanicId ? 'Tamirciyi Düzenle' : 'Tamirci / Servis Ekle'}
                         </h3>
                         <form onSubmit={handleAddMechanic} className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -801,7 +1009,7 @@ const Maintenance = () => {
                                             if (mechanicForm.location) {
                                                 setMechanicForm({ ...mechanicForm, mapLink: `https://maps.apple.com/?q=${encodeURIComponent(mechanicForm.location)}` });
                                             }
-                                        }} className="text-xs text-brand-400 flex items-center gap-1 hover:text-brand-300"><Map size={12} /> Apple'da Bul</button>
+                                        }} className="text-xs text-amber-400 flex items-center gap-1 hover:text-amber-300"><Map size={12} /> Apple'da Bul</button>
                                     )}
                                 </label>
                                 <input type="url" placeholder="https://maps.app.goo.gl/..." className="w-full glass-input px-3 py-2 text-sm" value={mechanicForm.mapLink}
@@ -812,16 +1020,21 @@ const Maintenance = () => {
                                 <textarea rows={2} placeholder="Sadece fren işleri yapıyor, parça dışarıdan..." className="w-full glass-input px-3 py-2 text-sm resize-none" value={mechanicForm.notes}
                                     onChange={e => setMechanicForm({ ...mechanicForm, notes: e.target.value })} />
                             </div>
-                            <button type="submit" className="w-full bg-brand-600 hover:bg-brand-500 text-[var(--text-primary)] py-3 rounded-lg font-medium transition">Servisi Kaydet</button>
+                            <button type="submit" className="w-full bg-amber-600 hover:bg-amber-500 text-[var(--text-primary)] py-3 rounded-lg font-medium transition">Servisi Kaydet</button>
                         </form>
-                    </div>
-                </div>
+                    </motion.div>
+                    </motion.div>
+                    )}
+                </AnimatePresence>,
+                document.body
             )}
 
             {/* ─── ALBÜM / KLASÖR EKLEME MODALİ ─── */}
-            {isFolderModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--bg-panel)] backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            {typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
+                    {isFolderModalOpen && (
+                    <motion.div key="folder" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeInOut" }} className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-[var(--bg-panel)] backdrop-blur-sm">
+                        <motion.div initial={{ scale: 0.96, opacity: 0, y: 15 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0, y: 15 }} transition={{ duration: 0.25, ease: "easeOut" }} className="glass-panel w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
                         <button onClick={() => setIsFolderModalOpen(false)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
                         <h3 className="text-xl font-bold text-[var(--text-primary)] mb-5 flex items-center gap-2"><FolderOpen className="text-emerald-500" /> {editingFolderId ? 'Albümü Düzenle' : 'Yeni Albüm Ekle'}</h3>
                         <form onSubmit={handleSaveFolder} className="space-y-4">
@@ -841,20 +1054,25 @@ const Maintenance = () => {
                             </div>
                             <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-[var(--text-primary)] py-3 rounded-lg font-medium transition mt-2">{editingFolderId ? 'Albümü Güncelle' : 'Albümü Oluştur'}</button>
                         </form>
-                    </div>
-                </div>
+                    </motion.div>
+                    </motion.div>
+                    )}
+                </AnimatePresence>,
+                document.body
             )}
 
             {/* ─── STOK EKLEME MODALİ ─── */}
-            {isStockModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--bg-panel)] backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            {typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
+                    {isStockModalOpen && (
+                    <motion.div key="stock" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeInOut" }} className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-[var(--bg-panel)] backdrop-blur-sm">
+                        <motion.div initial={{ scale: 0.96, opacity: 0, y: 15 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0, y: 15 }} transition={{ duration: 0.25, ease: "easeOut" }} className="glass-panel w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
                         <button onClick={() => {
                             setIsStockModalOpen(false);
                             setEditingStockId(null);
                         }} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
                         <h3 className="text-xl font-bold text-[var(--text-primary)] mb-5 flex items-center gap-2">
-                            <Package className="text-brand-500" /> {editingStockId ? 'Ekli Ürünü Düzenle' : 'Yeni Stok / Parça Ekle'}
+                            <Package className="text-amber-500" /> {editingStockId ? 'Ekli Ürünü Düzenle' : 'Yeni Stok / Parça Ekle'}
                         </h3>
                         <form onSubmit={handleAddStock} className="space-y-4">
                             <div>
@@ -893,7 +1111,7 @@ const Maintenance = () => {
                                                 }
                                             }}>
                                             {(sparePartCategories || []).map(c => <option key={c} value={c}>{c}</option>)}
-                                            <option value="YENI_EKLE" className="text-brand-400 font-bold">+ Yeni Kategori Ekle</option>
+                                            <option value="YENI_EKLE" className="text-amber-400 font-bold">+ Yeni Kategori Ekle</option>
                                         </select>
                                         <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none" />
                                     </div>
@@ -908,16 +1126,21 @@ const Maintenance = () => {
                                 <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">📸 Ürün / Parça Fotoğrafı (Opsiyonel)</label>
                                 <FileUpload files={stockForm.files} onChange={files => setStockForm({ ...stockForm, files })} />
                             </div>
-                            <button type="submit" className="w-full bg-brand-600 hover:bg-brand-500 text-[var(--text-primary)] py-3 rounded-lg font-medium transition">{editingStockId ? 'Stok Güncelle' : 'Stoğa Ekle'}</button>
+                            <button type="submit" className="w-full bg-amber-600 hover:bg-amber-500 text-[var(--text-primary)] py-3 rounded-lg font-medium transition">{editingStockId ? 'Stok Güncelle' : 'Stoğa Ekle'}</button>
                         </form>
-                    </div>
-                </div>
+                    </motion.div>
+                    </motion.div>
+                    )}
+                </AnimatePresence>,
+                document.body
             )}
 
             {/* Dosya Görüntüleyici Modal */}
-            {viewFiles && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--bg-panel)] backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-2xl p-6 relative animate-in zoom-in-95 duration-200">
+            {typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
+                    {viewFiles && (
+                    <motion.div key="viewFiles" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeInOut" }} className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-[var(--bg-panel)] backdrop-blur-sm">
+                        <motion.div initial={{ scale: 0.96, opacity: 0, y: 15 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0, y: 15 }} transition={{ duration: 0.25, ease: "easeOut" }} className="glass-panel w-full max-w-2xl p-6 relative">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
                                 <FileText className="text-amber-400" />
@@ -946,15 +1169,18 @@ const Maintenance = () => {
                                     <div className="p-4 bg-white/5 border-t border-[var(--border-color)] flex justify-between items-center">
                                         <span className="text-sm text-[var(--text-secondary)] truncate max-w-[70%]">{file.name || 'Ek_Belge'}</span>
                                         <a href={file.data} download={file.name || 'Belge'}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-brand-400 hover:text-[var(--text-primary)] bg-brand-500/10 hover:bg-brand-500/30 border border-brand-500/20 rounded-lg transition-colors">
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-400 hover:text-[var(--text-primary)] bg-amber-500/10 hover:bg-amber-500/30 border border-amber-500/20 rounded-lg transition-colors">
                                             <Download size={14} /> İndir
                                         </a>
                                     </div>
                                 </div>
                             ))}
                         </div>
-                    </div>
-                </div>
+                    </motion.div>
+                    </motion.div>
+                    )}
+                </AnimatePresence>,
+                document.body
             )}
         </div>
     );

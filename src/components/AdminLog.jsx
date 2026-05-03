@@ -150,8 +150,8 @@ const AdminLog = () => {
         <div className="space-y-5 animate-in fade-in duration-500">
             {/* Header */}
             <div className="flex items-center gap-3">
-                <div className="p-2 bg-brand-500/10 rounded-xl border border-brand-500/20">
-                    <Shield size={20} className="text-brand-400" />
+                <div className="p-2 bg-slate-500/10 rounded-xl border border-slate-500/20">
+                    <Shield size={20} className="text-slate-400" />
                 </div>
                 <div>
                     <h3 className="font-semibold text-[var(--text-primary)]">Admin Paneli</h3>
@@ -169,7 +169,7 @@ const AdminLog = () => {
                             <div key={u.id} onClick={() => setSelectedOnlineUser(u)} className="flex-shrink-0 flex items-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/40 rounded-lg px-3 py-2 cursor-pointer transition-all animate-in zoom-in-95 duration-300 shadow-sm hover:shadow-emerald-500/10">
                                 <div className="relative">
                                     <div className="w-8 h-8 rounded-full bg-[var(--bg-panel-hover)] flex items-center justify-center border border-[var(--border-color)] overflow-hidden">
-                                        <Users size={14} className={isKenan ? "text-brand-400" : "text-emerald-400"} />
+                                        <Users size={14} className={isKenan ? "text-slate-400" : "text-emerald-400"} />
                                     </div>
                                     <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-[#0f172a] animate-pulse" />
                                 </div>
@@ -189,11 +189,11 @@ const AdminLog = () => {
             {/* Tab Switcher */}
             <div className="flex gap-1 bg-white/5 p-1 rounded-xl">
                 <button onClick={() => setTab('log')}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${tab === 'log' ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${tab === 'log' ? 'bg-slate-500/20 text-slate-300 border border-slate-500/30' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>
                     Aktivite Logu
                 </button>
                 <button onClick={() => setTab('users')}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${tab === 'users' ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${tab === 'users' ? 'bg-slate-500/20 text-slate-300 border border-slate-500/30' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>
                     <Users size={14} /> Kullanıcılar
                     {pendingUsers.length > 0 && (
                         <span className="bg-red-500 text-[var(--text-primary)] text-xs w-4 h-4 rounded-full flex items-center justify-center">{pendingUsers.length}</span>
@@ -208,7 +208,7 @@ const AdminLog = () => {
                         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                             {categories.map(cat => (
                                 <button key={cat.key} onClick={() => setFilter(cat.key)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex-1 sm:flex-none ${filter === cat.key ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30 shadow-inner' : 'bg-[var(--bg-panel-hover)] text-[var(--text-secondary)] hover:bg-white/10 border border-[var(--border-color)]'}`}>
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex-1 sm:flex-none ${filter === cat.key ? 'bg-slate-500/20 text-slate-300 border border-slate-500/30 shadow-inner' : 'bg-[var(--bg-panel-hover)] text-[var(--text-secondary)] hover:bg-white/10 border border-[var(--border-color)]'}`}>
                                     {cat.label}
                                 </button>
                             ))}
@@ -217,12 +217,12 @@ const AdminLog = () => {
                             <div className="relative flex-1 sm:flex-none">
                                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
                                 <input type="text" placeholder="Arama..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} 
-                                    className="w-full sm:w-36 bg-[var(--bg-panel)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs rounded-lg pl-8 pr-2 py-1.5 outline-none focus:border-brand-500 transition-colors" />
+                                    className="w-full sm:w-36 bg-[var(--bg-panel)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs rounded-lg pl-8 pr-2 py-1.5 outline-none focus:border-slate-500 transition-colors" />
                             </div>
                             <div className="relative flex-1 sm:flex-none">
                                 <Calendar size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
                                 <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} 
-                                    className="w-full sm:w-[130px] bg-[var(--bg-panel)] border border-[var(--border-color)] text-[var(--text-secondary)] text-xs rounded-lg pl-8 pr-2 py-1.5 outline-none focus:border-brand-500 transition-colors" />
+                                    className="w-full sm:w-[130px] bg-[var(--bg-panel)] border border-[var(--border-color)] text-[var(--text-secondary)] text-xs rounded-lg pl-8 pr-2 py-1.5 outline-none focus:border-slate-500 transition-colors" />
                                 {dateFilter && (
                                     <button onClick={() => setDateFilter('')} className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-400"><X size={12}/></button>
                                 )}
@@ -298,7 +298,7 @@ const AdminLog = () => {
                                                 </div>
                                                 {entry.action.includes('SİL') && entry.meta && (
                                                     <button onClick={() => restoreData(entry.meta.table, entry.meta.id)}
-                                                        className="flex items-center gap-1 text-[10px] bg-brand-500/20 text-brand-400 px-2 py-1 rounded hover:bg-brand-500/30 transition-colors mt-1">
+                                                        className="flex items-center gap-1 text-[10px] bg-slate-500/20 text-slate-400 px-2 py-1 rounded hover:bg-slate-500/30 transition-colors mt-1">
                                                         <RotateCcw size={10} /> Geri Yükle
                                                     </button>
                                                 )}
@@ -340,7 +340,7 @@ const AdminLog = () => {
                                             <select
                                                 value={approvalRoles[u.id] || 'şoför'}
                                                 onChange={(e) => setApprovalRoles({ ...approvalRoles, [u.id]: e.target.value })}
-                                                className="bg-white/5 border border-[var(--border-color)] text-[var(--text-primary)] text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-brand-500"
+                                                className="bg-white/5 border border-[var(--border-color)] text-[var(--text-primary)] text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-slate-500"
                                             >
                                                 <option value="şoför" className="bg-[var(--bg-panel-hover)]">Şoför</option>
                                                 <option value="company_admin" className="bg-[var(--bg-panel-hover)]">Şirket Yöneticisi</option>
@@ -349,7 +349,7 @@ const AdminLog = () => {
                                             <select
                                                 value={approvalCompanies[u.id] || activeCompanyId || ''}
                                                 onChange={(e) => setApprovalCompanies({ ...approvalCompanies, [u.id]: e.target.value })}
-                                                className="bg-white/5 border border-[var(--border-color)] text-brand-300 font-bold text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-brand-500"
+                                                className="bg-white/5 border border-[var(--border-color)] text-slate-300 font-bold text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-slate-500"
                                             >
                                                 {(companies || []).map(c => (
                                                     <option key={c.id} value={c.id} className="bg-[var(--bg-panel-hover)]">{c.name}</option>
@@ -376,18 +376,18 @@ const AdminLog = () => {
                         <div className="flex items-center justify-between mb-2">
                             <h4 className="text-sm font-semibold text-[var(--text-primary)]">✅ Onaylı Kullanıcılar</h4>
                             <button onClick={() => setIsAddUserModalOpen(true)}
-                                className="flex items-center gap-1.5 text-xs bg-brand-500/20 hover:bg-brand-500/30 text-brand-300 px-3 py-1.5 rounded-lg border border-brand-500/30 transition">
+                                className="flex items-center gap-1.5 text-xs bg-slate-500/20 hover:bg-slate-500/30 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-500/30 transition">
                                 <PlusCircle size={13} /> Manuel Ekle
                             </button>
                         </div>
                         <div className="glass-panel overflow-hidden">
                             <div className="p-3 flex items-center gap-3 border-b border-[var(--border-color)]">
-                                <div className="bg-brand-500/20 p-2 rounded-lg"><Shield size={14} className="text-brand-400" /></div>
+                                <div className="bg-slate-500/20 p-2 rounded-lg"><Shield size={14} className="text-slate-400" /></div>
                                 <div className="flex-1">
                                     <p className="text-[var(--text-primary)] font-medium text-sm">kenan</p>
                                     <p className="text-slate-500 text-xs">Admin · Sistem yöneticisi</p>
                                 </div>
-                                <span className="text-xs bg-brand-500/10 text-brand-300 border border-brand-500/20 px-2 py-0.5 rounded-full">Admin</span>
+                                <span className="text-xs bg-slate-500/10 text-slate-300 border border-slate-500/20 px-2 py-0.5 rounded-full">Admin</span>
                             </div>
                             {approvedUsers.length === 0 && (
                                 <p className="p-4 text-center text-slate-600 text-sm">Başka onaylı kullanıcı yok</p>
@@ -404,12 +404,12 @@ const AdminLog = () => {
                                                 <option value="şoför" className="bg-[var(--bg-panel-hover)]">Şoför</option>
                                                 <option value="company_admin" className="bg-[var(--bg-panel-hover)]">Şirket Yöneticisi</option>
                                             </select>
-                                            <select value={editForm.companyId} onChange={e => setEditForm({ ...editForm, companyId: e.target.value })} className="bg-white/5 border border-[var(--border-color)] text-brand-300 font-bold text-xs px-2 py-1.5 rounded-lg flex-1">
+                                            <select value={editForm.companyId} onChange={e => setEditForm({ ...editForm, companyId: e.target.value })} className="bg-white/5 border border-[var(--border-color)] text-slate-300 font-bold text-xs px-2 py-1.5 rounded-lg flex-1">
                                                 {(companies || []).map(c => (
                                                     <option key={c.id} value={c.id} className="bg-[var(--bg-panel-hover)]">{c.name}</option>
                                                 ))}
                                             </select>
-                                            <button onClick={() => handleEditSave(u.id)} className="bg-brand-500/20 text-brand-400 border border-brand-500/30 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-brand-500/30 w-full sm:w-auto flex justify-center items-center gap-1">
+                                            <button onClick={() => handleEditSave(u.id)} className="bg-slate-500/20 text-slate-400 border border-slate-500/30 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-500/30 w-full sm:w-auto flex justify-center items-center gap-1">
                                                 <Save size={12} /> Kaydet
                                             </button>
                                             <button onClick={() => setEditingUserId(null)} className="bg-slate-500/20 text-[var(--text-secondary)] border border-slate-500/30 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-500/30 w-full sm:w-auto flex justify-center items-center gap-1">
@@ -423,7 +423,7 @@ const AdminLog = () => {
                                                     <p className="text-[var(--text-primary)] font-medium text-sm flex flex-wrap items-center gap-2">
                                                         {u.username}
                                                         <span className="text-[10px] bg-slate-500/10 text-[var(--text-secondary)] border border-slate-500/20 px-1.5 py-0.5 rounded-md uppercase tracking-wider">{u.role || 'Şoför'}</span>
-                                                        <span className="text-[10px] bg-brand-500/10 text-brand-300 border border-brand-500/20 px-1.5 py-0.5 rounded-md font-bold tracking-wider">{(companies || []).find(c => c.id === u.companyId)?.name || 'Şirketsiz'}</span>
+                                                        <span className="text-[10px] bg-slate-500/10 text-slate-300 border border-slate-500/20 px-1.5 py-0.5 rounded-md font-bold tracking-wider">{(companies || []).find(c => c.id === u.companyId)?.name || 'Şirketsiz'}</span>
                                                     </p>
                                                     <p className="text-[var(--text-primary)] text-xs mt-0.5 bg-white/5 inline-block px-1.5 py-0.5 rounded border border-[var(--border-color)] mt-1.5 font-mono">Şifre: {u.password}</p>
                                                     <p className="text-slate-500 text-[10px] mt-1">Onay: {new Date(u.approvedAt).toLocaleDateString('tr-TR')}</p>
@@ -455,26 +455,26 @@ const AdminLog = () => {
                     <div className="glass-panel w-full max-w-sm p-6 relative animate-in zoom-in-95 duration-200">
                         <button onClick={() => setIsAddUserModalOpen(false)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
                         <h3 className="text-xl font-bold text-[var(--text-primary)] mb-6 flex items-center gap-2">
-                            <PlusCircle className="text-brand-500" /> Yeni Kullanıcı
+                            <PlusCircle className="text-slate-500" /> Yeni Kullanıcı
                         </h3>
                         <form onSubmit={handleAddManualUser} className="space-y-4">
                             <div>
                                 <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Kullanıcı Adı</label>
                                 <input type="text" required value={newUserForm.username}
                                     onChange={e => setNewUserForm({ ...newUserForm, username: e.target.value.toLowerCase().trim() })}
-                                    className="w-full glass-input px-4 py-2.5 text-sm transition-colors focus:border-brand-500" placeholder="" />
+                                    className="w-full glass-input px-4 py-2.5 text-sm transition-colors focus:border-slate-500" placeholder="" />
                             </div>
                             <div>
                                 <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Şifre</label>
                                 <input type="text" required value={newUserForm.password}
                                     onChange={e => setNewUserForm({ ...newUserForm, password: e.target.value })}
-                                    className="w-full glass-input px-4 py-2.5 text-sm transition-colors focus:border-brand-500" placeholder="" />
+                                    className="w-full glass-input px-4 py-2.5 text-sm transition-colors focus:border-slate-500" placeholder="" />
                             </div>
                             <div>
                                 <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Yetki Rolü</label>
                                 <select value={newUserForm.role}
                                     onChange={e => setNewUserForm({ ...newUserForm, role: e.target.value })}
-                                    className="w-full glass-input px-4 py-2.5 text-sm bg-[var(--bg-panel)] focus:border-brand-500">
+                                    className="w-full glass-input px-4 py-2.5 text-sm bg-[var(--bg-panel)] focus:border-slate-500">
                                     <option value="şoför">Sadece Ekleme/Görüntüleme (Şoför)</option>
                                     <option value="company_admin">Şirket Yöneticisi</option>
                                 </select>
@@ -483,14 +483,14 @@ const AdminLog = () => {
                                 <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Atanacak Şirket</label>
                                 <select value={newUserForm.companyId || activeCompanyId || ''}
                                     onChange={e => setNewUserForm({ ...newUserForm, companyId: e.target.value })}
-                                    className="w-full glass-input px-4 py-2.5 text-sm bg-[var(--bg-panel)] focus:border-brand-500 font-bold text-brand-300">
+                                    className="w-full glass-input px-4 py-2.5 text-sm bg-[var(--bg-panel)] focus:border-slate-500 font-bold text-slate-300">
                                     {(companies || []).map(c => (
                                         <option key={c.id} value={c.id}>{c.name}</option>
                                     ))}
                                 </select>
                             </div>
                             <button type="submit"
-                                className="w-full bg-brand-600 hover:bg-brand-500 text-[var(--text-primary)] py-3 rounded-lg font-semibold transition shadow-lg shadow-brand-500/20 mt-2">
+                                className="w-full bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] py-3 rounded-lg font-semibold transition shadow-lg shadow-slate-500/20 mt-2">
                                 Kullanıcıyı Oluştur
                             </button>
                         </form>
@@ -517,7 +517,7 @@ const AdminLog = () => {
                                     required
                                     value={clearPassword}
                                     onChange={e => setClearPassword(e.target.value)}
-                                    className={`w-full glass-input px-4 py-2.5 text-sm transition-all focus:border-brand-500 ${clearError ? 'border-red-500 bg-red-500/5 shake' : ''}`}
+                                    className={`w-full glass-input px-4 py-2.5 text-sm transition-all focus:border-slate-500 ${clearError ? 'border-red-500 bg-red-500/5 shake' : ''}`}
                                     placeholder="••••••••"
                                 />
                                 {clearError && <p className="text-[10px] text-red-500 mt-1 animate-pulse">Hatalı şifre usta!</p>}
