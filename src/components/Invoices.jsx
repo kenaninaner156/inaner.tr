@@ -276,17 +276,17 @@ const Invoices = () => {
 
                 <div className="glass-panel p-4 overflow-hidden relative">
                     {/* Arka plan animasyon efekti */}
-                    <div className="absolute -right-10 -top-10 w-32 h-32 bg-emerald-500/10 blur-3xl rounded-full pointer-events-none"></div>
+                    <div className="absolute -right-10 -top-10 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full pointer-events-none"></div>
                     
                     <motion.button
-                        whileHover={{ scale: 1.02 }}
+                        whileHover={{ scale: 1.01 }}
                         whileTap={{ scale: 0.98 }}
                         onClick={handleOpenPeriodModal}
-                        className="relative w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white py-2.5 px-4 rounded-xl font-bold flex items-center justify-center transition-all shadow-[0_4px_20px_rgba(16,185,129,0.3)] text-sm group overflow-hidden border border-emerald-400/30"
+                        className="relative w-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 py-2.5 px-4 rounded-xl font-semibold flex items-center justify-center transition-all duration-300 shadow-sm hover:shadow-[0_4px_20px_rgba(16,185,129,0.15)] text-sm group overflow-hidden border border-emerald-500/20"
                     >
-                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
-                        <PlusCircle className="mr-2 relative z-10 group-hover:rotate-90 transition-transform duration-300" size={17} /> 
-                        <span className="relative z-10 drop-shadow-md">Yeni Fatura Periyodu Seç</span>
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out" />
+                        <PlusCircle className="mr-2 relative z-10 transition-transform duration-300 group-hover:scale-110" size={17} /> 
+                        <span className="relative z-10 tracking-wide">Yeni Fatura Periyodu Seç</span>
                     </motion.button>
                     <AnimatePresence>
                         {activeInvoice && activeInvoice.status === 'Draft' && (
@@ -296,11 +296,11 @@ const Invoices = () => {
                                 exit={{ opacity: 0, height: 0, marginTop: 0 }}
                                 className="overflow-hidden"
                             >
-                                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl relative">
+                                <div className="p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-xl relative overflow-hidden">
                                     <motion.div 
-                                        animate={{ opacity: [0.3, 0.6, 0.3] }} 
-                                        transition={{ repeat: Infinity, duration: 2 }}
-                                        className="absolute top-0 right-0 w-16 h-16 bg-emerald-400/10 blur-xl rounded-full pointer-events-none"
+                                        animate={{ opacity: [0.2, 0.4, 0.2] }} 
+                                        transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+                                        className="absolute top-0 right-0 w-24 h-24 bg-emerald-400/5 blur-2xl rounded-full pointer-events-none"
                                     />
                                     <div className="flex justify-between items-center mb-1 relative z-10">
                                         <h4 className="flex items-center text-emerald-400 font-semibold text-sm">
@@ -368,37 +368,37 @@ const Invoices = () => {
                                     layout
                                     initial={{ opacity: 0, y: 15 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.9 }}
-                                    transition={{ duration: 0.3, delay: index * 0.05, type: 'spring', stiffness: 300, damping: 25 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    transition={{ duration: 0.4, delay: index * 0.05, ease: [0.25, 0.1, 0.25, 1] }}
                                     onClick={() => handleViewInvoice(inv)}
                                     className={`w-full text-left p-3 rounded-xl transition-all duration-300 group relative cursor-pointer outline-none overflow-hidden block ${isActive ? 'border-transparent' : 'border border-[var(--border-color)] bg-white/5 hover:bg-white/10'}`}
                                 >
                                     {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors duration-300 -z-10" />}
                                     {isActive && (
                                       <motion.div layoutId="invoice-active-apple"
-                                        className={`absolute inset-0 bg-gradient-to-br rounded-xl border ${viewMode === 'pdf' ? 'from-purple-500/20 to-purple-600/10 border-purple-400/40 shadow-[0_2px_15px_rgba(168,85,247,0.15)]' : 'from-amber-500/20 to-amber-600/10 border-amber-400/40 shadow-[0_2px_15px_rgba(251,191,36,0.15)]'}`}
+                                        className={`absolute inset-0 bg-gradient-to-br rounded-xl border ${viewMode === 'pdf' ? 'from-indigo-500/10 to-indigo-600/5 border-indigo-500/30 shadow-[0_2px_15px_rgba(99,102,241,0.15)]' : 'from-emerald-500/10 to-emerald-600/5 border-emerald-500/30 shadow-[0_2px_15px_rgba(16,185,129,0.15)]'}`}
                                         style={{ zIndex: 0 }} initial={false}
-                                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}
+                                        transition={{ type: 'spring', stiffness: 400, damping: 35, mass: 0.8 }}
                                       />
                                     )}
                                     
                                     <div className="relative z-10 flex flex-col gap-1">
                                         <div className="flex justify-between items-center mb-1">
                                             <motion.span 
-                                                className={`font-bold text-sm drop-shadow-sm ${isActive ? (viewMode === 'pdf' ? 'text-purple-300' : 'text-amber-300') : 'text-emerald-400'}`}
+                                                className={`font-semibold text-sm transition-colors ${isActive ? (viewMode === 'pdf' ? 'text-indigo-300' : 'text-emerald-400') : 'text-slate-300 group-hover:text-emerald-400'}`}
                                             >
                                                 {inv.docId}
                                             </motion.span>
                                             <div className="flex items-center gap-1">
-                                                <span className={`text-xs ${isActive ? 'text-white/80' : 'text-[var(--text-secondary)]'}`}>{new Date(inv.endDate).toLocaleDateString('tr-TR')}</span>
+                                                <span className={`text-xs transition-colors ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>{new Date(inv.endDate).toLocaleDateString('tr-TR')}</span>
                                                 {inv.files?.length > 0 && (
-                                                    <span className={`${isActive ? 'text-purple-300' : 'text-purple-400'}`} title="PDF eki var">
+                                                    <span className={`${isActive ? 'text-indigo-300' : 'text-emerald-500/60'}`} title="PDF eki var">
                                                         <Paperclip size={12} />
                                                     </span>
                                                 )}
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); setNoteModalInvoice(inv); setModalNote(inv.note || ''); setModalFiles(inv.files || []); }}
-                                                    className={`p-1 rounded transition-colors ${inv.note || inv.files?.length > 0 ? (isActive ? 'text-white hover:text-emerald-300' : 'text-emerald-400') : (isActive ? 'text-white/50 hover:text-white' : 'text-slate-600 hover:text-emerald-400')}`}
+                                                    className={`p-1 rounded transition-colors ${inv.note || inv.files?.length > 0 ? (isActive ? 'text-white hover:text-emerald-300' : 'text-emerald-500/80') : (isActive ? 'text-white/50 hover:text-white' : 'text-slate-600 hover:text-emerald-400')}`}
                                                     title="Düzenle / Not & Belge"
                                                 >
                                                     <StickyNote size={14} />
@@ -412,13 +412,13 @@ const Invoices = () => {
                                             </div>
                                         </div>
                                         <motion.div 
-                                            className={`text-sm font-semibold tracking-wide drop-shadow-md ${isActive ? 'text-white' : 'text-[var(--text-primary)]'}`}
-                                            animate={{ scale: isActive ? 1.05 : 1, originX: 0 }}
+                                            className={`text-sm font-semibold tracking-wide mt-0.5 ${isActive ? 'text-white drop-shadow-md' : 'text-[var(--text-primary)]'}`}
+                                            animate={{ scale: isActive ? 1.02 : 1, originX: 0 }}
                                             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                                         >
                                             ₺{inv.grandTotal?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                                         </motion.div>
-                                        <div className={`text-xs mt-0.5 ${isActive ? 'text-white/70' : 'text-slate-500'}`}>{inv.trips?.length || 0} Sefer | {inv.totalTonnage?.toFixed(2)} Ton</div>
+                                        <div className={`text-xs mt-0.5 transition-colors ${isActive ? 'text-white/60' : 'text-slate-500'}`}>{inv.trips?.length || 0} Sefer | {inv.totalTonnage?.toFixed(2)} Ton</div>
                                     </div>
                                 </motion.button>
                                 )
