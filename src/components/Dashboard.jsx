@@ -88,8 +88,30 @@ const Dashboard = () => {
     const { trips, invoices, fuelRecords } = useContext(DataContext);
 
     const now = new Date();
-    const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
-    const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+    
+    // Eğer bu ay 5'ten az veri varsa, otomatik olarak bir önceki ayı göster
+    const [selectedMonth, setSelectedMonth] = useState(() => {
+        const tMonth = now.getMonth();
+        const tYear = now.getFullYear();
+        const mTrips = (trips || []).filter(t => !t.deleted && t.date && new Date(t.date).getMonth() === tMonth && new Date(t.date).getFullYear() === tYear);
+        const mFuel = (fuelRecords || []).filter(f => !f.deleted && f.date && new Date(f.date).getMonth() === tMonth && new Date(f.date).getFullYear() === tYear);
+        if (mTrips.length + mFuel.length < 5) {
+            return tMonth === 0 ? 11 : tMonth - 1;
+        }
+        return tMonth;
+    });
+
+    const [selectedYear, setSelectedYear] = useState(() => {
+        const tMonth = now.getMonth();
+        const tYear = now.getFullYear();
+        const mTrips = (trips || []).filter(t => !t.deleted && t.date && new Date(t.date).getMonth() === tMonth && new Date(t.date).getFullYear() === tYear);
+        const mFuel = (fuelRecords || []).filter(f => !f.deleted && f.date && new Date(f.date).getMonth() === tMonth && new Date(f.date).getFullYear() === tYear);
+        if (mTrips.length + mFuel.length < 5) {
+            return tMonth === 0 ? tYear - 1 : tYear;
+        }
+        return tYear;
+    });
+    
     const [isAllTime, setIsAllTime] = useState(false);
 
     const activeTrips = useMemo(() => trips.filter(t => !t.deleted), [trips]);
