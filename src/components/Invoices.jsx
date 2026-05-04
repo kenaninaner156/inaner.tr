@@ -1,4 +1,5 @@
 import React, { useContext, useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Printer, Save, PlusCircle, CheckCircle, Clock, Trash2, StickyNote, Paperclip } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
@@ -333,19 +334,51 @@ const Invoices = () => {
                             Tamamlanan Faturalar
                         </h4>
                     </div>
-                    <div className="p-3 flex-1 overflow-y-auto custom-scrollbar space-y-2">
-                        {(invoices || []).length > 0 ? (invoices || []).filter(inv => !inv.deleted).map(inv => (
-                            <div
-                                key={inv.id}
-                                onClick={() => handleViewInvoice(inv)}
-                                className={`p-3 bg-white/5 hover:bg-white/10 border rounded-lg transition-colors group relative cursor-pointer ${
-                                    activeInvoice?.id === inv.id && isViewingOldInvoice
-                                        ? viewMode === 'pdf'
-                                            ? 'border-purple-400/50 bg-purple-400/5'
-                                            : 'border-amber-400/50 bg-amber-400/5'
-                                        : 'border-[var(--border-color)]'
-                                }`}
-                            >
+                    <motion.div 
+                        initial="hidden"
+                        animate="show"
+                        variants={{
+                            hidden: { opacity: 0 },
+                            show: {
+                                opacity: 1,
+                                transition: {
+                                    staggerChildren: 0.05
+                                }
+                            }
+                        }}
+                        className="p-3 flex-1 overflow-y-auto custom-scrollbar space-y-2"
+                    >
+                        {(invoices || []).length > 0 ? (invoices || []).filter(inv => !inv.deleted).map((inv, index) => {
+                            const isActive = activeInvoice?.id === inv.id && isViewingOldInvoice;
+                            
+                            return (
+                                <motion.div
+                                    key={inv.id}
+                                    variants={{
+                                        hidden: { opacity: 0, x: -20 },
+                                        show: { opacity: 1, x: 0 }
+                                    }}
+                                    whileHover={{ scale: 1.01, x: 4 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => handleViewInvoice(inv)}
+                                    className={`p-3 group relative cursor-pointer rounded-xl border transition-all duration-300 ${
+                                        isActive
+                                            ? viewMode === 'pdf'
+                                                ? 'border-purple-500/50 bg-purple-500/10 shadow-[0_0_15px_rgba(168,85,247,0.15)]'
+                                                : 'border-amber-500/50 bg-amber-500/10 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                                            : 'border-white/5 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/10'
+                                    }`}
+                                >
+                                    {isActive && (
+                                        <motion.div 
+                                            layoutId="active-invoice-glow"
+                                            className={`absolute inset-0 rounded-xl -z-10 blur-sm opacity-30 ${
+                                                viewMode === 'pdf' ? 'bg-purple-500' : 'bg-amber-500'
+                                            }`}
+                                            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                                        />
+                                    )}
+
                                 <div className="flex justify-between items-center mb-1">
                                     <span className="font-bold text-emerald-400 text-sm">{inv.docId}</span>
                                     <div className="flex items-center gap-1">
@@ -370,16 +403,33 @@ const Invoices = () => {
                                         </button>
                                     </div>
                                 </div>
-                                <div className="text-sm text-[var(--text-primary)] font-semibold">₺{inv.grandTotal?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
-                                <div className="text-xs text-slate-500 mt-0.5">{inv.trips?.length || 0} Sefer | {inv.totalTonnage?.toFixed(2)} Ton</div>
-                            </div>
-                        )) : (
-                            <div className="text-center py-8 text-slate-500 text-sm">
-                                <FileText size={24} className="mx-auto mb-2 opacity-50" />
-                                Henüz kesilmiş fatura yok.
-                            </div>
+                                    <div className="text-sm text-[var(--text-primary)] font-semibold flex items-baseline gap-1.5">
+                                        <span className="text-lg">₺{inv.grandTotal?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between mt-1">
+                                        <div className="text-[11px] text-slate-500 font-medium">{inv.trips?.length || 0} Sefer | {inv.totalTonnage?.toFixed(2)} Ton</div>
+                                        {isActive && (
+                                            <motion.div 
+                                                initial={{ opacity: 0, scale: 0.5 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                className={`w-1.5 h-1.5 rounded-full ${viewMode === 'pdf' ? 'bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)]' : 'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]'}`}
+                                            />
+                                        )}
+                                    </div>
+                                </motion.div>
+                            );
+                        }) : (
+                            <motion.div 
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="text-center py-10 text-slate-500 text-sm bg-white/[0.02] rounded-xl border border-dashed border-white/5"
+                            >
+                                <FileText size={28} className="mx-auto mb-3 opacity-30" />
+                                <p className="font-medium">Henüz kesilmiş fatura yok.</p>
+                                <p className="text-[11px] opacity-60 mt-1">Yeni bir fatura keserek burada görebilirsiniz.</p>
+                            </motion.div>
                         )}
-                    </div>
+                    </motion.div>
                 </div>
             </div>
 
