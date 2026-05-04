@@ -274,32 +274,56 @@ const Invoices = () => {
 
 
 
-                <div className="glass-panel p-4">
-                    <button
+                <div className="glass-panel p-4 overflow-hidden relative">
+                    {/* Arka plan animasyon efekti */}
+                    <div className="absolute -right-10 -top-10 w-32 h-32 bg-emerald-500/10 blur-3xl rounded-full pointer-events-none"></div>
+                    
+                    <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
                         onClick={handleOpenPeriodModal}
-                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-[var(--text-primary)] py-2.5 px-4 rounded-lg font-bold flex items-center justify-center transition-all shadow-lg shadow-emerald-500/20 text-sm"
+                        className="relative w-full bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white py-2.5 px-4 rounded-xl font-bold flex items-center justify-center transition-all shadow-[0_4px_20px_rgba(16,185,129,0.3)] text-sm group overflow-hidden border border-emerald-400/30"
                     >
-                        <PlusCircle className="mr-2" size={17} /> Yeni Fatura Periyodu Seç
-                    </button>
-                    {activeInvoice && activeInvoice.status === 'Draft' && (
-                        <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
-                            <div className="flex justify-between items-center mb-1">
-                                <h4 className="flex items-center text-emerald-400 font-semibold text-sm">
-                                    <Clock size={14} className="mr-1.5" /> İşlem Bekleyen Taslak
-                                </h4>
-                                <button
-                                    onClick={() => setShowCancelConfirm(true)}
-                                    className="text-xs text-red-400 hover:text-red-300 transition-colors"
-                                >
-                                    İptal Et
-                                </button>
-                            </div>
-                            <p className="text-xs text-[var(--text-primary)]">
-                                {new Date(activeInvoice.startDate).toLocaleDateString('tr-TR')} - {new Date(activeInvoice.endDate).toLocaleDateString('tr-TR')}
-                            </p>
-                            <p className="text-[10px] text-slate-500 mt-0.5">{activeInvoice.trips.length} sefer seçildi.</p>
-                        </div>
-                    )}
+                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out" />
+                        <PlusCircle className="mr-2 relative z-10 group-hover:rotate-90 transition-transform duration-300" size={17} /> 
+                        <span className="relative z-10 drop-shadow-md">Yeni Fatura Periyodu Seç</span>
+                    </motion.button>
+                    <AnimatePresence>
+                        {activeInvoice && activeInvoice.status === 'Draft' && (
+                            <motion.div 
+                                initial={{ opacity: 0, height: 0, marginTop: 0 }} 
+                                animate={{ opacity: 1, height: 'auto', marginTop: 12 }} 
+                                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                                className="overflow-hidden"
+                            >
+                                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl relative">
+                                    <motion.div 
+                                        animate={{ opacity: [0.3, 0.6, 0.3] }} 
+                                        transition={{ repeat: Infinity, duration: 2 }}
+                                        className="absolute top-0 right-0 w-16 h-16 bg-emerald-400/10 blur-xl rounded-full pointer-events-none"
+                                    />
+                                    <div className="flex justify-between items-center mb-1 relative z-10">
+                                        <h4 className="flex items-center text-emerald-400 font-semibold text-sm">
+                                            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 4, ease: "linear" }}>
+                                                <Clock size={14} className="mr-1.5" />
+                                            </motion.div>
+                                            İşlem Bekleyen Taslak
+                                        </h4>
+                                        <button
+                                            onClick={() => setShowCancelConfirm(true)}
+                                            className="text-xs bg-red-500/10 px-2 py-1 rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-colors"
+                                        >
+                                            İptal Et
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-[var(--text-primary)] relative z-10">
+                                        {new Date(activeInvoice.startDate).toLocaleDateString('tr-TR')} - {new Date(activeInvoice.endDate).toLocaleDateString('tr-TR')}
+                                    </p>
+                                    <p className="text-[10px] text-slate-500 mt-0.5 relative z-10">{activeInvoice.trips.length} sefer seçildi.</p>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
                     {/* Aktif Fatura Aksiyonları */}
                     {activeInvoice && (
@@ -334,102 +358,81 @@ const Invoices = () => {
                             Tamamlanan Faturalar
                         </h4>
                     </div>
-                    <motion.div 
-                        initial="hidden"
-                        animate="show"
-                        variants={{
-                            hidden: { opacity: 0 },
-                            show: {
-                                opacity: 1,
-                                transition: {
-                                    staggerChildren: 0.05
-                                }
-                            }
-                        }}
-                        className="p-3 flex-1 overflow-y-auto custom-scrollbar space-y-2"
-                    >
-                        {(invoices || []).length > 0 ? (invoices || []).filter(inv => !inv.deleted).map((inv, index) => {
-                            const isActive = activeInvoice?.id === inv.id && isViewingOldInvoice;
-                            
-                            return (
-                                <motion.div
+                    <div className="p-3 flex-1 overflow-y-auto custom-scrollbar space-y-2 relative">
+                        <AnimatePresence mode="popLayout">
+                            {(invoices || []).length > 0 ? (invoices || []).filter(inv => !inv.deleted).map((inv, index) => {
+                                const isActive = activeInvoice?.id === inv.id && isViewingOldInvoice;
+                                return (
+                                <motion.button
                                     key={inv.id}
-                                    variants={{
-                                        hidden: { opacity: 0, x: -20 },
-                                        show: { opacity: 1, x: 0 }
-                                    }}
-                                    whileHover={{ scale: 1.01, x: 4 }}
-                                    whileTap={{ scale: 0.98 }}
+                                    layout
+                                    initial={{ opacity: 0, y: 15 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.9 }}
+                                    transition={{ duration: 0.3, delay: index * 0.05, type: 'spring', stiffness: 300, damping: 25 }}
                                     onClick={() => handleViewInvoice(inv)}
-                                    className={`p-3 group relative cursor-pointer rounded-xl border transition-all duration-300 ${
-                                        isActive
-                                            ? viewMode === 'pdf'
-                                                ? 'border-purple-500/50 bg-purple-500/10 shadow-[0_0_15px_rgba(168,85,247,0.15)]'
-                                                : 'border-amber-500/50 bg-amber-500/10 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
-                                            : 'border-white/5 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/10'
-                                    }`}
+                                    className={`w-full text-left p-3 rounded-xl transition-all duration-300 group relative cursor-pointer outline-none overflow-hidden block ${isActive ? 'border-transparent' : 'border border-[var(--border-color)] bg-white/5 hover:bg-white/10'}`}
                                 >
+                                    {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors duration-300 -z-10" />}
                                     {isActive && (
-                                        <motion.div 
-                                            layoutId="active-invoice-glow"
-                                            className={`absolute inset-0 rounded-xl -z-10 blur-sm opacity-30 ${
-                                                viewMode === 'pdf' ? 'bg-purple-500' : 'bg-amber-500'
-                                            }`}
-                                            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                                        />
+                                      <motion.div layoutId="invoice-active-apple"
+                                        className={`absolute inset-0 bg-gradient-to-br rounded-xl border ${viewMode === 'pdf' ? 'from-purple-500/20 to-purple-600/10 border-purple-400/40 shadow-[0_2px_15px_rgba(168,85,247,0.15)]' : 'from-amber-500/20 to-amber-600/10 border-amber-400/40 shadow-[0_2px_15px_rgba(251,191,36,0.15)]'}`}
+                                        style={{ zIndex: 0 }} initial={false}
+                                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}
+                                      />
                                     )}
-
-                                <div className="flex justify-between items-center mb-1">
-                                    <span className="font-bold text-emerald-400 text-sm">{inv.docId}</span>
-                                    <div className="flex items-center gap-1">
-                                        <span className="text-xs text-[var(--text-secondary)]">{new Date(inv.endDate).toLocaleDateString('tr-TR')}</span>
-                                        {inv.files?.length > 0 && (
-                                            <span className="text-purple-400" title="PDF eki var">
-                                                <Paperclip size={12} />
-                                            </span>
-                                        )}
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setNoteModalInvoice(inv); setModalNote(inv.note || ''); setModalFiles(inv.files || []); }}
-                                            className={`p-1 rounded transition-colors ${inv.note || inv.files?.length > 0 ? 'text-emerald-400' : 'text-slate-600 hover:text-emerald-400'}`}
-                                            title="Düzenle / Not & Belge"
+                                    
+                                    <div className="relative z-10 flex flex-col gap-1">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <motion.span 
+                                                className={`font-bold text-sm drop-shadow-sm ${isActive ? (viewMode === 'pdf' ? 'text-purple-300' : 'text-amber-300') : 'text-emerald-400'}`}
+                                            >
+                                                {inv.docId}
+                                            </motion.span>
+                                            <div className="flex items-center gap-1">
+                                                <span className={`text-xs ${isActive ? 'text-white/80' : 'text-[var(--text-secondary)]'}`}>{new Date(inv.endDate).toLocaleDateString('tr-TR')}</span>
+                                                {inv.files?.length > 0 && (
+                                                    <span className={`${isActive ? 'text-purple-300' : 'text-purple-400'}`} title="PDF eki var">
+                                                        <Paperclip size={12} />
+                                                    </span>
+                                                )}
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setNoteModalInvoice(inv); setModalNote(inv.note || ''); setModalFiles(inv.files || []); }}
+                                                    className={`p-1 rounded transition-colors ${inv.note || inv.files?.length > 0 ? (isActive ? 'text-white hover:text-emerald-300' : 'text-emerald-400') : (isActive ? 'text-white/50 hover:text-white' : 'text-slate-600 hover:text-emerald-400')}`}
+                                                    title="Düzenle / Not & Belge"
+                                                >
+                                                    <StickyNote size={14} />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => handleDeleteInvoice(inv.id, inv.docId, e)}
+                                                    className={`p-1 transition-colors ${isActive ? 'text-white/50 hover:text-red-400' : 'text-slate-500 hover:text-red-400'}`}
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <motion.div 
+                                            className={`text-sm font-semibold tracking-wide drop-shadow-md ${isActive ? 'text-white' : 'text-[var(--text-primary)]'}`}
+                                            animate={{ scale: isActive ? 1.05 : 1, originX: 0 }}
+                                            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                                         >
-                                            <StickyNote size={14} />
-                                        </button>
-                                        <button
-                                            onClick={(e) => handleDeleteInvoice(inv.id, inv.docId, e)}
-                                            className="text-slate-500 hover:text-red-400 p-1 transition-colors"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
+                                            ₺{inv.grandTotal?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                                        </motion.div>
+                                        <div className={`text-xs mt-0.5 ${isActive ? 'text-white/70' : 'text-slate-500'}`}>{inv.trips?.length || 0} Sefer | {inv.totalTonnage?.toFixed(2)} Ton</div>
                                     </div>
-                                </div>
-                                    <div className="text-sm text-[var(--text-primary)] font-semibold flex items-baseline gap-1.5">
-                                        <span className="text-lg">₺{inv.grandTotal?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between mt-1">
-                                        <div className="text-[11px] text-slate-500 font-medium">{inv.trips?.length || 0} Sefer | {inv.totalTonnage?.toFixed(2)} Ton</div>
-                                        {isActive && (
-                                            <motion.div 
-                                                initial={{ opacity: 0, scale: 0.5 }}
-                                                animate={{ opacity: 1, scale: 1 }}
-                                                className={`w-1.5 h-1.5 rounded-full ${viewMode === 'pdf' ? 'bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)]' : 'bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]'}`}
-                                            />
-                                        )}
-                                    </div>
+                                </motion.button>
+                                )
+                            }) : (
+                                <motion.div 
+                                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                    className="text-center py-8 text-slate-500 text-sm absolute inset-0 flex flex-col items-center justify-center"
+                                >
+                                    <FileText size={24} className="mx-auto mb-2 opacity-50" />
+                                    Henüz kesilmiş fatura yok.
                                 </motion.div>
-                            );
-                        }) : (
-                            <motion.div 
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="text-center py-10 text-slate-500 text-sm bg-white/[0.02] rounded-xl border border-dashed border-white/5"
-                            >
-                                <FileText size={28} className="mx-auto mb-3 opacity-30" />
-                                <p className="font-medium">Henüz kesilmiş fatura yok.</p>
-                                <p className="text-[11px] opacity-60 mt-1">Yeni bir fatura keserek burada görebilirsiniz.</p>
-                            </motion.div>
-                        )}
-                    </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
                 </div>
             </div>
 
