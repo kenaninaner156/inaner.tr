@@ -267,24 +267,24 @@ const Invoices = () => {
             <div className="w-full md:w-[45%] lg:w-[40%] flex flex-col gap-4 md:gap-6 md:overflow-y-auto custom-scrollbar md:pr-2">
 
                 {/* Masüstü İzole Başlık (App.jsx'teki global başlığın yerini alır) */}
-                <div className="hidden md:flex glass-panel px-6 py-4 items-center justify-between shadow-sm border-b border-[var(--border-color)] backdrop-blur-md rounded-2xl shrink-0">
-                    <h2 className="text-2xl font-bold tracking-tight text-[var(--text-primary)] mb-0.5">Fatura Durumu</h2>
+                <div className="hidden md:flex glass-panel px-4 py-3 items-center justify-between shadow-sm border-b border-[var(--border-color)] backdrop-blur-md rounded-2xl shrink-0">
+                    <h2 className="text-lg font-bold tracking-tight text-[var(--text-primary)]">Fatura Durumu</h2>
                 </div>
 
 
 
-                <div className="glass-panel p-6">
+                <div className="glass-panel p-4">
                     <button
                         onClick={handleOpenPeriodModal}
-                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-[var(--text-primary)] p-3 rounded-lg font-bold flex items-center justify-center transition-all shadow-lg shadow-emerald-500/20"
+                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-[var(--text-primary)] py-2.5 px-4 rounded-lg font-bold flex items-center justify-center transition-all shadow-lg shadow-emerald-500/20 text-sm"
                     >
-                        <PlusCircle className="mr-2" size={20} /> Yeni Fatura Periyodu Seç
+                        <PlusCircle className="mr-2" size={17} /> Yeni Fatura Periyodu Seç
                     </button>
                     {activeInvoice && activeInvoice.status === 'Draft' && (
-                        <div className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg group">
-                            <div className="flex justify-between items-start mb-2">
-                                <h4 className="flex items-center text-emerald-400 font-semibold">
-                                    <Clock size={16} className="mr-2" /> İşlem Bekleyen Taslak
+                        <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                            <div className="flex justify-between items-center mb-1">
+                                <h4 className="flex items-center text-emerald-400 font-semibold text-sm">
+                                    <Clock size={14} className="mr-1.5" /> İşlem Bekleyen Taslak
                                 </h4>
                                 <button
                                     onClick={() => setShowCancelConfirm(true)}
@@ -293,67 +293,47 @@ const Invoices = () => {
                                     İptal Et
                                 </button>
                             </div>
-                            <p className="text-sm text-[var(--text-primary)]">
+                            <p className="text-xs text-[var(--text-primary)]">
                                 {new Date(activeInvoice.startDate).toLocaleDateString('tr-TR')} - {new Date(activeInvoice.endDate).toLocaleDateString('tr-TR')}
                             </p>
-                            <p className="text-xs text-slate-500 mt-1">{activeInvoice.trips.length} sefer seçildi.</p>
+                            <p className="text-[10px] text-slate-500 mt-0.5">{activeInvoice.trips.length} sefer seçildi.</p>
                         </div>
                     )}
 
-                    {/* Aktif Fatura Aksiyonları (PDF, Onayla vb.) */}
+                    {/* Aktif Fatura Aksiyonları */}
                     {activeInvoice && (
-                        <div className="mt-4 flex flex-col gap-2">
+                        <div className="mt-3 flex flex-row gap-2">
                             <button
                                 onClick={handlePrintPDF}
-                                className="w-full flex items-center justify-center gap-2 p-3 bg-slate-700 hover:bg-slate-600 text-[var(--text-primary)] rounded-xl text-sm font-medium transition-colors"
+                                className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-slate-700 hover:bg-slate-600 text-[var(--text-primary)] rounded-lg text-xs font-medium transition-colors"
                             >
-                                <Printer size={16} /> PDF İndir / Yazdır
+                                <Printer size={14} /> PDF İndir
                             </button>
-                            {/* Net Fiyat Güncelle butonu (tamamlanan fatura görüntüleniyorsa) */}
-                            {activeInvoice?.status === 'Sent' && isViewingOldInvoice && (
-                                <button
-                                    onClick={async () => {
-                                        if (!activeInvoice?.id) return;
-                                        await updateInvoice(activeInvoice.id, { grandTotal: netPrice });
-                                        addLog('FATURA_FIYAT', `${activeInvoice.docId} net fiyat güncellendi: ₺${netPrice?.toLocaleString('tr-TR')}`);
-                                    }}
-                                    className="w-full flex items-center justify-center gap-2 p-3 bg-blue-700 hover:bg-blue-600 text-white rounded-xl text-sm font-medium transition-colors border border-blue-500 shadow-lg shadow-blue-500/20"
-                                >
-                                    <Save size={16} /> Net Fiyatı Kaydet
-                                </button>
-                            )}
                             {activeInvoice.status === 'Sent' ? (
-                                <button
-                                    disabled
-                                    className="w-full flex items-center justify-center gap-2 p-3 bg-[var(--bg-panel-hover)] text-emerald-400 rounded-xl text-sm font-medium border border-emerald-500/30 opacity-80"
-                                >
-                                    <CheckCircle size={16} /> Fatura Onaylandı
+                                <button disabled className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-[var(--bg-panel-hover)] text-emerald-400 rounded-lg text-xs font-medium border border-emerald-500/30 opacity-80">
+                                    <CheckCircle size={14} /> Onaylandı
                                 </button>
                             ) : (
                                 <button
                                     onClick={handleSaveInvoice}
-                                    className="w-full flex items-center justify-center gap-2 p-3 bg-emerald-600 hover:bg-emerald-500 text-[var(--text-primary)] rounded-xl text-sm font-medium transition-colors border border-emerald-500 shadow-lg shadow-emerald-500/20"
+                                    className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-emerald-600 hover:bg-emerald-500 text-[var(--text-primary)] rounded-lg text-xs font-medium transition-colors border border-emerald-500 shadow-lg shadow-emerald-500/20"
                                 >
-                                    <Save size={16} /> Faturayı Kes & Onayla
+                                    <Save size={14} /> Kes & Onayla
                                 </button>
                             )}
                         </div>
                     )}
-
-
-                    {/* Yetim Sefer Uyarısı */}
-
                 </div>
 
                 {/* Geçmiş Faturalar Listesi */}
                 <div className="glass-panel flex-1 min-h-0 flex flex-col">
-                    <div className="p-4 border-b border-[var(--border-color)] sticky top-0 bg-[var(--bg-panel)] backdrop-blur z-10 rounded-t-xl">
-                        <h4 className="font-bold text-[var(--text-primary)] flex items-center">
-                            <CheckCircle className="mr-2 text-emerald-400" size={18} />
+                    <div className="p-3 border-b border-[var(--border-color)] sticky top-0 bg-[var(--bg-panel)] backdrop-blur z-10 rounded-t-xl">
+                        <h4 className="font-bold text-[var(--text-primary)] flex items-center text-sm">
+                            <CheckCircle className="mr-2 text-emerald-400" size={16} />
                             Tamamlanan Faturalar
                         </h4>
                     </div>
-                    <div className="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-3">
+                    <div className="p-3 flex-1 overflow-y-auto custom-scrollbar space-y-2">
                         {(invoices || []).length > 0 ? (invoices || []).filter(inv => !inv.deleted).map(inv => (
                             <div
                                 key={inv.id}
@@ -368,38 +348,30 @@ const Invoices = () => {
                             >
                                 <div className="flex justify-between items-center mb-1">
                                     <span className="font-bold text-emerald-400 text-sm">{inv.docId}</span>
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-1">
                                         <span className="text-xs text-[var(--text-secondary)]">{new Date(inv.endDate).toLocaleDateString('tr-TR')}</span>
                                         {inv.files?.length > 0 && (
-                                            <span className="text-purple-400" title="PDF eki var — tekrar tıklıyarak görüntüleyin">
-                                                <Paperclip size={13} />
+                                            <span className="text-purple-400" title="PDF eki var">
+                                                <Paperclip size={12} />
                                             </span>
                                         )}
                                         <button
                                             onClick={(e) => { e.stopPropagation(); setNoteModalInvoice(inv); setModalNote(inv.note || ''); setModalFiles(inv.files || []); }}
                                             className={`p-1 rounded transition-colors ${inv.note || inv.files?.length > 0 ? 'text-emerald-400' : 'text-slate-600 hover:text-emerald-400'}`}
-                                            title="Not & Belge Ekle/Gör"
+                                            title="Düzenle / Not & Belge"
                                         >
-                                            <StickyNote size={15} />
+                                            <StickyNote size={14} />
                                         </button>
                                         <button
                                             onClick={(e) => handleDeleteInvoice(inv.id, inv.docId, e)}
                                             className="text-slate-500 hover:text-red-400 p-1 transition-colors"
-                                            title="Faturayı Sil"
                                         >
-                                            <Trash2 size={15} />
+                                            <Trash2 size={14} />
                                         </button>
                                     </div>
                                 </div>
-                                <div className="text-sm text-[var(--text-primary)] font-medium">₺{inv.grandTotal?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
-                                <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
-                                    <span>{inv.trips?.length || 0} Sefer | {inv.totalTonnage?.toFixed(2)} Ton</span>
-                                    {inv.files?.length > 0 && (
-                                        <span className="text-purple-400 font-medium text-[10px]">
-                                            {activeInvoice?.id === inv.id && viewMode === 'pdf' ? '📎 PDF Görüntüleniyor' : '📎 PDF Ek'}
-                                        </span>
-                                    )}
-                                </div>
+                                <div className="text-sm text-[var(--text-primary)] font-semibold">₺{inv.grandTotal?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
+                                <div className="text-xs text-slate-500 mt-0.5">{inv.trips?.length || 0} Sefer | {inv.totalTonnage?.toFixed(2)} Ton</div>
                             </div>
                         )) : (
                             <div className="text-center py-8 text-slate-500 text-sm">
@@ -426,6 +398,10 @@ const Invoices = () => {
                                 vehicleInfo={{ plate: activeTruckData?.plate, trailerPlate: activeTruckData?.trailerPlate }}
                                 netPrice={netPrice}
                                 onChangeNetPrice={setNetPrice}
+                                onSavePrice={activeInvoice?.status === 'Sent' && isViewingOldInvoice ? async () => {
+                                    await updateInvoice(activeInvoice.id, { grandTotal: netPrice });
+                                    addLog('FATURA_FIYAT', `${activeInvoice.docId} net fiyat güncellendi: ₺${netPrice?.toLocaleString('tr-TR')}`);
+                                } : undefined}
                                 fuelRecords={fuelRecords}
                             />
                         )
@@ -452,30 +428,45 @@ const Invoices = () => {
             {/* Hızlı Not Modal */}
             {noteModalInvoice && (
                 <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => setNoteModalInvoice(null)}>
-                    <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-color)] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center p-4 border-b border-[var(--border-color)] bg-slate-800/50">
-                            <h3 className="font-bold flex items-center gap-2 text-[var(--text-primary)]">
-                                <StickyNote size={18} className="text-emerald-400" />
-                                {noteModalInvoice.docId} — Not & Belge
+                    <div className="bg-[#0f1117] rounded-2xl border border-emerald-500/20 shadow-2xl shadow-emerald-900/20 w-full max-w-lg overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center px-5 py-4 border-b border-white/5">
+                            <h3 className="font-bold flex items-center gap-2.5 text-[var(--text-primary)]">
+                                <span className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center flex-shrink-0">
+                                    <StickyNote size={14} className="text-emerald-400" />
+                                </span>
+                                <span>{noteModalInvoice.docId} <span className="text-slate-500 font-normal">— Düzenle</span></span>
                             </h3>
-                            <button onClick={() => setNoteModalInvoice(null)} className="text-slate-400 hover:text-white transition-colors text-xl leading-none">&times;</button>
+                            <button onClick={() => setNoteModalInvoice(null)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-white hover:bg-white/10 transition-all text-lg">&times;</button>
                         </div>
-                        <div className="p-4 space-y-4">
-                            <textarea
-                                value={modalNote}
-                                onChange={(e) => setModalNote(e.target.value)}
-                                className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg p-3 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 min-h-[100px] resize-none"
-                                placeholder="Faturaya dair hatırlatıcı kısa notlar alın... (örn: ödeme tarihi, onay notu)"
-                            />
+                        <div className="p-5 space-y-4">
+                            <div>
+                                <p className="text-xs text-slate-500 mb-1.5 flex items-center gap-1"><Save size={11} /> Net Fiyat (₺)</p>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={noteModalInvoice._editPrice ?? noteModalInvoice.grandTotal ?? 0}
+                                    onChange={(e) => setNoteModalInvoice(prev => ({ ...prev, _editPrice: parseFloat(e.target.value) || 0 }))}
+                                    className="w-full bg-white/5 border border-white/10 focus:border-emerald-500/40 rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] outline-none transition-colors"
+                                />
+                            </div>
+                            <div>
+                                <p className="text-xs text-slate-500 mb-1.5">Not</p>
+                                <textarea
+                                    value={modalNote}
+                                    onChange={(e) => setModalNote(e.target.value)}
+                                    className="w-full bg-white/5 border border-white/10 focus:border-emerald-500/40 rounded-lg p-3 text-sm text-[var(--text-primary)] placeholder-slate-600 outline-none min-h-[80px] resize-none transition-colors"
+                                    placeholder="Not ekle... (ödeme tarihi, onay notu vb.)"
+                                />
+                            </div>
                             <div>
                                 <p className="text-xs text-slate-500 mb-2 flex items-center gap-1"><Paperclip size={11} /> Onay Belgesi / Fotoğraf / PDF</p>
                                 <FileUpload files={modalFiles} onChange={setModalFiles} maxSizeMB={10} />
                             </div>
                         </div>
-                        <div className="p-4 bg-slate-800/30 border-t border-[var(--border-color)] flex justify-end gap-3">
+                        <div className="px-5 py-4 border-t border-white/5 flex justify-end gap-3">
                             <button
                                 onClick={() => setNoteModalInvoice(null)}
-                                className="px-5 py-2 rounded-lg font-medium text-slate-300 hover:bg-slate-700/50 border border-transparent transition-colors"
+                                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-white/8 transition-colors"
                             >
                                 İptal
                             </button>
@@ -483,14 +474,16 @@ const Invoices = () => {
                                 onClick={async () => {
                                     setIsSavingNote(true);
                                     try {
-                                        await updateInvoice(noteModalInvoice.id, { note: modalNote, files: modalFiles });
-                                        addLog('FATURA_NOT', `${noteModalInvoice.docId} notları güncellendi`);
+                                        const newPrice = noteModalInvoice._editPrice ?? noteModalInvoice.grandTotal ?? 0;
+                                        await updateInvoice(noteModalInvoice.id, { note: modalNote, files: modalFiles, grandTotal: newPrice });
+                                        if (activeInvoice?.id === noteModalInvoice.id) setNetPrice(newPrice);
+                                        addLog('FATURA_NOT', `${noteModalInvoice.docId} güncellendi`);
                                         setNoteModalInvoice(null);
                                     } catch { /* empty */ }
                                     setIsSavingNote(false);
                                 }}
                                 disabled={isSavingNote}
-                                className="px-5 py-2 rounded-lg font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-2"
+                                className="px-5 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors shadow-lg shadow-emerald-900/40 disabled:opacity-50"
                             >
                                 {isSavingNote ? 'Kaydediliyor...' : 'Kaydet'}
                             </button>

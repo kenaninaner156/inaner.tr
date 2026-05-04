@@ -1,4 +1,5 @@
 import React, { useState, useContext, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Search, MapPin, X, ChevronDown, Check, Trash2, Paperclip, FileText, Pencil, StickyNote, Truck } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import FileUpload from './FileUpload';
@@ -421,7 +422,7 @@ const Trips = () => {
 
 
             {/* ─── DÜZENLE MODAL ─── */}
-            {editingTrip && (
+            {editingTrip && createPortal(
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto">
                         <button onClick={() => setEditingTrip(null)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
@@ -629,11 +630,12 @@ const Trips = () => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* ─── MANUEL EKLE MODAL ─── */}
-            {isModalOpen && (
+            {isModalOpen && createPortal(
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 border-sky-500/30 max-h-[92vh] overflow-y-visible flex flex-col">
                         <button
@@ -854,11 +856,12 @@ const Trips = () => {
                             </button>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* ─── ROTA YÖNETİMİ MODAL ─── */}
-            {isRouteManagerOpen && (
+            {isRouteManagerOpen && createPortal(
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
                     <div className="glass-panel w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 border-sky-500/30">
                         <button onClick={() => setIsRouteManagerOpen(false)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
@@ -907,11 +910,12 @@ const Trips = () => {
                             Kapat
                         </button>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* ─── DOSYA GÖRÜNTÜLEYICI ─── */}
-            {viewFiles && (
+            {viewFiles && createPortal(
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setViewFiles(null)}>
                     <div className="glass-panel w-full max-w-lg p-5 relative animate-in zoom-in-95 duration-200 max-h-[80vh] overflow-y-auto"
                         onClick={e => e.stopPropagation()}>
@@ -940,11 +944,12 @@ const Trips = () => {
                             ))}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* ─── ROTA SEÇİCİ MODAL (YENİ PENCERE) ─── */}
-            {isRouteSelectorOpen && (
+            {isRouteSelectorOpen && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
                     <div className="glass-panel w-full max-w-lg p-0 relative animate-in zoom-in-95 duration-200 border-sky-500/30 overflow-hidden flex flex-col h-[80vh] md:h-auto md:max-h-[85vh]">
                         {/* Modal Header */}
@@ -1034,7 +1039,8 @@ const Trips = () => {
                             )}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
         </div>

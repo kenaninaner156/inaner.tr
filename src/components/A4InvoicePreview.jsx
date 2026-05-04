@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Check } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Check, ThumbsUp } from 'lucide-react';
 
 const A4_WIDTH = 794;
 const A4_HEIGHT = 1123;
@@ -9,19 +9,28 @@ const A4InvoicePreview = React.forwardRef(({
     vehicleInfo,
     netPrice,
     onChangeNetPrice,
+    onSavePrice,
     fuelRecords = []
 }, ref) => {
 
     const [localPrice, setLocalPrice] = useState('');
+    const [isDirty, setIsDirty] = useState(false);
+    const [saveAnim, setSaveAnim] = useState('idle'); // idle | entering | saved | leaving
+    const initialPriceRef = useRef(null);
 
     useEffect(() => {
         const parsedLocal = parseFloat(localPrice.replace(/\./g, '').replace(',', '.'));
         if (netPrice !== parsedLocal && netPrice !== undefined && netPrice !== null) {
              const parts = netPrice.toFixed(2).split('.');
              const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-             setLocalPrice(`${intPart},${parts[1]}`);
+             const formatted = `${intPart},${parts[1]}`;
+             setLocalPrice(formatted);
+             initialPriceRef.current = formatted;
+             setIsDirty(false);
+             setSaveAnim('idle');
         } else if (!netPrice && netPrice !== 0) {
              setLocalPrice('');
+             initialPriceRef.current = '';
         }
     }, [netPrice]);
 
@@ -51,6 +60,32 @@ const A4InvoicePreview = React.forwardRef(({
         
         const floatVal = parseFloat(raw.replace(',', '.'));
         onChangeNetPrice(isNaN(floatVal) ? 0 : floatVal);
+
+        // Show save button if changed from initial
+        const changed = formatted !== initialPriceRef.current;
+        if (changed && !isDirty) {
+            setIsDirty(true);
+            setSaveAnim('entering');
+            setTimeout(() => setSaveAnim('visible'), 10);
+        } else if (!changed) {
+            setIsDirty(false);
+            setSaveAnim('leaving');
+            setTimeout(() => setSaveAnim('idle'), 300);
+        }
+    };
+
+    const handleSaveClick = async () => {
+        if (!onSavePrice) return;
+        setSaveAnim('saved');
+        await onSavePrice();
+        setTimeout(() => {
+            setSaveAnim('leaving');
+            setTimeout(() => {
+                setSaveAnim('idle');
+                setIsDirty(false);
+                initialPriceRef.current = localPrice;
+            }, 350);
+        }, 700);
     };
 
     const { startDate, endDate, trips = [] } = invoiceData || {};
@@ -292,11 +327,31 @@ const A4InvoicePreview = React.forwardRef(({
 
     const renderNetFiyat = () => (
         <div className="print:hidden flex justify-end mt-4 pb-6">
-            <div className="w-2/5 rounded-xl bg-slate-50/50 p-4 border border-slate-200">
-                <div className="flex justify-between items-center">
+            <style>{`
+                @keyframes btnPopIn {
+                    0% { transform: scale(0) rotate(-20deg); opacity: 0; }
+                    70% { transform: scale(1.15) rotate(4deg); opacity: 1; }
+                    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+                }
+                @keyframes btnPopOut {
+                    0% { transform: scale(1); opacity: 1; }
+                    100% { transform: scale(0) rotate(20deg); opacity: 0; }
+                }
+                @keyframes thumbPulse {
+                    0% { transform: scale(1); }
+                    40% { transform: scale(1.3) rotate(-10deg); }
+                    70% { transform: scale(0.95) rotate(5deg); }
+                    100% { transform: scale(1) rotate(0deg); }
+                }
+                .btn-pop-in  { animation: btnPopIn  0.3s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+                .btn-pop-out { animation: btnPopOut 0.3s ease-in forwards; }
+                .btn-thumb   { animation: thumbPulse 0.5s ease forwards; }
+            `}</style>
+            <div className="flex justify-end mt-4 pb-6 pr-10">
+                <div className="flex items-center gap-2">
                     <span className="text-blue-900 font-black text-xs">NET FİYAT:</span>
-                    <div className="flex items-center gap-1">
-                        <span className="text-slate-500 text-[10px]">₺</span>
+                    <span className="text-slate-500 text-[10px]">₺</span>
+                    <div className="relative">
                         <input
                             type="text"
                             placeholder="0,00"
@@ -304,6 +359,22 @@ const A4InvoicePreview = React.forwardRef(({
                             value={localPrice}
                             onChange={handlePriceChange}
                         />
+                        {onSavePrice && saveAnim !== 'idle' && (
+                            <button
+                                onClick={handleSaveClick}
+                                title="Fiyatı kaydet"
+                                className={`absolute -right-9 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-lg text-white flex-shrink-0
+                                    ${ saveAnim === 'saved' ? 'bg-emerald-500 btn-thumb' : 'bg-emerald-500 hover:bg-emerald-400' }
+                                    ${ saveAnim === 'entering' || saveAnim === 'visible' ? 'btn-pop-in' : '' }
+                                    ${ saveAnim === 'leaving' ? 'btn-pop-out' : '' }
+                                `}
+                            >
+                                {saveAnim === 'saved'
+                                    ? <ThumbsUp size={13} />
+                                    : <Check size={13} />
+                                }
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

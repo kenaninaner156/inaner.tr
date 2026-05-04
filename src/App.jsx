@@ -105,23 +105,13 @@ function App() {
   const currentUser = currentSession;
   const userRole = currentUser?.username === 'kenan' ? 'super_admin' : String(currentUser?.role || 'user').toLowerCase();
 
-  const [showCompanyDrop, setShowCompanyDrop] = useState(false);
-  const [showTruckDrop, setShowTruckDrop] = useState(false);
   const [showCompanyExpand, setShowCompanyExpand] = useState(false);
-  const companyDropRef = useRef(null);
-  const truckDropRef = useRef(null);
+  const [showTruckExpand, setShowTruckExpand] = useState(false);
 
   const DEFAULT_PIC = '/tir-clear.png?v=8'
   const profilePic = activeTruckData?.imageUrl || DEFAULT_PIC;
 
-  useEffect(() => {
-    const handler = (e) => {
-      if (companyDropRef.current && !companyDropRef.current.contains(e.target)) setShowCompanyDrop(false);
-      if (truckDropRef.current && !truckDropRef.current.contains(e.target)) setShowTruckDrop(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
@@ -280,131 +270,16 @@ function App() {
           background: 'var(--bg-sidebar)',
           borderRight: `1px solid var(--border-color)`,
         }}>
-        {/* Header - Profile Area (Company & Truck Switcher) */}
-        <div className="px-5 pb-4 flex flex-col gap-3"
-          style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
+        {/* Header - Premium Logo */}
+        <div className="pb-2 flex flex-col"
+          style={{ paddingTop: 'calc(2rem + env(safe-area-inset-top))' }}>
 
           <PremiumLogo />
 
-          {trucks.length <= 1 ? (
-            /* Tek tır varsa: sadece bilgi kartı, dropdown yok */
-            <div className="relative p-[1px] rounded-2xl bg-gradient-to-b from-white/10 via-white/5 to-transparent group hover:from-amber-500/40 hover:via-amber-500/10 hover:to-transparent transition-all duration-500 shadow-xl shadow-black/40 cursor-pointer" onClick={() => setActiveTab('settings')}>
-              <div className="relative h-full w-full bg-[#0a0a0c]/90 backdrop-blur-xl rounded-[15px] p-3 flex items-center gap-3 overflow-hidden">
-                {/* Ambient background glow */}
-                <div className="absolute -inset-2 bg-gradient-to-r from-amber-500/0 via-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-700 pointer-events-none" />
-                
-                {/* Profile Pic wrapper */}
-                <div className="w-12 h-12 rounded-[14px] p-[1px] bg-gradient-to-b from-white/10 to-transparent group-hover:from-amber-400/50 group-hover:to-amber-600/20 transition-all duration-500 flex-shrink-0 shadow-[0_0_15px_rgba(0,0,0,0.5)]">
-                  <div className="w-full h-full rounded-[13px] overflow-hidden bg-slate-900 flex items-center justify-center relative">
-                    <div className="absolute inset-0 bg-amber-500/20 mix-blend-overlay z-10 group-hover:bg-transparent transition-colors duration-500" />
-                    {profilePic
-                      ? <img src={profilePic} alt="Profile" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-out" />
-                      : <Truck size={22} className="text-amber-500/80 transform group-hover:scale-110 transition-transform duration-700 ease-out" />}
-                  </div>
-                </div>
-
-                {/* Text Info */}
-                <div className="flex-1 min-w-0 z-10">
-                  <h3 className="text-[15px] font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-100 to-slate-300 group-hover:from-amber-200 group-hover:to-amber-400 tracking-tight transition-all duration-500 truncate drop-shadow-sm">
-                    {trucks.length === 0 ? 'Tır Bulunmuyor' : trucks[0]?.plate}
-                  </h3>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
-                    <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest truncate group-hover:text-amber-100/70 transition-colors duration-500">
-                      {activeTruckData?.brand || companyData?.name || 'Yükleniyor...'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div ref={truckDropRef} className="relative z-50">
-              <button
-                onClick={() => setShowTruckDrop(v => !v)}
-                className="w-full text-left relative p-[1px] rounded-2xl bg-gradient-to-b from-white/10 via-white/5 to-transparent group hover:from-amber-500/40 hover:via-amber-500/10 hover:to-transparent transition-all duration-500 shadow-xl shadow-black/40 outline-none"
-              >
-                <div className="relative h-full w-full bg-[#0a0a0c]/90 backdrop-blur-xl rounded-[15px] p-3 flex items-center gap-3 overflow-hidden">
-                  {/* Ambient background glow */}
-                  <div className="absolute -inset-2 bg-gradient-to-r from-amber-500/0 via-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-700 pointer-events-none" />
-                  
-                  {/* Profile Pic wrapper */}
-                  <div className="w-12 h-12 rounded-[14px] p-[1px] bg-gradient-to-b from-white/10 to-transparent group-hover:from-amber-400/50 group-hover:to-amber-600/20 transition-all duration-500 flex-shrink-0 shadow-[0_0_15px_rgba(0,0,0,0.5)]" onClick={(e) => { e.stopPropagation(); setActiveTab('settings'); }}>
-                    <div className="w-full h-full rounded-[13px] overflow-hidden bg-slate-900 flex items-center justify-center relative">
-                      <div className="absolute inset-0 bg-amber-500/20 mix-blend-overlay z-10 group-hover:bg-transparent transition-colors duration-500" />
-                      {profilePic
-                        ? <img src={profilePic} alt="Profile" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-out" />
-                        : <Truck size={22} className="text-amber-500/80 transform group-hover:scale-110 transition-transform duration-700 ease-out" />}
-                    </div>
-                  </div>
-
-                  {/* Text Info */}
-                  <div className="flex-1 min-w-0 z-10">
-                    <h3 className="text-[15px] font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-100 to-slate-300 group-hover:from-amber-200 group-hover:to-amber-400 tracking-tight transition-all duration-500 truncate drop-shadow-sm">
-                      {trucks.length === 0 ? 'Tır Bulunmuyor' : (trucks.find(t => t.id === activeTruckId)?.plate || 'Seç...')}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
-                      <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest truncate group-hover:text-amber-100/70 transition-colors duration-500">
-                        {activeTruckData?.brand || companyData?.name || 'Yükleniyor...'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Chevron */}
-                  <div className="w-6 h-6 rounded-full border border-white/5 bg-white/5 flex items-center justify-center group-hover:bg-amber-500/20 group-hover:border-amber-500/40 transition-all duration-500 flex-shrink-0 z-10">
-                    <ChevronDown size={14} className={`text-slate-400 transition-transform duration-500 ${showTruckDrop ? 'rotate-180 text-amber-400' : 'group-hover:text-amber-400'}`} />
-                  </div>
-                </div>
-              </button>
-
-              <AnimatePresence>
-                {showTruckDrop && trucks.length > 0 && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: -10, filter: 'blur(10px)' }}
-                    animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                    exit={{ opacity: 0, y: -10, filter: 'blur(10px)' }}
-                    transition={{ duration: 0.3, type: 'spring', stiffness: 300, damping: 25 }}
-                    className="absolute left-0 right-0 top-full mt-3 z-50 p-[1px] bg-gradient-to-b from-white/10 via-white/5 to-transparent rounded-2xl shadow-2xl shadow-black/80"
-                  >
-                    <div className="bg-[#0a0a0c]/95 backdrop-blur-2xl rounded-[15px] p-2 overflow-hidden flex flex-col gap-1">
-                      {trucks.map(t => {
-                        const isActive = activeTruckId === t.id;
-                        return (
-                          <button key={t.id} onClick={() => { setActiveTruckId(t.id); setShowTruckDrop(false); }}
-                            className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 text-left group overflow-hidden outline-none ${isActive ? '' : 'hover:bg-white/5'}`}>
-                            {/* Active bg sweep */}
-                            {isActive && <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent" />}
-                            
-                            {/* Icon wrapper */}
-                            <div className={`relative z-10 w-8 h-8 rounded-[10px] flex items-center justify-center flex-shrink-0 transition-all duration-300 border ${isActive ? 'bg-amber-500/20 border-amber-500/30 text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.2)]' : 'bg-slate-800 border-white/5 text-slate-400 group-hover:text-slate-200'}`}>
-                              <Truck size={14} />
-                            </div>
-                            
-                            {/* Text */}
-                            <div className="relative z-10 flex-1 min-w-0">
-                               <p className={`text-sm font-bold tracking-wide truncate transition-colors duration-300 ${isActive ? 'text-amber-400' : 'text-slate-300 group-hover:text-white'}`}>{t.plate}</p>
-                               <p className={`text-[10px] uppercase tracking-wider font-medium truncate transition-colors duration-300 mt-0.5 ${isActive ? 'text-amber-500/70' : 'text-slate-500 group-hover:text-slate-400'}`}>{t.brand}</p>
-                            </div>
-                            
-                            {/* Status indicator */}
-                            {isActive && (
-                               <div className="relative z-10 flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/30">
-                                 <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]" />
-                               </div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
         </div>
 
         {/* Nav Links */}
-        <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto relative">
+        <nav className="flex-1 px-4 pt-10 pb-4 space-y-1.5 overflow-y-auto relative custom-scrollbar">
           {filteredMenuItems.map((item) => {
             const isActive = activeTab === item.id;
 
@@ -494,6 +369,90 @@ function App() {
               );
             }
 
+            // ── Şirket Yönetimi: morph eden buton + ayrı expand (Tır seçimi için) ──
+            if (item.id === 'company_admin') {
+              const activeTruckPlate = trucks.find(t => t.id === activeTruckId)?.plate || 'Tır Seçin';
+              const otherTrucks = trucks.filter(t => t.id !== activeTruckId);
+              
+              return (
+                <div key={item.id}>
+                  <button onClick={() => { setActiveTab(item.id); if (isMobile) setIsMenuOpen(false); }}
+                    className={`w-full relative flex items-center space-x-3 px-4 h-10 rounded-xl text-left group transition-all duration-300 outline-none ${isActive ? 'font-medium text-white' : 'text-slate-400 hover:text-slate-200'}`}>
+                    {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 rounded-xl transition-colors duration-300 -z-10" />}
+                    {isActive && (
+                      <motion.div layoutId="sidebar-active-apple"
+                        className={`absolute inset-0 bg-gradient-to-b rounded-xl border ${item.theme}`}
+                        style={{ zIndex: 0 }} initial={false}
+                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}
+                      />
+                    )}
+                    <div className={`relative z-10 flex items-center flex-shrink-0 transition-transform duration-300 ${isActive ? 'scale-110 drop-shadow-md text-white/90' : `text-slate-500 group-hover:scale-110 ${item.hoverText}`}`}>
+                      {item.icon}
+                    </div>
+                    <div className="flex-1 self-stretch overflow-hidden relative z-10 flex flex-col justify-center">
+                      <motion.span
+                        className="text-sm tracking-wide drop-shadow-md leading-none text-left"
+                        animate={{ y: isActive ? -3 : 0 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}>
+                        {item.label}
+                      </motion.span>
+                      <motion.span
+                        className="absolute left-0 right-0 text-[10px] text-indigo-200/75 font-medium truncate leading-none"
+                        style={{ top: 0 }}
+                        animate={{ y: isActive ? 27 : 50, opacity: isActive ? 1 : 0 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}>
+                        {activeTruckPlate}
+                      </motion.span>
+                    </div>
+                    {/* Expand chevron */}
+                    <motion.button
+                      animate={{ opacity: isActive ? 1 : 0 }}
+                      transition={{ duration: 0.15 }}
+                      onClick={(e) => { e.stopPropagation(); if (isActive) setShowTruckExpand(v => !v); }}
+                      className="relative z-20 p-1 rounded-md hover:bg-white/15 transition-colors flex-shrink-0"
+                      style={{ pointerEvents: isActive ? 'auto' : 'none' }}>
+                      <motion.div animate={{ rotate: showTruckExpand ? 180 : 0 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}>
+                        <ChevronDown size={12} className="text-indigo-300/70" />
+                      </motion.div>
+                    </motion.button>
+                  </button>
+
+                  {/* Tır listesi - sadece expand açıkken ve aktifken */}
+                  <AnimatePresence>
+                    {isActive && showTruckExpand && (
+                      <motion.div key="company-trucks"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
+                        className="overflow-hidden">
+                        <div className="mx-1 mt-1 mb-0.5 bg-indigo-500/5 border border-indigo-500/15 rounded-xl overflow-hidden">
+                          {/* Aktif Tır */}
+                          <div className="flex items-center gap-2.5 px-3 py-2.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0 shadow-[0_0_6px_rgba(99,102,241,0.5)]" />
+                            <span className="text-xs font-semibold text-indigo-200 flex-1 truncate">{activeTruckPlate}</span>
+                            <span className="text-[8px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide">Aktif</span>
+                          </div>
+                          {/* Diğer Tırlar */}
+                          {otherTrucks.map((t, i) => (
+                            <div key={t.id}>
+                              {i === 0 && <div className="h-px bg-indigo-500/10 mx-3" />}
+                              <button onClick={() => { setActiveTruckId(t.id); setShowTruckExpand(false); }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-indigo-500/10 transition-colors group/co">
+                                <Truck size={11} className="text-slate-600 group-hover/co:text-indigo-400 transition-colors flex-shrink-0" />
+                                <span className="text-xs text-slate-400 group-hover/co:text-white transition-colors truncate">{t.plate}</span>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            }
+
             // ── Normal nav itemları ──
             return (
               <button key={item.id} onClick={() => { setActiveTab(item.id); if (isMobile) setIsMenuOpen(false); }}
@@ -524,13 +483,17 @@ function App() {
         </nav>
 
         {/* Footer: User & Theme */}
-        <div className="p-4 pl-10 pr-6 pb-5 flex items-center justify-between"
+        <div className="p-4 pl-10 pr-6 pb-6 flex items-center justify-between"
           style={{ 
-            paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))'
+            paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))'
           }}>
-          <span className="text-xs text-slate-500 font-medium truncate max-w-[120px]" title={currentUser.username}>
+          <button 
+            onClick={() => setActiveTab('settings')}
+            className="text-xs text-slate-500 font-medium truncate max-w-[120px] hover:text-slate-200 transition-colors cursor-pointer outline-none text-left" 
+            title="Sistem Ayarları"
+          >
             {currentUser.username}
-          </span>
+          </button>
           <div className="flex items-center gap-2">
             <button onClick={toggleTheme}
               title={theme === 'dark' ? 'Aydınlık Tema' : 'Karanlık Tema'}

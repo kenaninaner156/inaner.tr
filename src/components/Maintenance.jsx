@@ -676,7 +676,19 @@ const Maintenance = () => {
                                     <div className="bg-amber-500/20 p-2.5 rounded-xl text-amber-400"><Wrench size={20} /></div>
                                     <div className="flex-1 min-w-0 pr-6">
                                         <h4 className="font-bold text-[var(--text-primary)] text-base">{m.name}</h4>
-                                        <span className="text-[10px] bg-white/5 border border-[var(--border-color)] text-[var(--text-secondary)] px-2 py-0.5 rounded-full mt-1 inline-block uppercase tracking-wider">{m.type}</span>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-[10px] bg-white/5 border border-[var(--border-color)] text-[var(--text-secondary)] px-2 py-0.5 rounded-full inline-block uppercase tracking-wider">{m.type}</span>
+                                            {m.location && (
+                                                <a 
+                                                    href={m.mapLink || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.location)}`} 
+                                                    target="_blank" rel="noopener noreferrer"
+                                                    className="flex items-center gap-1 px-2 py-0.5 bg-white/5 hover:bg-white/10 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-full transition-colors border border-[var(--border-color)] text-[10px] uppercase tracking-wider font-medium"
+                                                >
+                                                    <Map size={10} />
+                                                    Haritada Aç
+                                                </a>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -694,21 +706,9 @@ const Maintenance = () => {
                                         </div>
                                     )}
                                     {m.location && (
-                                        <div className="flex items-start gap-2 text-sm text-[var(--text-primary)]">
+                                        <div className="flex items-start gap-2 text-sm text-[var(--text-primary)] mt-1">
                                             <MapPin size={14} className="text-slate-500 flex-shrink-0 mt-0.5" />
-                                            <div className="flex flex-col flex-1">
-                                                <span>{m.location}</span>
-                                                {/* Küçük Harita */}
-                                                <div className="mt-2 w-full h-32 rounded-lg overflow-hidden border border-[var(--border-color)] opacity-80 hover:opacity-100 transition-opacity">
-                                                    <iframe
-                                                        width="100%"
-                                                        height="100%"
-                                                        frameBorder="0" style={{ border: 0 }}
-                                                        src={`https://maps.google.com/maps?q=${encodeURIComponent(m.location)}&t=&z=13&ie=UTF8&iwloc=&output=embed`}
-                                                        allowFullScreen
-                                                    ></iframe>
-                                                </div>
-                                            </div>
+                                            <span className="flex-1" title={m.location}>{m.location}</span>
                                         </div>
                                     )}
                                 </div>

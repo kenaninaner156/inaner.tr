@@ -1,4 +1,5 @@
 import React, { useState, useContext, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Droplet, Plus, MapPin, X, Trash2, Paperclip, FileText, Download, Pencil, StickyNote, ChevronDown, Calendar, Activity, Wallet } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import FileUpload from './FileUpload';
@@ -548,7 +549,7 @@ const Fuel = () => {
             </div>
 
             {/* ─── DÜZENLE MODAL ─── */}
-            {editingFuel && (
+            {editingFuel && createPortal(
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto">
                         <button onClick={() => setEditingFuel(null)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
@@ -694,11 +695,12 @@ const Fuel = () => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* ─── YENİ FİŞ MODAL ─── */}
-            {isModalOpen && (
+            {isModalOpen && createPortal(
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="glass-panel w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto border-cyan-500/30">
                         <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
@@ -838,11 +840,12 @@ const Fuel = () => {
                             </button>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* ─── DOSYA GÖRÜNTÜLEYICI ─── */}
-            {viewFiles && (
+            {viewFiles && createPortal(
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="glass-panel w-full max-w-2xl p-6 relative animate-in zoom-in-95 duration-200">
                         <div className="flex justify-between items-center mb-6">
@@ -878,7 +881,8 @@ const Fuel = () => {
                             ))}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

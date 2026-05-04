@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Menü sekmelerinin tema renkleri sırasıyla
@@ -16,49 +16,43 @@ const THEME_COLORS = [
 
 export default function PremiumLogo() {
   const [isDraggable, setIsDraggable] = useState(false);
-  const [hoverCount, setHoverCount] = useState(0);
-  const [isEasterEgg, setIsEasterEgg] = useState(false);
-  const [resetClicks, setResetClicks] = useState(0);
+  const [introDone, setIntroDone] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIntroDone(true);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Çift tıklama ile koparılabilir (draggable) modu aç/kapat
   const toggleDraggable = () => {
     setIsDraggable(!isDraggable);
   };
 
-  const handleHover = (char) => {
-    if (isEasterEgg) return;
-    
-    // Sadece 'A' harfi tetikler
-    if (char === 'A') {
-      setHoverCount(prev => {
-        if (prev + 1 >= 15) { 
-          setIsEasterEgg(true);
-          return 0;
-        }
-        return prev + 1;
-      });
-    }
-  };
-
-  const handleLogoClick = () => {
-    if (isEasterEgg) {
-      setResetClicks(prev => {
-        if (prev + 1 >= 2) { // 3. tıklamada (0 -> 1 -> 2 -> tetik)
-          setIsEasterEgg(false);
-          return 0;
-        }
-        return prev + 1;
-      });
-    }
-  };
-
-  const currentWord1 = isEasterEgg ? "TAMAM" : "İNANER.";
-  const currentWord2 = isEasterEgg ? ".DA" : "TR";
-  const subText = isEasterEgg ? "AMINAKOYUM" : "LOJİSTİK";
+  const currentWord1 = "İNANER.";
+  const currentWord2 = "TR";
+  const subText = "LOJİSTİK";
 
   // İlk kelime harfleri için
   const letterHoverVariants = {
-    initial: { y: 0, x: 0, rotate: 0, scale: 1, color: "#f1f5f9", textShadow: "0px 0px 0px rgba(0,0,0,0)" },
+    initial: { y: 15, opacity: 0 },
+    intro: (i) => ({
+      y: [15, -10, 0],
+      opacity: [0, 1, 1],
+      color: ["#f1f5f9", THEME_COLORS[i % THEME_COLORS.length], "#f1f5f9"],
+      textShadow: [
+        "0px 0px 0px rgba(0,0,0,0)", 
+        `0px 10px 20px ${THEME_COLORS[i % THEME_COLORS.length]}80`, 
+        "0px 0px 0px rgba(0,0,0,0)"
+      ],
+      transition: { 
+        duration: 0.8, 
+        delay: i * 0.08 + 0.2, 
+        ease: "easeInOut"
+      }
+    }),
+    idle: { y: 0, opacity: 1, color: "#f1f5f9", textShadow: "0px 0px 0px rgba(0,0,0,0)" },
     hover: (i) => ({ 
       y: -5, 
       color: THEME_COLORS[i % THEME_COLORS.length],
@@ -80,7 +74,23 @@ export default function PremiumLogo() {
   
   // İkinci kelime (Renkli kısımlar) için
   const trHoverVariants = {
-    initial: { y: 0, x: 0, rotate: 0, scale: 1, color: "#f59e0b", textShadow: "0px 0px 0px rgba(0,0,0,0)" },
+    initial: { y: 15, opacity: 0 },
+    intro: (i) => ({
+      y: [15, -10, 0],
+      opacity: [0, 1, 1],
+      color: ["#f59e0b", THEME_COLORS[i % THEME_COLORS.length], "#f59e0b"],
+      textShadow: [
+        "0px 0px 0px rgba(0,0,0,0)", 
+        `0px 10px 20px ${THEME_COLORS[i % THEME_COLORS.length]}80`, 
+        "0px 0px 0px rgba(0,0,0,0)"
+      ],
+      transition: { 
+        duration: 0.8, 
+        delay: i * 0.08 + 0.2, 
+        ease: "easeInOut"
+      }
+    }),
+    idle: { y: 0, opacity: 1, color: "#f59e0b", textShadow: "0px 0px 0px rgba(0,0,0,0)" },
     hover: (i) => ({ 
       y: -5, 
       color: THEME_COLORS[i % THEME_COLORS.length], 
@@ -102,7 +112,7 @@ export default function PremiumLogo() {
 
   return (
     <div 
-      className="flex items-center gap-3 select-none ml-[13px] relative z-20" 
+      className="flex items-center select-none relative z-20 w-full" 
       onDoubleClick={toggleDraggable}
       title="Harfleri koparmak/toplamak için çift tıkla"
     >
@@ -112,9 +122,7 @@ export default function PremiumLogo() {
       
       {/* ── Logo İkonu ── */}
       <div 
-        className="relative w-12 h-12 flex-shrink-0 cursor-pointer"
-        onClick={handleLogoClick}
-        title={isEasterEgg ? "Düzeltmek için tır resmine 3 kez tıkla" : ""}
+        className="absolute left-[32px] w-[38px] h-[38px] flex-shrink-0"
       >
         <img 
           src="/yenı logo 111.png" 
@@ -127,12 +135,12 @@ export default function PremiumLogo() {
       {/* ── Yazı Alanı ── */}
       <AnimatePresence mode="wait">
         <motion.div 
-          key={isEasterEgg ? "easter" : "normal"}
+          key="normal"
           initial={{ opacity: 0, y: 15, filter: "blur(4px)" }}
           animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
           exit={{ opacity: 0, y: -15, filter: "blur(4px)" }}
           transition={{ duration: 0.3 }}
-          className="flex flex-col relative z-20"
+          className="flex flex-col relative z-20 pl-[82px]"
         >
           
           <div className="flex items-baseline z-20" style={{ fontFamily: "'Montserrat', sans-serif" }}>
@@ -145,9 +153,8 @@ export default function PremiumLogo() {
                   custom={index}
                   variants={letterHoverVariants}
                   initial="initial"
-                  animate={isDraggable ? "dragReady" : "initial"}
+                  animate={isDraggable ? "dragReady" : (introDone ? "idle" : "intro")}
                   whileHover={isDraggable ? "dragHover" : "hover"}
-                  onHoverStart={() => handleHover(char)}
                   // Sürükleme özellikleri
                   drag={isDraggable}
                   dragMomentum={true}
@@ -169,9 +176,8 @@ export default function PremiumLogo() {
                   custom={index + currentWord1.length}
                   variants={trHoverVariants}
                   initial="initial"
-                  animate={isDraggable ? "dragReady" : "initial"}
+                  animate={isDraggable ? "dragReady" : (introDone ? "idle" : "intro")}
                   whileHover={isDraggable ? "dragHover" : "hover"}
-                  onHoverStart={() => handleHover(char)}
                   // Sürükleme özellikleri
                   drag={isDraggable}
                   dragMomentum={true}

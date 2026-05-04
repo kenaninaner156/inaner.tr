@@ -99,8 +99,7 @@ const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPer
             const dateStr = dateObj.toISOString().split('T')[0];
             const tripsInfo = tripStatusByDate[dateStr];
 
-            // Yakıt alındı mı?
-            const hasFuel = fuelRecords.some(r => !r.deleted && r.date === dateStr);
+            // Yakıt kontrolünü kaldırdık (kullanıcı isteğiyle)
 
             // Interaction States
             const isStartDate = startDate && dateObj.toDateString() === startDate.toDateString();
@@ -111,14 +110,14 @@ const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPer
             const isFullyCompleted = tripsInfo && tripsInfo.completed > 0 && tripsInfo.pending === 0;
 
             // Visual Styles based on Trip Data
-            let dotStyle = "";
+            let lineStyle = "";
             let dotTitle = "";
             if (tripsInfo) {
                 if (tripsInfo.pending > 0) {
-                    dotStyle = "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"; // Fatura Bekliyor (Yeşil)
+                    lineStyle = "bg-cyan-300 shadow-[0_0_6px_rgba(103,232,249,0.8)]"; // Beyaz-mavi arası (Kesilecek)
                     dotTitle = `${tripsInfo.pending} sefer faturası bekliyor`;
                 } else if (tripsInfo.completed > 0) {
-                    dotStyle = "bg-emerald-500 shadow-[0_0_5px_rgba(249,115,22,0.8)]"; // Önceden kesilmiş (Turuncu/Sönük)
+                    lineStyle = "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]"; // Yeşil yatay çizgi (Kesilen)
                     dotTitle = "Bu tarihin faturaları daha önce kesildi";
                 }
             }
@@ -148,13 +147,10 @@ const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPer
                 >
                     <span className="text-sm z-10 relative flex flex-col items-center">
                         {day}
-                        {hasFuel && (
-                            <div className="absolute -bottom-2 w-4 h-[2px] bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,1)] rounded-full"></div>
+                        {lineStyle && (
+                            <div className={`absolute -bottom-1.5 w-4 h-[2.5px] rounded-full ${lineStyle}`}></div>
                         )}
                     </span>
-                    {dotStyle && (
-                        <div className={`absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full ${dotStyle} z-10`}></div>
-                    )}
                 </div>
             );
         }
@@ -186,15 +182,12 @@ const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPer
                         {renderCalendarDays()}
                     </div>
 
-                    <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-[var(--border-color)] flex flex-wrap gap-x-4 gap-y-2 text-[9px] sm:text-[10px] text-[var(--text-secondary)] justify-center">
+                    <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-[var(--border-color)] flex flex-wrap gap-x-5 gap-y-2 text-[9px] sm:text-[10px] text-[var(--text-secondary)] justify-center items-center">
                         <div className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)] block"></span> Kesilecek
+                            <span className="w-3 h-[2.5px] rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)] block"></span> Tamamlanan
                         </div>
                         <div className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(249,115,22,0.8)] block"></span> Tamamlanan
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-0.5 sm:w-3 sm:h-0.5 rounded-full bg-cyan-400 shadow-[0_0_5px_rgba(34,211,238,1)] block"></span> Yakıt Alındı
+                            <span className="w-3 h-[2.5px] rounded-full bg-cyan-300 shadow-[0_0_5px_rgba(103,232,249,0.8)] block"></span> Kesilecek
                         </div>
                     </div>
                 </div>
