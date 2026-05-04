@@ -359,79 +359,69 @@ const Invoices = () => {
                         </h4>
                     </div>
                     <div className="p-3 flex-1 overflow-y-auto custom-scrollbar space-y-2 relative">
-                        <AnimatePresence>
-                            {(invoices || []).length > 0 ? (invoices || []).filter(inv => !inv.deleted).map((inv, index) => {
-                                const isActive = activeInvoice?.id === inv.id && isViewingOldInvoice;
-                                return (
-                                <motion.button
-                                    key={inv.id}
-                                    layout="position"
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.95 }}
-                                    transition={{ duration: 0.3, delay: Math.min(index * 0.03, 0.4), ease: "easeOut" }}
-                                    onClick={() => handleViewInvoice(inv)}
-                                    className={`w-full text-left p-3 rounded-xl transition-all duration-300 group relative cursor-pointer outline-none overflow-hidden block ${isActive ? 'border-transparent' : 'border border-[var(--border-color)] bg-white/5 hover:bg-white/10'}`}
-                                >
-                                    {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors duration-300 -z-10" />}
-                                    {isActive && (
-                                      <motion.div layoutId="invoice-active-apple"
-                                        className={`absolute inset-0 bg-gradient-to-br rounded-xl border ${viewMode === 'pdf' ? 'from-indigo-500/10 to-indigo-600/5 border-indigo-500/30 shadow-[0_2px_15px_rgba(99,102,241,0.15)]' : 'from-emerald-500/10 to-emerald-600/5 border-emerald-500/30 shadow-[0_2px_15px_rgba(16,185,129,0.15)]'}`}
-                                        style={{ zIndex: 0 }} initial={false}
-                                        transition={{ type: 'spring', stiffness: 400, damping: 35, mass: 0.8 }}
-                                      />
-                                    )}
-                                    
-                                    <div className="relative z-10 flex flex-col gap-1">
-                                        <div className="flex justify-between items-center mb-1">
-                                            <motion.span 
-                                                className={`font-semibold text-sm transition-colors ${isActive ? (viewMode === 'pdf' ? 'text-indigo-300' : 'text-emerald-400') : 'text-slate-300 group-hover:text-emerald-400'}`}
-                                            >
-                                                {inv.docId}
-                                            </motion.span>
-                                            <div className="flex items-center gap-1">
-                                                <span className={`text-xs transition-colors ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>{new Date(inv.endDate).toLocaleDateString('tr-TR')}</span>
-                                                {inv.files?.length > 0 && (
-                                                    <span className={`${isActive ? 'text-indigo-300' : 'text-emerald-500/60'}`} title="PDF eki var">
-                                                        <Paperclip size={12} />
-                                                    </span>
-                                                )}
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setNoteModalInvoice(inv); setModalNote(inv.note || ''); setModalFiles(inv.files || []); }}
-                                                    className={`p-1 rounded transition-colors ${inv.note || inv.files?.length > 0 ? (isActive ? 'text-white hover:text-emerald-300' : 'text-emerald-500/80') : (isActive ? 'text-white/50 hover:text-white' : 'text-slate-600 hover:text-emerald-400')}`}
-                                                    title="Düzenle / Not & Belge"
-                                                >
-                                                    <StickyNote size={14} />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => handleDeleteInvoice(inv.id, inv.docId, e)}
-                                                    className={`p-1 transition-colors ${isActive ? 'text-white/50 hover:text-red-400' : 'text-slate-500 hover:text-red-400'}`}
-                                                >
-                                                    <Trash2 size={14} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <motion.div 
-                                            className={`text-sm font-semibold tracking-wide mt-0.5 ${isActive ? 'text-white drop-shadow-md' : 'text-[var(--text-primary)]'}`}
-                                            animate={{ scale: isActive ? 1.02 : 1, originX: 0 }}
-                                            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                        {(invoices || []).length > 0 ? (invoices || []).filter(inv => !inv.deleted).map((inv) => {
+                            const isActive = activeInvoice?.id === inv.id && isViewingOldInvoice;
+                            return (
+                            <button
+                                key={inv.id}
+                                onClick={() => handleViewInvoice(inv)}
+                                className={`w-full text-left p-3 rounded-xl transition-all duration-300 group relative cursor-pointer outline-none overflow-hidden block ${isActive ? 'border-transparent' : 'border border-[var(--border-color)] bg-white/5 hover:bg-white/10'}`}
+                            >
+                                {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors duration-300 -z-10" />}
+                                {isActive && (
+                                  <motion.div layoutId="invoice-active-apple"
+                                    className={`absolute inset-0 bg-gradient-to-br rounded-xl border ${viewMode === 'pdf' ? 'from-indigo-500/10 to-indigo-600/5 border-indigo-500/30 shadow-[0_2px_15px_rgba(99,102,241,0.15)]' : 'from-emerald-500/10 to-emerald-600/5 border-emerald-500/30 shadow-[0_2px_15px_rgba(16,185,129,0.15)]'}`}
+                                    style={{ zIndex: 0 }} initial={false}
+                                    transition={{ type: 'spring', stiffness: 400, damping: 35, mass: 0.8 }}
+                                  />
+                                )}
+                                
+                                <div className="relative z-10 flex flex-col gap-1">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span 
+                                            className={`font-semibold text-sm transition-colors ${isActive ? (viewMode === 'pdf' ? 'text-indigo-300' : 'text-emerald-400') : 'text-slate-300 group-hover:text-emerald-400'}`}
                                         >
-                                            ₺{inv.grandTotal?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-                                        </motion.div>
-                                        <div className={`text-xs mt-0.5 transition-colors ${isActive ? 'text-white/60' : 'text-slate-500'}`}>{inv.trips?.length || 0} Sefer | {inv.totalTonnage?.toFixed(2)} Ton</div>
+                                            {inv.docId}
+                                        </span>
+                                        <div className="flex items-center gap-1">
+                                            <span className={`text-xs transition-colors ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>{new Date(inv.endDate).toLocaleDateString('tr-TR')}</span>
+                                            {inv.files?.length > 0 && (
+                                                <span className={`${isActive ? 'text-indigo-300' : 'text-emerald-500/60'}`} title="PDF eki var">
+                                                    <Paperclip size={12} />
+                                                </span>
+                                            )}
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setNoteModalInvoice(inv); setModalNote(inv.note || ''); setModalFiles(inv.files || []); }}
+                                                className={`p-1 rounded transition-colors ${inv.note || inv.files?.length > 0 ? (isActive ? 'text-white hover:text-emerald-300' : 'text-emerald-500/80') : (isActive ? 'text-white/50 hover:text-white' : 'text-slate-600 hover:text-emerald-400')}`}
+                                                title="Düzenle / Not & Belge"
+                                            >
+                                                <StickyNote size={14} />
+                                            </button>
+                                            <button
+                                                onClick={(e) => handleDeleteInvoice(inv.id, inv.docId, e)}
+                                                className={`p-1 transition-colors ${isActive ? 'text-white/50 hover:text-red-400' : 'text-slate-500 hover:text-red-400'}`}
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
                                     </div>
-                                </motion.button>
-                                )
-                            }) : (
-                                <motion.div 
-                                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                    className="text-center py-8 text-slate-500 text-sm absolute inset-0 flex flex-col items-center justify-center"
-                                >
-                                    <FileText size={24} className="mx-auto mb-2 opacity-50" />
-                                    Henüz kesilmiş fatura yok.
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                                    <motion.div 
+                                        className={`text-sm font-semibold tracking-wide mt-0.5 ${isActive ? 'text-white drop-shadow-md' : 'text-[var(--text-primary)]'}`}
+                                        animate={{ scale: isActive ? 1.02 : 1, originX: 0 }}
+                                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                                    >
+                                        ₺{inv.grandTotal?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                                    </motion.div>
+                                    <div className={`text-xs mt-0.5 transition-colors ${isActive ? 'text-white/60' : 'text-slate-500'}`}>{inv.trips?.length || 0} Sefer | {inv.totalTonnage?.toFixed(2)} Ton</div>
+                                </div>
+                            </button>
+                            )
+                        }) : (
+                            <div className="text-center py-8 text-slate-500 text-sm absolute inset-0 flex flex-col items-center justify-center">
+                                <FileText size={24} className="mx-auto mb-2 opacity-50" />
+                                Henüz kesilmiş fatura yok.
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
