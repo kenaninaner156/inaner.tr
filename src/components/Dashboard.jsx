@@ -212,7 +212,7 @@ const Dashboard = () => {
     const perfColor = perfDelta === null ? '#64748b' : perfDelta >= 0 ? '#10b981' : '#ef4444';
 
     return (
-        <div className="relative space-y-6 animate-in fade-in duration-500 pb-ios-nav">
+        <div className="space-y-6 animate-in fade-in duration-500 pb-ios-nav">
 
             {/* İstatistik Kartları */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">

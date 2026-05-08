@@ -205,14 +205,14 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="absolute inset-0 z-[100] flex items-center justify-center p-4 sm:p-8 min-h-screen">
-                    {/* Arka plan overlay - Tüm ekranı kaplaması için fixed kalmalı */}
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:pl-[288px]">
+                    {/* Arka plan overlay - Tüm ekranı kaplar */}
                     <motion.div 
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.3 }}
-                        className="fixed inset-0 bg-[#030712]/80 backdrop-blur-md"
+                        className="absolute inset-0 bg-[#030712]/80 backdrop-blur-md"
                         onClick={onClose}
                     />
                     
@@ -222,7 +222,7 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.96, y: 10 }}
                         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                        className="bg-[#0B0E14] border border-white/10 rounded-3xl w-full max-w-4xl h-fit max-h-[85vh] flex flex-col shadow-2xl relative z-10 overflow-hidden"
+                        className="bg-[#0B0E14] border border-white/10 rounded-3xl w-[95%] max-w-4xl h-[85vh] max-h-[850px] flex flex-col shadow-2xl relative z-10 overflow-hidden"
                     >
                         {/* Soft Glows */}
                         <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-[100px] pointer-events-none mix-blend-screen"></div>
@@ -321,7 +321,7 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
                                 variants={itemVariants}
                                 initial="hidden"
                                 animate="visible"
-                                className="flex-1 bg-white/[0.01] border border-white/[0.03] rounded-2xl p-4 min-h-[300px] relative"
+                                className="bg-white/[0.01] border border-white/[0.03] rounded-2xl p-4 h-[320px] sm:h-[400px] relative shrink-0"
                             >
                                 {processedData.length === 0 ? (
                                     <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500">
