@@ -205,31 +205,34 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:pl-[288px]">
-                    {/* Arka plan overlay - Tüm ekranı kaplar */}
+                <>
+                    {/* 1. Global Arka Plan Overlay */}
                     <motion.div 
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.3 }}
-                        className="absolute inset-0 bg-[#030712]/80 backdrop-blur-md"
+                        className="fixed inset-0 bg-[#030712]/80 backdrop-blur-md z-[99]"
                         onClick={onClose}
                     />
-                    
-                    {/* Modal Content */}
-                    <motion.div 
-                        initial={{ opacity: 0, scale: 0.96, y: 10 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.96, y: 10 }}
-                        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                        className="bg-[#0B0E14] border border-white/10 rounded-3xl w-[95%] max-w-4xl h-[85vh] max-h-[850px] flex flex-col shadow-2xl relative z-10 overflow-hidden"
-                    >
+
+                    {/* 2. Sınırlandırılmış Modal Taşıyıcı (Sidebar alanını hariç tutar) */}
+                    <div className="fixed top-0 right-0 bottom-0 left-0 md:left-[288px] z-[100] flex items-center justify-center p-4 sm:p-6 pointer-events-none">
+                        
+                        {/* 3. Modal İçeriği */}
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.96, y: 10 }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                            className="bg-[#0B0E14] border border-white/10 rounded-3xl w-full max-w-4xl h-auto max-h-[95vh] flex flex-col shadow-2xl relative pointer-events-auto overflow-hidden"
+                        >
                         {/* Soft Glows */}
                         <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-[100px] pointer-events-none mix-blend-screen"></div>
                         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-[100px] pointer-events-none mix-blend-screen"></div>
 
-                        {/* Header */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 border-b border-white/5 relative z-10 gap-3">
+                        {/* Header (Sabit Yükseklik) */}
+                        <div className="flex-none flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 border-b border-white/5 relative z-10 gap-3">
                             <div className="flex items-center gap-2">
                                 <div className="w-8 h-8 rounded-full bg-violet-500/20 flex items-center justify-center shrink-0">
                                     <Wallet size={16} className="text-violet-400" />
@@ -278,15 +281,15 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
                             </div>
                         </div>
 
-                        {/* İçerik */}
-                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar relative z-10 flex flex-col gap-6">
+                        {/* İçerik (Esnek ve Scroll Edilebilir) */}
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar relative z-10 flex flex-col gap-4 sm:gap-6">
                             
-                            {/* Özet Kartları */}
+                            {/* Özet Kartları (Sabit Yükseklik) */}
                             <motion.div 
                                 variants={containerVariants}
                                 initial="hidden"
                                 animate="visible"
-                                className="grid grid-cols-1 md:grid-cols-3 gap-4"
+                                className="flex-none grid grid-cols-1 md:grid-cols-3 gap-4"
                             >
                                 <motion.div variants={itemVariants} className="bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4 sm:p-5 relative overflow-hidden group">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-all"></div>
@@ -316,12 +319,12 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
                                 </motion.div>
                             </motion.div>
 
-                            {/* Grafik */}
+                            {/* Grafik (Esnek Yükseklik) */}
                             <motion.div 
                                 variants={itemVariants}
                                 initial="hidden"
                                 animate="visible"
-                                className="bg-white/[0.01] border border-white/[0.03] rounded-2xl p-4 h-[320px] sm:h-[400px] relative shrink-0"
+                                className="flex-1 bg-white/[0.01] border border-white/[0.03] rounded-2xl min-h-[250px] relative"
                             >
                                 {processedData.length === 0 ? (
                                     <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500">
@@ -329,51 +332,53 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
                                         <p className="text-sm font-medium">Bu dönem için veri bulunamadı.</p>
                                     </div>
                                 ) : (
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={processedData} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
-                                            <defs>
-                                                <linearGradient id="karGrad" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="0%" stopColor="#8b5cf6" stopOpacity={1}/>
-                                                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0.8}/>
-                                                </linearGradient>
-                                                <linearGradient id="zararGrad" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="0%" stopColor="#f97316" stopOpacity={1}/>
-                                                    <stop offset="100%" stopColor="#ef4444" stopOpacity={0.8}/>
-                                                </linearGradient>
-                                            </defs>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff" strokeOpacity={0.03} vertical={false} />
-                                            <XAxis 
-                                                dataKey="name" 
-                                                stroke="#64748b" 
-                                                fontSize={10} 
-                                                tickLine={false} 
-                                                axisLine={false} 
-                                                dy={10} 
-                                                tick={{ fill: '#64748b' }}
-                                            />
-                                            <YAxis 
-                                                stroke="#64748b" 
-                                                fontSize={10} 
-                                                tickLine={false} 
-                                                axisLine={false} 
-                                                tickFormatter={(val) => val >= 1000 ? `₺${(val/1000).toFixed(0)}k` : `₺${val}`} 
-                                                tick={{ fill: '#64748b' }}
-                                                width={50}
-                                            />
-                                            <Tooltip content={<CustomTooltip />} cursor={false} />
-                                            
-                                            <Bar dataKey="Kar" radius={[4, 4, 4, 4]} maxBarSize={48} activeBar={<CustomActiveBar />}>
-                                                {processedData.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={entry.Kar >= 0 ? 'url(#karGrad)' : 'url(#zararGrad)'} />
-                                                ))}
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
+                                    <div className="absolute inset-0 p-2 sm:p-4 pb-0">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={processedData} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
+                                                <defs>
+                                                    <linearGradient id="karGrad" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="0%" stopColor="#8b5cf6" stopOpacity={1}/>
+                                                        <stop offset="100%" stopColor="#6366f1" stopOpacity={0.8}/>
+                                                    </linearGradient>
+                                                    <linearGradient id="zararGrad" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="0%" stopColor="#f97316" stopOpacity={1}/>
+                                                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.8}/>
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff" strokeOpacity={0.03} vertical={false} />
+                                                <XAxis 
+                                                    dataKey="name" 
+                                                    stroke="#64748b" 
+                                                    fontSize={10} 
+                                                    tickLine={false} 
+                                                    axisLine={false} 
+                                                    dy={10} 
+                                                    tick={{ fill: '#64748b' }}
+                                                />
+                                                <YAxis 
+                                                    stroke="#64748b" 
+                                                    fontSize={10} 
+                                                    tickLine={false} 
+                                                    axisLine={false} 
+                                                    tickFormatter={(val) => val >= 1000 ? `₺${(val/1000).toFixed(0)}k` : `₺${val}`} 
+                                                    tick={{ fill: '#64748b' }}
+                                                    width={50}
+                                                />
+                                                <Tooltip content={<CustomTooltip />} cursor={false} />
+                                                
+                                                <Bar dataKey="Kar" radius={[4, 4, 4, 4]} maxBarSize={48} activeBar={<CustomActiveBar />}>
+                                                    {processedData.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={entry.Kar >= 0 ? 'url(#karGrad)' : 'url(#zararGrad)'} />
+                                                    ))}
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
                                 )}
                             </motion.div>
                         </div>
                     </motion.div>
-                </div>
+                </>
             )}
         </AnimatePresence>
     );
