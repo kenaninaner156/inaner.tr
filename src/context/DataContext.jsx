@@ -30,6 +30,11 @@ export const DataProvider = ({ children }) => {
     const [drivers, setDrivers] = useState([]);
     const [spareParts, setSpareParts] = useState([]);
     const [sparePartCategories, setSparePartCategories] = useState(['Yağ', 'Filtre', 'Kayış', 'Balata', 'Aydınlatma', 'Lastik', 'Genel']);
+    const [periodicMaintenanceItems, setPeriodicMaintenanceItems] = useState([
+        { id: '1', name: 'Motor Yağı', intervalKm: 40000, warningKm: 2000 },
+        { id: '2', name: 'Şanzıman Yağı', intervalKm: 80000, warningKm: 5000 },
+        { id: '3', name: 'Hava Filtresi', intervalKm: 20000, warningKm: 1000 }
+    ]);
     const [mechanics, setMechanics] = useState([]);
     const [routes, setRoutes] = useState([]);
     const [draftInvoice, setDraftInvoice] = useState(null);
@@ -255,9 +260,24 @@ export const DataProvider = ({ children }) => {
                 } else {
                     setSparePartCategories(['Yağ', 'Filtre', 'Kayış', 'Balata', 'Aydınlatma', 'Lastik', 'Genel']);
                 }
+
+                if (data.periodicMaintenanceItems !== undefined) {
+                    setPeriodicMaintenanceItems(data.periodicMaintenanceItems);
+                } else {
+                    setPeriodicMaintenanceItems([
+                        { id: '1', name: 'Motor Yağı', intervalKm: 40000, warningKm: 2000 },
+                        { id: '2', name: 'Şanzıman Yağı', intervalKm: 80000, warningKm: 5000 },
+                        { id: '3', name: 'Hava Filtresi', intervalKm: 20000, warningKm: 1000 }
+                    ]);
+                }
             } else {
                 setDrivers([]);
                 setSparePartCategories(['Yağ', 'Filtre', 'Kayış', 'Balata', 'Aydınlatma', 'Lastik', 'Genel']);
+                setPeriodicMaintenanceItems([
+                    { id: '1', name: 'Motor Yağı', intervalKm: 40000, warningKm: 2000 },
+                    { id: '2', name: 'Şanzıman Yağı', intervalKm: 80000, warningKm: 5000 },
+                    { id: '3', name: 'Hava Filtresi', intervalKm: 20000, warningKm: 1000 }
+                ]);
                 setDraftInvoice(null);
             }
             setIsDataLoading(false); // Finished loading essential config
@@ -473,6 +493,12 @@ export const DataProvider = ({ children }) => {
     const updateDrivers = async (newDrivers) => {
         const docId = activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`;
         await setDoc(doc(db, 'company_data', docId), { drivers: newDrivers }, { merge: true });
+    };
+
+    const updatePeriodicMaintenanceItems = async (newItems) => {
+        const docId = activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`;
+        await setDoc(doc(db, 'company_data', docId), { periodicMaintenanceItems: newItems }, { merge: true });
+        addLog('SABLON_GUNCELLE', 'Periyodik bakım şablonları güncellendi');
     };
 
     const addSparePartCategory = async (newCategory) => {
@@ -750,6 +776,7 @@ export const DataProvider = ({ children }) => {
             docs, updateDocs, deleteDocField,
             spareParts, addSparePart, updateSparePart, deleteSparePart,
             sparePartCategories, addSparePartCategory,
+            periodicMaintenanceItems, updatePeriodicMaintenanceItems,
             penalties, addPenalty, deletePenalty, togglePenaltyPaid,
             invoices, addInvoice, updateInvoice, deleteInvoice,
             updateRoute,

@@ -23,6 +23,7 @@ import {
     ResponsiveContainer,
 } from 'recharts';
 import { DataContext } from '../context/DataContext';
+import ProfitAnalysisModal from './ProfitAnalysisModal';
 
 // --- Custom Tooltip ---
 const CustomTooltip = ({ active, payload, label, isAllTime }) => {
@@ -85,7 +86,8 @@ const KDV_RATE = 1.20;
 const FUEL_L_PER_100KM = 32;
 
 const Dashboard = () => {
-    const { trips, invoices, fuelRecords } = useContext(DataContext);
+    const { trips, invoices, fuelRecords, maintenanceRecords, paymentRecords, penalties } = useContext(DataContext);
+    const [isProfitModalOpen, setIsProfitModalOpen] = useState(false);
 
     const now = new Date();
     
@@ -214,17 +216,20 @@ const Dashboard = () => {
 
             {/* İstatistik Kartları */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-                <div className="glass-panel p-6 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/10 rounded-full blur-2xl group-hover:bg-violet-500/20 transition-all"></div>
+                <div 
+                    onClick={() => setIsProfitModalOpen(true)}
+                    className="glass-panel p-6 relative overflow-hidden group cursor-pointer hover:border-violet-500/50 hover:shadow-[0_0_20px_rgba(139,92,246,0.15)] transition-all duration-300 transform hover:-translate-y-1"
+                >
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/10 rounded-full blur-2xl group-hover:bg-violet-500/20 transition-all duration-500"></div>
                     <div className="flex justify-between items-start mb-4">
-                        <p className="text-[var(--text-secondary)] text-sm font-semibold tracking-wide uppercase">Toplam Gelir</p>
-                        <Wallet className="text-violet-400 opacity-80" size={24} />
+                        <p className="text-[var(--text-secondary)] text-sm font-semibold tracking-wide uppercase group-hover:text-violet-400 transition-colors">Toplam Gelir</p>
+                        <Wallet className="text-violet-400 opacity-80 group-hover:scale-110 transition-transform duration-300" size={24} />
                     </div>
-                    <h3 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight">
+                    <h3 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight group-hover:text-white transition-colors">
                         {totalRevenue > 0 ? `₺${totalRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '₺0'}
                     </h3>
                     <div className="mt-4 text-xs font-medium">
-                        {totalRevenue > 0 ? <span className="text-emerald-400/80 bg-emerald-400/10 px-2 py-1 rounded-md">Tasdikli faturaların toplamı</span> : <span className="text-slate-500">Henüz onaylı fatura yok</span>}
+                        {totalRevenue > 0 ? <span className="text-violet-400/80 bg-violet-400/10 px-2 py-1.5 rounded-md group-hover:bg-violet-400/20 transition-colors">Kâr Analizini Gör &rarr;</span> : <span className="text-slate-500">Henüz onaylı fatura yok</span>}
                     </div>
                 </div>
 
@@ -367,6 +372,13 @@ const Dashboard = () => {
                     </div>
                 )}
             </div>
+
+            {/* Kâr/Zarar Analizi Modalı */}
+            <ProfitAnalysisModal 
+                isOpen={isProfitModalOpen} 
+                onClose={() => setIsProfitModalOpen(false)} 
+                data={{ invoices, fuelRecords, maintenanceRecords, paymentRecords, penalties }} 
+            />
         </div>
     );
 };

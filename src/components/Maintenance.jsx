@@ -1,6 +1,6 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Wrench, Plus, Calendar, X, MapPin, Truck, Trash2, Pencil, Check, User, Users, FileText, StickyNote, AlertCircle, ChevronDown, Download, Eye, Paperclip, FolderOpen, FolderPlus, Map, Phone, Package, ShoppingCart, Link, GripVertical, ExternalLink } from 'lucide-react';
+import { Wrench, Plus, Calendar, X, MapPin, Truck, Trash2, Pencil, Check, User, Users, FileText, StickyNote, AlertCircle, ChevronDown, Download, Eye, Paperclip, FolderOpen, FolderPlus, Map, Phone, Package, ShoppingCart, Link, GripVertical, ExternalLink, Settings as SettingsIcon, AlertTriangle, CheckCircle } from 'lucide-react';
 import { motion, Reorder, AnimatePresence } from 'framer-motion';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
@@ -19,13 +19,32 @@ const Maintenance = () => {
         spareParts, addSparePart, updateSparePart, deleteSparePart,
         sparePartCategories, addSparePartCategory,
         shoppingItems, addShoppingItem, updateShoppingItem, deleteShoppingItem, updateShoppingItemsOrder,
-        addLog, docs
+        addLog, docs, fuelRecords, periodicMaintenanceItems, updatePeriodicMaintenanceItems
     } = useContext(DataContext);
 
     const { activeTruckId, activeTruckData } = useTruck();
 
     const [activeTab, setActiveTab] = useState('info'); // 'info', 'records', 'mechanics', 'photos'
     const [viewFiles, setViewFiles] = useState(null);
+
+    // --- Periyodik Bakım Şablonları & KM Takibi ---
+    const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+    const [templateForm, setTemplateForm] = useState([]);
+    
+    // Güncel KM: Yakıt ve Bakım kayıtları birleştirilip en son tarihli (en yeni) olanın KM'si alınıyor
+    const activeFuel = (fuelRecords || []).filter(r => !r.deleted && r.odometer);
+    const activeMaintenance = (maintenanceRecords || []).filter(r => !r.deleted && r.km);
+    const allKmRecords = [...activeFuel, ...activeMaintenance].sort((a, b) => {
+        const dateA = new Date(a.date || 0).getTime();
+        const dateB = new Date(b.date || 0).getTime();
+        if (dateB !== dateA) return dateB - dateA;
+        
+        const createdA = new Date(a.createdAt || 0).getTime();
+        const createdB = new Date(b.createdAt || 0).getTime();
+        return createdB - createdA;
+    });
+    
+    const currentKm = allKmRecords.length > 0 ? (parseInt(allKmRecords[0].km || allKmRecords[0].odometer) || 0) : 0;
 
     // ─── Araç Bilgileri Edit State ───────────────────────────────────────────
     const [editingField, setEditingField] = useState(null);
@@ -63,7 +82,7 @@ const Maintenance = () => {
     const [editingMaintenanceId, setEditingMaintenanceId] = useState(null);
     const [maintenanceForm, setMaintenanceForm] = useState({
         date: new Date().toISOString().split('T')[0],
-        type: 'Periyodik Bakım', description: '', mechanicId: '', km: '', cost: '', files: []
+        type: 'Periyodik Bakım', description: '', mechanicId: '', km: '', cost: '', files: [], doneItems: []
     });
 
     // ─── Tamirci Ekleme ────────────────────────────────────────────────────────
@@ -106,7 +125,8 @@ const Maintenance = () => {
             mechanicName: mechanic ? mechanic.name : 'Belirtilmedi',
             km: parseInt(maintenanceForm.km) || 0,
             cost: parseFloat(maintenanceForm.cost),
-            files: maintenanceForm.files
+            files: maintenanceForm.files,
+            doneItems: maintenanceForm.type === 'Periyodik Bakım' ? (maintenanceForm.doneItems || []) : []
         };
 
         if (editingMaintenanceId) {
@@ -117,7 +137,7 @@ const Maintenance = () => {
 
         setIsMaintenanceModalOpen(false);
         setEditingMaintenanceId(null);
-        setMaintenanceForm({ date: new Date().toISOString().split('T')[0], type: 'Periyodik Bakım', description: '', mechanicId: '', km: '', cost: '', files: [] });
+        setMaintenanceForm({ date: new Date().toISOString().split('T')[0], type: 'Periyodik Bakım', description: '', mechanicId: '', km: '', cost: '', files: [], doneItems: [] });
     };
 
     const handleDeleteMaintenance = (id) => {
@@ -236,7 +256,7 @@ const Maintenance = () => {
 
     const getDynamicActionButton = () => {
         if (activeTab === 'records') {
-            return { id: 'records', label: 'Bakım Ekle', icon: <Plus size={16} />, className: 'bg-gradient-to-b from-amber-500 to-amber-600 text-white shadow-[0_2px_12px_rgba(245,158,11,0.3)] border border-amber-400/30', onClick: () => { setEditingMaintenanceId(null); setMaintenanceForm({ date: new Date().toISOString().split('T')[0], type: 'Periyodik Bakım', description: '', mechanicId: '', km: '', cost: '', files: [] }); setIsMaintenanceModalOpen(true); } };
+            return { id: 'records', label: 'Bakım Ekle', icon: <Plus size={16} />, className: 'bg-gradient-to-b from-amber-500 to-amber-600 text-white shadow-[0_2px_12px_rgba(245,158,11,0.3)] border border-amber-400/30', onClick: () => { setEditingMaintenanceId(null); setMaintenanceForm({ date: new Date().toISOString().split('T')[0], type: 'Periyodik Bakım', description: '', mechanicId: '', km: '', cost: '', files: [], doneItems: [] }); setIsMaintenanceModalOpen(true); } };
         }
         if (activeTab === 'shopping') {
             return { id: 'shopping', label: 'İhtiyaç Ekle', icon: <Plus size={16} />, className: 'bg-gradient-to-b from-emerald-500 to-emerald-600 text-white shadow-[0_2px_12px_rgba(16,185,129,0.3)] border border-emerald-400/30', onClick: () => { setEditingShoppingId(null); setShoppingForm({ name: '', description: '', price: '', link: '' }); setIsShoppingModalOpen(true); } };
@@ -438,6 +458,80 @@ const Maintenance = () => {
             {/* ─── BAKIM KAYITLARI ─── */}
             {activeTab === 'records' && (
                 <div className="space-y-4">
+                    {/* YAKLAŞAN BAKIMLAR PANELİ */}
+                    <div className="glass-panel p-5 border border-amber-500/10">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold text-[var(--text-primary)] flex items-center gap-2">
+                                <AlertTriangle size={18} className="text-amber-400" /> Yaklaşan Bakımlar
+                            </h3>
+                            <div className="flex items-center gap-3">
+                                <div className="text-sm bg-white/5 px-3 py-1.5 rounded-lg border border-[var(--border-color)]">
+                                    <span className="text-slate-500">Güncel KM: </span>
+                                    <span className="font-bold text-[var(--text-primary)]">{currentKm > 0 ? currentKm.toLocaleString() : '—'}</span>
+                                </div>
+                                <button onClick={() => {
+                                    setTemplateForm([...(periodicMaintenanceItems || [])]);
+                                    setIsTemplateModalOpen(true);
+                                }} className="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 px-3 py-1.5 rounded-lg text-xs font-medium border border-amber-500/20 transition-colors flex items-center gap-1">
+                                    <SettingsIcon size={14} /> Şablonlar
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {(periodicMaintenanceItems || []).map(item => {
+                                const lastMaintenance = maintenanceRecords
+                                    .filter(m => m.type === 'Periyodik Bakım' && m.doneItems && m.doneItems.includes(item.id))
+                                    .sort((a, b) => b.km - a.km)[0];
+                                
+                                const lastKm = lastMaintenance ? (lastMaintenance.km || 0) : 0;
+                                const intervalKm = parseInt(item.intervalKm) || 40000;
+                                const nextDueKm = lastKm === 0 ? intervalKm : lastKm + intervalKm;
+                                const remainingKm = nextDueKm - currentKm;
+                                
+                                const progress = Math.min(100, Math.max(0, ((intervalKm - remainingKm) / intervalKm) * 100));
+                                
+                                const warningThreshold = parseInt(item.warningKm) || 2000;
+                                
+                                let statusColor = "bg-emerald-500";
+                                let textColor = "text-emerald-400";
+                                let bgColor = "bg-emerald-500/10 border-emerald-500/20";
+                                
+                                if (remainingKm <= 0) {
+                                    statusColor = "bg-red-500";
+                                    textColor = "text-red-400";
+                                    bgColor = "bg-red-500/10 border-red-500/20";
+                                } else if (remainingKm <= warningThreshold) {
+                                    statusColor = "bg-amber-500";
+                                    textColor = "text-amber-400";
+                                    bgColor = "bg-amber-500/10 border-amber-500/20";
+                                }
+
+                                return (
+                                    <div key={item.id} className={`p-3 rounded-xl border ${bgColor} flex flex-col gap-2 relative overflow-hidden group`}>
+                                        <div className="flex justify-between items-center z-10">
+                                            <span className={`font-semibold ${textColor} text-sm`}>{item.name}</span>
+                                            <span className={`text-xs font-bold ${textColor}`}>
+                                                {remainingKm <= 0 ? 'GEÇTİ!' : `Kalan: ${remainingKm.toLocaleString()}`}
+                                            </span>
+                                        </div>
+                                        <div className="text-[10px] text-[var(--text-secondary)] z-10">
+                                            Son: {lastKm > 0 ? lastKm.toLocaleString() : 'Yok'} | Değişim: {nextDueKm.toLocaleString()}
+                                        </div>
+                                        <div className="w-full bg-black/20 h-1.5 rounded-full mt-1 z-10 overflow-hidden">
+                                            <div className={`h-full ${statusColor} transition-all duration-1000`} style={{ width: `${progress}%` }} />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {(!periodicMaintenanceItems || periodicMaintenanceItems.length === 0) && (
+                                <div className="col-span-full text-center text-sm text-slate-500 py-4 border border-dashed border-[var(--border-color)] rounded-xl">
+                                    Henüz periyodik bakım şablonu tanımlanmamış. Şablonlar butonundan ekleyebilirsiniz.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                     <div className="glass-panel overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full border-collapse" style={{ minWidth: '480px' }}>
@@ -489,7 +583,8 @@ const Maintenance = () => {
                                                             mechanicId: matchedMechanic ? matchedMechanic.id : '',
                                                             km: rec.km || '',
                                                             cost: rec.cost || '',
-                                                            files: rec.files || []
+                                                            files: rec.files || [],
+                                                            doneItems: rec.doneItems || []
                                                         });
                                                         setIsMaintenanceModalOpen(true);
                                                     }}
@@ -873,6 +968,91 @@ const Maintenance = () => {
                 document.body
             )}
 
+            {/* Şablon Modalı */}
+            {typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
+                    {isTemplateModalOpen && (
+                    <motion.div key="template" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeInOut" }} className="fixed inset-0 bg-[var(--bg-panel)] backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
+                        <motion.div initial={{ scale: 0.96, opacity: 0, y: 15 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0, y: 15 }} transition={{ duration: 0.25, ease: "easeOut" }} className="glass-panel w-full max-w-lg p-6 border border-[var(--border-color)] rounded-2xl">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold flex items-center text-[var(--text-primary)]">
+                                <SettingsIcon className="mr-2 text-amber-400" />
+                                Periyodik Bakım Şablonları
+                            </h2>
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                            <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg text-sm text-amber-400">
+                                Aracınızın düzenli bakım periyotlarını buradan belirleyin. Kayıt eklerken bunları işaretleyebilirsiniz.
+                            </div>
+                            
+                            <div className="space-y-4">
+                                {templateForm.map((item, index) => (
+                                    <div key={item.id} className="bg-white/5 border border-[var(--border-color)] rounded-xl p-4 relative group">
+                                        <button onClick={() => {
+                                            const newForm = templateForm.filter(t => t.id !== item.id);
+                                            setTemplateForm(newForm);
+                                        }} className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
+                                            <Trash2 size={16} />
+                                        </button>
+                                        
+                                        <div className="space-y-3 pr-6">
+                                            <div>
+                                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Parça / Bakım Adı</label>
+                                                <input type="text" placeholder="Örn: Motor Yağı" className="w-full glass-input px-3 py-2 text-sm" value={item.name}
+                                                    onChange={e => {
+                                                        const newForm = [...templateForm];
+                                                        newForm[index].name = e.target.value;
+                                                        setTemplateForm(newForm);
+                                                    }} />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Periyot (Kaç KM'de Bir?)</label>
+                                                    <input type="number" placeholder="Örn: 40000" className="w-full glass-input px-3 py-2 text-sm" value={item.intervalKm}
+                                                        onChange={e => {
+                                                            const newForm = [...templateForm];
+                                                            newForm[index].intervalKm = e.target.value;
+                                                            setTemplateForm(newForm);
+                                                        }} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Uyarı (Kaç KM Kala?)</label>
+                                                    <input type="number" placeholder="Örn: 2000" className="w-full glass-input px-3 py-2 text-sm" value={item.warningKm || ''}
+                                                        onChange={e => {
+                                                            const newForm = [...templateForm];
+                                                            newForm[index].warningKm = e.target.value;
+                                                            setTemplateForm(newForm);
+                                                        }} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            
+                            <button onClick={() => {
+                                setTemplateForm([...templateForm, { id: Date.now().toString(), name: '', intervalKm: '', warningKm: '' }]);
+                            }} className="w-full py-3 border border-dashed border-amber-500/50 text-amber-400 hover:bg-amber-500/10 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 mt-2">
+                                <Plus size={18} /> Yeni Bakım Şablonu Ekle
+                            </button>
+                        </div>
+                        <div className="mt-6 pt-4 border-t border-[var(--border-color)]">
+                            <button onClick={() => {
+                                const validItems = templateForm.filter(t => t.name.trim() !== '');
+                                updatePeriodicMaintenanceItems(validItems);
+                                setIsTemplateModalOpen(false);
+                            }} className="w-full bg-amber-600 hover:bg-amber-500 text-[var(--text-primary)] py-3 rounded-lg font-medium transition">Şablonları Kaydet</button>
+                        </div>
+                        </motion.div>
+                    </motion.div>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
+
             {/* Bakım Ekleme Modalı */}
             {typeof document !== 'undefined' && createPortal(
                 <AnimatePresence>
@@ -921,6 +1101,36 @@ const Maintenance = () => {
                                         placeholder="Yapılan işlemi açıklayın..." value={maintenanceForm.description}
                                         onChange={e => setMaintenanceForm({ ...maintenanceForm, description: e.target.value })} />
                                 </div>
+                                {maintenanceForm.type === 'Periyodik Bakım' && periodicMaintenanceItems && periodicMaintenanceItems.length > 0 && (
+                                    <div className="bg-white/5 border border-[var(--border-color)] rounded-xl p-4">
+                                        <label className="block text-sm font-medium text-[var(--text-primary)] mb-3">🛠 Yapılan İşlemler (Şablondan Seçin)</label>
+                                        <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+                                            {periodicMaintenanceItems.map(item => {
+                                                const isChecked = maintenanceForm.doneItems && maintenanceForm.doneItems.includes(item.id);
+                                                return (
+                                                    <label key={item.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/5 cursor-pointer border border-transparent hover:border-white/10 transition-colors">
+                                                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${isChecked ? 'bg-amber-500 border-amber-500 text-[var(--text-primary)]' : 'border-slate-500 text-transparent'}`}>
+                                                            <Check size={12} strokeWidth={3} />
+                                                        </div>
+                                                        <input 
+                                                            type="checkbox" 
+                                                            className="hidden" 
+                                                            checked={isChecked} 
+                                                            onChange={() => {
+                                                                const currentDone = maintenanceForm.doneItems || [];
+                                                                const nextDone = isChecked 
+                                                                    ? currentDone.filter(id => id !== item.id)
+                                                                    : [...currentDone, item.id];
+                                                                setMaintenanceForm({ ...maintenanceForm, doneItems: nextDone });
+                                                            }} 
+                                                        />
+                                                        <span className={`text-sm truncate ${isChecked ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]'}`}>{item.name}</span>
+                                                    </label>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Tamirci</label>
