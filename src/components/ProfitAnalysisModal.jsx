@@ -225,7 +225,7 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.96, y: 10 }}
                             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                            className="bg-[#0B0E14] border border-white/10 rounded-3xl w-full max-w-4xl h-auto max-h-[95vh] flex flex-col shadow-2xl relative pointer-events-auto overflow-hidden"
+                            className="bg-[#0B0E14] border border-white/10 rounded-3xl w-[96%] max-w-7xl h-[85vh] flex flex-col shadow-2xl relative pointer-events-auto overflow-hidden"
                         >
                         {/* Soft Glows */}
                         <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-[100px] pointer-events-none mix-blend-screen"></div>
