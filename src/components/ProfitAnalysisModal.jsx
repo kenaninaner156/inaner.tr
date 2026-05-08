@@ -230,22 +230,24 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.96, y: 10 }}
                         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                        className="bg-[#0B0E14] border border-white/10 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl relative z-10 overflow-hidden"
+                        className="bg-[#0B0E14] border border-white/10 rounded-3xl w-[95%] max-w-5xl max-h-[92vh] flex flex-col shadow-2xl relative z-10 overflow-hidden"
                     >
                         {/* Soft Glows */}
                         <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-[100px] pointer-events-none mix-blend-screen"></div>
                         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-[100px] pointer-events-none mix-blend-screen"></div>
 
                         {/* Header */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-6 border-b border-white/5 relative z-10 gap-4">
-                            <div>
-                                <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                                    <span className="w-8 h-8 rounded-full bg-violet-500/20 flex items-center justify-center">
-                                        <Wallet size={16} className="text-violet-400" />
-                                    </span>
-                                    Kâr Analizi
-                                </h2>
-                                <p className="text-xs text-slate-500 mt-1.5 ml-10">Net kazanç özeti.</p>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 border-b border-white/5 relative z-10 gap-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-violet-500/20 flex items-center justify-center shrink-0">
+                                    <Wallet size={16} className="text-violet-400" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-bold tracking-tight text-white leading-tight">
+                                        Kâr Analizi
+                                    </h2>
+                                    <p className="text-[10px] text-slate-500 mt-0.5">Net kazanç özeti.</p>
+                                </div>
                             </div>
                             
                             <div className="flex items-center gap-2">
@@ -285,40 +287,40 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
                         </div>
 
                         {/* İçerik */}
-                        <div className="flex-1 overflow-y-auto p-6 sm:p-8 custom-scrollbar relative z-10 flex flex-col gap-8">
+                        <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar relative z-10 flex flex-col gap-6">
                             
                             {/* Özet Kartları */}
                             <motion.div 
                                 variants={containerVariants}
                                 initial="hidden"
                                 animate="visible"
-                                className="grid grid-cols-1 md:grid-cols-3 gap-5"
+                                className="grid grid-cols-1 md:grid-cols-3 gap-4"
                             >
-                                <motion.div variants={itemVariants} className="bg-white/[0.02] border border-white/[0.05] rounded-2xl p-6 relative overflow-hidden group">
+                                <motion.div variants={itemVariants} className="bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4 sm:p-5 relative overflow-hidden group">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-all"></div>
-                                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 mb-2">
-                                        <TrendingUp size={14} className="text-emerald-500/70" /> 
+                                    <p className="text-slate-500 text-[9px] font-bold uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
+                                        <TrendingUp size={12} className="text-emerald-500/70" /> 
                                         {includeAll ? 'GELİR (TÜMÜ)' : 'GELİR (FATURA)'}
                                     </p>
-                                    <h3 className="text-3xl font-bold text-white tracking-tight">₺{totals.gelir.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</h3>
+                                    <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight">₺{totals.gelir.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</h3>
                                 </motion.div>
 
-                                <motion.div variants={itemVariants} className="bg-white/[0.02] border border-white/[0.05] rounded-2xl p-6 relative overflow-hidden group">
+                                <motion.div variants={itemVariants} className="bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4 sm:p-5 relative overflow-hidden group">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-2xl group-hover:bg-red-500/10 transition-all"></div>
-                                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 mb-2">
-                                        <TrendingDown size={14} className="text-red-500/70" /> 
+                                    <p className="text-slate-500 text-[9px] font-bold uppercase tracking-widest flex items-center gap-1.5 mb-1.5">
+                                        <TrendingDown size={12} className="text-red-500/70" /> 
                                         {includeAll ? 'GİDER (TÜMÜ)' : 'GİDER (YAKIT)'}
                                     </p>
-                                    <h3 className="text-3xl font-bold text-white tracking-tight">₺{totals.gider.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</h3>
+                                    <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight">₺{totals.gider.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</h3>
                                 </motion.div>
 
-                                <motion.div variants={itemVariants} className={`bg-white/[0.02] border rounded-2xl p-6 relative overflow-hidden group ${totals.kar >= 0 ? 'border-violet-500/20' : 'border-orange-500/20'}`}>
+                                <motion.div variants={itemVariants} className={`bg-white/[0.02] border rounded-2xl p-4 sm:p-5 relative overflow-hidden group ${totals.kar >= 0 ? 'border-violet-500/20' : 'border-orange-500/20'}`}>
                                     <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-2xl transition-all ${totals.kar >= 0 ? 'bg-violet-500/10 group-hover:bg-violet-500/15' : 'bg-orange-500/10 group-hover:bg-orange-500/15'}`}></div>
-                                    <p className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 mb-2 ${totals.kar >= 0 ? 'text-violet-400' : 'text-orange-400'}`}>
-                                        <Layers size={14} /> 
+                                    <p className={`text-[9px] font-bold uppercase tracking-widest flex items-center gap-1.5 mb-1.5 ${totals.kar >= 0 ? 'text-violet-400' : 'text-orange-400'}`}>
+                                        <Layers size={12} /> 
                                         NET KÂR
                                     </p>
-                                    <h3 className="text-3xl font-bold text-white tracking-tight">₺{totals.kar.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</h3>
+                                    <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight">₺{totals.kar.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</h3>
                                 </motion.div>
                             </motion.div>
 
@@ -327,7 +329,7 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
                                 variants={itemVariants}
                                 initial="hidden"
                                 animate="visible"
-                                className="flex-1 bg-white/[0.01] border border-white/[0.03] rounded-2xl p-5 min-h-[350px] relative"
+                                className="flex-1 bg-white/[0.01] border border-white/[0.03] rounded-2xl p-4 min-h-[300px] relative"
                             >
                                 {processedData.length === 0 ? (
                                     <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500">
