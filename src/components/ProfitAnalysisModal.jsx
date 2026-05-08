@@ -213,7 +213,7 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.3 }}
-                        className="fixed inset-0 bg-[#030712]/80 backdrop-blur-md z-[99]"
+                        className="fixed top-0 right-0 bottom-0 left-0 md:left-[288px] bg-[#030712]/80 backdrop-blur-md z-[99]"
                         onClick={onClose}
                     />
 
