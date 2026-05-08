@@ -30,7 +30,7 @@ function App() {
   })
   const [isMenuOpen, setIsMenuOpen] = useState(window.innerWidth >= 768)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
-  const [theme, setTheme] = useState(() => localStorage.getItem('tir_theme') || 'dark')
+  const [theme, setTheme] = useState('dark')
   
   // Swipe Handlers
   const touchStartX = useRef(null);
@@ -495,12 +495,15 @@ function App() {
             {currentUser.username}
           </button>
           <div className="flex items-center gap-2">
+            {/* Tema Değiştirme Butonu - Geçici olarak devre dışı ve gizli */}
+            {/* 
             <button onClick={toggleTheme}
               title={theme === 'dark' ? 'Aydınlık Tema' : 'Karanlık Tema'}
               className="p-2 rounded-full transition-all duration-300 hover:bg-slate-800/50 text-slate-400 hover:text-slate-200"
             >
               {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-            </button>
+            </button> 
+            */}
             <button onClick={handleLogout} title="Oturumu Kapat" className="p-2 rounded-full text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-300">
               <LogOut size={14} />
             </button>
