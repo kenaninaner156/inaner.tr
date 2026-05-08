@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { X, TrendingUp, TrendingDown, Wallet, Layers, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -202,7 +203,7 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
         );
     };
 
-    return (
+    const modalContent = (
         <AnimatePresence>
             {isOpen && (
                 <>
@@ -383,6 +384,9 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
             )}
         </AnimatePresence>
     );
+
+    // React Portal ile modalı doğrudan body içerisine render ediyoruz (CSS transform konfliktlerini önlemek için)
+    return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 
 export default ProfitAnalysisModal;
