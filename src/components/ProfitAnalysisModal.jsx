@@ -378,6 +378,7 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
                             </motion.div>
                         </div>
                     </motion.div>
+                </div>
                 </>
             )}
         </AnimatePresence>
