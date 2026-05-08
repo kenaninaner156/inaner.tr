@@ -1,4 +1,5 @@
 import React, { useContext, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { DataContext } from '../context/DataContext';
 import { CompanyContext } from '../context/CompanyContext';
 import { db } from '../services/firebaseConfig';
@@ -565,8 +566,8 @@ const AdminLog = () => {
             )}
 
             {/* Online Kullanıcı Detay Modalı */}
-            {selectedOnlineUser && (
-                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-[var(--bg-base)] backdrop-blur-md">
+            {selectedOnlineUser && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#030712]/90 backdrop-blur-md">
                     <div className="glass-panel w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 border-emerald-500/30 shadow-[0_0_40px_-10px_rgba(16,185,129,0.3)]">
                         <button onClick={() => setSelectedOnlineUser(null)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
                         
@@ -637,6 +638,16 @@ const AdminLog = () => {
                                     {selectedOnlineUser.lastActive ? new Date(selectedOnlineUser.lastActive).toLocaleTimeString('tr-TR', { hour: '2-digit', minute:'2-digit', second:'2-digit' }) : 'Bilinmiyor'}
                                 </span>
                             </div>
+                            
+                            <div className="flex justify-between items-center py-2 border-b border-white/5">
+                                <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5"><Calendar size={14} className="text-emerald-400" /> Aktiflik Süresi</span>
+                                <span className="text-sm font-bold text-emerald-400">
+                                    {selectedOnlineUser.sessionStart ? 
+                                        `${Math.floor((Date.now() - new Date(selectedOnlineUser.sessionStart).getTime()) / 60000)} dk` 
+                                        : 'Hesaplanıyor...'}
+                                </span>
+                            </div>
+
                             <div className="flex flex-col py-2">
                                 <span className="text-xs text-[var(--text-secondary)] flex items-center gap-1.5 mb-1"><Wrench size={14} className="text-slate-500" /> Teknik Cihaz Verisi (Raw String)</span>
                                 <div className="text-[10px] text-slate-400 bg-[var(--bg-base)] p-3 rounded-lg border border-[var(--border-color)] break-words font-mono shadow-inner h-20 overflow-y-auto scrollbar-thin">
@@ -649,7 +660,7 @@ const AdminLog = () => {
                             Pencereyi Kapat
                         </button>
                     </div>
-                </div>
+                </div>, document.body
             )}
         </div>
     );

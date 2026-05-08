@@ -57,14 +57,16 @@ export const DataProvider = ({ children }) => {
         const isKnownDevice = localStorage.getItem('tir_current_isKnownDevice') === 'true';
         const vpnRisk = localStorage.getItem('tir_current_vpnRisk') === 'true';
         const incognitoRisk = localStorage.getItem('tir_current_incognitoRisk') === 'true';
+        const sessionStart = localStorage.getItem('tir_session_start');
         
         let presenceId = localStorage.getItem('tir_presence_id');
         if (token && user && !presenceId) {
             presenceId = Math.random().toString(36).substring(2, 11);
             localStorage.setItem('tir_presence_id', presenceId);
+            if (!sessionStart) localStorage.setItem('tir_session_start', new Date().toISOString());
         }
 
-        if (token && user) return { username: user, role, ip, device, location, rawDevice, screen, cores, tz, lang, isKnownDevice, vpnRisk, incognitoRisk, presenceId };
+        if (token && user) return { username: user, role, ip, device, location, rawDevice, screen, cores, tz, lang, isKnownDevice, vpnRisk, incognitoRisk, presenceId, sessionStart: sessionStart || new Date().toISOString() };
         return null;
     });
 
@@ -90,8 +92,10 @@ export const DataProvider = ({ children }) => {
         }
         localStorage.setItem('tir_auth_kenan_v1', 'temp_token'); // Mock auth token
         const newPresenceId = Math.random().toString(36).substring(2, 11);
+        const newSessionStart = new Date().toISOString();
         localStorage.setItem('tir_presence_id', newPresenceId);
-        setCurrentSession({ username: user.username, role: user.role || 'user', ip: user.ip, device: user.device, location: user.location, rawDevice: user.rawDevice, screen: user.screen, cores: user.cores, tz: user.tz, lang: user.lang, isKnownDevice: user.isKnownDevice, vpnRisk: user.vpnRisk, incognitoRisk: user.incognitoRisk, presenceId: newPresenceId });
+        localStorage.setItem('tir_session_start', newSessionStart);
+        setCurrentSession({ username: user.username, role: user.role || 'user', ip: user.ip, device: user.device, location: user.location, rawDevice: user.rawDevice, screen: user.screen, cores: user.cores, tz: user.tz, lang: user.lang, isKnownDevice: user.isKnownDevice, vpnRisk: user.vpnRisk, incognitoRisk: user.incognitoRisk, presenceId: newPresenceId, sessionStart: newSessionStart });
 
         const userKey = user.username === 'kenan' ? 'admin' : user.username;
         await addLog('KULLANICI_GIRIS', `${userKey} sisteme giriş yaptı`, { ip: user.ip || 'Bilinmiyor', device: user.device || 'Bilinmiyor', location: user.location || 'Bilinmiyor', rawDevice: user.rawDevice || 'Bilinmiyor' }, userKey);
@@ -116,6 +120,7 @@ export const DataProvider = ({ children }) => {
         localStorage.removeItem('tir_current_vpnRisk');
         localStorage.removeItem('tir_current_incognitoRisk');
         localStorage.removeItem('tir_presence_id');
+        localStorage.removeItem('tir_session_start');
         setCurrentSession(null);
 
         // Firebase loglama ve online presence silme işlemlerini arka planda asenkron yap
@@ -355,7 +360,8 @@ export const DataProvider = ({ children }) => {
                     lang: currentSession.lang || 'Bilinmiyor',
                     isKnownDevice: !!currentSession.isKnownDevice,
                     vpnRisk: !!currentSession.vpnRisk,
-                    incognitoRisk: !!currentSession.incognitoRisk
+                    incognitoRisk: !!currentSession.incognitoRisk,
+                    sessionStart: currentSession.sessionStart || new Date().toISOString()
                 }, { merge: true });
             } catch { /* empty */ }
         };
