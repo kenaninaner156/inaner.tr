@@ -1,23 +1,4 @@
 /* eslint-env node */
-import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc } from "firebase/firestore";
-
-// Vercel Serverless Function ortamında process.env kullanılır.
-const firebaseConfig = {
-    apiKey: process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY,
-    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || process.env.FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID,
-};
-
-let app;
-let db;
-
-try {
-    app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-} catch (e) {
-    console.log("Firebase init error", e);
-}
 
 export default async function handler(req, res) {
     // Sadece GET ve POST isteklerine izin ver
@@ -25,11 +6,8 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Sadece GET veya POST kabul edilir' });
     }
 
-    // Traccar verileri GET isteğinde URL parametresi olarak veya POST'ta body olarak gönderebilir.
     const data = req.method === 'POST' ? req.body : req.query;
 
-    // --- GÜVENLİK ---
-    // Başkalarının rastgele veri basmaması için URL sonuna ?token=inaner123 eklemen gerekecek
     const EXPECTED_TOKEN = process.env.TRACKER_TOKEN || "inaner123"; 
     
     if (data.token !== EXPECTED_TOKEN) {
@@ -37,7 +15,6 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Enlem ve Boylam değerlerini kontrol et
         const lat = parseFloat(data.lat);
         const lon = parseFloat(data.lon);
 
@@ -45,26 +22,44 @@ export default async function handler(req, res) {
              return res.status(400).json({ error: 'Gecersiz enlem (lat) veya boylam (lon)' });
         }
 
-        // Firebase'e kaydedilecek veri şablonu
+        // Firebase REST API (Vercel'de donmaları engellemek için Client SDK yerine REST kullanıyoruz)
+        const PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID || "v2-tir";
+        
+        // Veri yapısı (Firestore REST API formatı)
         const locationData = {
-            driverId: data.id || 'belirsiz_surucu', // Traccar ayarlarındaki Device Identifier
-            lat: lat,
-            lon: lon,
-            speed: parseFloat(data.speed) || 0, // Traccar hızı knot cinsinden verebilir, sonradan çevrilebilir
-            altitude: parseFloat(data.altitude) || 0,
-            battery: parseFloat(data.batt) || null, // Traccar pil yüzdesini 'batt' olarak gönderebilir
-            timestamp: data.timestamp ? new Date(parseInt(data.timestamp) * 1000).toISOString() : new Date().toISOString(),
-            recordedAt: new Date().toISOString(),
-            source: 'traccar_ios'
+            fields: {
+                driverId: { stringValue: data.id || 'Bilinmeyen_Cihaz' },
+                lat: { doubleValue: lat },
+                lon: { doubleValue: lon },
+                speed: { doubleValue: parseFloat(data.speed) || 0 },
+                altitude: { doubleValue: parseFloat(data.altitude) || 0 },
+                timestamp: { stringValue: data.timestamp ? new Date(parseInt(data.timestamp) * 1000).toISOString() : new Date().toISOString() },
+                recordedAt: { stringValue: new Date().toISOString() },
+                source: { stringValue: 'traccar_ios' }
+            }
         };
 
-        // Firebase "truck_routes" koleksiyonuna yaz
-        const docRef = await addDoc(collection(db, "truck_routes"), locationData);
+        const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/truck_routes`;
+
+        const response = await fetch(firestoreUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(locationData)
+        });
+
+        if (!response.ok) {
+            const errBody = await response.text();
+            throw new Error(`Firebase Error: ${response.status} - ${errBody}`);
+        }
+
+        const result = await response.json();
 
         return res.status(200).json({ 
             success: true, 
             message: 'Konum basariyla kaydedildi',
-            id: docRef.id 
+            id: result.name
         });
 
     } catch (error) {
