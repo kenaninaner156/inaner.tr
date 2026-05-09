@@ -199,9 +199,9 @@ export default function MapPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.5 }}
-            className="absolute top-4 left-1/2 -translate-x-1/2 z-[1100] pointer-events-auto cursor-pointer"
+            className="absolute top-4 left-[48%] -translate-x-1/2 z-[1100] pointer-events-auto cursor-pointer"
             onClick={() => setShowBanner(false)}
-            style={{ width: 'min(1000px, calc(100% - 40px))' }}
+            style={{ width: 'min(720px, calc(100% - 300px))' }}
           >
             <div style={{
               borderRadius: '24px',
