@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo, useContext } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { collection, onSnapshot, query, orderBy, where, doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where, doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import L from 'leaflet';
-import { Menu, History, Smartphone, ChevronRight, X, Check, Truck, User, Filter, BookmarkPlus } from 'lucide-react';
+import { Menu, History, Smartphone, ChevronRight, X, Check, Truck, User, Filter, BookmarkPlus, Trash2 } from 'lucide-react';
 import { useTruck } from '../context/TruckContext';
 import { useCompany } from '../context/CompanyContext';
 import { DataContext } from '../context/DataContext';
@@ -162,6 +162,18 @@ export default function MapPage() {
     setSavingMapping(false);
   };
 
+  const handleDeleteSession = async (session) => {
+    if(!window.confirm('Bu rotayı haritadan tamamen silmek istediğinize emin misiniz?')) return;
+    try {
+      const promises = session.map(point => deleteDoc(doc(db, 'truck_routes', point.id)));
+      await Promise.all(promises);
+      if (selectedSession === session) setSelectedSession(null);
+    } catch(err) {
+      console.error('Error deleting session', err);
+      alert('Rota silinirken bir hata oluştu.');
+    }
+  };
+
   const getDisplayName = useCallback((deviceId)=>{
     const m=deviceMappings[deviceId];
     if(!m) return deviceId;
@@ -248,11 +260,16 @@ export default function MapPage() {
                               <span className="text-xs text-slate-600">{session.length} pt</span>
                             </div>
                           </button>
-                          {/* Seferlere Ekle butonu */}
-                          <div className="px-3 pb-3 pt-0">
+                          {/* Aksiyon butonları */}
+                          <div className="px-3 pb-3 pt-0 flex gap-2">
                             <button onClick={()=>setSaveModalSession({session,deviceName:getDisplayName(driver)})}
-                              className="w-full py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5">
+                              className="flex-1 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5">
                               <BookmarkPlus size={12}/> Seferlere Ekle
+                            </button>
+                            <button onClick={()=>handleDeleteSession(session)}
+                              className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center"
+                              title="Rotayı Sil">
+                              <Trash2 size={12}/>
                             </button>
                           </div>
                         </div>
