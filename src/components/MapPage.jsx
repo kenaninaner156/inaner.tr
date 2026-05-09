@@ -198,46 +198,34 @@ export default function MapPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.8, ease: "easeInOut" }}
-            className="absolute inset-0 z-[2000] pointer-events-auto flex items-center justify-center bg-slate-950/95 backdrop-blur-md"
+            transition={{ duration: 0.5 }}
+            className="absolute inset-0 z-[2000] pointer-events-auto flex items-center justify-center bg-[#0a0f1a]"
           >
-            <div className="relative w-full max-w-5xl px-6 flex flex-col items-center">
-              {/* Premium Image Frame */}
-              <div className="relative group w-full rounded-[32px] p-1 bg-gradient-to-br from-slate-700/50 via-slate-800/20 to-slate-700/50 shadow-2xl shadow-black/60">
-                <div className="relative overflow-hidden rounded-[28px] bg-slate-900 border border-white/5">
-                  <img
-                    src="/map-banner.png"
-                    alt="Banner"
-                    className="w-full h-auto object-contain block opacity-90 group-hover:opacity-100 transition-opacity duration-700"
-                  />
-                  {/* Subtle Light Reflection Overlay */}
-                  <div className="absolute inset-0 pointer-events-none bg-gradient-to-tr from-white/0 via-white/5 to-white/0 opacity-30" />
-                </div>
+            <div className="relative w-full max-w-4xl px-8 flex flex-col items-center">
+              {/* Ultra-Clean Image Frame */}
+              <div className="relative w-full rounded-2xl overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.8)] border border-white/10">
+                <img
+                  src="/map-banner.png"
+                  alt="Banner"
+                  className="w-full h-auto block"
+                />
               </div>
 
-              {/* Modern Apple-style Button */}
-              <motion.button 
-                whileHover={{ scale: 1.02, translateY: -2 }}
-                whileTap={{ scale: 0.98 }}
+              {/* Minimalist Premium Button */}
+              <button 
                 onClick={() => setShowBanner(false)}
-                className="mt-16 px-10 py-4 relative group overflow-hidden"
+                className="mt-16 px-12 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-95 flex items-center gap-3"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-2xl" />
-                <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity" />
-                <div className="relative flex items-center gap-3 text-white font-bold tracking-tight text-lg">
-                  Sisteme Giriş Yap
-                  <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center group-hover:translate-x-1 transition-transform">
-                    <ChevronRight size={14} strokeWidth={3} />
-                  </div>
+                Sisteme Giriş Yap
+                <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                  <ChevronRight size={12} strokeWidth={3} />
                 </div>
-                {/* Glow Effect */}
-                <div className="absolute -inset-4 bg-indigo-500/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity -z-10" />
-              </motion.button>
+              </button>
               
-              <div className="mt-8 flex items-center gap-4 text-slate-500/60 text-[10px] font-bold uppercase tracking-[0.2em]">
-                <div className="h-px w-8 bg-slate-800" />
-                İnaner Lojistik Takip Sistemi
-                <div className="h-px w-8 bg-slate-800" />
+              <div className="mt-12 flex items-center gap-3 opacity-20">
+                <div className="h-px w-6 bg-white" />
+                <span className="text-[10px] font-black tracking-[0.3em] text-white uppercase">İnaner</span>
+                <div className="h-px w-6 bg-white" />
               </div>
             </div>
           </motion.div>
