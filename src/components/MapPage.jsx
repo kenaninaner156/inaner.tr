@@ -206,7 +206,7 @@ export default function MapPage() {
             <div style={{
               borderRadius: '20px',
               overflow: 'hidden',
-              boxShadow: '0 0 0 2px rgba(15,23,42,0.8), 0 12px 40px rgba(0,0,0,0.6)',
+              boxShadow: '0 0 0 1px rgba(15,23,42,0.6), 0 12px 40px rgba(0,0,0,0.5)',
               position: 'relative',
             }}>
               <img
