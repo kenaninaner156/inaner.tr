@@ -202,16 +202,19 @@ export default function MapPage() {
             className="absolute inset-0 z-[2000] pointer-events-auto flex items-center justify-center bg-[#0B0E14]"
           >
             <div className="relative w-full max-w-4xl px-12 flex flex-col items-center">
-              {/* Artifact-Free Image Container */}
-              <div className="relative w-full rounded-3xl overflow-hidden shadow-[0_40px_100px_-15px_rgba(0,0,0,0.9)] bg-[#0D1219]">
-                {/* Simulated Border (Smoother than actual border) */}
-                <div className="absolute inset-0 rounded-3xl ring-1 ring-inset ring-white/5 pointer-events-none z-10" />
-                
+              {/* System-Matched Image Frame */}
+              <div 
+                className="relative w-full rounded-2xl overflow-hidden shadow-2xl"
+                style={{ 
+                  backgroundColor: 'var(--bg-sidebar)',
+                  border: '1px solid var(--border-color)',
+                  boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
+                }}
+              >
                 <img
                   src="/map-banner.png"
                   alt="Banner"
-                  className="w-full h-auto block relative z-0"
-                  style={{ imageRendering: 'auto' }}
+                  className="w-full h-auto block opacity-95"
                 />
               </div>
 
