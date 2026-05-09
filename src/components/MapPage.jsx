@@ -113,10 +113,7 @@ export default function MapPage() {
 
     // Navigasyon Baslat / Durdur
     const startNavigation = (session) => {
-        setSelectedSession({
-            ...session,
-            driverId: session[0].driverId
-        });
+        setSelectedSession(session);
         setIsFollowing(true);
         setShowSidebar(false);
 

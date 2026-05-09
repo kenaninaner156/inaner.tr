@@ -36,7 +36,7 @@ export default function NavigationOverlay({
                                 Navigasyon
                             </h3>
                             <p className="text-slate-400 text-sm mt-1">
-                                {activeSession.driverId} - Rota Takibi
+                                {activeSession[0]?.driverId || 'Bilinmeyen'} - Rota Takibi
                             </p>
                         </div>
                         <button 
