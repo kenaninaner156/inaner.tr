@@ -198,34 +198,47 @@ export default function MapPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.6 }}
-            className="absolute inset-0 z-[2000] pointer-events-auto bg-slate-950"
+            transition={{ duration: 0.8, ease: "easeInOut" }}
+            className="absolute inset-0 z-[2000] pointer-events-auto flex items-center justify-center bg-slate-950/95 backdrop-blur-md"
           >
-            <div className="relative w-full h-full flex flex-col items-center justify-center p-8 bg-slate-950">
-              <div className="relative w-full max-w-6xl aspect-video md:aspect-[21/9] rounded-3xl overflow-hidden shadow-2xl border border-white/5">
-                <img
-                  src="/map-banner.png"
-                  alt="Banner"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    display: 'block',
-                    backgroundColor: '#020617'
-                  }}
-                />
+            <div className="relative w-full max-w-5xl px-6 flex flex-col items-center">
+              {/* Premium Image Frame */}
+              <div className="relative group w-full rounded-[32px] p-1 bg-gradient-to-br from-slate-700/50 via-slate-800/20 to-slate-700/50 shadow-2xl shadow-black/60">
+                <div className="relative overflow-hidden rounded-[28px] bg-slate-900 border border-white/5">
+                  <img
+                    src="/map-banner.png"
+                    alt="Banner"
+                    className="w-full h-auto object-contain block opacity-90 group-hover:opacity-100 transition-opacity duration-700"
+                  />
+                  {/* Subtle Light Reflection Overlay */}
+                  <div className="absolute inset-0 pointer-events-none bg-gradient-to-tr from-white/0 via-white/5 to-white/0 opacity-30" />
+                </div>
               </div>
 
-              {/* Orta Giriş Butonu */}
+              {/* Modern Apple-style Button */}
               <motion.button 
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.02, translateY: -2 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => setShowBanner(false)}
-                className="mt-12 px-12 py-4 bg-indigo-500 hover:bg-indigo-600 text-white text-xl font-bold rounded-2xl shadow-[0_0_30px_rgba(99,102,241,0.4)] transition-all flex items-center gap-3 group"
+                className="mt-16 px-10 py-4 relative group overflow-hidden"
               >
-                Sisteme Giriş Yap
-                <ChevronRight className="group-hover:translate-x-1 transition-transform" />
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-2xl" />
+                <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity" />
+                <div className="relative flex items-center gap-3 text-white font-bold tracking-tight text-lg">
+                  Sisteme Giriş Yap
+                  <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center group-hover:translate-x-1 transition-transform">
+                    <ChevronRight size={14} strokeWidth={3} />
+                  </div>
+                </div>
+                {/* Glow Effect */}
+                <div className="absolute -inset-4 bg-indigo-500/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity -z-10" />
               </motion.button>
+              
+              <div className="mt-8 flex items-center gap-4 text-slate-500/60 text-[10px] font-bold uppercase tracking-[0.2em]">
+                <div className="h-px w-8 bg-slate-800" />
+                İnaner Lojistik Takip Sistemi
+                <div className="h-px w-8 bg-slate-800" />
+              </div>
             </div>
           </motion.div>
         )}
