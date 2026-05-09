@@ -5,7 +5,6 @@ import { collection, onSnapshot, query, orderBy, where, doc, setDoc, getDoc } fr
 import { db } from '../services/firebaseConfig';
 import L from 'leaflet';
 import { Menu, History, Smartphone, ChevronRight, X, Check, Truck, User, Filter, BookmarkPlus } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useTruck } from '../context/TruckContext';
 import { useCompany } from '../context/CompanyContext';
 import { DataContext } from '../context/DataContext';
@@ -120,7 +119,6 @@ export default function MapPage() {
   const [savingMapping, setSavingMapping] = useState(false);
   const [dateFilterDays, setDateFilterDays] = useState(7);
   const [saveModalSession, setSaveModalSession] = useState(null);
-  const [showBanner, setShowBanner] = useState(true);
   const mapRef = useRef(null);
 
   useEffect(() => {
@@ -192,116 +190,10 @@ export default function MapPage() {
         </div>
       </div>
 
-      <AnimatePresence mode="wait">
-        {showBanner ? (
-          <motion.div 
-            key="splash"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
-            className="absolute inset-0 z-[2000] flex flex-col items-center justify-center bg-[#0B0E14]"
-          >
-            <div className="relative w-full max-w-4xl px-12 flex flex-col items-center">
-              {/* Ghost-Clean Image Frame */}
-              <div className="relative w-full rounded-2xl overflow-hidden bg-[#0B0E14]">
-                <img
-                  src="/map-banner.png"
-                  alt="Banner"
-                  className="w-full h-auto block scale-[1.02] -translate-y-[1%]"
-                />
-              </div>
-
-              {/* Central Entry Button */}
-              <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowBanner(false)}
-                className="mt-16 px-14 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-xl shadow-indigo-600/10 transition-colors flex items-center gap-3"
-              >
-                <span>Sisteme Giriş Yap</span>
-                <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center">
-                  <ChevronRight size={14} strokeWidth={3} />
-                </div>
-              </motion.button>
-              
-              <div className="mt-14 opacity-5 flex items-center gap-4">
-                <div className="h-px w-10 bg-white" />
-                <span className="text-[10px] font-black tracking-[0.4em] text-white uppercase">İnaner</span>
-                <div className="h-px w-10 bg-white" />
-              </div>
-            </div>
-          </motion.div>
-        ) : (
-          <div className="flex-1 relative">
-            <MapContainer
-              center={defaultCenter}
-              zoom={6}
-              style={{ height: '100%', width: '100%', background: '#0B0E14' }}
-              zoomControl={false}
-            >
-              <TileLayer
-                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                attribution='&copy; OpenStreetMap'
-              />
-              <ZoomControl position="bottomright" />
-              <MapRefSetter mapRef={mapRef}/>
-              
-              {allDevices.map(deviceId => {
-                const loc = locations[deviceId];
-                if(!loc) return null;
-                const sessions = sessionsByDriver[deviceId] || [];
-                const activeSession = sessions[sessions.length-1];
-                const displayName = getDisplayName(deviceId);
-
-                return (
-                  <React.Fragment key={deviceId}>
-                    <Marker 
-                      position={[loc.latitude, loc.longitude]} 
-                      icon={truckIcon(loc.course, deviceId, loc.status)}
-                    >
-                      <Popup className="cpopup">
-                        <div className="p-3 min-w-[200px] bg-slate-900 text-slate-100">
-                          <div className="flex items-center gap-2 mb-2 border-b border-slate-700 pb-2">
-                            <Truck size={16} className="text-indigo-400" />
-                            <span className="font-bold text-sm">{displayName}</span>
-                          </div>
-                          <div className="space-y-1.5 text-xs text-slate-300">
-                            <div className="flex justify-between"><span>Hız:</span> <span className="text-white font-medium">{(loc.speed * 1.852).toFixed(1)} km/h</span></div>
-                            <div className="flex justify-between"><span>Durum:</span> <span className={loc.status==='online'?'text-emerald-400':'text-slate-500'}>{loc.status==='online'?'Çevrimiçi':'Çevrimdışı'}</span></div>
-                            <div className="flex justify-between"><span>Son Görülme:</span> <span>{new Date(loc.lastUpdate).toLocaleTimeString('tr-TR')}</span></div>
-                          </div>
-                          <div className="mt-3 pt-2 border-t border-slate-700 flex flex-col gap-2">
-                            <button onClick={()=>setSidebarTab('history')} className="w-full py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-xs">
-                              <History size={12}/> Geçmişi Gör
-                            </button>
-                            {activeSession && (
-                              <button onClick={()=>setSavingRoute(activeSession)} className="w-full py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-xs">
-                                <Plus size={12}/> Seferlere Ekle
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </Popup>
-                    </Marker>
-                    {showRoutes && activeSession && (
-                      <Polyline 
-                        positions={activeSession.points.map(p=>[p.lat, p.lng])}
-                        pathOptions={{ color: '#6366f1', weight: 4, opacity: 0.6, lineJoin: 'round' }}
-                      />
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </MapContainer>
-          </div>
-        )}
-      </AnimatePresence>
-
       {showSidebar && <div className="absolute inset-0 bg-black/40 z-[1500]" onClick={()=>setShowSidebar(false)}/>}
 
       {/* Sidebar */}
-      <div className={`absolute top-0 left-0 bottom-0 w-80 bg-slate-900/98 backdrop-blur-xl border-r border-slate-700/50 z-[1600] shadow-2xl flex flex-col transition-transform duration-300 ${showSidebar?'translate-x-0':'-translate-x-full'}`}>
+      <div className={`absolute top-0 left-0 bottom-0 w-80 bg-slate-900/98 backdrop-blur-xl border-r border-slate-700/50 z-[1600] shadow-2xl flex flex-col rounded-l-2xl transition-transform duration-300 ${showSidebar?'translate-x-0':'-translate-x-full'}`}>
         <div className="p-4 border-b border-slate-700/50 flex justify-between items-center">
           <h2 className="text-lg font-bold text-white">Yönetim Paneli</h2>
           <button onClick={()=>setShowSidebar(false)} className="text-slate-400 hover:text-white p-1 rounded-lg"><X size={18}/></button>
