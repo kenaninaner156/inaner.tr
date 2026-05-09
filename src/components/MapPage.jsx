@@ -201,14 +201,14 @@ export default function MapPage() {
             transition={{ duration: 0.5 }}
             className="absolute top-4 left-1/2 -translate-x-1/2 z-[1100] pointer-events-auto cursor-pointer"
             onClick={() => setShowBanner(false)}
-            style={{ width: 'min(800px, calc(100% - 240px))' }}
+            style={{ width: 'min(1000px, calc(100% - 40px))' }}
           >
             <div style={{
               borderRadius: '24px',
               overflow: 'hidden',
-              boxShadow: '0 0 0 1px rgba(15,23,42,0.5), 0 16px 48px rgba(0,0,0,0.6)',
+              boxShadow: '0 0 0 1px rgba(15,23,42,0.4), 0 20px 50px rgba(0,0,0,0.6)',
               position: 'relative',
-              backgroundColor: '#0f172a'
+              backgroundColor: 'transparent'
             }}>
               <img
                 src="/map-banner.png"
@@ -216,18 +216,9 @@ export default function MapPage() {
                 style={{
                   width: '100%',
                   height: 'auto',
-                  maxHeight: '120px',
-                  objectFit: 'cover',
-                  objectPosition: 'center',
                   display: 'block',
                 }}
               />
-              {/* Sadece çok hafif bir iç gölge (vignette) — resmi kapatmaz */}
-              <div style={{
-                position: 'absolute', inset: 0,
-                boxShadow: 'inset 0 0 20px rgba(0,0,0,0.3)',
-                pointerEvents: 'none'
-              }}/>
             </div>
           </motion.div>
         )}
