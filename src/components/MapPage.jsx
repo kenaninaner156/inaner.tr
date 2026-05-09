@@ -226,11 +226,6 @@ export default function MapPage() {
                 Sisteme Giriş Yap
                 <ChevronRight className="group-hover:translate-x-1 transition-transform" />
               </motion.button>
-              
-              <div className="mt-8 text-center">
-                <h2 className="text-2xl font-bold text-white tracking-tight">İnaner Lojistik</h2>
-                <p className="text-slate-500">Canlı Filo Takip Sistemi • 🧪 Beta v2.0</p>
-              </div>
             </div>
           </motion.div>
         )}
