@@ -201,32 +201,35 @@ export default function MapPage() {
             transition={{ duration: 0.6 }}
             className="absolute inset-0 z-[2000] pointer-events-auto bg-slate-950"
           >
-            <div className="relative w-full h-full">
-              <img
-                src="/map-banner.png"
-                alt="Banner"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  display: 'block',
-                }}
-              />
-              {/* Tam ekran kapatma butonu */}
-              <button 
-                onClick={(e) => { e.stopPropagation(); setShowBanner(false); }}
-                className="absolute top-6 right-6 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-all backdrop-blur-md border border-white/20 shadow-2xl z-[2100] group"
-                title="Haritaya Geç"
+            <div className="relative w-full h-full flex flex-col items-center justify-center p-8 bg-slate-950">
+              <div className="relative w-full max-w-6xl aspect-video md:aspect-[21/9] rounded-3xl overflow-hidden shadow-2xl border border-white/5">
+                <img
+                  src="/map-banner.png"
+                  alt="Banner"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    display: 'block',
+                    backgroundColor: '#020617'
+                  }}
+                />
+              </div>
+
+              {/* Orta Giriş Butonu */}
+              <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowBanner(false)}
+                className="mt-12 px-12 py-4 bg-indigo-500 hover:bg-indigo-600 text-white text-xl font-bold rounded-2xl shadow-[0_0_30px_rgba(99,102,241,0.4)] transition-all flex items-center gap-3 group"
               >
-                <X size={24} className="group-hover:rotate-90 transition-transform duration-300" />
-              </button>
+                Sisteme Giriş Yap
+                <ChevronRight className="group-hover:translate-x-1 transition-transform" />
+              </motion.button>
               
-              {/* Alt kısımda şık bir degrade geçiş */}
-              <div className="absolute bottom-0 left-0 w-full h-1/3 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent pointer-events-none" />
-              
-              <div className="absolute bottom-12 left-12 text-white">
-                <h2 className="text-4xl font-bold tracking-tight mb-2">Hoş Geldiniz</h2>
-                <p className="text-slate-400 text-lg">Canlı Filo Takip Sistemi • 🧪 Beta</p>
+              <div className="mt-8 text-center">
+                <h2 className="text-2xl font-bold text-white tracking-tight">İnaner Lojistik</h2>
+                <p className="text-slate-500">Canlı Filo Takip Sistemi • 🧪 Beta v2.0</p>
               </div>
             </div>
           </motion.div>
