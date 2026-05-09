@@ -6,7 +6,9 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Sadece GET veya POST kabul edilir' });
     }
 
-    const data = req.method === 'POST' ? req.body : req.query;
+    // Traccar OsmAnd protokolü bazen POST atsa bile verileri Query String'de gönderir.
+    // Bu yüzden hem query'yi hem de body'yi birleştiriyoruz.
+    const data = { ...req.query, ...(req.body || {}) };
 
     const EXPECTED_TOKEN = process.env.TRACKER_TOKEN || "inaner123"; 
     
