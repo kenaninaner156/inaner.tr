@@ -195,37 +195,39 @@ export default function MapPage() {
       <AnimatePresence>
         {showBanner && (
           <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.5 }}
-            className="absolute top-4 left-[68%] -translate-x-1/2 z-[1100] pointer-events-auto"
-            style={{ width: 'min(640px, calc(100% - 400px))' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.6 }}
+            className="absolute inset-0 z-[2000] pointer-events-auto bg-slate-950"
           >
-            <div style={{
-              borderRadius: '20px',
-              overflow: 'hidden',
-              boxShadow: '0 0 0 1px rgba(15,23,42,0.4), 0 20px 50px rgba(0,0,0,0.6)',
-              position: 'relative',
-              backgroundColor: 'transparent'
-            }}>
+            <div className="relative w-full h-full">
               <img
                 src="/map-banner.png"
                 alt="Banner"
                 style={{
                   width: '100%',
-                  height: 'auto',
+                  height: '100%',
+                  objectFit: 'cover',
                   display: 'block',
                 }}
               />
-              {/* Sağ üst X butonu */}
+              {/* Tam ekran kapatma butonu */}
               <button 
                 onClick={(e) => { e.stopPropagation(); setShowBanner(false); }}
-                className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white p-1 rounded-full transition-colors backdrop-blur-sm shadow-lg z-[1200]"
-                title="Kapat"
+                className="absolute top-6 right-6 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-all backdrop-blur-md border border-white/20 shadow-2xl z-[2100] group"
+                title="Haritaya Geç"
               >
-                <X size={14} />
+                <X size={24} className="group-hover:rotate-90 transition-transform duration-300" />
               </button>
+              
+              {/* Alt kısımda şık bir degrade geçiş */}
+              <div className="absolute bottom-0 left-0 w-full h-1/3 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent pointer-events-none" />
+              
+              <div className="absolute bottom-12 left-12 text-white">
+                <h2 className="text-4xl font-bold tracking-tight mb-2">Hoş Geldiniz</h2>
+                <p className="text-slate-400 text-lg">Canlı Filo Takip Sistemi • 🧪 Beta</p>
+              </div>
             </div>
           </motion.div>
         )}
