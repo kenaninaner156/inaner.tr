@@ -68,32 +68,33 @@ function SaveRouteModal({ session, deviceName, onSave, onClose }) {
 
   return (
     <div className="fixed inset-0 z-[3000] flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-700/60 rounded-3xl p-5 w-full max-w-sm shadow-2xl">
+      <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] rounded-3xl p-5 w-full max-w-sm shadow-2xl">
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h3 className="text-white font-bold text-base flex items-center gap-2">
-              <BookmarkPlus size={18} className="text-indigo-400"/> Rotayı Kaydet
+            <h3 className="font-bold text-base flex items-center gap-2" style={{color:'var(--text-primary)'}}>
+              <BookmarkPlus size={18} style={{color:'var(--accent)'}}/> Rotayı Kaydet
             </h3>
-            <p className="text-slate-500 text-xs mt-0.5">{deviceName} • {km} km</p>
+            <p className="text-xs mt-0.5" style={{color:'var(--text-secondary)'}}>{deviceName} • {km} km</p>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-white p-1"><X size={18}/></button>
+          <button onClick={onClose} className="p-1 transition-colors hover:text-[var(--text-primary)]" style={{color:'var(--text-muted)'}}><X size={18}/></button>
         </div>
         <div className="space-y-3">
           <div>
-            <label className="text-xs text-slate-400 mb-1 block">Nereden (Başlangıç)</label>
+            <label className="text-xs mb-1 block" style={{color:'var(--text-secondary)'}}>Nereden (Başlangıç)</label>
             <input value={from} onChange={e=>setFrom(e.target.value)} placeholder="Örn: Ankara / Baştaş"
-              className="w-full bg-slate-800/70 border border-slate-700/50 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/70"/>
+              className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[var(--accent)]" style={{color:'var(--text-primary)'}}/>
           </div>
           <div>
-            <label className="text-xs text-slate-400 mb-1 block">Nereye (Bitiş)</label>
+            <label className="text-xs mb-1 block" style={{color:'var(--text-secondary)'}}>Nereye (Bitiş)</label>
             <input value={to} onChange={e=>setTo(e.target.value)} placeholder="Örn: Çayırhan / Termik"
-              className="w-full bg-slate-800/70 border border-slate-700/50 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/70"/>
+              className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[var(--accent)]" style={{color:'var(--text-primary)'}}/>
           </div>
-          <p className="text-xs text-slate-500 bg-slate-800/40 rounded-xl p-2.5">
-            💡 Bu rota <b className="text-slate-300">Seferler → Rotalarım</b> listesine eklenecek ve sefer oluştururken seçilebilir olacak.
+          <p className="text-xs bg-[var(--bg-input)] rounded-xl p-2.5" style={{color:'var(--text-secondary)'}}>
+            💡 Bu rota <b style={{color:'var(--text-primary)'}}>Seferler → Rotalarım</b> listesine eklenecek ve sefer oluştururken seçilebilir olacak.
           </p>
           <button onClick={handleSave} disabled={saving||!from||!to}
-            className="w-full py-2.5 bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+            className="w-full py-2.5 disabled:opacity-50 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 hover:opacity-90 shadow-sm"
+            style={{backgroundColor:'var(--accent)'}}>
             {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <Check size={16}/>}
             Seferler'e Ekle
           </button>
@@ -172,7 +173,7 @@ export default function MapPage() {
   const allDevices = Object.keys(groupedByDriver);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] relative bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-800">
+    <div className="flex flex-col h-[calc(100vh-8rem)] relative bg-[var(--bg-panel)] rounded-2xl overflow-hidden shadow-2xl border border-[var(--border-color)] isolate [transform:translateZ(0)]">
       <style>{`
         .leaflet-control-attribution{background:rgba(15,23,42,0.7)!important;color:rgba(148,163,184,0.8)!important;font-size:10px!important;}
         .cpopup .leaflet-popup-content-wrapper{border-radius:14px;padding:0;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,0.15);}
@@ -181,11 +182,11 @@ export default function MapPage() {
 
       {/* Top bar */}
       <div className="absolute top-4 left-4 z-[1100] pointer-events-auto">
-        <div className="bg-slate-900/85 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-slate-700/50 shadow-lg flex items-center gap-3">
-          <button onClick={()=>setShowSidebar(v=>!v)} className="p-1.5 hover:bg-slate-800 rounded-xl text-slate-300"><Menu size={20}/></button>
+        <div className="bg-[var(--bg-panel)]/90 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-[var(--border-color)] shadow-lg flex items-center gap-3">
+          <button onClick={()=>setShowSidebar(v=>!v)} className="p-1.5 hover:bg-[var(--bg-hover)] rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"><Menu size={20}/></button>
           <div>
-            <h2 className="text-white font-semibold text-sm">Canlı Filo Takibi</h2>
-            <p className="text-slate-400 text-xs">{allDevices.length} Aktif Cihaz</p>
+            <h2 className="font-semibold text-sm" style={{color:'var(--text-primary)'}}>Canlı Filo Takibi</h2>
+            <p className="text-xs" style={{color:'var(--text-secondary)'}}>{allDevices.length} Aktif Cihaz</p>
           </div>
         </div>
       </div>
@@ -193,37 +194,38 @@ export default function MapPage() {
       {showSidebar && <div className="absolute inset-0 bg-black/40 z-[1500]" onClick={()=>setShowSidebar(false)}/>}
 
       {/* Sidebar */}
-      <div className={`absolute top-0 left-0 bottom-0 w-80 bg-slate-900/98 backdrop-blur-xl border-r border-slate-700/50 z-[1600] shadow-2xl flex flex-col rounded-l-2xl transition-transform duration-300 ${showSidebar?'translate-x-0':'-translate-x-full'}`}>
-        <div className="p-4 border-b border-slate-700/50 flex justify-between items-center">
-          <h2 className="text-lg font-bold text-white">Yönetim Paneli</h2>
-          <button onClick={()=>setShowSidebar(false)} className="text-slate-400 hover:text-white p-1 rounded-lg"><X size={18}/></button>
+      <div className={`absolute top-0 left-0 bottom-0 w-80 bg-[var(--bg-sidebar)] backdrop-blur-xl border-r border-[var(--border-color)] z-[1600] shadow-2xl flex flex-col transition-transform duration-300 ${showSidebar?'translate-x-0':'-translate-x-full'}`}>
+        <div className="p-4 border-b border-[var(--border-color)] flex justify-between items-center">
+          <h2 className="text-lg font-bold" style={{color:'var(--text-primary)'}}>Yönetim Paneli</h2>
+          <button onClick={()=>setShowSidebar(false)} className="p-1 rounded-lg hover:bg-[var(--bg-hover)] transition-colors" style={{color:'var(--text-secondary)'}}><X size={18}/></button>
         </div>
-        <div className="flex border-b border-slate-700/50">
+        <div className="flex border-b border-[var(--border-color)]">
           {[['history','Rotalar',History],['devices','Cihazlar',Smartphone]].map(([tab,label,Icon])=>(
             <button key={tab} onClick={()=>setSidebarTab(tab)}
-              className={`flex-1 py-3 text-xs font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${sidebarTab===tab?'border-indigo-500 text-indigo-400':'border-transparent text-slate-400 hover:text-slate-200'}`}>
+              className={`flex-1 py-3 text-xs font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${sidebarTab===tab?'border-[var(--accent)] text-[var(--accent)]':'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>
               <Icon size={14}/>{label}
             </button>
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3" style={{scrollbarWidth:'thin',scrollbarColor:'#334155 transparent'}}>
+        <div className="flex-1 overflow-y-auto p-3" style={{scrollbarWidth:'thin',scrollbarColor:'var(--border-color) transparent'}}>
           {sidebarTab==='history' ? (
             <>
               <div className="flex gap-1 mb-3 flex-wrap">
                 {DATE_FILTERS.map(f=>(
                   <button key={f.days} onClick={()=>setDateFilterDays(f.days)}
-                    className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors flex items-center gap-1 ${dateFilterDays===f.days?'bg-indigo-500 text-white':'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
+                    className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors flex items-center gap-1 ${dateFilterDays===f.days?'text-white shadow-sm':'bg-[var(--bg-input)] hover:bg-[var(--bg-hover)]'}`}
+                    style={dateFilterDays===f.days ? {backgroundColor:'var(--accent)'} : {color:'var(--text-secondary)'}}>
                     <Filter size={9}/>{f.label}
                   </button>
                 ))}
               </div>
-              {allDevices.length===0 && <div className="text-center text-slate-500 text-xs py-10">Bu dönemde kayıt yok</div>}
+              {allDevices.length===0 && <div className="text-center text-xs py-10" style={{color:'var(--text-secondary)'}}>Bu dönemde kayıt yok</div>}
               {Object.entries(sessionsByDriver).map(([driver,sessions])=>(
                 <div key={driver} className="mb-4">
                   <div className="flex items-center gap-2 mb-2 px-1">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"/>
-                    <span className="text-slate-200 font-semibold text-sm">{getDisplayName(driver)}</span>
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]"/>
+                    <span className="font-semibold text-sm" style={{color:'var(--text-primary)'}}>{getDisplayName(driver)}</span>
                   </div>
                   <div className="space-y-2">
                     {[...sessions].reverse().map((session,i)=>{
@@ -232,26 +234,27 @@ export default function MapPage() {
                       const isSelected=selectedSession===session;
                       const {km,durationMin}=calcStats(session);
                       return (
-                        <div key={i} className={`rounded-xl border overflow-hidden transition-all ${isSelected?'bg-indigo-500/15 border-indigo-500/50':'bg-slate-800/50 border-slate-700/50'}`}>
+                        <div key={i} className={`rounded-xl border overflow-hidden transition-all ${isSelected?'border-[var(--accent)] bg-[var(--bg-hover)]':'border-[var(--border-color)] bg-[var(--bg-input)]'}`}>
                           <button onClick={()=>{ setSelectedSession(isSelected?null:session); if(mapRef.current)mapRef.current.closePopup(); }}
                             className="w-full text-left p-3">
                             <div className="flex justify-between items-center mb-1">
-                              <span className={`text-sm font-semibold ${isSelected?'text-indigo-300':'text-white'}`}>Oturum {sessions.length-i}</span>
-                              <ChevronRight size={14} className={isSelected?'text-indigo-400 rotate-90':'text-slate-500'}/>
+                              <span className={`text-sm font-semibold`} style={{color: isSelected?'var(--accent)':'var(--text-primary)'}}>Oturum {sessions.length-i}</span>
+                              <ChevronRight size={14} className={isSelected?'rotate-90':''} style={{color: isSelected?'var(--accent)':'var(--text-muted)'}}/>
                             </div>
-                            <div className="text-xs text-slate-400">
+                            <div className="text-xs" style={{color:'var(--text-secondary)'}}>
                               {start.toLocaleDateString('tr-TR')} • {start.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} – {end.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}
                             </div>
                             <div className="flex gap-3 mt-1.5">
-                              <span className="text-xs text-indigo-400">{km} km</span>
-                              <span className="text-xs text-slate-500">{durationMin} dk</span>
-                              <span className="text-xs text-slate-600">{session.length} pt</span>
+                              <span className="text-xs font-medium" style={{color:'var(--accent)'}}>{km} km</span>
+                              <span className="text-xs" style={{color:'var(--text-secondary)'}}>{durationMin} dk</span>
+                              <span className="text-xs" style={{color:'var(--text-muted)'}}>{session.length} pt</span>
                             </div>
                           </button>
                           {/* Seferlere Ekle butonu */}
                           <div className="px-3 pb-3 pt-0">
                             <button onClick={()=>setSaveModalSession({session,deviceName:getDisplayName(driver)})}
-                              className="w-full py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-400 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5">
+                              className="w-full py-1.5 border text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 hover:opacity-80"
+                              style={{borderColor:'var(--accent)', color:'var(--accent)', backgroundColor:'var(--accent-glow)'}}>
                               <BookmarkPlus size={12}/> Seferlere Ekle
                             </button>
                           </div>
@@ -264,9 +267,9 @@ export default function MapPage() {
             </>
           ) : (
             <div className="space-y-3">
-              <p className="text-xs text-slate-500 px-1">Cihazları şoför ve tıra bağlayın.</p>
+              <p className="text-xs px-1" style={{color:'var(--text-secondary)'}}>Cihazları şoför ve tıra bağlayın.</p>
               {allDevices.length===0 && (
-                <div className="text-center text-slate-500 text-xs py-10 bg-slate-800/30 rounded-xl border border-slate-700/30">
+                <div className="text-center text-xs py-10 bg-[var(--bg-input)] rounded-xl border border-[var(--border-color)]" style={{color:'var(--text-secondary)'}}>
                   Henüz sinyal gönderen cihaz yok.
                 </div>
               )}
@@ -278,45 +281,47 @@ export default function MapPage() {
                 const lastSeen=lastLoc?new Date(lastLoc.timestamp).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}):'–';
                 const speedKmh=Math.round((lastLoc?.speed||0)*3.6);
                 return (
-                  <div key={deviceId} className="bg-slate-800/60 border border-slate-700/50 rounded-xl overflow-hidden">
+                  <div key={deviceId} className="bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl overflow-hidden transition-colors">
                     <div className="p-3 flex items-center gap-3">
-                      <div className="p-2 bg-slate-700/60 rounded-lg">
-                        <Smartphone size={18} className="text-indigo-400"/>
+                      <div className="p-2 rounded-lg" style={{backgroundColor:'var(--bg-hover)', color:'var(--accent)'}}>
+                        <Smartphone size={18} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-bold text-white truncate">{deviceId}</div>
+                        <div className="text-sm font-bold truncate" style={{color:'var(--text-primary)'}}>{deviceId}</div>
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           {mapped ? (
-                            <span className="text-xs text-emerald-400 flex items-center gap-1"><Check size={10}/>{mapped.driverName}{truck&&` - ${truck.plate}`}</span>
+                            <span className="text-xs text-emerald-500 flex items-center gap-1 font-medium"><Check size={10}/>{mapped.driverName}{truck&&` - ${truck.plate}`}</span>
                           ) : (
-                            <span className="text-xs text-amber-400">Eşleştirilmedi</span>
+                            <span className="text-xs text-amber-500 font-medium">Eşleştirilmedi</span>
                           )}
-                          <span className="text-xs text-slate-600">• {lastSeen}</span>
-                          {speedKmh > 0 && <span className="text-xs text-sky-400">{speedKmh} km/h</span>}
+                          <span className="text-xs" style={{color:'var(--text-muted)'}}>• {lastSeen}</span>
+                          {speedKmh > 0 && <span className="text-xs text-sky-500 font-medium">{speedKmh} km/h</span>}
                         </div>
                       </div>
                       <button onClick={()=>{ if(isEditing){setMappingDevice(null);return;} setMappingDevice(deviceId); setMappingTruckId(mapped?.truckId||''); setMappingDriverName(mapped?.driverName||''); }}
-                        className="text-xs text-indigo-400 px-2 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 rounded-lg transition-colors shrink-0">
+                        className="text-xs px-2 py-1 rounded-lg transition-colors shrink-0 font-medium hover:opacity-80"
+                        style={{backgroundColor:'var(--accent-glow)', color:'var(--accent)'}}>
                         {isEditing?'İptal':'Düzenle'}
                       </button>
                     </div>
                     {isEditing && (
-                      <div className="px-3 pb-3 border-t border-slate-700/50 pt-3 space-y-2">
+                      <div className="px-3 pb-3 border-t border-[var(--border-color)] pt-3 space-y-2 bg-[var(--bg-sidebar)]">
                         <div>
-                          <label className="text-xs text-slate-400 mb-1 block flex items-center gap-1"><User size={11}/> Şoför Adı</label>
+                          <label className="text-xs mb-1 block flex items-center gap-1" style={{color:'var(--text-secondary)'}}><User size={11}/> Şoför Adı</label>
                           <input value={mappingDriverName} onChange={e=>setMappingDriverName(e.target.value)} placeholder="Örn: Kenan İnaner"
-                            className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/70"/>
+                            className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)]" style={{color:'var(--text-primary)'}}/>
                         </div>
                         <div>
-                          <label className="text-xs text-slate-400 mb-1 block flex items-center gap-1"><Truck size={11}/> Tır Seç</label>
+                          <label className="text-xs mb-1 block flex items-center gap-1" style={{color:'var(--text-secondary)'}}><Truck size={11}/> Tır Seç</label>
                           <select value={mappingTruckId} onChange={e=>setMappingTruckId(e.target.value)}
-                            className="w-full bg-slate-700/50 border border-slate-600/50 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/70">
+                            className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)]" style={{color:'var(--text-primary)'}}>
                             <option value="">-- Tır Seç --</option>
                             {trucks.map(t=><option key={t.id} value={t.id}>{t.plate}{t.model?` - ${t.model}`:''}</option>)}
                           </select>
                         </div>
                         <button onClick={()=>saveMapping(deviceId)} disabled={savingMapping}
-                          className="w-full py-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-700 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
+                          className="w-full py-2 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 hover:opacity-90 shadow-sm"
+                          style={{backgroundColor:'var(--accent)'}}>
                           {savingMapping?<div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/>:<Check size={14}/>}
                           Kaydet
                         </button>
