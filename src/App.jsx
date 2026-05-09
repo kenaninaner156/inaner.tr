@@ -323,17 +323,19 @@ function App() {
                       </motion.span>
                     </div>
                     {/* Expand chevron — always in DOM, opacity only */}
-                    <motion.button
+                    <motion.div
+                      role="button"
+                      tabIndex={0}
                       animate={{ opacity: isActive ? 1 : 0 }}
                       transition={{ duration: 0.15 }}
                       onClick={(e) => { e.stopPropagation(); if (isActive) setShowCompanyExpand(v => !v); }}
-                      className="relative z-20 p-1 rounded-md hover:bg-white/15 transition-colors flex-shrink-0"
+                      className="relative z-20 p-1 rounded-md hover:bg-white/15 transition-colors flex-shrink-0 cursor-pointer"
                       style={{ pointerEvents: isActive ? 'auto' : 'none' }}>
                       <motion.div animate={{ rotate: showCompanyExpand ? 180 : 0 }}
                         transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}>
                         <ChevronDown size={12} className="text-fuchsia-300/70" />
                       </motion.div>
-                    </motion.button>
+                    </motion.div>
                   </button>
 
                   {/* Şirket listesi - sadece expand açıkken ve aktifken */}
@@ -407,17 +409,17 @@ function App() {
                       </motion.span>
                     </div>
                     {/* Expand chevron */}
-                    <motion.button
+                    <motion.div
                       animate={{ opacity: isActive ? 1 : 0 }}
                       transition={{ duration: 0.15 }}
                       onClick={(e) => { e.stopPropagation(); if (isActive) setShowTruckExpand(v => !v); }}
-                      className="relative z-20 p-1 rounded-md hover:bg-white/15 transition-colors flex-shrink-0"
+                      className="relative z-20 p-1 rounded-md hover:bg-white/15 transition-colors flex-shrink-0 cursor-pointer"
                       style={{ pointerEvents: isActive ? 'auto' : 'none' }}>
                       <motion.div animate={{ rotate: showTruckExpand ? 180 : 0 }}
                         transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}>
                         <ChevronDown size={12} className="text-indigo-300/70" />
                       </motion.div>
-                    </motion.button>
+                    </motion.div>
                   </button>
 
                   {/* Tır listesi - sadece expand açıkken ve aktifken */}
