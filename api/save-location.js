@@ -1,15 +1,11 @@
 /* eslint-env node */
 
 export default async function handler(req, res) {
-    // Sadece GET ve POST isteklerine izin ver
     if (req.method !== 'GET' && req.method !== 'POST') {
         return res.status(405).json({ error: 'Sadece GET veya POST kabul edilir' });
     }
 
-    // Traccar OsmAnd protokolü bazen POST atsa bile verileri Query String'de gönderir.
-    // Bu yüzden hem query'yi hem de body'yi birleştiriyoruz.
     const data = { ...req.query, ...(req.body || {}) };
-
     const EXPECTED_TOKEN = process.env.TRACKER_TOKEN || "inaner123"; 
     
     if (data.token !== EXPECTED_TOKEN) {
@@ -17,25 +13,70 @@ export default async function handler(req, res) {
     }
 
     try {
-        const lat = parseFloat(data.lat);
-        const lon = parseFloat(data.lon);
+        let lat, lon, speed, altitude, timestampStr, deviceId;
 
-        if (isNaN(lat) || isNaN(lon)) {
-             return res.status(400).json({ error: 'Gecersiz enlem (lat) veya boylam (lon)' });
+        // 1. Traccar OsmAnd formatı (URL Query veya düz JSON)
+        if (data.lat !== undefined && data.lon !== undefined) {
+            lat = parseFloat(data.lat);
+            lon = parseFloat(data.lon);
+            speed = parseFloat(data.speed) || 0;
+            altitude = parseFloat(data.altitude) || 0;
+            timestampStr = data.timestamp;
+            deviceId = data.id || data.device_id || 'Bilinmeyen_Cihaz';
+        } 
+        // 2. iOS Traccar (TSLocationManager) Varsayılan JSON formatı (root property: location)
+        else if (data.location && data.location.coords) {
+            lat = parseFloat(data.location.coords.latitude);
+            lon = parseFloat(data.location.coords.longitude);
+            speed = parseFloat(data.location.coords.speed) || 0;
+            altitude = parseFloat(data.location.coords.altitude) || 0;
+            timestampStr = data.location.timestamp;
+            // params içindeki device_id'yi de alalım
+            deviceId = data.device_id || data.location.device_id || data.id || 'Bilinmeyen_Cihaz';
+        }
+        // 3. iOS Traccar (TSLocationManager) Custom Template JSON formatı
+        else if (data.coords) {
+            lat = parseFloat(data.coords.latitude);
+            lon = parseFloat(data.coords.longitude);
+            speed = parseFloat(data.coords.speed) || 0;
+            altitude = parseFloat(data.coords.altitude) || 0;
+            timestampStr = data.timestamp;
+            deviceId = data.device_id || data.id || 'Bilinmeyen_Cihaz';
+        } else {
+             console.error("Gelen veri formati anlasilamadi:", data);
+             return res.status(400).json({ error: 'Gecersiz enlem (lat) veya boylam (lon) verisi. Format anlasilamadi.' });
         }
 
-        // Firebase REST API (Vercel'de donmaları engellemek için Client SDK yerine REST kullanıyoruz)
+        if (isNaN(lat) || isNaN(lon)) {
+             return res.status(400).json({ error: 'Enlem veya boylam sayisal bir deger degil' });
+        }
+
         const PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID || "v2-tir";
         
-        // Veri yapısı (Firestore REST API formatı)
+        let formattedTimestamp = new Date().toISOString();
+        if (timestampStr) {
+            // Eğer OsmAnd gibi saniye cinsinden UNIX ise:
+            if (!isNaN(timestampStr) && timestampStr.toString().length === 10) {
+                formattedTimestamp = new Date(parseInt(timestampStr) * 1000).toISOString();
+            } 
+            // Eğer milisaniye ise:
+            else if (!isNaN(timestampStr) && timestampStr.toString().length === 13) {
+                formattedTimestamp = new Date(parseInt(timestampStr)).toISOString();
+            }
+            // Eğer ISO string (2026-05-09T...) ise:
+            else {
+                formattedTimestamp = new Date(timestampStr).toISOString();
+            }
+        }
+
         const locationData = {
             fields: {
-                driverId: { stringValue: data.id || 'Bilinmeyen_Cihaz' },
+                driverId: { stringValue: String(deviceId).trim() },
                 lat: { doubleValue: lat },
                 lon: { doubleValue: lon },
-                speed: { doubleValue: parseFloat(data.speed) || 0 },
-                altitude: { doubleValue: parseFloat(data.altitude) || 0 },
-                timestamp: { stringValue: data.timestamp ? new Date(parseInt(data.timestamp) * 1000).toISOString() : new Date().toISOString() },
+                speed: { doubleValue: speed },
+                altitude: { doubleValue: altitude },
+                timestamp: { stringValue: formattedTimestamp },
                 recordedAt: { stringValue: new Date().toISOString() },
                 source: { stringValue: 'traccar_ios' }
             }
