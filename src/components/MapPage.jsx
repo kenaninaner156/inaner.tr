@@ -201,43 +201,32 @@ export default function MapPage() {
             transition={{ duration: 0.5 }}
             className="absolute top-4 left-1/2 -translate-x-1/2 z-[1100] pointer-events-auto cursor-pointer"
             onClick={() => setShowBanner(false)}
-            style={{ width: 'min(680px, calc(100% - 220px))' }}
+            style={{ width: 'min(800px, calc(100% - 240px))' }}
           >
             <div style={{
-              borderRadius: '20px',
+              borderRadius: '24px',
               overflow: 'hidden',
-              boxShadow: '0 0 0 1px rgba(15,23,42,0.6), 0 12px 40px rgba(0,0,0,0.5)',
+              boxShadow: '0 0 0 1px rgba(15,23,42,0.5), 0 16px 48px rgba(0,0,0,0.6)',
               position: 'relative',
+              backgroundColor: '#0f172a'
             }}>
               <img
                 src="/map-banner.png"
                 alt="Banner"
                 style={{
                   width: '100%',
-                  height: '80px',
+                  height: 'auto',
+                  maxHeight: '120px',
                   objectFit: 'cover',
                   objectPosition: 'center',
                   display: 'block',
                 }}
               />
-              {/* Daha hafif kenar yumuşatmalar — resim tam gözüksün diye */}
+              {/* Sadece çok hafif bir iç gölge (vignette) — resmi kapatmaz */}
               <div style={{
-                position: 'absolute', top: 0, left: 0, width: '40px', height: '100%',
-                background: 'linear-gradient(to right, rgba(10,14,23,0.4), transparent)',
-                borderRadius: '20px 0 0 20px',
-              }}/>
-              <div style={{
-                position: 'absolute', top: 0, right: 0, width: '40px', height: '100%',
-                background: 'linear-gradient(to left, rgba(10,14,23,0.4), transparent)',
-                borderRadius: '0 20px 20px 0',
-              }}/>
-              <div style={{
-                position: 'absolute', top: 0, left: 0, width: '100%', height: '20px',
-                background: 'linear-gradient(to bottom, rgba(10,14,23,0.2), transparent)',
-              }}/>
-              <div style={{
-                position: 'absolute', bottom: 0, left: 0, width: '100%', height: '20px',
-                background: 'linear-gradient(to top, rgba(10,14,23,0.2), transparent)',
+                position: 'absolute', inset: 0,
+                boxShadow: 'inset 0 0 20px rgba(0,0,0,0.3)',
+                pointerEvents: 'none'
               }}/>
             </div>
           </motion.div>
