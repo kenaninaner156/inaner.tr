@@ -199,12 +199,11 @@ export default function MapPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.5 }}
-            className="absolute top-4 left-[48%] -translate-x-1/2 z-[1100] pointer-events-auto cursor-pointer"
-            onClick={() => setShowBanner(false)}
-            style={{ width: 'min(720px, calc(100% - 300px))' }}
+            className="absolute top-4 left-[40%] -translate-x-1/2 z-[1100] pointer-events-auto"
+            style={{ width: 'min(640px, calc(100% - 100px))' }}
           >
             <div style={{
-              borderRadius: '24px',
+              borderRadius: '20px',
               overflow: 'hidden',
               boxShadow: '0 0 0 1px rgba(15,23,42,0.4), 0 20px 50px rgba(0,0,0,0.6)',
               position: 'relative',
@@ -219,6 +218,14 @@ export default function MapPage() {
                   display: 'block',
                 }}
               />
+              {/* Sol üst X butonu */}
+              <button 
+                onClick={(e) => { e.stopPropagation(); setShowBanner(false); }}
+                className="absolute top-2 left-2 bg-black/60 hover:bg-black/80 text-white p-1 rounded-full transition-colors backdrop-blur-sm shadow-lg z-[1200]"
+                title="Kapat"
+              >
+                <X size={14} />
+              </button>
             </div>
           </motion.div>
         )}
