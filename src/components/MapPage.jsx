@@ -190,6 +190,51 @@ export default function MapPage() {
         </div>
       </div>
 
+      {/* Banner resmi — haritanın üstünde, örnekteki gibi yumuşak kenarlı */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1100] pointer-events-none"
+        style={{ width: 'min(680px, calc(100% - 220px))' }}>
+        <div style={{
+          borderRadius: '20px',
+          overflow: 'hidden',
+          boxShadow: '0 0 0 2.5px rgba(15,23,42,0.85), 0 8px 32px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.4)',
+          position: 'relative',
+        }}>
+          <img
+            src="/map-banner.png"
+            alt="Banner"
+            style={{
+              width: '100%',
+              height: '72px',
+              objectFit: 'cover',
+              objectPosition: 'center',
+              display: 'block',
+            }}
+          />
+          {/* Sol kenar yumuşatma */}
+          <div style={{
+            position: 'absolute', top: 0, left: 0, width: '60px', height: '100%',
+            background: 'linear-gradient(to right, rgba(10,14,23,0.7), transparent)',
+            borderRadius: '20px 0 0 20px',
+          }}/>
+          {/* Sağ kenar yumuşatma */}
+          <div style={{
+            position: 'absolute', top: 0, right: 0, width: '60px', height: '100%',
+            background: 'linear-gradient(to left, rgba(10,14,23,0.7), transparent)',
+            borderRadius: '0 20px 20px 0',
+          }}/>
+          {/* Üst kenar yumuşatma */}
+          <div style={{
+            position: 'absolute', top: 0, left: 0, width: '100%', height: '24px',
+            background: 'linear-gradient(to bottom, rgba(10,14,23,0.35), transparent)',
+          }}/>
+          {/* Alt kenar yumuşatma */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, width: '100%', height: '24px',
+            background: 'linear-gradient(to top, rgba(10,14,23,0.35), transparent)',
+          }}/>
+        </div>
+      </div>
+
       {showSidebar && <div className="absolute inset-0 bg-black/40 z-[1500]" onClick={()=>setShowSidebar(false)}/>}
 
       {/* Sidebar */}
