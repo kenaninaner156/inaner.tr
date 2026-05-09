@@ -202,19 +202,12 @@ export default function MapPage() {
             className="absolute inset-0 z-[2000] pointer-events-auto flex items-center justify-center bg-[#0B0E14]"
           >
             <div className="relative w-full max-w-4xl px-12 flex flex-col items-center">
-              {/* System-Matched Image Frame */}
-              <div 
-                className="relative w-full rounded-2xl overflow-hidden shadow-2xl"
-                style={{ 
-                  backgroundColor: 'var(--bg-sidebar)',
-                  border: '1px solid var(--border-color)',
-                  boxShadow: '0 20px 50px rgba(0,0,0,0.5)'
-                }}
-              >
+              {/* Perfectly System-Matched Frame */}
+              <div className="glass-panel w-full overflow-hidden !shadow-2xl !border-white/5 !bg-[#0D1219]">
                 <img
                   src="/map-banner.png"
                   alt="Banner"
-                  className="w-full h-auto block opacity-95"
+                  className="w-full h-auto block"
                 />
               </div>
 
