@@ -198,34 +198,41 @@ export default function MapPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
-            className="absolute inset-0 z-[2000] pointer-events-auto flex items-center justify-center bg-[#0a0f1a]"
+            transition={{ duration: 0.6 }}
+            className="absolute inset-0 z-[2000] pointer-events-auto flex items-center justify-center bg-[#0B0E14]"
           >
-            <div className="relative w-full max-w-4xl px-8 flex flex-col items-center">
-              {/* Ultra-Clean Image Frame */}
-              <div className="relative w-full rounded-2xl overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.8)] border border-white/10">
+            <div className="relative w-full max-w-4xl px-12 flex flex-col items-center">
+              {/* Artifact-Free Image Container */}
+              <div className="relative w-full rounded-3xl overflow-hidden shadow-[0_40px_100px_-15px_rgba(0,0,0,0.9)] bg-[#0D1219]">
+                {/* Simulated Border (Smoother than actual border) */}
+                <div className="absolute inset-0 rounded-3xl ring-1 ring-inset ring-white/5 pointer-events-none z-10" />
+                
                 <img
                   src="/map-banner.png"
                   alt="Banner"
-                  className="w-full h-auto block"
+                  className="w-full h-auto block relative z-0"
+                  style={{ imageRendering: 'auto' }}
                 />
               </div>
 
-              {/* Minimalist Premium Button */}
-              <button 
+              {/* Clean System-Native Button */}
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => setShowBanner(false)}
-                className="mt-16 px-12 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-indigo-500/20 active:scale-95 flex items-center gap-3"
+                className="mt-16 px-14 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-xl shadow-indigo-600/10 transition-colors flex items-center gap-3 relative overflow-hidden"
               >
-                Sisteme Giriş Yap
-                <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
-                  <ChevronRight size={12} strokeWidth={3} />
+                <span>Sisteme Giriş Yap</span>
+                <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center">
+                  <ChevronRight size={14} strokeWidth={3} />
                 </div>
-              </button>
+              </motion.button>
               
-              <div className="mt-12 flex items-center gap-3 opacity-20">
-                <div className="h-px w-6 bg-white" />
-                <span className="text-[10px] font-black tracking-[0.3em] text-white uppercase">İnaner</span>
-                <div className="h-px w-6 bg-white" />
+              {/* Subtle Branding */}
+              <div className="mt-14 flex items-center gap-4 opacity-5">
+                <div className="h-px w-12 bg-white" />
+                <span className="text-[11px] font-black tracking-[0.5em] text-white uppercase">İnaner</span>
+                <div className="h-px w-12 bg-white" />
               </div>
             </div>
           </motion.div>
