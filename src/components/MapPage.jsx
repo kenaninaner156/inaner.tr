@@ -202,8 +202,14 @@ export default function MapPage() {
             className="absolute inset-0 z-[2000] pointer-events-auto flex items-center justify-center bg-[#0B0E14]"
           >
             <div className="relative w-full max-w-4xl px-12 flex flex-col items-center">
-              {/* Perfectly System-Matched Frame */}
-              <div className="glass-panel w-full overflow-hidden !shadow-2xl !border-white/5 !bg-[#0D1219]">
+              {/* Fringe-Free Image Frame */}
+              <div 
+                className="relative w-full rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.7)]"
+                style={{ 
+                  backgroundColor: '#0B0E14', // Match exactly with splash background
+                  boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.02)' // Ultra-subtle simulated border
+                }}
+              >
                 <img
                   src="/map-banner.png"
                   alt="Banner"
