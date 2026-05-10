@@ -16,23 +16,63 @@ export function haversineKm(lat1, lon1, lat2, lon2) {
 }
 
 /**
- * 30 dakikadan uzun hareketsizliklere göre konum noktalarını oturumlara (rotalara) böler.
+ * 30 dakikadan uzun hareketsizliklere veya özel bölgelerdeki bekleme sürelerine (örn: 5 dk)
+ * göre konum noktalarını oturumlara (rotalara) böler.
  */
-export function groupIntoSessions(points, maxGapMinutes = 30) {
+export function groupIntoSessions(points, maxGapMinutes = 30, geofences = []) {
   if (!points || !points.length) return [];
   const sessions = [];
   let curSession = [points[0]];
 
+  let activeGeofenceId = null;
+  let geofenceEntryTime = null;
+  let hasSplitForThisGeofenceVisit = false;
+
   for (let i = 1; i < points.length; i++) {
+    const pt = points[i];
     const prevTime = new Date(points[i - 1].timestamp).getTime();
-    const curTime = new Date(points[i].timestamp).getTime();
+    const curTime = new Date(pt.timestamp).getTime();
     
-    // Eğer iki nokta arasında 30 dakikadan fazla fark varsa, bu yeni bir rotadır.
+    let splitTriggered = false;
+
+    // Kural 1: 30 dk zaman boşluğu
     if (curTime - prevTime > maxGapMinutes * 60 * 1000) {
+      splitTriggered = true;
+    } 
+    // Kural 2: Özel Bölge (Geofence) Kontrolü
+    else if (geofences && geofences.length > 0) {
+      // Nokta herhangi bir bölgenin içinde mi? (Yarıçap genelde 0.5 km)
+      const currentGeofence = geofences.find(g => haversineKm(pt.lat, pt.lon, g.lat, g.lon) <= (g.radiusKm || 0.5));
+      
+      if (currentGeofence) {
+        if (activeGeofenceId !== currentGeofence.id) {
+          // Bölgeye yeni girdi
+          activeGeofenceId = currentGeofence.id;
+          geofenceEntryTime = curTime;
+          hasSplitForThisGeofenceVisit = false;
+        } else {
+          // Zaten bölgede
+          if (!hasSplitForThisGeofenceVisit) {
+            const timeInside = curTime - geofenceEntryTime;
+            if (timeInside >= 5 * 60 * 1000) { // 5 dakika
+              splitTriggered = true;
+              hasSplitForThisGeofenceVisit = true; // Bu ziyaret için bir daha bölme
+            }
+          }
+        }
+      } else {
+        // Bölgeden çıktı
+        activeGeofenceId = null;
+        geofenceEntryTime = null;
+        hasSplitForThisGeofenceVisit = false;
+      }
+    }
+
+    if (splitTriggered) {
       sessions.push(curSession);
-      curSession = [points[i]];
+      curSession = [pt];
     } else {
-      curSession.push(points[i]);
+      curSession.push(pt);
     }
   }
   

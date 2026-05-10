@@ -22,6 +22,7 @@ export const DataProvider = ({ children }) => {
     const [penalties, setPenalties] = useState([]);
     const [invoices, setInvoices] = useState([]);
     const [shoppingItems, setShoppingItems] = useState([]);
+    const [geofences, setGeofences] = useState([]);
 
     const [vehicleInfo, setVehicleInfo] = useState({
         plate: '06 FTN 692', trailerPlate: '06 ABC 123', driverName: 'Ahmet Şoför',
@@ -239,6 +240,12 @@ export const DataProvider = ({ children }) => {
                 .filter(d => !activeTruckId || d.truckId === activeTruckId)
                 .sort((a, b) => (a.order || 0) - (b.order || 0));
             setShoppingItems(data);
+        }));
+
+        // 11.6 Geofences config
+        unsubs.push(onSnapshot(query(collection(db, 'geofences'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            setGeofences(data);
         }));
 
         // 12. Docs config
@@ -782,6 +789,22 @@ export const DataProvider = ({ children }) => {
         setShoppingItems(newOrderItems); // Optimistic update
     };
 
+    // Geofences
+    const addGeofence = async (geofence) => {
+        if (!activeCompanyId) return;
+        await addDoc(collection(db, 'geofences'), {
+            ...geofence,
+            companyId: activeCompanyId,
+            createdAt: new Date().toISOString()
+        });
+        addLog('ISLEM_EKLE', `${geofence.name} adlı özel bölge eklendi`);
+    };
+
+    const deleteGeofence = async (id, name) => {
+        await deleteDoc(doc(db, 'geofences', id));
+        addLog('ISLEM_SIL', `${name} adlı özel bölge silindi`);
+    };
+
     const refreshUsers = useCallback(() => { }, []);
 
     // Unified drivers list: merge manual drivers + approved şöför users
@@ -819,7 +842,8 @@ export const DataProvider = ({ children }) => {
             onlineUsers,
             shoppingItems, addShoppingItem, updateShoppingItem, deleteShoppingItem, updateShoppingItemsOrder,
             updateTruckImage,
-            isDataLoading, dataError
+            isDataLoading, dataError,
+            geofences, addGeofence, deleteGeofence
         }}>
             {children}
         </DataContext.Provider>

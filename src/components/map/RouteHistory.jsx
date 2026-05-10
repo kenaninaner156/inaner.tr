@@ -460,7 +460,8 @@ export default function RouteHistory({
       {selectedSession && (
         <div 
           ref={playerCallbackRef}
-          className="absolute bottom-6 left-[calc(50%+158px)] -translate-x-1/2 z-[2000] w-11/12 max-w-[420px] pointer-events-auto"
+          className="absolute bottom-6 -translate-x-1/2 z-[2000] w-11/12 max-w-[420px] pointer-events-auto transition-all duration-300 ease-out"
+          style={{ left: showSidebar ? 'calc(50% + 158px)' : '50%' }}
         >
           <div
             className="px-4 py-3 rounded-3xl flex items-center gap-4"

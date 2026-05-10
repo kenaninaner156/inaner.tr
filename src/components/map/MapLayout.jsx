@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { MapContainer, TileLayer, useMap } from 'react-leaflet';
+import React, { useState, useEffect, useMemo, useRef, useContext } from 'react';
+import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../../services/firebaseConfig';
@@ -9,6 +9,7 @@ import { doc, getDoc } from 'firebase/firestore';
 
 import { useTruck } from '../../context/TruckContext';
 import { useCompany } from '../../context/CompanyContext';
+import { DataContext } from '../../context/DataContext';
 import { groupIntoSessions, filterSessionPoints } from '../../utils/mapUtils';
 
 import LiveTracking from './LiveTracking';
@@ -16,6 +17,7 @@ import RouteHistory from './RouteHistory';
 import SavedRoutes from './SavedRoutes';
 import VehicleAnalysis from './VehicleAnalysis';
 import DeviceManagement from './DeviceManagement';
+import GeofenceSettings from './GeofenceSettings';
 
 // Map ref setter - MapContainer içinde çalışır
 function MapRefSetter({ mapRef }) {
@@ -24,9 +26,21 @@ function MapRefSetter({ mapRef }) {
   return null;
 }
 
+function MapClickHandler({ pickingLocation, onLocationPicked }) {
+  useMapEvents({
+    click(e) {
+      if (pickingLocation) {
+        onLocationPicked(e.latlng);
+      }
+    }
+  });
+  return null;
+}
+
 export default function MapLayout() {
   const { trucks } = useTruck();
   const { activeCompanyId } = useCompany();
+  const { geofences } = useContext(DataContext);
   
   const [activeTab, setActiveTab] = useState('live');
   const [mapStyle, setMapStyle] = useState('voyager');
@@ -39,6 +53,10 @@ export default function MapLayout() {
   const [dateFilterDays, setDateFilterDays] = useState(1);
   const [customDate, setCustomDate] = useState('');
   const [showDeviceManagement, setShowDeviceManagement] = useState(false);
+  const [showGeofenceSettings, setShowGeofenceSettings] = useState(false);
+  
+  const [pickingLocation, setPickingLocation] = useState(false);
+  const [tempZoneData, setTempZoneData] = useState(null);
 
   const mapRef = useRef(null);
 
@@ -104,11 +122,11 @@ export default function MapLayout() {
 
     const res = {};
     Object.keys(grouped).forEach(d => {
-      const rawSessions = groupIntoSessions(grouped[d]);
+      const rawSessions = groupIntoSessions(grouped[d], 30, geofences);
       res[d] = rawSessions.map(session => filterSessionPoints(session, 0.2));
     });
     return res;
-  }, [locations]);
+  }, [locations, geofences]);
 
   // Harita tile URL'leri
   const mapUrls = {
@@ -183,6 +201,13 @@ export default function MapLayout() {
           {/* Sağ butonlar */}
           <div className="flex items-center gap-0.5 pr-0.5">
             <button
+              onClick={() => setShowGeofenceSettings(true)}
+              className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-white/[0.08] transition-all duration-200"
+              title="Özel Bölgeler (Geofence)"
+            >
+              <MapPin size={16} />
+            </button>
+            <button
               onClick={() => setShowDeviceManagement(true)}
               className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-white/[0.08] transition-all duration-200"
               title="Cihaz Yönetimi"
@@ -247,6 +272,14 @@ export default function MapLayout() {
             tileSize={256}
           />
           <MapRefSetter mapRef={mapRef} />
+          <MapClickHandler 
+            pickingLocation={pickingLocation} 
+            onLocationPicked={(latlng) => {
+              setTempZoneData(prev => ({ ...prev, lat: latlng.lat, lon: latlng.lng }));
+              setPickingLocation(false);
+              setShowGeofenceSettings(true);
+            }} 
+          />
 
           {/*
             KRİTİK: AnimatePresence KALDIRILDI.
@@ -304,9 +337,38 @@ export default function MapLayout() {
         </div>
       )}
 
-      {/* Cihaz Yönetimi Modalı */}
+      {/* Haritadan Seçim Modu Bilgisi */}
+      {pickingLocation && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[2000] bg-indigo-500/90 backdrop-blur border border-indigo-400 text-white px-4 py-2 rounded-full font-semibold shadow-lg text-sm flex items-center gap-2 animate-pulse">
+          <MapPin size={16} /> Haritadan bir noktaya tıklayın...
+          <button 
+            onClick={() => { setPickingLocation(false); setShowGeofenceSettings(true); }}
+            className="ml-2 bg-black/20 hover:bg-black/40 rounded-full px-2 py-0.5 text-xs transition-colors"
+          >
+            İptal
+          </button>
+        </div>
+      )}
+
+      {/* Modals */}
       {showDeviceManagement && (
-        <DeviceManagement onClose={() => setShowDeviceManagement(false)} />
+        <DeviceManagement 
+          onClose={() => setShowDeviceManagement(false)}
+          deviceMappings={deviceMappings}
+          trucks={trucks}
+        />
+      )}
+
+      {showGeofenceSettings && (
+        <GeofenceSettings 
+          onClose={() => { setShowGeofenceSettings(false); setTempZoneData(null); }}
+          initialZone={tempZoneData}
+          onSelectFromMap={(currentFormState) => {
+            setTempZoneData(currentFormState);
+            setShowGeofenceSettings(false);
+            setPickingLocation(true);
+          }}
+        />
       )}
     </div>
   );
