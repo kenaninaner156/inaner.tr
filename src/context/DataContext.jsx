@@ -37,6 +37,7 @@ export const DataProvider = ({ children }) => {
     ]);
     const [mechanics, setMechanics] = useState([]);
     const [routes, setRoutes] = useState([]);
+    const [savedTrackingRoutes, setSavedTrackingRoutes] = useState([]);
     const [draftInvoice, setDraftInvoice] = useState(null);
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [isDataLoading, setIsDataLoading] = useState(true);
@@ -322,6 +323,19 @@ export const DataProvider = ({ children }) => {
             setRoutes([]);
         }
 
+        // 13.6. Saved Tracking Routes (Company-Wide or Truck-Specific, let's make it Company-Wide like device mappings)
+        if (activeCompanyId) {
+            unsubs.push(onSnapshot(doc(db, 'company_data', `saved_tracking_routes_${activeCompanyId}`), (docSnapshot) => {
+                if (docSnapshot.exists() && docSnapshot.data().routes) {
+                    setSavedTrackingRoutes(docSnapshot.data().routes);
+                } else {
+                    setSavedTrackingRoutes([]);
+                }
+            }));
+        } else {
+            setSavedTrackingRoutes([]);
+        }
+
         // 14. Presence config
         unsubs.push(onSnapshot(collection(db, 'presence'), (snapshot) => {
             const now = new Date();
@@ -591,6 +605,20 @@ export const DataProvider = ({ children }) => {
         await setDoc(doc(db, 'company_data', getRoutesDocId()), { routes: nextRoutes }, { merge: true });
     };
 
+    const getSavedTrackingRoutesDocId = () => `saved_tracking_routes_${activeCompanyId}`;
+
+    const addSavedTrackingRoute = async (route) => {
+        const nextRoutes = [{ ...route, id: Date.now() }, ...savedTrackingRoutes];
+        await setDoc(doc(db, 'company_data', getSavedTrackingRoutesDocId()), { routes: nextRoutes }, { merge: true });
+        addLog('ROTA_KAYDET', `${route.name || 'İsimsiz Rota'}`);
+    };
+
+    const deleteSavedTrackingRoute = async (id) => {
+        const nextRoutes = savedTrackingRoutes.filter(r => r.id !== id);
+        await setDoc(doc(db, 'company_data', getSavedTrackingRoutesDocId()), { routes: nextRoutes }, { merge: true });
+        addLog('KAYITLI_ROTA_SIL', `Rota silindi`);
+    };
+
     const saveDraftInvoice = async (draft) => {
         if (!activeCompanyId || !activeTruckId) return;
         const docId = `${activeCompanyId}_${activeTruckId}_draft`;
@@ -775,6 +803,7 @@ export const DataProvider = ({ children }) => {
             mechanics, addMechanic, deleteMechanic, updateMechanic,
             maintenanceFolders, addMaintenanceFolder, updateMaintenanceFolder, deleteMaintenanceFolder,
             routes, addRoute, deleteRoute, updateRoutePrice,
+            savedTrackingRoutes, addSavedTrackingRoute, deleteSavedTrackingRoute,
             adminLog, addLog, clearLog, restoreData,
             currentSession, loginSession, logoutSession,
             pendingUsers, approvedUsers, registerUser, approveUser, rejectUser, editUser, refreshUsers, addApprovedUser,
