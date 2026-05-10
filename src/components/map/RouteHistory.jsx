@@ -294,30 +294,36 @@ export default function RouteHistory({
                 className="overflow-hidden mt-1"
               >
                 <div className="rounded-xl overflow-hidden border border-white/[0.04] bg-white/[0.02]">
-                  {Object.entries(sessionsByDriver).filter(([_, sessions]) => sessions.length > 0).map(([driver, sessions]) => (
-                    <button
-                      key={driver}
-                      onClick={() => { 
-                        setSelectedDriver(driver); 
-                        setIsVehicleDropdownOpen(false); 
-                        setSelectedSession(null); 
-                      }}
-                      className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between border-b border-white/[0.04] last:border-0 transition-all duration-150 ${
-                        selectedDriver === driver
-                          ? 'bg-indigo-500/[0.12]'
-                          : 'hover:bg-white/[0.04]'
-                      }`}
-                    >
-                      <span className={`text-[11px] font-semibold ${
-                        selectedDriver === driver ? 'text-indigo-300' : 'text-slate-400'
-                      }`}>
-                        {getDisplayName(driver)}
-                      </span>
-                      <span className="text-[9.5px] text-slate-600 font-medium px-1.5 py-0.5 bg-white/[0.04] rounded-md ml-2 flex-shrink-0">
-                        {sessions.length} rota
-                      </span>
-                    </button>
-                  ))}
+                  {Object.entries(sessionsByDriver).filter(([_, sessions]) => sessions.length > 0).map(([driver, sessions]) => {
+                    const visibleCount = dateFilterDays === 0
+                      ? sessions.length
+                      : sessions.filter(s => parseFloat(calcStats(s).km) >= 10).length;
+                    if (visibleCount === 0) return null;
+                    return (
+                      <button
+                        key={driver}
+                        onClick={() => { 
+                          setSelectedDriver(driver); 
+                          setIsVehicleDropdownOpen(false); 
+                          setSelectedSession(null); 
+                        }}
+                        className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between border-b border-white/[0.04] last:border-0 transition-all duration-150 ${
+                          selectedDriver === driver
+                            ? 'bg-indigo-500/[0.12]'
+                            : 'hover:bg-white/[0.04]'
+                        }`}
+                      >
+                        <span className={`text-[11px] font-semibold ${
+                          selectedDriver === driver ? 'text-indigo-300' : 'text-slate-400'
+                        }`}>
+                          {getDisplayName(driver)}
+                        </span>
+                        <span className="text-[9.5px] text-slate-600 font-medium px-1.5 py-0.5 bg-white/[0.04] rounded-md ml-2 flex-shrink-0">
+                          {visibleCount} rota
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </motion.div>
             )}
@@ -334,6 +340,9 @@ export default function RouteHistory({
                 const end   = new Date(session[session.length - 1]?.timestamp);
                 const isSelected = selectedSession === session;
                 const { km, durationMin } = calcStats(session);
+
+                // "Tümü" seçili değilse 10 km altındaki rotaları gizle
+                if (dateFilterDays !== 0 && parseFloat(km) < 10) return null;
 
                 return (
                   <React.Fragment key={i}>
