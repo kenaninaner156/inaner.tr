@@ -2,9 +2,10 @@ import React, { useState, useContext } from 'react';
 import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
 import { DataContext } from '../context/DataContext';
-import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key } from 'lucide-react';
+import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key, BarChart3 } from 'lucide-react';
 import { db } from '../services/firebaseConfig';
 import { collection, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
+import VehicleAnalysis from './map/VehicleAnalysis';
 
 const CompanyAdmin = () => {
     const { activeCompanyId, companyData } = useCompany();
@@ -94,6 +95,12 @@ const CompanyAdmin = () => {
                     className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'drivers' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
                 >
                     <div className="flex items-center"><Users size={16} className="mr-2" /> Şoförler</div>
+                </button>
+                <button
+                    onClick={() => setActiveTab('analysis')}
+                    className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'analysis' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                >
+                    <div className="flex items-center"><BarChart3 size={16} className="mr-2" /> Araç Analiz</div>
                 </button>
             </div>
 
@@ -280,6 +287,13 @@ const CompanyAdmin = () => {
                             )}
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Analysis Tab */}
+            {activeTab === 'analysis' && (
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <VehicleAnalysis activeTruckId={activeTruckId} />
                 </div>
             )}
 

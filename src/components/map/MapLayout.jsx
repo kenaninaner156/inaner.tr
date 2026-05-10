@@ -16,8 +16,8 @@ import LiveTracking from './LiveTracking';
 import RouteHistory from './RouteHistory';
 import SavedRoutes from './SavedRoutes';
 import VehicleAnalysis from './VehicleAnalysis';
-import DeviceManagement from './DeviceManagement';
-import GeofenceSettings from './GeofenceSettings';
+import MapSettingsModal from './MapSettingsModal';
+import { InteractiveGeofenceMapLayer, InteractiveGeofencePanel } from './InteractiveGeofence';
 
 // Map ref setter - MapContainer içinde çalışır
 function MapRefSetter({ mapRef }) {
@@ -40,11 +40,17 @@ function MapClickHandler({ pickingLocation, onLocationPicked }) {
 export default function MapLayout() {
   const { trucks } = useTruck();
   const { activeCompanyId } = useCompany();
-  const { geofences, manualSplits } = useContext(DataContext);
+  const { geofences, manualSplits, addGeofence } = useContext(DataContext);
   
   const [activeTab, setActiveTab] = useState('live');
-  const [mapStyle, setMapStyle] = useState('voyager');
+  const [mapStyle, setMapStyle] = useState(() => {
+    return localStorage.getItem('mapStyle') || 'voyager';
+  });
   const [showLayerMenu, setShowLayerMenu] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('mapStyle', mapStyle);
+  }, [mapStyle]);
   
   // Veri Stateleri
   const [locations, setLocations] = useState([]);
@@ -52,13 +58,24 @@ export default function MapLayout() {
   const [deviceMappings, setDeviceMappings] = useState({});
   const [dateFilterDays, setDateFilterDays] = useState(1);
   const [customDate, setCustomDate] = useState('');
-  const [showDeviceManagement, setShowDeviceManagement] = useState(false);
-  const [showGeofenceSettings, setShowGeofenceSettings] = useState(false);
+  const [showMapSettings, setShowMapSettings] = useState(false);
   
-  const [pickingLocation, setPickingLocation] = useState(false);
-  const [tempZoneData, setTempZoneData] = useState(null);
+  const [isEditingGeofence, setIsEditingGeofence] = useState(false);
+  const [draftZone, setDraftZone] = useState({ lat: null, lon: null, radiusKm: 1, name: '' });
 
   const mapRef = useRef(null);
+
+  const handleSaveGeofence = async (zone) => {
+    if (!zone.name || !zone.lat || !zone.lon) return;
+    await addGeofence({
+      name: zone.name,
+      lat: parseFloat(zone.lat),
+      lon: parseFloat(zone.lon),
+      radiusKm: parseFloat(zone.radiusKm)
+    });
+    setIsEditingGeofence(false);
+    setShowMapSettings(true); // Geri listeye dön
+  };
 
   // Veri Çekme — dateFilterDays=0 (Tümü) ise çok eski bir tarih kullan
   useEffect(() => {
@@ -103,12 +120,17 @@ export default function MapLayout() {
     return () => unsubscribe();
   }, [dateFilterDays, customDate, activeCompanyId]);
 
-  // Cihaz Eşleştirmelerini Çek
+  // Cihaz Eşleştirmelerini Çek (Canlı Senkronizasyon)
   useEffect(() => {
     const mappingsDocId = `device_mappings_${activeCompanyId || 'default'}`;
-    getDoc(doc(db, 'company_data', mappingsDocId)).then(s => {
-      if (s.exists()) setDeviceMappings(s.data());
+    const unsubscribe = onSnapshot(doc(db, 'company_data', mappingsDocId), (s) => {
+      if (s.exists()) {
+        setDeviceMappings(s.data());
+      } else {
+        setDeviceMappings({});
+      }
     });
+    return () => unsubscribe();
   }, [activeCompanyId]);
 
   // 200m filtresiyle oturumlara grupla
@@ -130,7 +152,7 @@ export default function MapLayout() {
 
   // Harita tile URL'leri
   const mapUrls = {
-    voyager: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    voyager: 'https://mt0.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}', // Google Maps Standart
     darkmatter: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
     satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
   };
@@ -139,7 +161,6 @@ export default function MapLayout() {
     { id: 'live',     label: 'Canlı Takip',     icon: MapPin },
     { id: 'history',  label: 'Rota Takibi',      icon: History },
     { id: 'saved',    label: 'Kayıtlı Rotalar',  icon: Bookmark },
-    { id: 'analysis', label: 'Araç Analiz',      icon: BarChart3 },
   ];
 
   return (
@@ -201,16 +222,9 @@ export default function MapLayout() {
           {/* Sağ butonlar */}
           <div className="flex items-center gap-0.5 pr-0.5">
             <button
-              onClick={() => setShowGeofenceSettings(true)}
+              onClick={() => setShowMapSettings(true)}
               className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-white/[0.08] transition-all duration-200"
-              title="Özel Bölgeler (Geofence)"
-            >
-              <MapPin size={16} />
-            </button>
-            <button
-              onClick={() => setShowDeviceManagement(true)}
-              className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-white/[0.08] transition-all duration-200"
-              title="Cihaz Yönetimi"
+              title="Harita Ayarları"
             >
               <Settings size={16} />
             </button>
@@ -265,21 +279,14 @@ export default function MapLayout() {
           <TileLayer
             url={mapUrls[mapStyle]}
             maxZoom={19}
-            // Performans: kara kare önleme
-            keepBuffer={6}
+            // Performans: kara kare önleme ve hızlı yükleme
+            keepBuffer={24}
             updateWhenIdle={false}
             updateWhenZooming={false}
+            updateInterval={50}
             tileSize={256}
           />
           <MapRefSetter mapRef={mapRef} />
-          <MapClickHandler 
-            pickingLocation={pickingLocation} 
-            onLocationPicked={(latlng) => {
-              setTempZoneData(prev => ({ ...prev, lat: latlng.lat, lon: latlng.lng }));
-              setPickingLocation(false);
-              setShowGeofenceSettings(true);
-            }} 
-          />
 
           {/*
             KRİTİK: AnimatePresence KALDIRILDI.
@@ -311,20 +318,12 @@ export default function MapLayout() {
           <SavedRoutes
             isVisible={activeTab === 'saved'}
           />
+
+          {isEditingGeofence && (
+            <InteractiveGeofenceMapLayer draftZone={draftZone} setDraftZone={setDraftZone} />
+          )}
         </MapContainer>
 
-        {/* Araç Analiz — Haritanın üzerinde full overlay, Leaflet değil */}
-        {activeTab === 'analysis' && (
-          <div className="absolute inset-0 z-[1000]">
-            <VehicleAnalysis
-              sessionsByDriver={sessionsByDriver}
-              deviceMappings={deviceMappings}
-              trucks={trucks}
-              dateFilterDays={dateFilterDays}
-              setDateFilterDays={setDateFilterDays}
-            />
-          </div>
-        )}
       </div>
 
       {/* Yükleniyor */}
@@ -337,36 +336,22 @@ export default function MapLayout() {
         </div>
       )}
 
-      {/* Haritadan Seçim Modu Bilgisi */}
-      {pickingLocation && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[2000] bg-indigo-500/90 backdrop-blur border border-indigo-400 text-white px-4 py-2 rounded-full font-semibold shadow-lg text-sm flex items-center gap-2 animate-pulse">
-          <MapPin size={16} /> Haritadan bir noktaya tıklayın...
-          <button 
-            onClick={() => { setPickingLocation(false); setShowGeofenceSettings(true); }}
-            className="ml-2 bg-black/20 hover:bg-black/40 rounded-full px-2 py-0.5 text-xs transition-colors"
-          >
-            İptal
-          </button>
-        </div>
-      )}
-
-      {/* Modals */}
-      {showDeviceManagement && (
-        <DeviceManagement 
-          onClose={() => setShowDeviceManagement(false)}
-          deviceMappings={deviceMappings}
-          trucks={trucks}
+      {isEditingGeofence && (
+        <InteractiveGeofencePanel 
+          draftZone={draftZone} 
+          setDraftZone={setDraftZone} 
+          onSave={handleSaveGeofence} 
+          onCancel={() => { setIsEditingGeofence(false); setShowMapSettings(true); }}
         />
       )}
 
-      {showGeofenceSettings && (
-        <GeofenceSettings 
-          onClose={() => { setShowGeofenceSettings(false); setTempZoneData(null); }}
-          initialZone={tempZoneData}
-          onSelectFromMap={(currentFormState) => {
-            setTempZoneData(currentFormState);
-            setShowGeofenceSettings(false);
-            setPickingLocation(true);
+      {/* Modals */}
+      {showMapSettings && !isEditingGeofence && (
+        <MapSettingsModal 
+          onClose={() => setShowMapSettings(false)}
+          onStartAddGeofence={() => {
+            setIsEditingGeofence(true);
+            setDraftZone({ lat: null, lon: null, radiusKm: 0.5, name: '' });
           }}
         />
       )}

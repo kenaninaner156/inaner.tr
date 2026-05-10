@@ -643,6 +643,12 @@ export const DataProvider = ({ children }) => {
         addLog('KAYITLI_ROTA_SIL', `Rota silindi`);
     };
 
+    const updateSavedTrackingRoute = async (id, updates) => {
+        const nextRoutes = savedTrackingRoutes.map(r => r.id === id ? { ...r, ...updates } : r);
+        await setDoc(doc(db, 'company_data', getSavedTrackingRoutesDocId()), { routes: nextRoutes }, { merge: true });
+        addLog('KAYITLI_ROTA_GUNCELLE', `${updates.name || 'Rota guncellendi'}`);
+    };
+
     const saveDraftInvoice = async (draft) => {
         if (!activeCompanyId || !activeTruckId) return;
         const docId = `${activeCompanyId}_${activeTruckId}_draft`;
@@ -871,7 +877,7 @@ export const DataProvider = ({ children }) => {
             mechanics, addMechanic, deleteMechanic, updateMechanic,
             maintenanceFolders, addMaintenanceFolder, updateMaintenanceFolder, deleteMaintenanceFolder,
             routes, addRoute, deleteRoute, updateRoutePrice,
-            savedTrackingRoutes, addSavedTrackingRoute, deleteSavedTrackingRoute,
+            savedTrackingRoutes, addSavedTrackingRoute, deleteSavedTrackingRoute, updateSavedTrackingRoute,
             adminLog, addLog, clearLog, restoreData,
             currentSession, loginSession, logoutSession,
             pendingUsers, approvedUsers, registerUser, approveUser, rejectUser, editUser, refreshUsers, addApprovedUser,

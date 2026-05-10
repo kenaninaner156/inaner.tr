@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, getDoc, doc } from 'firebase/firestore';
 import { db } from '../../services/firebaseConfig';
 import { useCompany } from '../../context/CompanyContext';
 import { BarChart3, TrendingUp, Clock, Activity, CalendarDays, Navigation } from 'lucide-react';
 import { haversineKm } from '../../utils/mapUtils';
+import { useTruck } from '../../context/TruckContext';
 
 const RANGES = [
   { id: 'today',   label: 'Bugün' },
@@ -12,14 +13,23 @@ const RANGES = [
   { id: 'custom',  label: 'Özel' },
 ];
 
-export default function VehicleAnalysis({ deviceMappings, trucks }) {
+export default function VehicleAnalysis({ activeTruckId }) {
   const { activeCompanyId } = useCompany();
+  const { trucks } = useTruck();
+  const [deviceMappings, setDeviceMappings] = useState({});
   const [selectedDevice, setSelectedDevice] = useState('all');
   const [dateRange, setDateRange]           = useState('weekly');
   const [customStart, setCustomStart]       = useState('');
   const [customEnd, setCustomEnd]           = useState('');
   const [loading, setLoading]               = useState(false);
   const [stats, setStats] = useState({ km: 0, duration: 0, maxSpeed: 0, avgSpeed: 0, tripCount: 0 });
+
+  useEffect(() => {
+    const mappingsDocId = `device_mappings_${activeCompanyId || 'default'}`;
+    getDoc(doc(db, 'company_data', mappingsDocId)).then(s => {
+      if (s.exists()) setDeviceMappings(s.data());
+    });
+  }, [activeCompanyId]);
 
   const getDisplayName = (deviceId) => {
     const m = deviceMappings[deviceId];

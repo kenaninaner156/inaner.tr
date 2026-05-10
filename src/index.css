@@ -154,6 +154,15 @@
     height: 0;
     background: transparent;
   }
+  
+  .leaflet-container {
+    background-color: #16161a !important; /* Koyu haritaya (Dark Matter) uyumlu nötr/siyah zemin */
+  }
+  
+  .light .leaflet-container {
+    background-color: #f8f9fa !important; /* Açık haritaya uyumlu zemin */
+  }
+  
 }
 
 /* ═══════════════════════════════════════════════════════

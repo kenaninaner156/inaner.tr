@@ -1,15 +1,56 @@
 import React, { useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Polyline, Marker, Popup, useMap } from 'react-leaflet';
+import { Polyline, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { ChevronRight, ChevronDown, Play, Pause, X, CalendarDays, Smartphone, BookmarkPlus, Scissors, Edit2, Check, MoreHorizontal } from 'lucide-react';
-import { calcStats, getInterpolatedPoint } from '../../utils/mapUtils';
+import { ChevronRight, ChevronDown, Play, Pause, X, CalendarDays, Smartphone, BookmarkPlus, Scissors, Edit2, Check } from 'lucide-react';
+import { calcStats, getInterpolatedPoint, getInterpolatedPointLinear, haversineKm } from '../../utils/mapUtils';
 import { DataContext } from '../../context/DataContext';
+function getSpeedColor(speedMs) {
+  const kmh = (speedMs || 0) * 3.6;
+  if (kmh < 5)  return '#ef4444';  // kırmızı
+  if (kmh < 30) return '#f97316';  // turuncu
+  if (kmh < 70) return '#6366f1';  // indigo
+  if (kmh < 90) return '#38bdf8';  // cyan
+  return '#22c55e';                // yeşil
+}
 
-const startIcon = new L.Icon({
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  iconSize: [16, 26], iconAnchor: [8, 26],
-});
+function SpeedPolylines({ session }) {
+  if (!session || session.length < 2) return null;
+  const segments = [];
+  for (let i = 0; i < session.length - 1; i++) {
+    const a = session[i], b = session[i + 1];
+    if (isNaN(a.lat) || isNaN(b.lat)) continue;
+    const color = getSpeedColor(a.speed);
+    const last = segments[segments.length - 1];
+    if (last && last.color === color) {
+      last.positions.push([b.lat, b.lon]);
+    } else {
+      segments.push({ color, positions: [[a.lat, a.lon], [b.lat, b.lon]] });
+    }
+  }
+  return (
+    <>
+      {/* ── İnce Gölge (Haritada kaybolmayı önlemek için) ── */}
+      <Polyline
+        positions={session.filter(p => !isNaN(p.lat)).map(p => [p.lat, p.lon])}
+        color="#000000"
+        weight={8}
+        opacity={0.4}
+      />
+      {/* ── Renkli Hız Çizgileri ── */}
+      {segments.map((seg, i) => (
+        <Polyline
+          key={i}
+          positions={seg.positions}
+          color={seg.color}
+          weight={6}
+          opacity={0.9}
+        />
+      ))}
+    </>
+  );
+}
+
 
 const truckPlayIcon = new L.Icon({
   iconUrl: '/tir-clear.png?v=8',
@@ -32,7 +73,7 @@ export default function RouteHistory({
   customDate, setCustomDate,
 }) {
   const map = useMap();
-  const { addManualSplit, customRouteNames, setCustomRouteName } = useContext(DataContext);
+  const { addManualSplit, customRouteNames, setCustomRouteName, geofences } = useContext(DataContext);
 
   const [selectedSession, setSelectedSession] = useState(null);
   const [selectedDriver, setSelectedDriver]   = useState(null);
@@ -42,6 +83,21 @@ export default function RouteHistory({
   const [editingSessionKey, setEditingSessionKey] = useState(null);
   const [editNameValue, setEditNameValue] = useState('');
   const [openMenuKey, setOpenMenuKey] = useState(null);
+  const [userInteracted, setUserInteracted] = useState(false);
+
+  // Harita ile kullanıcı etkileşimini dinle
+  useEffect(() => {
+    if (!map) return;
+    const handleInteract = () => setUserInteracted(true);
+    map.on('dragstart', handleInteract);
+    map.on('zoomstart', handleInteract);
+    return () => {
+      map.off('dragstart', handleInteract);
+      map.off('zoomstart', handleInteract);
+    };
+  }, [map]);
+
+
 
   // Sidebar — click propagation
   const sidebarRef = useRef(null);
@@ -72,6 +128,15 @@ export default function RouteHistory({
     };
     el.addEventListener('wheel', onWheel, { passive: false });
   }, []);
+
+  // Save modal için native wheel bloklama (Leaflet'in kendi listener'ını bypass etmek için)
+  const saveModalRef = useCallback((el) => {
+    if (!el) return;
+    const onWheel = (e) => {
+      e.stopPropagation();
+    };
+    el.addEventListener('wheel', onWheel, { passive: true });
+  }, []);;
 
   // Otomatik olarak ilk aracı seç
   useEffect(() => {
@@ -104,16 +169,36 @@ export default function RouteHistory({
   // Oynatma
   const [progress, setProgress]               = useState(0);
   const [isPlaying, setIsPlaying]             = useState(false);
+  
+  // Play'e basılınca auto-pan tekrar aktif olsun
+  useEffect(() => {
+    if (isPlaying) setUserInteracted(false);
+  }, [isPlaying]);
+  
   const [interpolatedData, setInterpolatedData] = useState(null);
   const playIntervalRef = useRef(null);
 
   // Kaydetme
-  const { addSavedTrackingRoute, trips } = React.useContext(DataContext);
+  const { addSavedTrackingRoute, trips, savedTrackingRoutes, routes } = React.useContext(DataContext);
   const [savingSession, setSavingSession] = useState(null);
   const [saveFrom, setSaveFrom]           = useState('');
   const [saveTo, setSaveTo]               = useState('');
   const [saveName, setSaveName]           = useState('');
   const [saveTripId, setSaveTripId]       = useState('');
+  const [saveDropdownOpen, setSaveDropdownOpen] = useState(false);
+
+  const openSaveModal = (session) => {
+    const startPt = session[0];
+    const endPt = session[session.length - 1];
+    const startG = geofences?.find(g => haversineKm(startPt.lat, startPt.lon, g.lat, g.lon) <= (g.radiusKm || 1.0));
+    const endG = geofences?.find(g => haversineKm(endPt.lat, endPt.lon, g.lat, g.lon) <= (g.radiusKm || 1.0));
+    setSaveFrom(startG ? startG.name : '');
+    setSaveTo(endG ? endG.name : '');
+    setSaveName(customRouteNames[session[0].timestamp] || '');
+    setSaveTripId('');
+    setSaveDropdownOpen(false);
+    setSavingSession({ session, driver: selectedDriver });
+  };
 
   const getDisplayName = (deviceId) => {
     const m = deviceMappings[deviceId];
@@ -122,13 +207,13 @@ export default function RouteHistory({
     return [m.driverName, truck?.plate].filter(Boolean).join(' - ') || deviceId;
   };
 
-  // Rota seçilince haritayı sığdır
+  // Rota seçilince haritayı sığdır — animasyonla
   useEffect(() => {
     if (!isVisible) return;
     if (selectedSession && selectedSession.length > 0 && map) {
-      const bounds = L.latLngBounds(
-        selectedSession.filter(p => !isNaN(p.lat)).map(p => [p.lat, p.lon])
-      );
+      const validPoints = selectedSession.filter(p => !isNaN(p.lat) && !isNaN(p.lon));
+      if (validPoints.length === 0) return;
+      const bounds = L.latLngBounds(validPoints.map(p => [p.lat, p.lon]));
       map.fitBounds(bounds, { 
         paddingTopLeft: [380, 60], 
         paddingBottomRight: [60, 60], 
@@ -136,19 +221,35 @@ export default function RouteHistory({
       });
       setProgress(0);
       setIsPlaying(false);
-      setInterpolatedData(getInterpolatedPoint(selectedSession, 0));
+      setInterpolatedData(getInterpolatedPointLinear(selectedSession, 0));
     } else {
       setInterpolatedData(null);
       setIsPlaying(false);
     }
   }, [selectedSession, map, isVisible]);
 
-  // İnterpolasyon güncelle
+  const lastPanRef = useRef(0);
+
+  // İnterpolasyon güncelle & Auto-Pan (Sınır bazlı pürüzsüz takip)
   useEffect(() => {
     if (selectedSession) {
-      setInterpolatedData(getInterpolatedPoint(selectedSession, progress));
+      const point = getInterpolatedPointLinear(selectedSession, progress);
+      setInterpolatedData(point);
+      
+      if (isPlaying && point && map && !userInteracted) {
+        const now = Date.now();
+        if (now - lastPanRef.current > 500) { // Her 500ms'de bir kontrol et
+          const pt = map.latLngToContainerPoint([point.lat, point.lon]);
+          const size = map.getSize();
+          // Ekranın %30 - %70 sınırlarının dışına çıkarsa kamerayı araca kaydır
+          if (pt.x < size.x * 0.3 || pt.x > size.x * 0.7 || pt.y < size.y * 0.3 || pt.y > size.y * 0.7) {
+            map.panTo([point.lat, point.lon], { animate: true, duration: 0.6 });
+            lastPanRef.current = now;
+          }
+        }
+      }
     }
-  }, [progress, selectedSession]);
+  }, [progress, selectedSession, isPlaying, userInteracted, map]);
 
   // Oynat / Durdur
   useEffect(() => {
@@ -156,7 +257,7 @@ export default function RouteHistory({
       playIntervalRef.current = setInterval(() => {
         setProgress(prev => {
           if (prev >= 100) { setIsPlaying(false); return 100; }
-          return prev + 0.5;
+          return prev + 0.05;
         });
       }, 50);
     } else {
@@ -166,23 +267,35 @@ export default function RouteHistory({
   }, [isPlaying]);
 
   const handleSaveRoute = async () => {
-    if (!saveFrom || !saveTo || !savingSession) return;
-    const { km } = calcStats(savingSession.session);
-    let finalName = saveName || `${saveFrom} - ${saveTo}`;
-    if (saveTripId) {
-      const t = trips.find(trip => trip.id === saveTripId);
-      if (t) finalName = `${t.from} - ${t.to} (${t.date})`;
+    if (!savingSession) return;
+    const from = saveFrom.trim();
+    const to   = saveTo.trim();
+    if (!from || !to) {
+      alert('Lütfen Nereden ve Nereye alanlarını doldurun.');
+      return;
     }
-    await addSavedTrackingRoute({
-      name: finalName,
-      from: saveFrom,
-      to: saveTo,
-      km,
-      startPoint: { lat: savingSession.session[0].lat, lon: savingSession.session[0].lon },
-      endPoint:   { lat: savingSession.session[savingSession.session.length - 1].lat, lon: savingSession.session[savingSession.session.length - 1].lon },
-      path: savingSession.session.filter(p => !isNaN(p.lat)).map(p => [p.lat, p.lon]),
-    });
-    setSavingSession(null); setSaveFrom(''); setSaveTo(''); setSaveName(''); setSaveTripId('');
+    const { km } = calcStats(savingSession.session);
+    const finalName = saveName.trim() || `${from} → ${to}`;
+    try {
+      await addSavedTrackingRoute({
+        name: finalName,
+        from,
+        to,
+        km,
+        startPoint: { lat: savingSession.session[0].lat, lon: savingSession.session[0].lon },
+        endPoint: { lat: savingSession.session[savingSession.session.length - 1].lat, lon: savingSession.session[savingSession.session.length - 1].lon },
+        path: savingSession.session.filter(p => !isNaN(p.lat)).map(p => ({ lat: p.lat, lon: p.lon })),
+      });
+      setSavingSession(null);
+      setSaveFrom('');
+      setSaveTo('');
+      setSaveName('');
+      setSaveTripId('');
+      setSaveDropdownOpen(false);
+    } catch (err) {
+      console.error('Rota kaydetme hatası:', err);
+      alert('Kaydetme sırasında hata oluştu: ' + err.message);
+    }
   };
 
   if (!isVisible) return null;
@@ -192,23 +305,15 @@ export default function RouteHistory({
       {/* ── Harita Katmanları ── */}
       {selectedSession && (
         <>
-          <Polyline
-            positions={selectedSession.filter(p => !isNaN(p.lat)).map(p => [p.lat, p.lon])}
-            color="#818cf8"
-            weight={5}
-            opacity={0.85}
-          />
-          <Marker position={[selectedSession[0].lat, selectedSession[0].lon]} icon={startIcon}>
-            <Popup><div className="p-1 text-xs font-semibold">Başlangıç</div></Popup>
-          </Marker>
+          <SpeedPolylines session={selectedSession} />
           {interpolatedData && (
             <Marker position={[interpolatedData.lat, interpolatedData.lon]} icon={truckPlayIcon} zIndexOffset={1000}>
-              <Popup autoPan={false}>
-                <div className="p-2 text-center">
-                  <div className="text-base font-bold text-sky-600">{Math.round((interpolatedData.speed || 0) * 3.6)} km/h</div>
-                  <div className="text-xs text-slate-500">{new Date(interpolatedData.timestamp).toLocaleTimeString('tr-TR')}</div>
+              <Tooltip permanent direction="top" className="play-tooltip" offset={[0, -35]}>
+                <div className="text-center">
+                  <div className="text-sm font-bold text-sky-400">{Math.round((interpolatedData.speed || 0) * 3.6)} km/h</div>
+                  <div className="text-[10px] text-slate-400 font-medium">{new Date(interpolatedData.timestamp).toLocaleTimeString('tr-TR')}</div>
                 </div>
-              </Popup>
+              </Tooltip>
             </Marker>
           )}
         </>
@@ -402,24 +507,45 @@ export default function RouteHistory({
                         {/* Sol: sefer adı + tarih */}
                         <div className="flex items-center gap-2 flex-1">
                           {editingSessionKey === session[0].timestamp ? (
-                            <div className="flex items-center gap-2 w-full" onClick={e => e.stopPropagation()}>
+                            <motion.div
+                              key="edit-row"
+                              initial={{ opacity: 0, y: -4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -4 }}
+                              transition={{ duration: 0.15, ease: 'easeOut' }}
+                              className="flex items-center gap-2 w-full"
+                              onClick={e => e.stopPropagation()}
+                            >
                               <input 
                                 autoFocus
                                 value={editNameValue}
                                 onChange={e => setEditNameValue(e.target.value)}
-                                className="bg-[#0f172a] border border-indigo-500/50 rounded-md px-2 py-1 text-xs text-white outline-none w-full"
+                                onKeyDown={e => { if (e.key === 'Enter') { setCustomRouteName(session[0].timestamp, editNameValue); setEditingSessionKey(null); } }}
+                                className="bg-[#0B0E14] border border-indigo-500/50 rounded-lg px-2 py-1 text-xs text-white outline-none flex-1 min-w-0"
                                 placeholder={`Sefer ${totalSessions - i}`}
                               />
+                              {/* ✂ Böl — önce */}
                               <button 
-                                onClick={async () => {
-                                  await setCustomRouteName(session[0].timestamp, editNameValue);
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const ts = interpolatedData?.timestamp ?? session[Math.floor(session.length / 2)]?.timestamp;
+                                  if (ts) addManualSplit(ts, selectedDriver);
                                   setEditingSessionKey(null);
                                 }}
-                                className="text-emerald-400 p-1 hover:bg-emerald-400/10 rounded"
+                                className="text-rose-400 p-1.5 hover:bg-rose-400/10 rounded-lg flex-shrink-0 transition-colors"
+                                title="Rotayı Buradan Böl"
+                              >
+                                <Scissors size={14} />
+                              </button>
+                              {/* ✔ Kaydet — sonra */}
+                              <button 
+                                onClick={async (e) => { e.stopPropagation(); await setCustomRouteName(session[0].timestamp, editNameValue); setEditingSessionKey(null); }}
+                                className="text-emerald-400 p-1.5 hover:bg-emerald-400/10 rounded-lg flex-shrink-0 transition-colors"
+                                title="İsmi Kaydet"
                               >
                                 <Check size={14} />
                               </button>
-                            </div>
+                            </motion.div>
                           ) : (
                             <>
                               <span className={`text-xs font-bold ${isSelected ? 'text-indigo-400' : 'text-slate-300'}`}>
@@ -431,39 +557,15 @@ export default function RouteHistory({
                             </>
                           )}
                         </div>
-                        {/* Sağ: ⋯ menü */}
-                        <div className="relative flex-shrink-0" onClick={e => e.stopPropagation()}>
+                        {/* Sağ: kalem ikonu */}
+                        {editingSessionKey !== session[0].timestamp && (
                           <button
-                            onClick={() => setOpenMenuKey(openMenuKey === session[0].timestamp ? null : session[0].timestamp)}
-                            className="p-1.5 rounded-lg text-slate-600 hover:text-slate-300 hover:bg-white/[0.06] transition-all"
+                            onClick={(e) => { e.stopPropagation(); setEditNameValue(customRouteNames[session[0].timestamp] || `Sefer ${totalSessions - i}`); setEditingSessionKey(session[0].timestamp); }}
+                            className="p-1.5 rounded-lg text-slate-700 hover:text-indigo-400 hover:bg-white/[0.05] transition-all flex-shrink-0"
                           >
-                            <MoreHorizontal size={15} />
+                            <Edit2 size={13} />
                           </button>
-                          {openMenuKey === session[0].timestamp && (
-                            <div className="absolute right-0 top-full mt-1 w-44 bg-[#0f172a] border border-white/[0.08] rounded-xl shadow-2xl z-50 overflow-hidden">
-                              <button
-                                onClick={() => {
-                                  setEditNameValue(customRouteNames[session[0].timestamp] || `Sefer ${totalSessions - i}`);
-                                  setEditingSessionKey(session[0].timestamp);
-                                  setOpenMenuKey(null);
-                                }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-slate-300 hover:bg-white/[0.05] hover:text-white transition-colors"
-                              >
-                                <Edit2 size={13} className="text-indigo-400" /> Sefer Adını Düzenle
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const ts = interpolatedData?.timestamp ?? session[Math.floor(session.length / 2)]?.timestamp;
-                                  if (ts) addManualSplit(ts, selectedDriver);
-                                  setOpenMenuKey(null);
-                                }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-rose-400 hover:bg-rose-500/[0.08] transition-colors border-t border-white/[0.05]"
-                              >
-                                <Scissors size={13} /> Buradan Böl
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                        )}
                       </div>
                       <div className="flex gap-1.5 pl-2">
                         <span className="px-2 py-0.5 bg-white/[0.05] rounded-lg text-[10px] text-slate-400 font-semibold border border-white/[0.05]">
@@ -476,12 +578,14 @@ export default function RouteHistory({
                     </button>
 
                     {isSelected && (
-                      <button
-                        onClick={e => { e.stopPropagation(); setSavingSession({ session, driver: selectedDriver }); }}
-                        className="w-full py-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-400 text-[11px] font-bold rounded-xl transition-all flex items-center justify-center gap-1.5"
-                      >
-                        <BookmarkPlus size={13} /> Rotayı Kaydet
-                      </button>
+                      <div className="flex gap-1.5 mt-1.5" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={e => { e.stopPropagation(); openSaveModal(session); }}
+                          className="flex-1 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-400 text-[11px] font-bold rounded-xl transition-all flex items-center justify-center gap-1.5"
+                        >
+                          <BookmarkPlus size={13} /> Rotayı Kaydet
+                        </button>
+                      </div>
                     )}
                   </React.Fragment>
                 );
@@ -567,6 +671,18 @@ export default function RouteHistory({
                     cursor: pointer; transition: transform 0.15s;
                   }
                   input[type='range']::-webkit-slider-thumb:hover { transform: scale(1.25); }
+                  
+                  .play-tooltip {
+                    background: rgba(13, 18, 25, 0.95) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+                    border-radius: 12px !important;
+                    padding: 6px 12px !important;
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+                    backdrop-filter: blur(8px) !important;
+                  }
+                  .play-tooltip::before {
+                    border-top-color: rgba(13, 18, 25, 0.95) !important;
+                  }
                 `}</style>
               </div>
             </div>
@@ -584,55 +700,100 @@ export default function RouteHistory({
 
       {/* ── Kaydetme Modalı ── */}
       {savingSession && (
-        <div className="fixed inset-0 z-[3500] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+        <div
+          ref={saveModalRef}
+          className="fixed inset-0 z-[3500] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md"
+          onClick={() => setSaveDropdownOpen(false)}>
           <div
             className="rounded-3xl p-6 w-full max-w-sm shadow-2xl"
             style={{ background: 'rgba(13,18,25,0.98)', border: '1px solid rgba(255,255,255,0.06)' }}
+            onClick={e => e.stopPropagation()}
           >
+            {/* Başlık */}
             <div className="flex justify-between items-center mb-5">
               <h3 className="text-white font-bold text-base flex items-center gap-2">
                 <BookmarkPlus size={17} className="text-indigo-400" /> Rotayı Kaydet
               </h3>
-              <button onClick={() => setSavingSession(null)} className="text-slate-600 hover:text-white p-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] transition-all">
+              <button
+                onClick={() => { setSavingSession(null); setSaveDropdownOpen(false); }}
+                className="text-slate-600 hover:text-white p-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] transition-all"
+              >
                 <X size={16} />
               </button>
             </div>
 
             <div className="space-y-3">
-              {/* Sefer seç */}
-              <div>
-                <label className="text-[11px] text-slate-500 mb-1.5 block font-semibold uppercase tracking-wider">Seferden İsim Al (Opsiyonel)</label>
-                <select
-                  value={saveTripId}
-                  onChange={e => {
-                    setSaveTripId(e.target.value);
-                    if (e.target.value) {
-                      const t = trips.find(trip => trip.id === e.target.value);
-                      if (t) { setSaveFrom(t.from || ''); setSaveTo(t.to || ''); }
-                    }
-                  }}
-                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500/50 transition-colors"
-                  style={{ colorScheme: 'dark' }}
+              {/* Kayıtlı Rota Dropdown */}
+              <div className="relative">
+                <label className="text-[11px] text-slate-500 mb-1.5 block font-semibold uppercase tracking-wider">Rotadan Doldur (Opsiyonel)</label>
+                <button
+                  type="button"
+                  onClick={() => setSaveDropdownOpen(v => !v)}
+                  className="w-full flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-2xl px-3 py-2.5 text-sm hover:border-indigo-500/40 transition-colors"
                 >
-                  <option value="">— Seçmeden Devam Et —</option>
-                  {trips.map(t => (
-                    <option key={t.id} value={t.id}>{t.from} → {t.to} ({t.date})</option>
-                  ))}
-                </select>
+                  <span className={saveTripId ? 'text-white' : 'text-slate-500'}>
+                    {saveTripId
+                      ? (() => {
+                          const all = [...(routes||[]), ...(savedTrackingRoutes||[]), ...(trips||[])];
+                          const r = all.find(x => String(x.id) === saveTripId);
+                          return r ? `${r.from} → ${r.to}` : '— Seç —';
+                        })()
+                      : '— Seçmeden Devam Et —'}
+                  </span>
+                  <ChevronDown size={14} className={`text-slate-500 transition-transform ${saveDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {saveDropdownOpen && (
+                  <div
+                    className="absolute left-0 right-0 top-full mt-1 z-20 rounded-2xl overflow-hidden shadow-2xl"
+                    style={{ background: 'rgba(13,18,25,0.99)', border: '1px solid rgba(255,255,255,0.1)' }}
+                  >
+                    <div className="max-h-56 overflow-y-auto" onWheel={e => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => { setSaveTripId(''); setSaveDropdownOpen(false); }}
+                        className="w-full text-left px-4 py-2.5 text-xs text-slate-500 hover:bg-white/[0.06] hover:text-white transition-colors border-b border-white/[0.04]"
+                      >
+                        — Seçmeden Devam Et —
+                      </button>
+                      {[...(routes||[]), ...(savedTrackingRoutes||[]), ...(trips||[])]
+                        .filter(r => r.from && r.to)
+                        .map(r => (
+                          <button
+                            key={r.id}
+                            type="button"
+                            onClick={() => {
+                              setSaveTripId(String(r.id));
+                              setSaveFrom(r.from || '');
+                              setSaveTo(r.to || '');
+                              setSaveName(r.name || `${r.from} → ${r.to}`);
+                              setSaveDropdownOpen(false);
+                            }}
+                            className={`w-full text-left px-4 py-2.5 text-xs transition-colors hover:bg-white/[0.06] border-b border-white/[0.03] ${
+                              saveTripId === String(r.id) ? 'bg-indigo-500/15 text-indigo-400' : 'text-slate-300'
+                            }`}
+                          >
+                            <span className="font-semibold">{r.from} → {r.to}</span>
+                            {r.km && <span className="text-slate-600 ml-2">{r.km} km</span>}
+                            {r.date && <span className="text-slate-700 ml-2">{r.date}</span>}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {!saveTripId && (
-                <div>
-                  <label className="text-[11px] text-slate-500 mb-1.5 block font-semibold uppercase tracking-wider">Özel Ad</label>
-                  <input
-                    value={saveName}
-                    onChange={e => setSaveName(e.target.value)}
-                    placeholder="Örn: Ankara - İstanbul"
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 transition-colors"
-                  />
-                </div>
-              )}
+              {/* Rota Adı */}
+              <div>
+                <label className="text-[11px] text-slate-500 mb-1.5 block font-semibold uppercase tracking-wider">Rota Adı</label>
+                <input
+                  value={saveName}
+                  onChange={e => setSaveName(e.target.value)}
+                  placeholder="Örn: Çayırhan → Baştaş"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 transition-colors"
+                />
+              </div>
 
+              {/* Nereden / Nereye */}
               {[
                 { label: 'Nereden', value: saveFrom, set: setSaveFrom, placeholder: 'Örn: Ankara' },
                 { label: 'Nereye',  value: saveTo,   set: setSaveTo,   placeholder: 'Örn: İstanbul' },
@@ -650,8 +811,7 @@ export default function RouteHistory({
 
               <button
                 onClick={handleSaveRoute}
-                disabled={!saveFrom || !saveTo}
-                className="w-full py-3 bg-gradient-to-b from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-600 text-white font-bold rounded-2xl transition-all shadow-lg shadow-indigo-500/20 mt-1"
+                className="w-full py-3 bg-gradient-to-b from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 text-white font-bold rounded-2xl transition-all shadow-lg shadow-indigo-500/20 mt-1"
               >
                 Kaydet
               </button>

@@ -203,3 +203,31 @@ export function getInterpolatedPoint(points, progressPercent) {
 
   return { ...points[points.length - 1], interpolated: false };
 }
+
+/**
+ * Sabit Hızlı Oynatma için Index Bazlı İnterpolasyon.
+ * Zaman damgalarını yok sayıp, tüm noktaları eşit aralıklarla gezer.
+ * Böylece araç her koşulda sabit bir görsel hızda hareket eder.
+ */
+export function getInterpolatedPointLinear(points, progressPercent) {
+  if (!points || points.length === 0) return null;
+  if (progressPercent <= 0) return { ...points[0], interpolated: false };
+  if (progressPercent >= 100) return { ...points[points.length - 1], interpolated: false };
+
+  const totalSegments = points.length - 1;
+  const target = (progressPercent / 100) * totalSegments;
+  const segIndex = Math.floor(target);
+  const ratio = target - segIndex;
+
+  const p1 = points[Math.min(segIndex, points.length - 1)];
+  const p2 = points[Math.min(segIndex + 1, points.length - 1)];
+
+  return {
+    lat: p1.lat + (p2.lat - p1.lat) * ratio,
+    lon: p1.lon + (p2.lon - p1.lon) * ratio,
+    timestamp: p1.timestamp,
+    speed: (p1.speed || 0) + ((p2.speed || 0) - (p1.speed || 0)) * ratio,
+    interpolated: true,
+    originalIndex: segIndex,
+  };
+}
