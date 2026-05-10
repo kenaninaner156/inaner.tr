@@ -23,6 +23,7 @@ export const DataProvider = ({ children }) => {
     const [invoices, setInvoices] = useState([]);
     const [shoppingItems, setShoppingItems] = useState([]);
     const [geofences, setGeofences] = useState([]);
+    const [manualSplits, setManualSplits] = useState([]);
 
     const [vehicleInfo, setVehicleInfo] = useState({
         plate: '06 FTN 692', trailerPlate: '06 ABC 123', driverName: 'Ahmet Şoför',
@@ -246,6 +247,12 @@ export const DataProvider = ({ children }) => {
         unsubs.push(onSnapshot(query(collection(db, 'geofences'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
             setGeofences(data);
+        }));
+
+        // 11.7 Manual Splits config
+        unsubs.push(onSnapshot(query(collection(db, 'manual_splits'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const data = snapshot.docs.map(doc => doc.data().timestamp);
+            setManualSplits(data);
         }));
 
         // 12. Docs config
@@ -805,6 +812,18 @@ export const DataProvider = ({ children }) => {
         addLog('ISLEM_SIL', `${name} adlı özel bölge silindi`);
     };
 
+    // Manual Splits
+    const addManualSplit = async (timestamp, truckId) => {
+        if (!activeCompanyId) return;
+        await addDoc(collection(db, 'manual_splits'), {
+            timestamp,
+            truckId,
+            companyId: activeCompanyId,
+            createdAt: new Date().toISOString()
+        });
+        addLog('ISLEM_EKLE', 'Manuel rota bölme noktası eklendi');
+    };
+
     const refreshUsers = useCallback(() => { }, []);
 
     // Unified drivers list: merge manual drivers + approved şöför users
@@ -843,7 +862,8 @@ export const DataProvider = ({ children }) => {
             shoppingItems, addShoppingItem, updateShoppingItem, deleteShoppingItem, updateShoppingItemsOrder,
             updateTruckImage,
             isDataLoading, dataError,
-            geofences, addGeofence, deleteGeofence
+            geofences, addGeofence, deleteGeofence,
+            manualSplits, addManualSplit
         }}>
             {children}
         </DataContext.Provider>

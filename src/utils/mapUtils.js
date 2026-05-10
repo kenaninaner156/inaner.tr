@@ -19,7 +19,7 @@ export function haversineKm(lat1, lon1, lat2, lon2) {
  * 30 dakikadan uzun hareketsizliklere veya özel bölgelerdeki bekleme sürelerine (örn: 5 dk)
  * göre konum noktalarını oturumlara (rotalara) böler.
  */
-export function groupIntoSessions(points, maxGapMinutes = 30, geofences = []) {
+export function groupIntoSessions(points, maxGapMinutes = 30, geofences = [], manualSplits = []) {
   if (!points || !points.length) return [];
   const sessions = [];
   let curSession = [points[0]];
@@ -66,6 +66,11 @@ export function groupIntoSessions(points, maxGapMinutes = 30, geofences = []) {
         geofenceEntryTime = null;
         hasSplitForThisGeofenceVisit = false;
       }
+    }
+
+    // Kural 3: Manuel Bölme Kontrolü (Kullanıcı arayüzden böldüyse)
+    if (manualSplits && manualSplits.includes(pt.timestamp)) {
+      splitTriggered = true;
     }
 
     if (splitTriggered) {

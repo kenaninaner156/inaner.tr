@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Polyline, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { ChevronRight, ChevronDown, Play, Pause, X, CalendarDays, Smartphone, BookmarkPlus } from 'lucide-react';
+import { ChevronRight, ChevronDown, Play, Pause, X, CalendarDays, Smartphone, BookmarkPlus, Scissors } from 'lucide-react';
 import { calcStats, getInterpolatedPoint } from '../../utils/mapUtils';
 import { DataContext } from '../../context/DataContext';
 
@@ -32,6 +32,7 @@ export default function RouteHistory({
   customDate, setCustomDate,
 }) {
   const map = useMap();
+  const { addManualSplit } = useContext(DataContext);
 
   const [selectedSession, setSelectedSession] = useState(null);
   const [selectedDriver, setSelectedDriver]   = useState(null);
@@ -513,6 +514,21 @@ export default function RouteHistory({
                 `}</style>
               </div>
             </div>
+
+            {/* Manuel Bölme Butonu */}
+            <button
+              onClick={() => {
+                if (interpolatedData?.timestamp) {
+                  addManualSplit(interpolatedData.timestamp, selectedDriver);
+                  // Küçük bir bildirim için console log
+                  console.log("Rota buradan bölündü:", interpolatedData.timestamp);
+                }
+              }}
+              title="Rotayı Buradan Böl"
+              className="w-11 h-11 rounded-full bg-slate-800 flex items-center justify-center text-rose-400 hover:bg-rose-500 hover:text-white transition-all shadow-lg border border-rose-500/20 flex-shrink-0"
+            >
+              <Scissors size={18} />
+            </button>
 
             {/* Kapat */}
             <button

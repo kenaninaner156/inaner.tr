@@ -40,7 +40,7 @@ function MapClickHandler({ pickingLocation, onLocationPicked }) {
 export default function MapLayout() {
   const { trucks } = useTruck();
   const { activeCompanyId } = useCompany();
-  const { geofences } = useContext(DataContext);
+  const { geofences, manualSplits } = useContext(DataContext);
   
   const [activeTab, setActiveTab] = useState('live');
   const [mapStyle, setMapStyle] = useState('voyager');
@@ -122,11 +122,11 @@ export default function MapLayout() {
 
     const res = {};
     Object.keys(grouped).forEach(d => {
-      const rawSessions = groupIntoSessions(grouped[d], 30, geofences);
+      const rawSessions = groupIntoSessions(grouped[d], 30, geofences, manualSplits);
       res[d] = rawSessions.map(session => filterSessionPoints(session, 0.2));
     });
     return res;
-  }, [locations, geofences]);
+  }, [locations, geofences, manualSplits]);
 
   // Harita tile URL'leri
   const mapUrls = {
