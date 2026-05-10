@@ -1,4 +1,5 @@
 import React, { useContext, useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { DataContext } from '../../context/DataContext';
 import { Bookmark, Search, Trash2, Edit2, Check, X } from 'lucide-react';
 import { Marker, Popup, Polyline, useMap } from 'react-leaflet';
@@ -25,6 +26,14 @@ export default function SavedRoutes({ isVisible }) {
   const [editFrom, setEditFrom]         = useState('');
   const [editTo, setEditTo]             = useState('');
   const map = useMap();
+
+  // Harita etkileşimini sidebar üzerinde engelle
+  const sidebarCallbackRef = useCallback(node => {
+    if (node) {
+      L.DomEvent.disableClickPropagation(node);
+      L.DomEvent.disableScrollPropagation(node);
+    }
+  }, []);
 
   const filteredRoutes = (savedTrackingRoutes || []).filter(r =>
     (r.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -80,12 +89,10 @@ export default function SavedRoutes({ isVisible }) {
     setEditingId(null);
   };
 
-  if (!isVisible) return null;
-
   return (
     <>
       {/* ── Harita Katmanları ── */}
-      {selectedRoute?.startPoint && selectedRoute?.endPoint && (
+      {isVisible && selectedRoute?.startPoint && selectedRoute?.endPoint && (
         <>
           <Marker position={[selectedRoute.startPoint.lat, selectedRoute.startPoint.lon]} icon={startIcon}>
             <Popup><div className="p-1 text-xs font-semibold text-emerald-600">Başlangıç: {selectedRoute.from}</div></Popup>
@@ -98,49 +105,51 @@ export default function SavedRoutes({ isVisible }) {
             positions={
               selectedRoute.path
                 ? selectedRoute.path.map(p => p.lat != null ? [p.lat, p.lon] : p)
-                : [
-                    [selectedRoute.startPoint.lat, selectedRoute.startPoint.lon],
-                    [selectedRoute.endPoint.lat,   selectedRoute.endPoint.lon],
-                  ]
+                : [[selectedRoute.startPoint.lat, selectedRoute.startPoint.lon], [selectedRoute.endPoint.lat, selectedRoute.endPoint.lon]]
             }
-            color="#000000" weight={7} opacity={0.4}
-            dashArray={selectedRoute.path ? null : '10, 10'}
-          />
+            color="#000" weight={6} opacity={0.3} />
           {/* ── Ana Çizgi ── */}
           <Polyline
             positions={
               selectedRoute.path
                 ? selectedRoute.path.map(p => p.lat != null ? [p.lat, p.lon] : p)
-                : [
-                    [selectedRoute.startPoint.lat, selectedRoute.startPoint.lon],
-                    [selectedRoute.endPoint.lat,   selectedRoute.endPoint.lon],
-                  ]
+                : [[selectedRoute.startPoint.lat, selectedRoute.startPoint.lon], [selectedRoute.endPoint.lat, selectedRoute.endPoint.lon]]
             }
-            color="#a78bfa" weight={5} opacity={0.9}
-            dashArray={selectedRoute.path ? null : '10, 10'}
-          />
+            color="#8b5cf6" weight={4} opacity={0.8} />
         </>
       )}
 
       {/* ── Sidebar ── */}
-      <div
-        className="absolute top-[76px] left-4 bottom-4 w-[300px] z-[1500] flex flex-col rounded-3xl"
-        style={{ background: 'rgba(13,18,25,0.95)', border: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 8px 32px rgba(0,0,0,0.6)', backdropFilter: 'blur(24px)' }}
-      >
-        {/* Başlık */}
-        <div className="px-5 py-4 border-b border-white/[0.05]">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2 mb-3">
-            <Bookmark size={15} className="text-violet-400" /> Kayıtlı Rotalar
-          </h2>
-          <div className="relative">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none" />
-            <input
-              type="text" placeholder="Rota ara..."
-              value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-              className="w-full bg-white/[0.04] border border-white/[0.06] rounded-xl pl-8 pr-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500/40 transition-colors"
-            />
-          </div>
-        </div>
+      <AnimatePresence>
+        {isVisible && (
+          <motion.div
+            ref={sidebarCallbackRef}
+            initial={{ x: -20, opacity: 0, scale: 0.98, filter: 'blur(10px)' }}
+            animate={{ x: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
+            exit={{ x: -20, opacity: 0, scale: 0.98, filter: 'blur(10px)' }}
+            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+            className="absolute top-[76px] left-4 bottom-4 w-[300px] z-[1500] flex flex-col rounded-3xl"
+            style={{
+              background: 'rgba(13,18,25,0.97)',
+              border: '1px solid rgba(255,255,255,0.04)',
+              boxShadow: '0 8px 40px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.03)',
+              backdropFilter: 'blur(24px)',
+            }}
+          >
+            {/* Başlık */}
+            <div className="px-5 py-4 border-b border-white/[0.05]">
+              <h2 className="text-sm font-bold text-white flex items-center gap-2 mb-3">
+                <Bookmark size={15} className="text-violet-400" /> Kayıtlı Rotalar
+              </h2>
+              <div className="relative">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none" />
+                <input
+                  type="text" placeholder="Rota ara..."
+                  value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full bg-white/[0.04] border border-white/[0.06] rounded-xl pl-8 pr-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500/40 transition-colors"
+                />
+              </div>
+            </div>
 
         {/* Liste */}
         <div ref={listCallbackRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
@@ -230,7 +239,9 @@ export default function SavedRoutes({ isVisible }) {
             })
           )}
         </div>
-      </div>
+      </motion.div>
+    )}
+    </AnimatePresence>
 
       {/* ── Silme Onay Modalı (custom) ── */}
       {confirmDeleteId && (

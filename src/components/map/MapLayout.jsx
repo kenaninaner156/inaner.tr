@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useMemo, useRef, useContext } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useContext, useCallback } from 'react';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../../services/firebaseConfig';
 import { MapPin, History, Bookmark, BarChart3, Layers, Settings } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { doc, getDoc } from 'firebase/firestore';
+import L from 'leaflet';
 
 import { useTruck } from '../../context/TruckContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -37,6 +38,40 @@ function MapClickHandler({ pickingLocation, onLocationPicked }) {
   return null;
 }
 
+// Sekme geçişlerinde haritayı pürüzsüzce odaklayan bileşen
+function MapCameraSync({ activeTab, sessionsByDriver, deviceMappings }) {
+  const map = useMap();
+  const prevTabRef = useRef(activeTab);
+
+  useEffect(() => {
+    if (prevTabRef.current === activeTab) return;
+    
+    const flyOptions = { 
+      padding: [80, 80], 
+      duration: 1.5,
+      easeLinearity: 0.25 
+    };
+
+    if (activeTab === 'live') {
+      const activeLocations = Object.entries(sessionsByDriver)
+        .filter(([driverId]) => !!deviceMappings[driverId] && sessionsByDriver[driverId].length > 0)
+        .map(([driverId, sessions]) => {
+          const lp = sessions[sessions.length - 1];
+          const lastPoint = lp[lp.length - 1];
+          return lastPoint ? [lastPoint.lat, lastPoint.lon] : null;
+        }).filter(p => p && !isNaN(p[0]));
+
+      if (activeLocations.length > 0) {
+        map.flyToBounds(L.latLngBounds(activeLocations), flyOptions);
+      }
+    }
+    
+    prevTabRef.current = activeTab;
+  }, [activeTab, map, sessionsByDriver, deviceMappings]);
+
+  return null;
+}
+
 export default function MapLayout() {
   const { trucks } = useTruck();
   const { activeCompanyId } = useCompany();
@@ -52,7 +87,6 @@ export default function MapLayout() {
     localStorage.setItem('mapStyle', mapStyle);
   }, [mapStyle]);
   
-  // Veri Stateleri
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deviceMappings, setDeviceMappings] = useState({});
@@ -65,6 +99,13 @@ export default function MapLayout() {
 
   const mapRef = useRef(null);
 
+  // Harita butona tıklandıktan sonra yükleniyor, animasyonun başlaması için 50ms yeterli
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setIsMounted(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
+
   const handleSaveGeofence = async (zone) => {
     if (!zone.name || !zone.lat || !zone.lon) return;
     await addGeofence({
@@ -74,13 +115,12 @@ export default function MapLayout() {
       radiusKm: parseFloat(zone.radiusKm)
     });
     setIsEditingGeofence(false);
-    setShowMapSettings(true); // Geri listeye dön
+    setShowMapSettings(true);
   };
 
-  // Veri Çekme — dateFilterDays=0 (Tümü) ise çok eski bir tarih kullan
   useEffect(() => {
+    setLoading(true);
     let startIso, endIso;
-    
     if (customDate) {
       const start = new Date(customDate);
       start.setHours(0, 0, 0, 0);
@@ -89,7 +129,6 @@ export default function MapLayout() {
       end.setHours(23, 59, 59, 999);
       endIso = end.toISOString();
     } else if (dateFilterDays === 0) {
-      // "Tümü" — 5 yıl öncesinden bugüne kadar
       startIso = new Date('2020-01-01').toISOString();
       endIso = new Date().toISOString();
     } else {
@@ -106,7 +145,6 @@ export default function MapLayout() {
 
     const unsubscribe = onSnapshot(q, (snap) => {
       const allData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Client-side şirket izolasyonu (eski kayıtlarda companyId yok → İnaner kabul edilir)
       const filtered = activeCompanyId
         ? allData.filter(d => !d.companyId || d.companyId === activeCompanyId)
         : allData;
@@ -120,7 +158,6 @@ export default function MapLayout() {
     return () => unsubscribe();
   }, [dateFilterDays, customDate, activeCompanyId]);
 
-  // Cihaz Eşleştirmelerini Çek (Canlı Senkronizasyon)
   useEffect(() => {
     const mappingsDocId = `device_mappings_${activeCompanyId || 'default'}`;
     const unsubscribe = onSnapshot(doc(db, 'company_data', mappingsDocId), (s) => {
@@ -133,7 +170,6 @@ export default function MapLayout() {
     return () => unsubscribe();
   }, [activeCompanyId]);
 
-  // 200m filtresiyle oturumlara grupla
   const sessionsByDriver = useMemo(() => {
     const grouped = locations.reduce((acc, loc) => {
       const k = loc.driverId || 'Bilinmeyen';
@@ -145,14 +181,14 @@ export default function MapLayout() {
     const res = {};
     Object.keys(grouped).forEach(d => {
       const rawSessions = groupIntoSessions(grouped[d], 30, geofences, manualSplits);
-      res[d] = rawSessions.map(session => filterSessionPoints(session, 0.2));
+      // Performans için nokta sayısını azalt (0.3km = 300m hassasiyet)
+      res[d] = rawSessions.map(session => filterSessionPoints(session, 0.3));
     });
     return res;
   }, [locations, geofences, manualSplits]);
 
-  // Harita tile URL'leri
   const mapUrls = {
-    voyager: 'https://mt0.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}', // Google Maps Standart
+    voyager: 'https://mt0.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}',
     darkmatter: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
     satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
   };
@@ -163,21 +199,20 @@ export default function MapLayout() {
     { id: 'saved',    label: 'Kayıtlı Rotalar',  icon: Bookmark },
   ];
 
+  const navBarCallbackRef = useCallback(node => {
+    if (node) {
+      L.DomEvent.disableClickPropagation(node);
+      L.DomEvent.disableScrollPropagation(node);
+    }
+  }, []);
+
   return (
-    // data-map-module → CSS isolation (light tema override'larından korur)
     <div data-map-module className="flex flex-col h-[calc(100vh-8rem)] relative rounded-2xl overflow-hidden shadow-2xl" style={{ background: '#0B0E14', border: '1px solid rgba(255,255,255,0.04)' }}>
-      
-      {/* ── Navigasyon Barı (Araç Bakım ile aynı stil) ── */}
       <div
+        ref={navBarCallbackRef}
         className="absolute top-4 left-1/2 -translate-x-1/2 z-[2000] pointer-events-auto w-11/12 max-w-2xl"
-        onWheelCapture={e => e.stopPropagation()}
-        onPointerDownCapture={e => e.stopPropagation()}
-        onPointerMoveCapture={e => e.stopPropagation()}
-        onDoubleClickCapture={e => e.stopPropagation()}
-        onTouchStartCapture={e => e.stopPropagation()}
       >
         <div className="flex backdrop-blur-xl p-1.5 rounded-2xl items-center" style={{ background: 'rgba(13,18,25,0.92)', border: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)' }}>
-          {/* Sekmeler */}
           <div className="flex flex-1 gap-0.5">
             {tabs.map(tab => {
               const Icon = tab.icon;
@@ -190,11 +225,9 @@ export default function MapLayout() {
                     isActive ? 'text-white font-medium' : 'text-slate-500 font-medium hover:text-slate-300'
                   }`}
                 >
-                  {/* Hover arka planı */}
                   {!isActive && (
                     <div className="absolute inset-0 bg-white/0 group-hover:bg-white/[0.04] rounded-xl transition-colors duration-300" />
                   )}
-                  {/* Aktif pill (spring animasyonlu) */}
                   {isActive && (
                     <motion.div
                       layoutId="map-active-pill"
@@ -215,11 +248,7 @@ export default function MapLayout() {
               );
             })}
           </div>
-
-          {/* Ayırıcı */}
           <div className="w-px h-5 bg-white/10 mx-1.5 flex-shrink-0" />
-
-          {/* Sağ butonlar */}
           <div className="flex items-center gap-0.5 pr-0.5">
             <button
               onClick={() => setShowMapSettings(true)}
@@ -228,8 +257,6 @@ export default function MapLayout() {
             >
               <Settings size={16} />
             </button>
-
-            {/* Harita Stili */}
             <div className="relative">
               <button
                 onClick={() => setShowLayerMenu(v => !v)}
@@ -239,7 +266,6 @@ export default function MapLayout() {
               </button>
               {showLayerMenu && (
                 <>
-                  {/* Backdrop */}
                   <div className="fixed inset-0 z-10" onClick={() => setShowLayerMenu(false)} />
                   <div className="absolute right-0 top-full mt-2 w-32 bg-[#111113] border border-white/10 rounded-2xl p-1.5 shadow-2xl z-20">
                     {[
@@ -267,74 +293,78 @@ export default function MapLayout() {
         </div>
       </div>
 
-      {/* ── Harita Alanı ── */}
-      <div className="flex-1 relative">
-        <MapContainer
-          center={[39.5, 33.5]}
-          zoom={6}
-          className="w-full h-full"
-          zoomControl={false}
-          attributionControl={false}
-        >
-          <TileLayer
-            url={mapUrls[mapStyle]}
-            maxZoom={19}
-            // Performans: kara kare önleme ve hızlı yükleme
-            keepBuffer={24}
-            updateWhenIdle={false}
-            updateWhenZooming={false}
-            updateInterval={50}
-            tileSize={256}
-          />
-          <MapRefSetter mapRef={mapRef} />
+      <div className="flex-1 relative bg-[#0B0E14]">
+        {isMounted ? (
+          <MapContainer 
+            center={[39.9334, 32.8597]} 
+            zoom={6} 
+            className="w-full h-full z-0" 
+            zoomControl={false}
+            attributionControl={false}
+            preferCanvas={true}
+          >
+            <MapRefSetter mapRef={mapRef} />
+            <MapClickHandler pickingLocation={draftZone.lat === null} onLocationPicked={(ll) => setDraftZone(prev => ({ ...prev, lat: ll.lat, lon: ll.lng }))} />
+            <MapCameraSync activeTab={activeTab} sessionsByDriver={sessionsByDriver} deviceMappings={deviceMappings} />
 
-          {/*
-            KRİTİK: AnimatePresence KALDIRILDI.
-            Leaflet bileşenleri her zaman mount'ta kalır; sadece görsel olarak gösterilip gizlenir.
-            Bu, useMap() hook hataları ve geçişlerde takılmayı önler.
-          */}
-
-          {/* Canlı Takip — her zaman mount'ta, sadece aktif sekmede görünür */}
-          <LiveTracking
-            isVisible={activeTab === 'live'}
-            sessionsByDriver={sessionsByDriver}
-            deviceMappings={deviceMappings}
-            trucks={trucks}
-          />
-
-          {/* Rota Takibi */}
-          <RouteHistory
-            isVisible={activeTab === 'history'}
-            sessionsByDriver={sessionsByDriver}
-            deviceMappings={deviceMappings}
-            trucks={trucks}
-            dateFilterDays={dateFilterDays}
-            setDateFilterDays={setDateFilterDays}
-            customDate={customDate}
-            setCustomDate={setCustomDate}
-          />
-
-          {/* Kayıtlı Rotalar */}
-          <SavedRoutes
-            isVisible={activeTab === 'saved'}
-          />
-
-          {isEditingGeofence && (
-            <InteractiveGeofenceMapLayer draftZone={draftZone} setDraftZone={setDraftZone} />
-          )}
-        </MapContainer>
-
+            <TileLayer
+              url={mapUrls[mapStyle]}
+              maxZoom={19}
+              keepBuffer={24}
+              updateWhenIdle={false}
+              updateWhenZooming={false}
+              updateInterval={50}
+              tileSize={256}
+            />
+            <LiveTracking
+              isVisible={activeTab === 'live'}
+              sessionsByDriver={sessionsByDriver}
+              deviceMappings={deviceMappings}
+              trucks={trucks}
+            />
+            <RouteHistory
+              isVisible={activeTab === 'history'}
+              sessionsByDriver={sessionsByDriver}
+              deviceMappings={deviceMappings}
+              trucks={trucks}
+              dateFilterDays={dateFilterDays}
+              setDateFilterDays={setDateFilterDays}
+              customDate={customDate}
+              setCustomDate={setCustomDate}
+            />
+            <SavedRoutes
+              isVisible={activeTab === 'saved'}
+            />
+            {isEditingGeofence && (
+              <InteractiveGeofenceMapLayer draftZone={draftZone} setDraftZone={setDraftZone} />
+            )}
+          </MapContainer>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-[#0B0E14]">
+             <div className="w-8 h-8 border-2 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+          </div>
+        )}
       </div>
 
-      {/* Yükleniyor */}
-      {loading && (
-        <div className="absolute inset-0 bg-[#0a0c10]/70 backdrop-blur-sm z-[3000] flex items-center justify-center pointer-events-none">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-10 h-10 border-3 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-            <span className="text-xs text-slate-500 font-medium">Veriler yükleniyor…</span>
-          </div>
-        </div>
-      )}
+      {/* Yükleniyor — Smooth ve Arka Planda (z-[1400]) */}
+      <AnimatePresence>
+        {loading && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ delay: 0.4 }} // 400ms'den kısa süren yüklemelerde hiç gözükmez (flicker önleme)
+            className="absolute inset-0 bg-[#0a0c10]/40 backdrop-blur-[2px] z-[1400] flex items-center justify-center pointer-events-none"
+          >
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-10 h-10 border-3 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin shadow-[0_0_15px_rgba(99,102,241,0.2)]" />
+              <span className="text-xs text-slate-400 font-medium tracking-wide">
+                {locations.length === 0 ? 'Veriler Yükleniyor…' : 'Güncelleniyor…'}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {isEditingGeofence && (
         <InteractiveGeofencePanel 
@@ -345,7 +375,6 @@ export default function MapLayout() {
         />
       )}
 
-      {/* Modals */}
       {showMapSettings && !isEditingGeofence && (
         <MapSettingsModal 
           onClose={() => setShowMapSettings(false)}

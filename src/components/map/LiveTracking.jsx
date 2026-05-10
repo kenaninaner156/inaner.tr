@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { calcStats } from '../../utils/mapUtils';
@@ -204,6 +205,14 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
   const [showSidebar, setShowSidebar]           = useState(true);
   const didInitRef = useRef(false);
 
+  // Harita etkileşimini sidebar üzerinde engelle
+  const sidebarCallbackRef = useCallback(node => {
+    if (node) {
+      L.DomEvent.disableClickPropagation(node);
+      L.DomEvent.disableScrollPropagation(node);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isVisible) { didInitRef.current = false; setFollowedDriverId(null); }
   }, [isVisible]);
@@ -222,7 +231,7 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
   };
 
   const vehicleList = Object.entries(sessionsByDriver)
-    .filter(([driverId]) => !!deviceMappings[driverId]) // KRİTİK: Silinen cihazları gösterme
+    .filter(([driverId]) => !!deviceMappings[driverId])
     .map(([driverId, sessions]) => {
       if (!sessions.length) return null;
       const latestSession = sessions[sessions.length - 1];
@@ -234,7 +243,6 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
       return { driverId, latestSession, lastPoint, isOnline, speedKmh, km, durationMin, name: getDisplayName(driverId) };
     }).filter(Boolean);
 
-  if (!isVisible) return null;
   const onlineCount = vehicleList.filter(v => v.isOnline).length;
 
   return (
@@ -252,7 +260,8 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
 
       <MapController sessionsByDriver={sessionsByDriver} followedDriverId={followedDriverId} setFollowedDriverId={setFollowedDriverId} didInitRef={didInitRef} />
 
-      {vehicleList.map(v => (
+      {/* Harita Katmanları — isVisible ise göster */}
+      {isVisible && vehicleList.map(v => (
         <React.Fragment key={`live-${v.driverId}`}>
           {v.latestSession.length > 1 && (
             v.isOnline
@@ -263,44 +272,64 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
         </React.Fragment>
       ))}
 
-      {showSidebar && (
-        <div className="absolute left-4 z-[1500]" style={{ top: '76px', width: 280, background: PANEL_BG, border: PANEL_BORDER, borderRadius: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.55)', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px 10px', borderBottom: CARD_BORDER }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Activity size={14} color="#818cf8" /><span style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0' }}>Canlı Araçlar</span></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#22c55e', padding: '2px 7px', borderRadius: 20, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)' }}>{onlineCount} Aktif</span>
-              <button 
-                onClick={() => setShowSidebar(false)} 
-                style={{ 
-                  width: 24, height: 24, borderRadius: 8, 
-                  background: 'rgba(255,255,255,0.08)', 
-                  color: '#94a3b8', 
-                  border: 'none', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = '#fff'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#94a3b8'; }}
-              >
-                <X size={14} />
-              </button>
+      {/* Sidebar — Framer Motion ile Akışkan Geçiş */}
+      <AnimatePresence>
+        {isVisible && showSidebar && (
+          <motion.div 
+            ref={sidebarCallbackRef}
+            initial={{ x: -20, opacity: 0, scale: 0.98, filter: 'blur(10px)' }}
+            animate={{ x: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
+            exit={{ x: -20, opacity: 0, scale: 0.98, filter: 'blur(10px)' }}
+            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+            className="absolute left-4 z-[1500]" 
+            style={{ top: '76px', width: 280, background: PANEL_BG, border: PANEL_BORDER, borderRadius: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.55)', overflow: 'hidden' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px 10px', borderBottom: CARD_BORDER }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Activity size={14} color="#818cf8" /><span style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0' }}>Canlı Araçlar</span></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#22c55e', padding: '2px 7px', borderRadius: 20, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)' }}>{onlineCount} Aktif</span>
+                <button 
+                  onClick={() => setShowSidebar(false)} 
+                  style={{ 
+                    width: 24, height: 24, borderRadius: 8, 
+                    background: 'rgba(255,255,255,0.08)', 
+                    color: '#94a3b8', 
+                    border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = '#fff'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#94a3b8'; }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
             </div>
-          </div>
-          <div ref={listCallbackRef} style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto', scrollbarWidth: 'none' }}>
-            {vehicleList.length === 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', gap: 8 }}><WifiOff size={24} color="#334155" /><span style={{ fontSize: 11, color: '#334155' }}>Aktif araç yok</span></div>
-            ) : (
-              vehicleList.map(v => <SidebarItem key={v.driverId} driverId={v.driverId} name={v.name} isOnline={v.isOnline} speedKmh={v.speedKmh} km={v.km} lastPoint={v.lastPoint} isFollowed={followedDriverId === v.driverId} setFollowedDriverId={setFollowedDriverId} />)
-            )}
-          </div>
-        </div>
-      )}
+            <div ref={listCallbackRef} style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto', scrollbarWidth: 'none' }}>
+              {vehicleList.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', gap: 8 }}><WifiOff size={24} color="#334155" /><span style={{ fontSize: 11, color: '#334155' }}>Aktif araç yok</span></div>
+              ) : (
+                vehicleList.map(v => <SidebarItem key={v.driverId} driverId={v.driverId} name={v.name} isOnline={v.isOnline} speedKmh={v.speedKmh} km={v.km} lastPoint={v.lastPoint} isFollowed={followedDriverId === v.driverId} setFollowedDriverId={setFollowedDriverId} />)
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {!showSidebar && (
-        <button onClick={() => setShowSidebar(true)} className="absolute left-4 z-[1500]" style={{ top: '76px', padding: '10px 14px', background: PANEL_BG, border: PANEL_BORDER, borderRadius: 14, color: '#818cf8', cursor: 'pointer', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Activity size={15} /><span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>Araçlar</span>
-        </button>
-      )}
+      <AnimatePresence>
+        {isVisible && !showSidebar && (
+          <motion.button 
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            onClick={() => setShowSidebar(true)} 
+            className="absolute left-4 z-[1500]" 
+            style={{ top: '76px', padding: '10px 14px', background: PANEL_BG, border: PANEL_BORDER, borderRadius: 14, color: '#818cf8', cursor: 'pointer', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <Activity size={15} /><span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>Araçlar</span>
+          </motion.button>
+        )}
+      </AnimatePresence>
     </>
   );
 }

@@ -8,7 +8,7 @@ import { db } from '../services/firebaseConfig';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import FileUpload from './FileUpload';
 
-const MAINTENANCE_TYPES = ['Periyodik Bakım', 'Lastik', 'Motor', 'Fren', 'Şanzıman', 'Elektrik', 'Kaporta', 'Diğer'];
+
 
 const Maintenance = () => {
     const {
@@ -19,7 +19,8 @@ const Maintenance = () => {
         spareParts, addSparePart, updateSparePart, deleteSparePart,
         sparePartCategories, addSparePartCategory,
         shoppingItems, addShoppingItem, updateShoppingItem, deleteShoppingItem, updateShoppingItemsOrder,
-        addLog, docs, fuelRecords, periodicMaintenanceItems, updatePeriodicMaintenanceItems
+        addLog, docs, fuelRecords, periodicMaintenanceItems, updatePeriodicMaintenanceItems,
+        maintenanceTypes, updateMaintenanceTypes
     } = useContext(DataContext);
 
     const { activeTruckId, activeTruckData } = useTruck();
@@ -1090,7 +1091,7 @@ const Maintenance = () => {
                                     <div className="relative">
                                         <select className="w-full glass-input px-3 py-2 bg-[var(--bg-panel-hover)] appearance-none" value={maintenanceForm.type}
                                             onChange={e => setMaintenanceForm({ ...maintenanceForm, type: e.target.value })}>
-                                            {MAINTENANCE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                                            {maintenanceTypes.map(t => <option key={t} value={t}>{t}</option>)}
                                         </select>
                                         <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none" />
                                     </div>

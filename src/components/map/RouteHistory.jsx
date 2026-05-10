@@ -14,7 +14,14 @@ function getSpeedColor(speedMs) {
   return '#22c55e';                // yeşil
 }
 
-function SpeedPolylines({ session }) {
+function formatDuration(totalMin) {
+  const h = Math.floor(totalMin / 60);
+  const m = Math.round(totalMin % 60);
+  if (h > 0) return `${h} sa ${m} dk`;
+  return `${m} dk`;
+}
+
+const SpeedPolylines = React.memo(({ session }) => {
   if (!session || session.length < 2) return null;
   const segments = [];
   for (let i = 0; i < session.length - 1; i++) {
@@ -30,12 +37,13 @@ function SpeedPolylines({ session }) {
   }
   return (
     <>
-      {/* ── İnce Gölge (Haritada kaybolmayı önlemek için) ── */}
+      {/* ── Alt Gölge (Yumuşak Dış Hat) ── */}
       <Polyline
         positions={session.filter(p => !isNaN(p.lat)).map(p => [p.lat, p.lon])}
-        color="#000000"
-        weight={8}
-        opacity={0.4}
+        color="#000"
+        weight={9}
+        opacity={0.25}
+        smoothFactor={2}
       />
       {/* ── Renkli Hız Çizgileri ── */}
       {segments.map((seg, i) => (
@@ -43,13 +51,14 @@ function SpeedPolylines({ session }) {
           key={i}
           positions={seg.positions}
           color={seg.color}
-          weight={6}
-          opacity={0.9}
+          weight={5}
+          opacity={0.85}
+          smoothFactor={1.5}
         />
       ))}
     </>
   );
-}
+});
 
 
 const truckPlayIcon = new L.Icon({
@@ -100,9 +109,22 @@ export default function RouteHistory({
 
 
   // Sidebar — click propagation
-  const sidebarRef = useRef(null);
-  useEffect(() => {
-    if (sidebarRef.current) L.DomEvent.disableClickPropagation(sidebarRef.current);
+  const confirmModalRef = useRef(null);
+  
+  // Harita etkileşimini sidebar üzerinde engelle
+  const sidebarCallbackRef = useCallback(node => {
+    if (node) {
+      L.DomEvent.disableClickPropagation(node);
+      L.DomEvent.disableScrollPropagation(node);
+    }
+  }, []);
+
+  // Oynatıcı çubuğu için koruma
+  const playerCallbackRef = useCallback(node => {
+    if (node) {
+      L.DomEvent.disableClickPropagation(node);
+      L.DomEvent.disableScrollPropagation(node);
+    }
   }, []);
 
   // Liste scroll — callback ref: element mount olunca event listener ekle
@@ -118,16 +140,7 @@ export default function RouteHistory({
     el.addEventListener('wheel', onWheel, { passive: false });
   }, []);
 
-  // Alt oynatma çubuğu için click ve scroll izolasyonu
-  const playerCallbackRef = useCallback((el) => {
-    if (!el) return;
-    L.DomEvent.disableClickPropagation(el);
-    L.DomEvent.disableScrollPropagation(el);
-    const onWheel = (e) => {
-      e.stopPropagation();
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-  }, []);
+
 
   // Save modal için native wheel bloklama (Leaflet'in kendi listener'ını bypass etmek için)
   const saveModalRef = useCallback((el) => {
@@ -148,16 +161,24 @@ export default function RouteHistory({
     }
   }, [sessionsByDriver, selectedDriver]);
 
-  // Araç veya tarih filtresi değiştiğinde ilk seferi otomatik seç
+  // Araç veya tarih filtresi değiştiğinde seçili seferi korumaya çalış veya ilkini seç
   useEffect(() => {
     if (selectedDriver && sessionsByDriver[selectedDriver]) {
       const visibleSessions = [...sessionsByDriver[selectedDriver]].reverse().filter(session => {
         if (dateFilterDays === 0) return true;
         const stats = calcStats(session);
-        return parseFloat(stats.km) >= 10 && parseInt(stats.durationMin) >= 20;
+        // 10 km ve 15 dk altındaysa gizle
+        return parseFloat(stats.km) >= 10 && parseInt(stats.durationMin) >= 15;
       });
+
       if (visibleSessions.length > 0) {
-        setSelectedSession(visibleSessions[0]);
+        // Eğer zaten bir sefer seçiliyse ve yeni listede de varsa onu koru
+        const currentId = selectedSession?.[0]?.timestamp;
+        const stillExists = visibleSessions.find(s => s[0]?.timestamp === currentId);
+        
+        if (!stillExists) {
+          setSelectedSession(visibleSessions[0]);
+        }
       } else {
         setSelectedSession(null);
       }
@@ -298,12 +319,12 @@ export default function RouteHistory({
     }
   };
 
-  if (!isVisible) return null;
+  // if (!isVisible) return null; // ARTIK UNMOUNT ETMİYORUZ
 
   return (
     <>
       {/* ── Harita Katmanları ── */}
-      {selectedSession && (
+      {isVisible && selectedSession && (
         <>
           <SpeedPolylines session={selectedSession} />
           {interpolatedData && (
@@ -320,22 +341,22 @@ export default function RouteHistory({
       )}
 
       {/* ── Sidebar ── */}
-      <div
-        ref={sidebarRef}
-        className={`
-          absolute top-[76px] left-4 bottom-4 w-[300px]
-          z-[1500]
-          flex flex-col rounded-3xl
-          transition-transform duration-300 ease-out
-          ${showSidebar ? 'translate-x-0' : '-translate-x-[110%]'}
-        `}
-        style={{
-          background: 'rgba(13,18,25,0.97)',
-          border: '1px solid rgba(255,255,255,0.04)',
-          boxShadow: '0 8px 40px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.03)',
-          backdropFilter: 'blur(24px)',
-        }}
-      >
+      <AnimatePresence>
+        {isVisible && showSidebar && (
+          <motion.div
+            ref={sidebarCallbackRef}
+            initial={{ x: -10, opacity: 0, scale: 0.99, filter: 'blur(4px)' }}
+            animate={{ x: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
+            exit={{ x: -10, opacity: 0, scale: 0.99, filter: 'blur(4px)' }}
+            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+            className="absolute top-[76px] left-4 bottom-4 w-[300px] z-[1500] flex flex-col rounded-3xl"
+            style={{
+              background: 'rgba(13,18,25,0.97)',
+              border: '1px solid rgba(255,255,255,0.04)',
+              boxShadow: '0 8px 40px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.03)',
+              backdropFilter: 'blur(24px)',
+            }}
+          >
         {/* Başlık */}
         <div className="flex justify-between items-center px-5 py-4 border-b border-white/[0.05]">
           <h2 className="text-sm font-bold text-white flex items-center gap-2">
@@ -359,13 +380,19 @@ export default function RouteHistory({
                 <button
                   key={f.days}
                   onClick={() => { setDateFilterDays(f.days); setCustomDate(''); }}
-                  className={`flex-1 py-1.5 text-[11px] rounded-[10px] font-semibold transition-all duration-200 ${
-                    isActive
-                      ? 'bg-gradient-to-b from-indigo-500 to-indigo-600 text-white shadow-md'
-                      : 'text-slate-500 hover:text-slate-300'
+                  className={`relative flex-1 py-1.5 text-[11px] font-semibold transition-all duration-300 outline-none ${
+                    isActive ? 'text-white' : 'text-slate-500 hover:text-slate-300'
                   }`}
                 >
-                  {f.label}
+                  {isActive && (
+                    <motion.div
+                      layoutId="history-date-pill"
+                      className="absolute inset-0 bg-gradient-to-b from-indigo-500 to-indigo-600 rounded-[10px] shadow-[0_2px_8px_rgba(99,102,241,0.4)]"
+                      initial={false}
+                      transition={{ type: 'spring', stiffness: 500, damping: 35, mass: 1 }}
+                    />
+                  )}
+                  <span className="relative z-10">{f.label}</span>
                 </button>
               );
             })}
@@ -441,9 +468,9 @@ export default function RouteHistory({
                     const visibleCount = dateFilterDays === 0
                       ? sessions.length
                       : sessions.filter(s => {
-                          const stats = calcStats(s);
-                          return parseFloat(stats.km) >= 10 && parseInt(stats.durationMin) >= 20;
-                        }).length;
+                            const stats = calcStats(s);
+                            return parseFloat(stats.km) >= 10 && parseInt(stats.durationMin) >= 15;
+                          }).length;
                     if (visibleCount === 0) return null;
                     return (
                       <button
@@ -477,7 +504,7 @@ export default function RouteHistory({
         </div>
 
         {/* Seçili Aracın Rotası */}
-        <div ref={listCallbackRef} className="flex-1 overflow-y-auto px-3 pb-3 space-y-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div ref={listCallbackRef} className="flex-1 overflow-y-auto px-3 pb-3 space-y-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', minHeight: '300px' }}>
           {selectedDriver && sessionsByDriver[selectedDriver] && (
             <div className="space-y-1.5">
               {[...sessionsByDriver[selectedDriver]].reverse().map((session, i) => {
@@ -487,8 +514,8 @@ export default function RouteHistory({
                 const isSelected = selectedSession === session;
                 const { km, durationMin } = calcStats(session);
 
-                // "Tümü" seçili değilse 10 km altı ve 20 dk altı rotaları gizle
-                if (dateFilterDays !== 0 && (parseFloat(km) < 10 || parseInt(durationMin) < 20)) return null;
+                // "Tümü" seçili değilse 10 km altı veya 15 dk altı rotaları gizle
+                if (dateFilterDays !== 0 && (parseFloat(km) < 10 || parseInt(durationMin) < 15)) return null;
 
                 return (
                   <React.Fragment key={i}>
@@ -572,7 +599,7 @@ export default function RouteHistory({
                           {km} km
                         </span>
                         <span className="px-2 py-0.5 bg-white/[0.05] rounded-lg text-[10px] text-slate-400 font-semibold border border-white/[0.05]">
-                          {durationMin} dk
+                          {formatDuration(durationMin)}
                         </span>
                       </div>
                     </button>
@@ -593,37 +620,37 @@ export default function RouteHistory({
             </div>
           )}
         </div>
-      </div>
+        </motion.div>
+      )}
+      </AnimatePresence>
 
       {/* Sidebar kapalıyken aç butonu */}
-      {!showSidebar && (
-        <button
-          onClick={() => setShowSidebar(true)}
-          className="absolute left-4 z-[1500]"
-          style={{
-            top: '76px',
-            padding: '10px 14px',
-            background: 'rgba(13, 18, 25, 0.95)',
-            border: '1px solid rgba(255, 255, 255, 0.05)',
-            borderRadius: 14,
-            color: '#818cf8',
-            cursor: 'pointer',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}
-        >
-          <CalendarDays size={15} />
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>Geçmiş</span>
-        </button>
-      )}
+      <AnimatePresence>
+        {isVisible && !showSidebar && (
+          <motion.button
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            onClick={() => setShowSidebar(true)}
+            className="absolute left-4 top-[76px] z-[1500] p-3.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-2xl border border-indigo-500/20 transition-all backdrop-blur-md"
+          >
+            <CalendarDays size={16} />
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       {/* ── Alt Oynatma Çubuğu ── */}
-      {selectedSession && (
-        <div 
-          ref={playerCallbackRef}
-          className="absolute bottom-6 -translate-x-1/2 z-[2000] w-11/12 max-w-[420px] pointer-events-auto transition-all duration-300 ease-out"
-          style={{ left: showSidebar ? 'calc(50% + 158px)' : '50%' }}
-        >
+      <AnimatePresence>
+        {isVisible && selectedSession && (
+          <motion.div 
+            ref={playerCallbackRef}
+            initial={{ y: 20, opacity: 0, x: '-50%', scale: 0.96, filter: 'blur(8px)' }}
+            animate={{ y: 0, opacity: 1, x: '-50%', scale: 1, filter: 'blur(0px)' }}
+            exit={{ y: 20, opacity: 0, x: '-50%', scale: 0.96, filter: 'blur(8px)' }}
+            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+            className="absolute bottom-6 z-[2000] w-11/12 max-w-[420px] pointer-events-auto transition-all duration-300 ease-out"
+            style={{ left: showSidebar ? 'calc(50% + 158px)' : '50%' }}
+          >
           <div
             className="px-4 py-3 rounded-3xl flex items-center gap-4"
             style={{ background: 'rgba(13,18,25,0.97)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 12px 40px rgba(0,0,0,0.8)', backdropFilter: 'blur(24px)' }}
@@ -695,8 +722,9 @@ export default function RouteHistory({
               <X size={16} />
             </button>
           </div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* ── Kaydetme Modalı ── */}
       {savingSession && (

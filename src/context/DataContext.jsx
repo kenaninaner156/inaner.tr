@@ -33,6 +33,7 @@ export const DataProvider = ({ children }) => {
     const [drivers, setDrivers] = useState([]);
     const [spareParts, setSpareParts] = useState([]);
     const [sparePartCategories, setSparePartCategories] = useState(['Yağ', 'Filtre', 'Kayış', 'Balata', 'Aydınlatma', 'Lastik', 'Genel']);
+    const [maintenanceTypes, setMaintenanceTypes] = useState(['Periyodik Bakım', 'Lastik', 'Motor', 'Fren', 'Şanzıman', 'Elektrik', 'Kaporta', 'Diğer']);
     const [periodicMaintenanceItems, setPeriodicMaintenanceItems] = useState([
         { id: '1', name: 'Motor Yağı', intervalKm: 40000, warningKm: 2000 },
         { id: '2', name: 'Şanzıman Yağı', intervalKm: 80000, warningKm: 5000 },
@@ -144,6 +145,36 @@ export const DataProvider = ({ children }) => {
             setIsDataLoading(false);
             return;
         }
+
+        // RESET DATA STATES ON COMPANY CHANGE (Isolation)
+        setTrips([]);
+        setFuelRecords([]);
+        setMaintenanceRecords([]);
+        setPaymentRecords([]);
+        setMaintenanceFolders([]);
+        setAdminLog([]);
+        setPendingUsers([]);
+        setApprovedUsers([]);
+        setPenalties([]);
+        setInvoices([]);
+        setShoppingItems([]);
+        setSpareParts([]);
+        setMechanics([]);
+        setGeofences([]);
+        setManualSplits([]);
+        setCustomRouteNames({});
+        setDocs({});
+        
+        // Defaults for non-existing company docs
+        const isInaner = activeCompanyId === 'inaner_logistics';
+        setSparePartCategories(['Yağ', 'Filtre', 'Kayış', 'Balata', 'Aydınlatma', 'Lastik', 'Genel']);
+        setMaintenanceTypes(['Periyodik Bakım', 'Lastik', 'Motor', 'Fren', 'Şanzıman', 'Elektrik', 'Kaporta', 'Diğer']);
+        setPeriodicMaintenanceItems(isInaner ? [
+            { id: '1', name: 'Motor Yağı', intervalKm: 40000, warningKm: 2000 },
+            { id: '2', name: 'Şanzıman Yağı', intervalKm: 80000, warningKm: 5000 },
+            { id: '3', name: 'Hava Filtresi', intervalKm: 20000, warningKm: 1000 }
+        ] : []); // Other companies start fresh or with empty templates
+
         // Only show loading spinner on company change, not truck switch
         if (!activeTruckId) setIsDataLoading(true);
 
@@ -291,23 +322,32 @@ export const DataProvider = ({ children }) => {
                     setSparePartCategories(['Yağ', 'Filtre', 'Kayış', 'Balata', 'Aydınlatma', 'Lastik', 'Genel']);
                 }
 
+                if (data.maintenanceTypes && data.maintenanceTypes.length > 0) {
+                    setMaintenanceTypes(data.maintenanceTypes);
+                } else {
+                    setMaintenanceTypes(['Periyodik Bakım', 'Lastik', 'Motor', 'Fren', 'Şanzıman', 'Elektrik', 'Kaporta', 'Diğer']);
+                }
+
                 if (data.periodicMaintenanceItems !== undefined) {
                     setPeriodicMaintenanceItems(data.periodicMaintenanceItems);
                 } else {
-                    setPeriodicMaintenanceItems([
+                    const isInaner = activeCompanyId === 'inaner_logistics';
+                    setPeriodicMaintenanceItems(isInaner ? [
                         { id: '1', name: 'Motor Yağı', intervalKm: 40000, warningKm: 2000 },
                         { id: '2', name: 'Şanzıman Yağı', intervalKm: 80000, warningKm: 5000 },
                         { id: '3', name: 'Hava Filtresi', intervalKm: 20000, warningKm: 1000 }
-                    ]);
+                    ] : []);
                 }
             } else {
+                const isInaner = activeCompanyId === 'inaner_logistics';
                 setDrivers([]);
                 setSparePartCategories(['Yağ', 'Filtre', 'Kayış', 'Balata', 'Aydınlatma', 'Lastik', 'Genel']);
-                setPeriodicMaintenanceItems([
+                setMaintenanceTypes(['Periyodik Bakım', 'Lastik', 'Motor', 'Fren', 'Şanzıman', 'Elektrik', 'Kaporta', 'Diğer']);
+                setPeriodicMaintenanceItems(isInaner ? [
                     { id: '1', name: 'Motor Yağı', intervalKm: 40000, warningKm: 2000 },
                     { id: '2', name: 'Şanzıman Yağı', intervalKm: 80000, warningKm: 5000 },
                     { id: '3', name: 'Hava Filtresi', intervalKm: 20000, warningKm: 1000 }
-                ]);
+                ] : []);
                 setDraftInvoice(null);
             }
             setIsDataLoading(false); // Finished loading essential config
@@ -543,6 +583,12 @@ export const DataProvider = ({ children }) => {
         const docId = activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`;
         await setDoc(doc(db, 'company_data', docId), { periodicMaintenanceItems: newItems }, { merge: true });
         addLog('SABLON_GUNCELLE', 'Periyodik bakım şablonları güncellendi');
+    };
+
+    const updateMaintenanceTypes = async (newTypes) => {
+        const docId = activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`;
+        await setDoc(doc(db, 'company_data', docId), { maintenanceTypes: newTypes }, { merge: true });
+        addLog('BAKIM_TIPLERI_GUNCELLE', 'Bakım türleri güncellendi');
     };
 
     const addSparePartCategory = async (newCategory) => {
