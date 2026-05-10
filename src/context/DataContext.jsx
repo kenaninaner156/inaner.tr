@@ -24,6 +24,7 @@ export const DataProvider = ({ children }) => {
     const [shoppingItems, setShoppingItems] = useState([]);
     const [geofences, setGeofences] = useState([]);
     const [manualSplits, setManualSplits] = useState([]);
+    const [customRouteNames, setCustomRouteNames] = useState({});
 
     const [vehicleInfo, setVehicleInfo] = useState({
         plate: '06 FTN 692', trailerPlate: '06 ABC 123', driverName: 'Ahmet Şoför',
@@ -253,6 +254,15 @@ export const DataProvider = ({ children }) => {
         unsubs.push(onSnapshot(query(collection(db, 'manual_splits'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => doc.data().timestamp);
             setManualSplits(data);
+        }));
+
+        // 11.8 Custom Route Names
+        unsubs.push(onSnapshot(query(collection(db, 'custom_route_names'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const map = {};
+            snapshot.docs.forEach(doc => {
+                map[doc.data().timestamp] = doc.data().name;
+            });
+            setCustomRouteNames(map);
         }));
 
         // 12. Docs config
@@ -824,6 +834,22 @@ export const DataProvider = ({ children }) => {
         addLog('ISLEM_EKLE', 'Manuel rota bölme noktası eklendi');
     };
 
+    // Custom Route Names
+    const setCustomRouteName = async (timestamp, name) => {
+        if (!activeCompanyId) return;
+        const q = query(collection(db, 'custom_route_names'), where('timestamp', '==', timestamp), where('companyId', '==', activeCompanyId));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+            await updateDoc(doc(db, 'custom_route_names', snap.docs[0].id), { name });
+        } else {
+            await addDoc(collection(db, 'custom_route_names'), {
+                timestamp,
+                name,
+                companyId: activeCompanyId
+            });
+        }
+    };
+
     const refreshUsers = useCallback(() => { }, []);
 
     // Unified drivers list: merge manual drivers + approved şöför users
@@ -863,7 +889,8 @@ export const DataProvider = ({ children }) => {
             updateTruckImage,
             isDataLoading, dataError,
             geofences, addGeofence, deleteGeofence,
-            manualSplits, addManualSplit
+            manualSplits, addManualSplit,
+            customRouteNames, setCustomRouteName
         }}>
             {children}
         </DataContext.Provider>

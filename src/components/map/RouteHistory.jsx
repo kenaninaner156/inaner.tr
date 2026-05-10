@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useContext } from 'rea
 import { motion, AnimatePresence } from 'framer-motion';
 import { Polyline, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { ChevronRight, ChevronDown, Play, Pause, X, CalendarDays, Smartphone, BookmarkPlus, Scissors } from 'lucide-react';
+import { ChevronRight, ChevronDown, Play, Pause, X, CalendarDays, Smartphone, BookmarkPlus, Scissors, Edit2, Check, MoreHorizontal } from 'lucide-react';
 import { calcStats, getInterpolatedPoint } from '../../utils/mapUtils';
 import { DataContext } from '../../context/DataContext';
 
@@ -32,12 +32,16 @@ export default function RouteHistory({
   customDate, setCustomDate,
 }) {
   const map = useMap();
-  const { addManualSplit } = useContext(DataContext);
+  const { addManualSplit, customRouteNames, setCustomRouteName } = useContext(DataContext);
 
   const [selectedSession, setSelectedSession] = useState(null);
   const [selectedDriver, setSelectedDriver]   = useState(null);
   const [isVehicleDropdownOpen, setIsVehicleDropdownOpen] = useState(false);
   const [showSidebar, setShowSidebar]         = useState(true);
+  
+  const [editingSessionKey, setEditingSessionKey] = useState(null);
+  const [editNameValue, setEditNameValue] = useState('');
+  const [openMenuKey, setOpenMenuKey] = useState(null);
 
   // Sidebar — click propagation
   const sidebarRef = useRef(null);
@@ -395,19 +399,81 @@ export default function RouteHistory({
                         <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-indigo-500 rounded-full" />
                       )}
                       <div className="flex justify-between items-center mb-2.5 pl-2">
-                        <div className="flex items-center gap-2.5">
-                          <span className={`text-xs font-bold ${isSelected ? 'text-indigo-400' : 'text-slate-300'}`}>
-                            Sefer {totalSessions - i}
+                        <div className="flex items-center gap-2.5 flex-1 pr-2">
+                          {editingSessionKey === session[0].timestamp ? (
+                            <div className="flex items-center gap-2 w-full" onClick={e => e.stopPropagation()}>
+                              <input 
+                                autoFocus
+                                value={editNameValue}
+                                onChange={e => setEditNameValue(e.target.value)}
+                                className="bg-[#0f172a] border border-indigo-500/50 rounded-md px-2 py-1 text-xs text-white outline-none w-full"
+                                placeholder={`Sefer ${totalSessions - i}`}
+                              />
+                              <button 
+                                onClick={async () => {
+                                  await setCustomRouteName(session[0].timestamp, editNameValue);
+                                  setEditingSessionKey(null);
+                                }}
+                                className="text-emerald-400 p-1 hover:bg-emerald-400/10 rounded"
+                              >
+                                <Check size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className={`text-xs font-bold flex items-center gap-2 ${isSelected ? 'text-indigo-400' : 'text-slate-300'}`}>
+                              {customRouteNames[session[0].timestamp] || `Sefer ${totalSessions - i}`}
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditNameValue(customRouteNames[session[0].timestamp] || `Sefer ${totalSessions - i}`);
+                                  setEditingSessionKey(session[0].timestamp);
+                                }}
+                                className="text-slate-500 hover:text-indigo-400 transition-colors"
+                              >
+                                <Edit2 size={12} />
+                              </button>
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-slate-600 font-medium">
+                            {start.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}
                           </span>
-                          <div className="text-[10.5px] text-slate-500 flex items-center gap-1 font-medium bg-white/[0.03] px-1.5 py-0.5 rounded border border-white/[0.02]">
-                            <span>{start.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
-                            <span className="text-slate-700">→</span>
-                            <span>{end.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          {/* ⋯ Ayar menü butonu */}
+                          <div className="relative" onClick={e => e.stopPropagation()}>
+                            <button
+                              onClick={() => setOpenMenuKey(openMenuKey === session[0].timestamp ? null : session[0].timestamp)}
+                              className="p-1 rounded-lg text-slate-600 hover:text-slate-300 hover:bg-white/[0.06] transition-all"
+                            >
+                              <MoreHorizontal size={14} />
+                            </button>
+                            {openMenuKey === session[0].timestamp && (
+                              <div className="absolute right-0 top-full mt-1 w-40 bg-[#0f172a] border border-white/[0.08] rounded-xl shadow-2xl z-50 overflow-hidden">
+                                <button
+                                  onClick={() => {
+                                    setEditNameValue(customRouteNames[session[0].timestamp] || `Sefer ${totalSessions - i}`);
+                                    setEditingSessionKey(session[0].timestamp);
+                                    setOpenMenuKey(null);
+                                  }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-slate-300 hover:bg-white/[0.05] hover:text-white transition-colors"
+                                >
+                                  <Edit2 size={13} className="text-indigo-400" /> Sefer Adını Düzenle
+                                </button>
+                                {isSelected && interpolatedData && (
+                                  <button
+                                    onClick={() => {
+                                      addManualSplit(interpolatedData.timestamp, selectedDriver);
+                                      setOpenMenuKey(null);
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-rose-400 hover:bg-rose-500/[0.08] transition-colors border-t border-white/[0.05]"
+                                  >
+                                    <Scissors size={13} /> Buradan Böl
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <span className="text-[10px] text-slate-600 font-medium">
-                          {start.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}
-                        </span>
                       </div>
                       <div className="flex gap-1.5 pl-2">
                         <span className="px-2 py-0.5 bg-white/[0.05] rounded-lg text-[10px] text-slate-400 font-semibold border border-white/[0.05]">
@@ -514,21 +580,6 @@ export default function RouteHistory({
                 `}</style>
               </div>
             </div>
-
-            {/* Manuel Bölme Butonu */}
-            <button
-              onClick={() => {
-                if (interpolatedData?.timestamp) {
-                  addManualSplit(interpolatedData.timestamp, selectedDriver);
-                  // Küçük bir bildirim için console log
-                  console.log("Rota buradan bölündü:", interpolatedData.timestamp);
-                }
-              }}
-              title="Rotayı Buradan Böl"
-              className="w-11 h-11 rounded-full bg-slate-800 flex items-center justify-center text-rose-400 hover:bg-rose-500 hover:text-white transition-all shadow-lg border border-rose-500/20 flex-shrink-0"
-            >
-              <Scissors size={18} />
-            </button>
 
             {/* Kapat */}
             <button

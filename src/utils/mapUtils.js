@@ -69,8 +69,14 @@ export function groupIntoSessions(points, maxGapMinutes = 30, geofences = [], ma
     }
 
     // Kural 3: Manuel Bölme Kontrolü (Kullanıcı arayüzden böldüyse)
-    if (manualSplits && manualSplits.includes(pt.timestamp)) {
-      splitTriggered = true;
+    if (manualSplits && manualSplits.length > 0) {
+      const crossedSplit = manualSplits.some(splitIso => {
+        const splitTime = new Date(splitIso).getTime();
+        return splitTime > prevTime && splitTime <= curTime;
+      });
+      if (crossedSplit) {
+        splitTriggered = true;
+      }
     }
 
     if (splitTriggered) {
