@@ -57,6 +57,17 @@ export default function RouteHistory({
     el.addEventListener('wheel', onWheel, { passive: false });
   }, []);
 
+  // Alt oynatma çubuğu için click ve scroll izolasyonu
+  const playerCallbackRef = useCallback((el) => {
+    if (!el) return;
+    L.DomEvent.disableClickPropagation(el);
+    L.DomEvent.disableScrollPropagation(el);
+    const onWheel = (e) => {
+      e.stopPropagation();
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+  }, []);
+
   // Otomatik olarak ilk aracı seç
   useEffect(() => {
     const drivers = Object.keys(sessionsByDriver).filter(d => sessionsByDriver[d].length > 0);
@@ -66,6 +77,24 @@ export default function RouteHistory({
       setSelectedDriver(null);
     }
   }, [sessionsByDriver, selectedDriver]);
+
+  // Araç veya tarih filtresi değiştiğinde ilk seferi otomatik seç
+  useEffect(() => {
+    if (selectedDriver && sessionsByDriver[selectedDriver]) {
+      const visibleSessions = [...sessionsByDriver[selectedDriver]].reverse().filter(session => {
+        if (dateFilterDays === 0) return true;
+        const stats = calcStats(session);
+        return parseFloat(stats.km) >= 10 && parseInt(stats.durationMin) >= 20;
+      });
+      if (visibleSessions.length > 0) {
+        setSelectedSession(visibleSessions[0]);
+      } else {
+        setSelectedSession(null);
+      }
+    } else {
+      setSelectedSession(null);
+    }
+  }, [selectedDriver, sessionsByDriver, dateFilterDays]);
 
   // Oynatma
   const [progress, setProgress]               = useState(0);
@@ -364,18 +393,20 @@ export default function RouteHistory({
                       {isSelected && (
                         <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-indigo-500 rounded-full" />
                       )}
-                      <div className="flex justify-between items-start mb-2 pl-2">
-                        <span className={`text-xs font-bold ${isSelected ? 'text-indigo-400' : 'text-slate-300'}`}>
-                          Rota {totalSessions - i}
-                        </span>
+                      <div className="flex justify-between items-center mb-2.5 pl-2">
+                        <div className="flex items-center gap-2.5">
+                          <span className={`text-xs font-bold ${isSelected ? 'text-indigo-400' : 'text-slate-300'}`}>
+                            Sefer {totalSessions - i}
+                          </span>
+                          <div className="text-[10.5px] text-slate-500 flex items-center gap-1 font-medium bg-white/[0.03] px-1.5 py-0.5 rounded border border-white/[0.02]">
+                            <span>{start.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span className="text-slate-700">→</span>
+                            <span>{end.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                        </div>
                         <span className="text-[10px] text-slate-600 font-medium">
                           {start.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}
                         </span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 pl-2 mb-2.5 flex items-center gap-1.5">
-                        <span>{start.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
-                        <span className="text-slate-700">→</span>
-                        <span>{end.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                       <div className="flex gap-1.5 pl-2">
                         <span className="px-2 py-0.5 bg-white/[0.05] rounded-lg text-[10px] text-slate-400 font-semibold border border-white/[0.05]">
@@ -427,10 +458,13 @@ export default function RouteHistory({
 
       {/* ── Alt Oynatma Çubuğu ── */}
       {selectedSession && (
-        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-[2000] w-11/12 max-w-xl pointer-events-auto">
+        <div 
+          ref={playerCallbackRef}
+          className="absolute bottom-6 left-[calc(50%+158px)] -translate-x-1/2 z-[2000] w-11/12 max-w-[420px] pointer-events-auto"
+        >
           <div
-            className="px-4 py-4 rounded-3xl flex items-center gap-4"
-            style={{ background: 'rgba(13,18,25,0.97)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 8px 32px rgba(0,0,0,0.6)', backdropFilter: 'blur(24px)' }}
+            className="px-4 py-3 rounded-3xl flex items-center gap-4"
+            style={{ background: 'rgba(13,18,25,0.97)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 12px 40px rgba(0,0,0,0.8)', backdropFilter: 'blur(24px)' }}
           >
             {/* Play / Pause */}
             <button
@@ -459,6 +493,7 @@ export default function RouteHistory({
                   type="range"
                   min="0" max="100" step="0.1"
                   value={progress}
+                  onInput={e => { setIsPlaying(false); setProgress(parseFloat(e.target.value)); }}
                   onChange={e => { setIsPlaying(false); setProgress(parseFloat(e.target.value)); }}
                   className="w-full h-1.5 appearance-none rounded-full outline-none cursor-pointer"
                   style={{
