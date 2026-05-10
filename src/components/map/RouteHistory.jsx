@@ -399,7 +399,8 @@ export default function RouteHistory({
                         <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-indigo-500 rounded-full" />
                       )}
                       <div className="flex justify-between items-center mb-2.5 pl-2">
-                        <div className="flex items-center gap-2.5 flex-1 pr-2">
+                        {/* Sol: sefer adı + tarih */}
+                        <div className="flex items-center gap-2 flex-1">
                           {editingSessionKey === session[0].timestamp ? (
                             <div className="flex items-center gap-2 w-full" onClick={e => e.stopPropagation()}>
                               <input 
@@ -420,49 +421,48 @@ export default function RouteHistory({
                               </button>
                             </div>
                           ) : (
-                            <span className={`text-xs font-bold ${isSelected ? 'text-indigo-400' : 'text-slate-300'}`}>
-                              {customRouteNames[session[0].timestamp] || `Sefer ${totalSessions - i}`}
-                            </span>
+                            <>
+                              <span className={`text-xs font-bold ${isSelected ? 'text-indigo-400' : 'text-slate-300'}`}>
+                                {customRouteNames[session[0].timestamp] || `Sefer ${totalSessions - i}`}
+                              </span>
+                              <span className="text-[10px] text-slate-600 font-medium">
+                                {start.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}
+                              </span>
+                            </>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
-                          {/* ⋯ Üç nokta menü — tarihten önce */}
-                          <div className="relative" onClick={e => e.stopPropagation()}>
-                            <button
-                              onClick={() => setOpenMenuKey(openMenuKey === session[0].timestamp ? null : session[0].timestamp)}
-                              className="p-1 rounded-lg text-slate-600 hover:text-slate-300 hover:bg-white/[0.06] transition-all"
-                            >
-                              <MoreHorizontal size={14} />
-                            </button>
-                            {openMenuKey === session[0].timestamp && (
-                              <div className="absolute right-0 top-full mt-1 w-44 bg-[#0f172a] border border-white/[0.08] rounded-xl shadow-2xl z-50 overflow-hidden">
-                                <button
-                                  onClick={() => {
-                                    setEditNameValue(customRouteNames[session[0].timestamp] || `Sefer ${totalSessions - i}`);
-                                    setEditingSessionKey(session[0].timestamp);
-                                    setOpenMenuKey(null);
-                                  }}
-                                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-slate-300 hover:bg-white/[0.05] hover:text-white transition-colors"
-                                >
-                                  <Edit2 size={13} className="text-indigo-400" /> Sefer Adını Düzenle
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    const ts = interpolatedData?.timestamp ?? session[Math.floor(session.length / 2)]?.timestamp;
-                                    if (ts) addManualSplit(ts, selectedDriver);
-                                    setOpenMenuKey(null);
-                                  }}
-                                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-rose-400 hover:bg-rose-500/[0.08] transition-colors border-t border-white/[0.05]"
-                                >
-                                  <Scissors size={13} /> Buradan Böl
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                          {/* Tarih — üç noktanın sağında */}
-                          <span className="text-[10px] text-slate-600 font-medium">
-                            {start.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}
-                          </span>
+                        {/* Sağ: ⋯ menü */}
+                        <div className="relative flex-shrink-0" onClick={e => e.stopPropagation()}>
+                          <button
+                            onClick={() => setOpenMenuKey(openMenuKey === session[0].timestamp ? null : session[0].timestamp)}
+                            className="p-1.5 rounded-lg text-slate-600 hover:text-slate-300 hover:bg-white/[0.06] transition-all"
+                          >
+                            <MoreHorizontal size={15} />
+                          </button>
+                          {openMenuKey === session[0].timestamp && (
+                            <div className="absolute right-0 top-full mt-1 w-44 bg-[#0f172a] border border-white/[0.08] rounded-xl shadow-2xl z-50 overflow-hidden">
+                              <button
+                                onClick={() => {
+                                  setEditNameValue(customRouteNames[session[0].timestamp] || `Sefer ${totalSessions - i}`);
+                                  setEditingSessionKey(session[0].timestamp);
+                                  setOpenMenuKey(null);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-slate-300 hover:bg-white/[0.05] hover:text-white transition-colors"
+                              >
+                                <Edit2 size={13} className="text-indigo-400" /> Sefer Adını Düzenle
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const ts = interpolatedData?.timestamp ?? session[Math.floor(session.length / 2)]?.timestamp;
+                                  if (ts) addManualSplit(ts, selectedDriver);
+                                  setOpenMenuKey(null);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-rose-400 hover:bg-rose-500/[0.08] transition-colors border-t border-white/[0.05]"
+                              >
+                                <Scissors size={13} /> Buradan Böl
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-1.5 pl-2">
