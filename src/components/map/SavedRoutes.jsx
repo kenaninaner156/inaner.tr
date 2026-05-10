@@ -45,7 +45,11 @@ export default function SavedRoutes({ isVisible }) {
         [selectedRoute.startPoint.lat, selectedRoute.startPoint.lon],
         [selectedRoute.endPoint.lat,   selectedRoute.endPoint.lon],
       ]);
-      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 12 });
+      map.fitBounds(bounds, { 
+        paddingTopLeft: [380, 60], 
+        paddingBottomRight: [60, 60], 
+        maxZoom: 12 
+      });
     }
   }, [selectedRoute, map, isVisible]);
 

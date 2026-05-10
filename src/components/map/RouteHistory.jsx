@@ -95,7 +95,11 @@ export default function RouteHistory({
       const bounds = L.latLngBounds(
         selectedSession.filter(p => !isNaN(p.lat)).map(p => [p.lat, p.lon])
       );
-      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 });
+      map.fitBounds(bounds, { 
+        paddingTopLeft: [380, 60], 
+        paddingBottomRight: [60, 60], 
+        maxZoom: 14 
+      });
       setProgress(0);
       setIsPlaying(false);
       setInterpolatedData(getInterpolatedPoint(selectedSession, 0));
@@ -297,7 +301,10 @@ export default function RouteHistory({
                   {Object.entries(sessionsByDriver).filter(([_, sessions]) => sessions.length > 0).map(([driver, sessions]) => {
                     const visibleCount = dateFilterDays === 0
                       ? sessions.length
-                      : sessions.filter(s => parseFloat(calcStats(s).km) >= 10).length;
+                      : sessions.filter(s => {
+                          const stats = calcStats(s);
+                          return parseFloat(stats.km) >= 10 && parseInt(stats.durationMin) >= 20;
+                        }).length;
                     if (visibleCount === 0) return null;
                     return (
                       <button
@@ -341,8 +348,8 @@ export default function RouteHistory({
                 const isSelected = selectedSession === session;
                 const { km, durationMin } = calcStats(session);
 
-                // "Tümü" seçili değilse 10 km altındaki rotaları gizle
-                if (dateFilterDays !== 0 && parseFloat(km) < 10) return null;
+                // "Tümü" seçili değilse 10 km altı ve 20 dk altı rotaları gizle
+                if (dateFilterDays !== 0 && (parseFloat(km) < 10 || parseInt(durationMin) < 20)) return null;
 
                 return (
                   <React.Fragment key={i}>
