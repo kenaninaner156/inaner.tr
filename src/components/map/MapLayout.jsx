@@ -76,7 +76,7 @@ function MapCameraSync({ activeTab, sessionsByDriver, deviceMappings }) {
   return null;
 }
 
-export default function MapLayout() {
+export default function MapLayout({ onReady }) {
   const { trucks } = useTruck();
   const { activeCompanyId } = useCompany();
   const { geofences, manualSplits, addGeofence } = useContext(DataContext);
@@ -141,6 +141,7 @@ export default function MapLayout() {
         : allData;
       setLocations(filtered);
       setLoading(false);
+      onReady?.();
     }, (error) => {
       console.error('Harita verisi çekme hatası:', error);
       setLoading(false);
@@ -188,7 +189,7 @@ export default function MapLayout() {
   // historySessionsByDriver kaldırıldı, RouteHistory kendi yönetecek.
 
   const mapUrls = {
-    voyager: 'https://mt0.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}',
+    voyager: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
     darkmatter: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
     satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
   };
@@ -206,21 +207,7 @@ export default function MapLayout() {
     }
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col h-[calc(100vh-8rem)] relative rounded-2xl overflow-hidden shadow-2xl items-center justify-center bg-[#0B0E14] border border-white/[0.04] animate-in fade-in duration-500">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-[3px] border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin shadow-[0_0_20px_rgba(16,185,129,0.15)]" />
-          <div className="text-center">
-            <h3 className="text-white font-medium mb-1">Harita Hazırlanıyor</h3>
-            <p className="text-xs text-slate-500 tracking-wide">
-              Canlı veriler yükleniyor...
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // (early return kaldırıldı, yükleme ekranı artık MapPage.jsx içindeki butonda gösteriliyor)
 
   return (
     <div data-map-module className="flex flex-col h-[calc(100vh-8rem)] relative rounded-2xl overflow-hidden shadow-2xl" style={{ background: '#0B0E14', border: '1px solid rgba(255,255,255,0.04)' }}>
