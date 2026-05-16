@@ -206,6 +206,22 @@ export default function MapLayout() {
     }
   }, []);
 
+  if (loading) {
+    return (
+      <div className="flex flex-col h-[calc(100vh-8rem)] relative rounded-2xl overflow-hidden shadow-2xl items-center justify-center bg-[#0B0E14] border border-white/[0.04] animate-in fade-in duration-500">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-[3px] border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin shadow-[0_0_20px_rgba(16,185,129,0.15)]" />
+          <div className="text-center">
+            <h3 className="text-white font-medium mb-1">Harita Hazırlanıyor</h3>
+            <p className="text-xs text-slate-500 tracking-wide">
+              Canlı veriler yükleniyor...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div data-map-module className="flex flex-col h-[calc(100vh-8rem)] relative rounded-2xl overflow-hidden shadow-2xl" style={{ background: '#0B0E14', border: '1px solid rgba(255,255,255,0.04)' }}>
       <div
@@ -342,25 +358,7 @@ export default function MapLayout() {
         )}
       </div>
 
-      {/* Yükleniyor — Smooth ve Arka Planda (z-[1400]) */}
-      <AnimatePresence>
-        {loading && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ delay: 0.4 }} // 400ms'den kısa süren yüklemelerde hiç gözükmez (flicker önleme)
-            className="absolute inset-0 bg-[#0a0c10]/40 backdrop-blur-[2px] z-[1400] flex items-center justify-center pointer-events-none"
-          >
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-10 h-10 border-3 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin shadow-[0_0_15px_rgba(99,102,241,0.2)]" />
-              <span className="text-xs text-slate-400 font-medium tracking-wide">
-                {locations.length === 0 ? 'Veriler Yükleniyor…' : 'Güncelleniyor…'}
-              </span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
 
       {isEditingGeofence && (
         <InteractiveGeofencePanel 
