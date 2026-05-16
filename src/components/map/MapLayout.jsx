@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useContext, useCallback } from 'react';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where, limit, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebaseConfig';
 import { MapPin, History, Bookmark, BarChart3, Layers, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -61,8 +61,12 @@ function MapCameraSync({ activeTab, sessionsByDriver, deviceMappings }) {
           return lastPoint ? [lastPoint.lat, lastPoint.lon] : null;
         }).filter(p => p && !isNaN(p[0]));
 
-      if (activeLocations.length > 0) {
-        map.flyToBounds(L.latLngBounds(activeLocations), flyOptions);
+      if (activeLocations.length === 1) {
+        // Tek araç varsa dibine kadar (zoom 18 vs) girmemesi için 11'de bırakıyoruz
+        // Ayrıca flyTo değil setView kullanıyoruz ki canvas bulanıklaşmasın
+        map.setView(activeLocations[0], 11, { animate: true, duration: 1 });
+      } else if (activeLocations.length > 1) {
+        map.fitBounds(L.latLngBounds(activeLocations), { padding: [80, 80], maxZoom: 11, animate: true, duration: 1 });
       }
     }
     
@@ -90,8 +94,9 @@ export default function MapLayout() {
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deviceMappings, setDeviceMappings] = useState({});
-  const [dateFilterDays, setDateFilterDays] = useState(1);
-  const [customDate, setCustomDate] = useState('');
+  // Her zaman tek bir günü yükle: kota tasarrufu için en iyi yaklaşım
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [historyDate, setHistoryDate] = useState(todayStr); // "YYYY-MM-DD"
   const [showMapSettings, setShowMapSettings] = useState(false);
   
   const [isEditingGeofence, setIsEditingGeofence] = useState(false);
@@ -120,30 +125,16 @@ export default function MapLayout() {
 
   useEffect(() => {
     setLoading(true);
-    let startIso, endIso;
-    if (customDate) {
-      const start = new Date(customDate);
-      start.setHours(0, 0, 0, 0);
-      startIso = start.toISOString();
-      const end = new Date(customDate);
-      end.setHours(23, 59, 59, 999);
-      endIso = end.toISOString();
-    } else if (dateFilterDays === 0) {
-      startIso = new Date('2020-01-01').toISOString();
-      endIso = new Date().toISOString();
-    } else {
-      startIso = new Date(Date.now() - dateFilterDays * 86400000).toISOString();
-      endIso = new Date().toISOString();
-    }
-    
+    // Canlı Takip için son 24 saatin tüm verisini getiriyoruz (Son molayı yakalamak için)
+    const past24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const q = query(
       collection(db, 'truck_routes'),
-      where('timestamp', '>=', startIso),
-      where('timestamp', '<=', endIso),
+      where('timestamp', '>=', past24h),
       orderBy('timestamp', 'asc')
     );
 
     const unsubscribe = onSnapshot(q, (snap) => {
+      // Veri zaten asc (eskiden yeniye) geliyor, ters çevirmeye gerek yok
       const allData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const filtered = activeCompanyId
         ? allData.filter(d => !d.companyId || d.companyId === activeCompanyId)
@@ -156,7 +147,7 @@ export default function MapLayout() {
     });
 
     return () => unsubscribe();
-  }, [dateFilterDays, customDate, activeCompanyId]);
+  }, [activeCompanyId]); // dateFilterDays ve customDate bağımlılıklarını çıkardık
 
   useEffect(() => {
     const mappingsDocId = `device_mappings_${activeCompanyId || 'default'}`;
@@ -170,22 +161,31 @@ export default function MapLayout() {
     return () => unsubscribe();
   }, [activeCompanyId]);
 
+  // Rota Geçmişi fetch işlemi artık RouteHistory içinde (per-vehicle ve cache destekli) yapılacak.
+
+  // ── sessionsByDriver (Canlı Takip) ─────────────────────────────────────
   const sessionsByDriver = useMemo(() => {
     const grouped = locations.reduce((acc, loc) => {
-      const k = loc.driverId || 'Bilinmeyen';
+      const k = loc.driverId || loc.deviceId || 'Bilinmeyen';
       if (!acc[k]) acc[k] = [];
       acc[k].push(loc);
       return acc;
     }, {});
-
     const res = {};
     Object.keys(grouped).forEach(d => {
       const rawSessions = groupIntoSessions(grouped[d], 30, geofences, manualSplits);
-      // Performans için nokta sayısını azalt (0.3km = 300m hassasiyet)
-      res[d] = rawSessions.map(session => filterSessionPoints(session, 0.3));
+      // Sadece en son seferi tut (Son 30dk molasından sonraki kesintisiz hareket)
+      // GPU'yu yormamak için Douglas-Peucker sıkıştırmasını (filterSessionPoints) DEVRE DIŞI bırakıyoruz.
+      if (rawSessions.length > 0) {
+        res[d] = [rawSessions[rawSessions.length - 1]];
+      } else {
+        res[d] = [];
+      }
     });
     return res;
   }, [locations, geofences, manualSplits]);
+
+  // historySessionsByDriver kaldırıldı, RouteHistory kendi yönetecek.
 
   const mapUrls = {
     voyager: 'https://mt0.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}',
@@ -194,9 +194,9 @@ export default function MapLayout() {
   };
 
   const tabs = [
-    { id: 'live',     label: 'Canlı Takip',     icon: MapPin },
-    { id: 'history',  label: 'Rota Takibi',      icon: History },
-    { id: 'saved',    label: 'Kayıtlı Rotalar',  icon: Bookmark },
+    { id: 'live',     label: 'Canlı Takip',     icon: MapPin, theme: 'bg-emerald-500 border-emerald-400/30', hoverText: 'group-hover:text-emerald-400' },
+    { id: 'history',  label: 'Rota Takibi',      icon: History, theme: 'bg-orange-500 border-orange-400/30', hoverText: 'group-hover:text-orange-400' },
+    { id: 'saved',    label: 'Kayıtlı Rotalar',  icon: Bookmark, theme: 'bg-indigo-500 border-indigo-400/30', hoverText: 'group-hover:text-indigo-400' },
   ];
 
   const navBarCallbackRef = useCallback(node => {
@@ -212,7 +212,7 @@ export default function MapLayout() {
         ref={navBarCallbackRef}
         className="absolute top-4 left-1/2 -translate-x-1/2 z-[2000] pointer-events-auto w-11/12 max-w-2xl"
       >
-        <div className="flex backdrop-blur-xl p-1.5 rounded-2xl items-center" style={{ background: 'rgba(13,18,25,0.92)', border: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+        <div className="flex bg-[#111113]/80 backdrop-blur-xl p-1.5 rounded-2xl shadow-inner ring-1 ring-black/20 w-full border border-white/5 items-center">
           <div className="flex flex-1 gap-0.5">
             {tabs.map(tab => {
               const Icon = tab.icon;
@@ -222,7 +222,7 @@ export default function MapLayout() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`relative flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-sm transition-all duration-300 group outline-none ${
-                    isActive ? 'text-white font-medium' : 'text-slate-500 font-medium hover:text-slate-300'
+                    isActive ? 'text-white font-medium' : 'text-slate-400 font-medium hover:text-slate-200'
                   }`}
                 >
                   {!isActive && (
@@ -231,7 +231,7 @@ export default function MapLayout() {
                   {isActive && (
                     <motion.div
                       layoutId="map-active-pill"
-                      className="absolute inset-0 bg-gradient-to-b from-indigo-500 to-indigo-600 rounded-xl border border-indigo-400/30 shadow-[0_2px_12px_rgba(99,102,241,0.35)]"
+                      className={`absolute inset-0 rounded-xl border ${tab.theme}`}
                       style={{ zIndex: 0 }}
                       initial={false}
                       transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}
@@ -240,10 +240,10 @@ export default function MapLayout() {
                   <Icon
                     size={15}
                     className={`relative z-10 transition-colors duration-300 ${
-                      isActive ? 'text-white/90' : 'text-slate-600 group-hover:text-indigo-400'
+                      isActive ? 'text-white/90' : `text-slate-500 ${tab.hoverText}`
                     }`}
                   />
-                  <span className="relative z-10 drop-shadow-sm hidden sm:inline text-xs">{tab.label}</span>
+                  <span className="relative z-10 hidden sm:inline text-xs">{tab.label}</span>
                 </button>
               );
             })}
@@ -310,11 +310,7 @@ export default function MapLayout() {
             <TileLayer
               url={mapUrls[mapStyle]}
               maxZoom={19}
-              keepBuffer={24}
-              updateWhenIdle={false}
-              updateWhenZooming={false}
-              updateInterval={50}
-              tileSize={256}
+              keepBuffer={4}
             />
             <LiveTracking
               isVisible={activeTab === 'live'}
@@ -324,13 +320,13 @@ export default function MapLayout() {
             />
             <RouteHistory
               isVisible={activeTab === 'history'}
-              sessionsByDriver={sessionsByDriver}
+              onClose={() => setActiveTab('live')}
               deviceMappings={deviceMappings}
               trucks={trucks}
-              dateFilterDays={dateFilterDays}
-              setDateFilterDays={setDateFilterDays}
-              customDate={customDate}
-              setCustomDate={setCustomDate}
+              historyDate={historyDate}
+              setHistoryDate={setHistoryDate}
+              liveLocations={locations}
+              activeCompanyId={activeCompanyId}
             />
             <SavedRoutes
               isVisible={activeTab === 'saved'}

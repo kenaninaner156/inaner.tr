@@ -1,10 +1,9 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { DataContext } from '../context/DataContext';
 import { User, Lock, Eye, EyeOff, AlertCircle, UserPlus, ChevronLeft } from 'lucide-react';
-import { db } from '../services/firebaseConfig';
+import { db, auth } from '../services/firebaseConfig';
 import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
-
-const ADMIN_USER = { username: 'kenan', password: 'Mert0310.', role: 'super_admin', displayName: 'Kenan (Admin)' };
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 
 const getAdvancedMeta = async () => {
     let ip = 'Bilinmiyor';
@@ -120,133 +119,111 @@ const Login = () => {
         e.preventDefault();
         setError('');
         setLoading(true);
-        await new Promise(r => setTimeout(r, 500));
 
         const advancedMeta = await getAdvancedMeta();
         const { ip, location, device, rawDevice } = advancedMeta;
-        const uname = username.toLowerCase().trim();
+        const uname = username.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+        const email = `${uname}@inaner.com`;
 
         try {
+            // Firebase Auth Login
+            await signInWithEmailAndPassword(auth, email, password);
+
+            // Fetch user role from approved_users
             const usersRef = collection(db, 'approved_users');
-            const q = query(usersRef, where('username', '==', uname));
+            const q = query(usersRef, where('authEmail', '==', email));
             const querySnapshot = await getDocs(q);
 
-            let isAuthenticated = false;
             let userRole = 'user';
             let companyId = null;
 
             if (!querySnapshot.empty) {
                 const userDoc = querySnapshot.docs[0].data();
-                const hashedInputPassword = btoa(password);
-                if (userDoc.password === hashedInputPassword || userDoc.password === password) {
-                    isAuthenticated = true;
-                    userRole = userDoc.role || 'user';
-                    companyId = userDoc.companyId;
-                }
-            } else if (uname === ADMIN_USER.username && password === ADMIN_USER.password) {
-                isAuthenticated = true;
-                userRole = ADMIN_USER.role;
-                companyId = null;
-            }
-
-            if (isAuthenticated) {
-                localStorage.setItem('tir_known_device', 'true');
-                localStorage.setItem('tir_auth_kenan_v1', btoa(`${uname}:${Date.now()}`));
-                localStorage.setItem('tir_active_tab', 'dashboard');
-                // Pass location & rawDevice for better logging and AWAIT it
-                await loginSession({ username: uname, role: userRole, companyId: companyId, ip, device, location, rawDevice, ...advancedMeta });
+                userRole = userDoc.role || 'user';
+                companyId = userDoc.companyId;
+            } else if (uname === 'kenan') {
+                userRole = 'super_admin';
+            } else {
+                // Check if pending
+                const pendingRef = collection(db, 'pending_users');
+                const pq = query(pendingRef, where('username', '==', uname));
+                const pSnapshot = await getDocs(pq);
                 
-                // --- TELEGRAM BİLDİRİMİ İÇİN (OPSİYONEL ALtyapı) ---
-                // Eğer Telegram bildirimi isterseniz aşağıdaki // fetch satırlarını açıp BOT_TOKEN ve CHAT_ID girmeniz yeterli olacaktır:
-                /*
-                try {
-                    const msg = `🚨 *YENİ GİRİŞ*\n👤 Kullanıcı: ${uname}\n📱 Cihaz: ${device}\n🌍 Konum: ${location}\n🌐 IP: ${ip}`;
-                    await fetch(`https://api.telegram.org/bot<BURAYA_BOT_TOKEN_GELECEK>/sendMessage`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ chat_id: '<BURAYA_CHAT_ID_GELECEK>', text: msg, parse_mode: 'Markdown' })
-                    });
-                } catch { } // hata olsa da girişi engelleme
-                */
-
-                window.location.href = '/';
-                return;
-            }
-
-            // Bekleyen kullanıcı kontrolü
-            const pendingRef = collection(db, 'pending_users');
-            const pq = query(pendingRef, where('username', '==', uname));
-            const pSnapshot = await getDocs(pq);
-            if (!pSnapshot.empty) {
-                setError('Hesabınız henüz admin tarafından onaylanmadı. Lütfen bekleyin.');
+                await signOut(auth); // Sign out if not approved
+                
+                if (!pSnapshot.empty) {
+                    setError('Hesabınız henüz admin tarafından onaylanmadı. Lütfen bekleyin.');
+                } else {
+                    setError('Kullanıcı hesabı bulunamadı. Lütfen yetkiliyle görüşün.');
+                }
                 setLoading(false);
                 return;
             }
 
-        } catch {
+            localStorage.setItem('tir_known_device', 'true');
+            localStorage.setItem('tir_active_tab', 'dashboard');
             
-            setError('Sunucu bağlantı hatası. Lütfen daha sonra tekrar deneyin.');
-            setLoading(false);
+            await loginSession({ username: uname, role: userRole, companyId: companyId, ip, device, location, rawDevice, ...advancedMeta });
+            window.location.href = '/';
             return;
+
+        } catch (error) {
+            setError('Kullanıcı adı veya şifre hatalı.');
+
+            try {
+                await addDoc(collection(db, 'admin_logs'), {
+                    timestamp: new Date().toISOString(),
+                    action: 'HATALI_GIRIS',
+                    detail: `Hatalı giriş denemesi: ${uname || 'Bilinmiyor'}`,
+                    user: uname || 'Bilinmiyor',
+                    meta: advancedMeta,
+                    companyId: 'inaner_logistics'
+                });
+            } catch { /* log fail error */ }
+
+            const newFailCount = failCount + 1;
+            if (newFailCount >= 4) {
+                setShowVideo(true);
+                setFailCount(0);
+                setTimeout(() => setShowVideo(false), 33000);
+            } else {
+                setFailCount(newFailCount);
+            }
+            setLoading(false);
         }
-
-        setError('Kullanıcı adı veya şifre hatalı.');
-
-        try {
-            await addDoc(collection(db, 'admin_logs'), {
-                timestamp: new Date().toISOString(),
-                action: 'HATALI_GIRIS',
-                detail: `Hatalı giriş denemesi: ${uname || 'Bilinmiyor'}`,
-                user: uname || 'Bilinmiyor',
-                meta: advancedMeta,
-                companyId: 'inaner_logistics'
-            });
-        } catch { /* log fail error */ }
-
-        const newFailCount = failCount + 1;
-        if (newFailCount >= 4) {
-            setShowVideo(true);
-            setFailCount(0);
-            // 33 saniye sonra otomatik kapat (Video süresine göre ayarlandı)
-            setTimeout(() => setShowVideo(false), 33000);
-        } else {
-            setFailCount(newFailCount);
-        }
-        setLoading(false);
     };
 
     const handleRegister = async (e) => {
         e.preventDefault();
         setError('');
         if (password !== confirmPassword) { setError('Şifreler eşleşmiyor.'); return; }
-        if (password.length < 4) { setError('Şifre en az 4 karakter olmalı.'); return; }
+        if (password.length < 6) { setError('Şifre en az 6 karakter olmalı (Firebase Güvenlik Kuralı).'); return; }
 
-        const uname = username.toLowerCase().trim();
-        if (uname === ADMIN_USER.username) { setError('Bu kullanıcı adı kullanılamaz.'); return; }
+        const uname = username.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+        if (uname === 'kenan') { setError('Bu kullanıcı adı kullanılamaz.'); return; }
 
         setLoading(true);
-        await new Promise(r => setTimeout(r, 400));
 
         try {
-            // Check if username already exists in DB
-            const usersRef = collection(db, 'approved_users');
-            const q1 = query(usersRef, where('username', '==', uname));
-            const snap1 = await getDocs(q1);
-
-            const pendingRef = collection(db, 'pending_users');
-            const q2 = query(pendingRef, where('username', '==', uname));
-            const snap2 = await getDocs(q2);
-
-            if (!snap1.empty || !snap2.empty) {
-                setError('Bu kullanıcı adı zaten alınmış.');
+            const email = `${uname}@inaner.com`;
+            
+            // Create Firebase Auth user
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                await signOut(auth); // Immediately sign out the pending user
+            } catch (authError) {
+                if (authError.code === 'auth/email-already-in-use') {
+                    setError('Bu kullanıcı adı zaten alınmış.');
+                } else {
+                    setError('Hesap oluşturulurken bir hata oluştu: ' + authError.message);
+                }
                 setLoading(false);
                 return;
             }
 
-            // Şifreyi açık metin (plaintext) olarak saklıyoruz (user isteği üzerine btoa kaldırıldı)
+            // Şifreyi VERİTABANINA ASLA KAYDETMİYORUZ. Sadece Auth tablosunda güvenle tutulur.
             await addDoc(collection(db, 'pending_users'), {
                 username: uname,
-                password: password,
                 role: 'user',
                 createdAt: new Date().toISOString()
             });
@@ -255,8 +232,7 @@ const Login = () => {
             setMode('pending');
 
         } catch {
-            
-            setError('Kayıt oluşturulurken bir hata oluştu');
+            setError('Kayıt isteği gönderilirken bir hata oluştu.');
             setLoading(false);
         }
     };

@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { db } from '../services/firebaseConfig';
-import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, query, setDoc, getDocs, writeBatch, where, deleteField } from 'firebase/firestore';
+import { db, auth } from '../services/firebaseConfig';
+import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, query, setDoc, getDocs, writeBatch, where, deleteField, orderBy, limit } from 'firebase/firestore';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { useCompany } from './CompanyContext';
 import { useTruck } from './TruckContext';
 // eslint-disable-next-line react-refresh/only-export-components
@@ -24,6 +25,8 @@ export const DataProvider = ({ children }) => {
     const [shoppingItems, setShoppingItems] = useState([]);
     const [geofences, setGeofences] = useState([]);
     const [manualSplits, setManualSplits] = useState([]);
+    const [manualMerges, setManualMerges] = useState([]);
+    const [manualDeletes, setManualDeletes] = useState([]);
     const [customRouteNames, setCustomRouteNames] = useState({});
 
     const [vehicleInfo, setVehicleInfo] = useState({
@@ -106,8 +109,12 @@ export const DataProvider = ({ children }) => {
         await addLog('KULLANICI_GIRIS', `${userKey} sisteme giriş yaptı`, { ip: user.ip || 'Bilinmiyor', device: user.device || 'Bilinmiyor', location: user.location || 'Bilinmiyor', rawDevice: user.rawDevice || 'Bilinmiyor' }, userKey);
     };
 
-    const logoutSession = () => {
+    const logoutSession = async () => {
         const userToLogOut = currentSession;
+
+        try {
+            await signOut(auth);
+        } catch(e) {}
 
         // Hemen state ve localStorage temizliği yaparak anında UI geçişini sağla (bekleme/animasyon sarkmasını önler)
         localStorage.removeItem('tir_auth_kenan_v1');
@@ -139,6 +146,19 @@ export const DataProvider = ({ children }) => {
         }
     };
 
+    // Firebase Auth State Listener
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            if (!user) {
+                // If Firebase Auth says we are logged out, but local storage thinks we are logged in, clear it.
+                if (localStorage.getItem('tir_current_user')) {
+                    logoutSession();
+                }
+            }
+        });
+        return () => unsubscribe();
+    }, []);
+
     // Firebase Listener Setup
     useEffect(() => {
         if (!activeCompanyId) {
@@ -162,6 +182,8 @@ export const DataProvider = ({ children }) => {
         setMechanics([]);
         setGeofences([]);
         setManualSplits([]);
+        setManualMerges([]);
+        setManualDeletes([]);
         setCustomRouteNames({});
         setDocs({});
         
@@ -232,7 +254,12 @@ export const DataProvider = ({ children }) => {
         }));
 
         // 7. AdminLogs config
-        unsubs.push(onSnapshot(query(collection(db, 'admin_logs'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+        unsubs.push(onSnapshot(query(
+            collection(db, 'admin_logs'), 
+            where('companyId', '==', activeCompanyId),
+            orderBy('timestamp', 'desc'),
+            limit(100)
+        ), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             setAdminLog(data);
@@ -285,6 +312,18 @@ export const DataProvider = ({ children }) => {
         unsubs.push(onSnapshot(query(collection(db, 'manual_splits'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => doc.data().timestamp);
             setManualSplits(data);
+        }));
+
+        // 11.8 Manual Merges config
+        unsubs.push(onSnapshot(query(collection(db, 'manual_merges'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const data = snapshot.docs.map(doc => doc.data().timestamp);
+            setManualMerges(data);
+        }));
+
+        // 11.9 Manual Deletes config
+        unsubs.push(onSnapshot(query(collection(db, 'manual_deletes'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const data = snapshot.docs.map(doc => doc.data().timestamp);
+            setManualDeletes(data);
         }));
 
         // 11.8 Custom Route Names
@@ -886,6 +925,30 @@ export const DataProvider = ({ children }) => {
         addLog('ISLEM_EKLE', 'Manuel rota bölme noktası eklendi');
     };
 
+    // Manual Merges
+    const addManualMerge = async (timestamp, truckId) => {
+        if (!activeCompanyId) return;
+        await addDoc(collection(db, 'manual_merges'), {
+            timestamp,
+            truckId,
+            companyId: activeCompanyId,
+            createdAt: new Date().toISOString()
+        });
+        addLog('ISLEM_EKLE', 'Manuel rota birleştirme noktası eklendi');
+    };
+
+    // Manual Deletes
+    const addManualDelete = async (timestamp, truckId) => {
+        if (!activeCompanyId) return;
+        await addDoc(collection(db, 'manual_deletes'), {
+            timestamp,
+            truckId,
+            companyId: activeCompanyId,
+            createdAt: new Date().toISOString()
+        });
+        addLog('ISLEM_SİL', 'Manuel rota silme işlemi yapıldı');
+    };
+
     // Custom Route Names
     const setCustomRouteName = async (timestamp, name) => {
         if (!activeCompanyId) return;
@@ -942,6 +1005,8 @@ export const DataProvider = ({ children }) => {
             isDataLoading, dataError,
             geofences, addGeofence, deleteGeofence,
             manualSplits, addManualSplit,
+            manualMerges, addManualMerge,
+            manualDeletes, addManualDelete,
             customRouteNames, setCustomRouteName
         }}>
             {children}

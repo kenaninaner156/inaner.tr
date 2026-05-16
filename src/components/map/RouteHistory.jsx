@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Polyline, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
+import { Polyline, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { ChevronRight, ChevronDown, Play, Pause, X, CalendarDays, Smartphone, BookmarkPlus, Scissors, Edit2, Check } from 'lucide-react';
-import { calcStats, getInterpolatedPoint, getInterpolatedPointLinear, haversineKm } from '../../utils/mapUtils';
+import { ChevronLeft, ChevronRight, ChevronDown, Play, Pause, X, Smartphone, BookmarkPlus, Scissors, Edit2, Check, Loader2, Maximize2, Clock } from 'lucide-react';
+import { calcStats, getInterpolatedPoint, getInterpolatedPointLinear, haversineKm, groupIntoSessions, filterSessionPoints } from '../../utils/mapUtils';
 import { DataContext } from '../../context/DataContext';
+import { db } from '../../services/firebaseConfig';
+import { collection, query, where, orderBy, getDocs, limit, doc, getDoc, setDoc } from 'firebase/firestore';
 function getSpeedColor(speedMs) {
   const kmh = (speedMs || 0) * 3.6;
   if (kmh < 5)  return '#ef4444';  // kırmızı
   if (kmh < 30) return '#f97316';  // turuncu
-  if (kmh < 70) return '#6366f1';  // indigo
+  if (kmh < 70) return '#6366f1';  // orange
   if (kmh < 90) return '#38bdf8';  // cyan
   return '#22c55e';                // yeşil
 }
@@ -22,6 +24,13 @@ function formatDuration(totalMin) {
 }
 
 const SpeedPolylines = React.memo(({ session }) => {
+  const map = useMap();
+  const [zoom, setZoom] = useState(map.getZoom());
+
+  useMapEvents({
+    zoomend: () => setZoom(map.getZoom()),
+  });
+
   if (!session || session.length < 2) return null;
   const segments = [];
   for (let i = 0; i < session.length - 1; i++) {
@@ -35,15 +44,25 @@ const SpeedPolylines = React.memo(({ session }) => {
       segments.push({ color, positions: [[a.lat, a.lon], [b.lat, b.lon]] });
     }
   }
+
+  // Dinamik çizgi kalınlığı: Uzaktayken ince, yakındayken kalın
+  let lineWeight = 5;
+  if (zoom <= 9) lineWeight = 1.5;
+  else if (zoom <= 11) lineWeight = 2.5;
+  else if (zoom <= 13) lineWeight = 4;
+  else lineWeight = 6;
+
+  const shadowWeight = lineWeight + 4;
+
   return (
     <>
       {/* ── Alt Gölge (Yumuşak Dış Hat) ── */}
       <Polyline
         positions={session.filter(p => !isNaN(p.lat)).map(p => [p.lat, p.lon])}
         color="#000"
-        weight={9}
-        opacity={0.25}
-        smoothFactor={2}
+        weight={shadowWeight}
+        opacity={0.3}
+        smoothFactor={1.5}
       />
       {/* ── Renkli Hız Çizgileri ── */}
       {segments.map((seg, i) => (
@@ -51,9 +70,9 @@ const SpeedPolylines = React.memo(({ session }) => {
           key={i}
           positions={seg.positions}
           color={seg.color}
-          weight={5}
-          opacity={0.85}
-          smoothFactor={1.5}
+          weight={lineWeight}
+          opacity={0.9}
+          smoothFactor={1}
         />
       ))}
     </>
@@ -65,7 +84,7 @@ const truckPlayIcon = new L.Icon({
   iconUrl: '/tir-clear.png?v=8',
   iconSize: [36, 36],
   iconAnchor: [18, 18],
-  className: 'bg-white rounded-full border-2 border-indigo-500 shadow-lg object-contain',
+  className: 'bg-white rounded-full border-2 border-orange-500 shadow-lg object-contain',
 });
 
 const DATE_FILTERS = [
@@ -77,22 +96,245 @@ const DATE_FILTERS = [
 
 export default function RouteHistory({
   isVisible,
-  sessionsByDriver, deviceMappings, trucks,
-  dateFilterDays, setDateFilterDays,
-  customDate, setCustomDate,
+  deviceMappings, trucks,
+  historyDate, setHistoryDate,
+  activeCompanyId,
+  liveLocations = [],
 }) {
   const map = useMap();
-  const { addManualSplit, customRouteNames, setCustomRouteName, geofences } = useContext(DataContext);
+  const { addManualSplit, customRouteNames, setCustomRouteName, geofences, manualSplits, manualMerges, addManualMerge, manualDeletes, addManualDelete } = useContext(DataContext);
 
   const [selectedSession, setSelectedSession] = useState(null);
   const [selectedDriver, setSelectedDriver]   = useState(null);
   const [isVehicleDropdownOpen, setIsVehicleDropdownOpen] = useState(false);
+  const [cachedDates, setCachedDates] = useState([]); // Hangi günlerin Firebase'de verili cache'i var?
+  const [emptyCachedDates, setEmptyCachedDates] = useState([]); // Hangi günlerin "Boş" olduğu Firebase'e işlendi?
+  const [sessionVisitedDates, setSessionVisitedDates] = useState([]); // Bu oturumda PC'ye inen/bakılan günler (Local Cache)
   const [showSidebar, setShowSidebar]         = useState(true);
+  const [calendarMode, setCalendarMode]       = useState('closed'); // 'closed', '7', '21', 'month'
+  const [calendarViewDate, setCalendarViewDate] = useState(new Date());
   
   const [editingSessionKey, setEditingSessionKey] = useState(null);
   const [editNameValue, setEditNameValue] = useState('');
   const [openMenuKey, setOpenMenuKey] = useState(null);
   const [userInteracted, setUserInteracted] = useState(false);
+
+  // ── On-Demand Caching State ─────────────────────────────────────────
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [sessionsByDriver, setSessionsByDriver] = useState({});
+  const [fetchError, setFetchError] = useState(null);
+  const historyFetchRef = useRef(null);
+
+  // Takvim uzun basma ref'i
+  const calendarTimerRef = useRef(null);
+
+  // İlk açılışta veya deviceMappings yüklendiğinde ilk aracı otomatik seç
+  useEffect(() => {
+    const drivers = Object.keys(deviceMappings);
+    if (!selectedDriver && drivers.length > 0) {
+      setSelectedDriver(drivers[0]);
+    }
+  }, [deviceMappings, selectedDriver]);
+
+  // Seçili driver veya tarih değiştiğinde veriyi çek (Önbellekten veya Firebase'den)
+  // Hangi günlerin cachelendiğini periyodik olarak veya araç değişince çek
+  useEffect(() => {
+    if (!selectedDriver || !activeCompanyId) return;
+    const q = query(
+      collection(db, 'vehicle_daily_stats'),
+      where('deviceId', '==', selectedDriver),
+      where('companyId', '==', activeCompanyId)
+    );
+    getDocs(q).then(snap => {
+      const full = [];
+      const empty = [];
+      snap.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.sessionsJson === '[]') empty.push(data.date);
+        else full.push(data.date);
+      });
+      setCachedDates([...new Set(full)]);
+      setEmptyCachedDates([...new Set(empty)]);
+    }).catch(err => console.error("Cache listesi çekilemedi:", err));
+  }, [selectedDriver, activeCompanyId]);
+
+  useEffect(() => {
+    if (!isVisible || !selectedDriver || !historyDate) return;
+
+    if (historyFetchRef.current) historyFetchRef.current = false;
+    const fetchId = {};
+    historyFetchRef.current = fetchId;
+    setHistoryLoading(true);
+    setFetchError(null);
+
+    const doFetch = async () => {
+      try {
+        const snapId = `${activeCompanyId || 'default'}_${selectedDriver}_${historyDate}_v7_${manualSplits?.length || 0}_${manualMerges?.length || 0}_${manualDeletes?.length || 0}`; // _v7 cache
+        const cacheRef = doc(db, 'vehicle_daily_stats', snapId);
+        
+        // 1. ÖNCE ÖNBELLEĞE (CACHE) BAK (Maliyet: 1 Read)
+        const cached = await getDoc(cacheRef);
+        if (cached.exists() && cached.data().sessionsJson) {
+          if (historyFetchRef.current === fetchId) {
+            try {
+              setSessionsByDriver({ [selectedDriver]: JSON.parse(cached.data().sessionsJson) });
+              setSessionVisitedDates(prev => [...new Set([...prev, historyDate])]);
+            } catch (e) {
+              console.error('Cache parse error:', e);
+              setSessionsByDriver({ [selectedDriver]: [] });
+            }
+            setSelectedSession(null); // Yeni veride seçimi sıfırla
+          }
+          return;
+        }
+
+        // 2. CACHE YOKSA HAM VERİYİ ÇEK VEYA CANLI TAKİPTEN AL
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const isToday = historyDate === todayStr;
+        let points = [];
+
+        // Eğer bugün seçiliyse ve MapLayout'tan liveLocations geldiyse:
+        if (isToday && liveLocations && liveLocations.length > 0) {
+          points = liveLocations.filter(loc => 
+            (loc.driverId === selectedDriver || loc.deviceId === selectedDriver) &&
+            loc.timestamp && loc.timestamp.startsWith(todayStr)
+          );
+        }
+
+        // Eğer MapLayout'ta veri yoksa veya bugün değilse mecburen Firebase'den çekeceğiz
+        if (points.length === 0) {
+          // Gece yarısını geçen seferlerin bölünmemesi için zaman penceresini genişletiyoruz:
+          // Önceki gün 20:00'den, Ertesi gün 12:00'ye kadar (Toplam 40 Saat)
+          const [y, m, d] = historyDate.split('-').map(Number);
+          const dayStart = new Date(y, m - 1, d, -4, 0, 0, 0); // Önceki gün 20:00
+          const dayEnd   = new Date(y, m - 1, d, 36, 0, 0, 0); // Ertesi gün 12:00
+
+          const buildQuery = (field) => query(
+            collection(db, 'truck_routes'),
+            where(field, '==', selectedDriver),
+            where('timestamp', '>=', dayStart.toISOString()),
+            where('timestamp', '<=', dayEnd.toISOString()),
+            orderBy('timestamp', 'asc')
+          );
+
+          let snap;
+          try {
+            snap = await getDocs(buildQuery('driverId'));
+            if (snap.docs.length === 0) {
+              snap = await getDocs(buildQuery('deviceId'));
+            }
+            if (historyFetchRef.current !== fetchId) return;
+            points = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          } catch (e) {
+            console.error('Veri çekme hatası (Index eksik olabilir):', e);
+            if (e.message?.includes('index')) {
+              setFetchError('Firebase Composite Index eksik. Konsoldaki linke tıklayıp oluşturun.');
+            } else {
+              setFetchError('Veri alınamadı.');
+            }
+            if (historyFetchRef.current === fetchId) setSessionsByDriver({ [selectedDriver]: [] });
+            return;
+          }
+        }
+        
+        // 3. VERİYİ SIKIŞTIR VE SEFERLERE BÖL
+        // Tolerans tekrar 30 dakikaya çekildi, ancak manuel birleştirmeler eklendi.
+        const rawSessions = groupIntoSessions(points, 30, geofences, manualSplits || [], manualMerges || []);
+        
+        // SADECE BAŞLANGIÇ TARİHİ SEÇİLİ GÜN OLANLARI FİLTRELE VE SİLİNENLERİ ÇIKAR
+        // Böylece 12'sinde gece başlayıp 13'ünde biten sefer sadece 12'sine ait olur.
+        const pad = n => n.toString().padStart(2, '0');
+        const getLocalYYYYMMDD = (dateObj) => `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`;
+        
+        const validSessions = rawSessions.filter(session => {
+          if (!session || session.length === 0) return false;
+          
+          // Silinmiş mi kontrol et
+          if (manualDeletes?.includes(session[0].timestamp)) return false;
+
+          const sessionStartDate = getLocalYYYYMMDD(new Date(session[0].timestamp));
+          return sessionStartDate === historyDate;
+        });
+
+        // 1MB Firestore sınırını aşmamak için "Dinamik Sıkıştırma Algoritması"
+
+        let lightweightSessions = [];
+        let jsonString = "";
+
+        if (isToday) {
+          // Bugünün verisi cache'lenmeyeceği için ağır sıkıştırma ve döngüye gerek yok!
+          const optimized = validSessions.map(session => filterSessionPoints(session, 0.05));
+          lightweightSessions = optimized.map(session => 
+            session.map(pt => ({
+              lat: Number(Number(pt.lat).toFixed(5)), // 1 metre hassasiyet
+              lon: Number(Number(pt.lon).toFixed(5)),
+              timestamp: pt.timestamp,
+              speed: pt.speed || 0
+            }))
+          );
+        } else {
+          let currentCompression = 0.05; // 50 metreden başla (En Yüksek Kalite)
+          
+          // Veri 900 KB'ın altına inene kadar sıkıştırma toleransını artır
+          while (currentCompression <= 0.5) {
+             const optimized = validSessions.map(session => filterSessionPoints(session, currentCompression));
+             
+             lightweightSessions = optimized.map(session => 
+               session.map(pt => ({
+                 lat: Number(Number(pt.lat).toFixed(5)),
+                 lon: Number(Number(pt.lon).toFixed(5)),
+                 timestamp: pt.timestamp,
+                 speed: pt.speed || 0
+               }))
+             );
+             
+             jsonString = JSON.stringify(lightweightSessions);
+             
+             if (jsonString.length < 900000) { 
+                 break;
+             }
+             // Sığmadıysa kaliteyi 50 metre daha düşür ve tekrar dene
+             currentCompression += 0.05; 
+          }
+        }
+
+        setSessionsByDriver({ [selectedDriver]: lightweightSessions });
+        setSessionVisitedDates(prev => [...new Set([...prev, historyDate])]);
+        setSelectedSession(null);
+
+        // 4. SONUÇLARI ÖNBELLEĞE KAYDET
+        // Boş günleri de kaydediyoruz (length >= 0) ki her seferinde tekrar hesaplamasın.
+        if (!isToday) {
+           await setDoc(cacheRef, {
+             deviceId: selectedDriver,
+             date: historyDate,
+             companyId: activeCompanyId || 'default',
+             sessionsJson: jsonString, // Garantili boyuttaki JSON
+             calculatedAt: new Date().toISOString()
+           }, { merge: true });
+        }
+
+      } catch (err) {
+        console.error('Genel fetch hatası:', err);
+        if (historyFetchRef.current === fetchId) setFetchError('Bir hata oluştu.');
+      } finally {
+        if (historyFetchRef.current === fetchId) setHistoryLoading(false);
+      }
+    };
+    
+    doFetch();
+  }, [isVisible, selectedDriver, historyDate, activeCompanyId, geofences, manualSplits?.length, manualMerges?.length, manualDeletes?.length, liveLocations]);
+
+  // Yeni veri gelince en güncel seferi otomatik seç
+  useEffect(() => {
+    if (!selectedDriver || !sessionsByDriver[selectedDriver]?.length) {
+      return;
+    }
+    const driverSessions = sessionsByDriver[selectedDriver];
+    setSelectedSession(driverSessions[driverSessions.length - 1]);
+    setProgress(0);
+    setIsPlaying(false);
+  }, [sessionsByDriver, selectedDriver]);
 
   // Harita ile kullanıcı etkileşimini dinle
   useEffect(() => {
@@ -151,41 +393,6 @@ export default function RouteHistory({
     el.addEventListener('wheel', onWheel, { passive: true });
   }, []);;
 
-  // Otomatik olarak ilk aracı seç
-  useEffect(() => {
-    const drivers = Object.keys(sessionsByDriver).filter(d => sessionsByDriver[d].length > 0);
-    if (drivers.length > 0 && !selectedDriver) {
-      setSelectedDriver(drivers[0]);
-    } else if (drivers.length === 0 && selectedDriver) {
-      setSelectedDriver(null);
-    }
-  }, [sessionsByDriver, selectedDriver]);
-
-  // Araç veya tarih filtresi değiştiğinde seçili seferi korumaya çalış veya ilkini seç
-  useEffect(() => {
-    if (selectedDriver && sessionsByDriver[selectedDriver]) {
-      const visibleSessions = [...sessionsByDriver[selectedDriver]].reverse().filter(session => {
-        if (dateFilterDays === 0) return true;
-        const stats = calcStats(session);
-        // 10 km ve 15 dk altındaysa gizle
-        return parseFloat(stats.km) >= 10 && parseInt(stats.durationMin) >= 15;
-      });
-
-      if (visibleSessions.length > 0) {
-        // Eğer zaten bir sefer seçiliyse ve yeni listede de varsa onu koru
-        const currentId = selectedSession?.[0]?.timestamp;
-        const stillExists = visibleSessions.find(s => s[0]?.timestamp === currentId);
-        
-        if (!stillExists) {
-          setSelectedSession(visibleSessions[0]);
-        }
-      } else {
-        setSelectedSession(null);
-      }
-    } else {
-      setSelectedSession(null);
-    }
-  }, [selectedDriver, sessionsByDriver, dateFilterDays]);
 
   // Oynatma
   const [progress, setProgress]               = useState(0);
@@ -348,7 +555,7 @@ export default function RouteHistory({
             initial={{ x: -10, opacity: 0, scale: 0.99, filter: 'blur(4px)' }}
             animate={{ x: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
             exit={{ x: -10, opacity: 0, scale: 0.99, filter: 'blur(4px)' }}
-            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+            transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
             className="absolute top-[76px] left-4 bottom-4 w-[300px] z-[1500] flex flex-col rounded-3xl"
             style={{
               background: 'rgba(13,18,25,0.97)',
@@ -360,7 +567,7 @@ export default function RouteHistory({
         {/* Başlık */}
         <div className="flex justify-between items-center px-5 py-4 border-b border-white/[0.05]">
           <h2 className="text-sm font-bold text-white flex items-center gap-2">
-            <CalendarDays size={15} className="text-indigo-400" />
+            <Clock size={15} className="text-orange-400" />
             Rota Geçmişi
           </h2>
           <button
@@ -371,69 +578,241 @@ export default function RouteHistory({
           </button>
         </div>
 
-        {/* Filtreler */}
-        <div className="px-4 py-3 border-b border-white/[0.05]">
-          <div className="flex bg-white/[0.03] border border-white/[0.05] p-0.5 rounded-xl items-center">
-            {DATE_FILTERS.map(f => {
-              const isActive = dateFilterDays === f.days && !customDate;
+        {/* ── Yeni Akıllı Tarih Filtresi ──────────────────────────────────── */}
+        <div className="px-4 py-3 border-b border-white/[0.05] space-y-2">
+
+          {/* Ana iki buton satırı (Bugün & Geçmiş) */}
+          <div className="flex backdrop-blur-xl p-1 rounded-xl items-center gap-0.5" style={{ background: 'rgba(13,18,25,0.6)', border: '1px solid rgba(255,255,255,0.05)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)' }}>
+            
+            {/* Bugün */}
+            {(() => {
+              const todayStr = new Date().toISOString().slice(0, 10);
+              const isActive = historyDate === todayStr && calendarMode === 'closed';
               return (
                 <button
-                  key={f.days}
-                  onClick={() => { setDateFilterDays(f.days); setCustomDate(''); }}
-                  className={`relative flex-1 py-1.5 text-[11px] font-semibold transition-all duration-300 outline-none ${
-                    isActive ? 'text-white' : 'text-slate-500 hover:text-slate-300'
+                  onClick={() => { setHistoryDate(todayStr); setCalendarMode('closed'); }}
+                  className={`relative flex-1 flex items-center justify-center py-1.5 px-2 rounded-xl text-[11px] font-medium transition-colors duration-300 outline-none group ${
+                    isActive ? 'text-white' : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
+                  {!isActive && (
+                    <div className="absolute inset-0 bg-white/0 group-hover:bg-white/[0.04] rounded-xl transition-colors duration-300" />
+                  )}
                   {isActive && (
                     <motion.div
-                      layoutId="history-date-pill"
-                      className="absolute inset-0 bg-gradient-to-b from-indigo-500 to-indigo-600 rounded-[10px] shadow-[0_2px_8px_rgba(99,102,241,0.4)]"
+                      layoutId="history-tab-pill"
+                      className="absolute inset-0 bg-gradient-to-b from-orange-500 to-orange-600 rounded-xl border border-orange-400/30 shadow-[0_2px_12px_rgba(245,158,11,0.35)]"
+                      style={{ zIndex: 0 }}
                       initial={false}
-                      transition={{ type: 'spring', stiffness: 500, damping: 35, mass: 1 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                     />
                   )}
-                  <span className="relative z-10">{f.label}</span>
+                  <span className="relative z-10 drop-shadow-sm">Bugün</span>
                 </button>
               );
-            })}
-            
-            <div className="w-px h-4 bg-white/10 mx-1 flex-shrink-0" />
-            
-            <div className="relative flex items-center justify-center px-2 w-8 h-8 rounded-[10px] transition-colors hover:bg-white/[0.04]">
-              <input
-                type="date"
-                value={customDate}
-                onChange={e => { 
-                  if (e.target.value) {
-                    setCustomDate(e.target.value); 
-                    setDateFilterDays(0); 
-                  }
-                }}
-                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                title="Özel Tarih Seç"
-              />
-              <CalendarDays 
-                size={14} 
-                className={`transition-colors pointer-events-none ${customDate ? 'text-indigo-400' : 'text-slate-500'}`} 
-              />
-            </div>
+            })()}
+
+            {/* Geçmiş */}
+            {(() => {
+              const todayStr = new Date().toISOString().slice(0, 10);
+              const isPanelOpen = calendarMode !== 'closed';
+              const isActive = historyDate !== todayStr || isPanelOpen;
+              
+              const label = (historyDate !== todayStr && !isPanelOpen)
+                ? new Date(historyDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })
+                : 'Geçmiş';
+
+              // Chevron logic
+              let showChevron = isActive; // Aktif değilse (sadece bugün seçiliyse) gösterme
+              let chevronDirection = '';
+              if (calendarMode === '7') {
+                chevronDirection = ''; // aşağı (genişleme simgesi)
+              } else if (calendarMode === '21') {
+                chevronDirection = 'rotate-180'; // yukarı (küçültme simgesi)
+              } else if (calendarMode === 'month') {
+                chevronDirection = 'rotate-180'; 
+              } else if (historyDate !== todayStr) {
+                chevronDirection = ''; // geçmişten biri seçili, basınca 7 gün açılacak
+              }
+
+              // Uzun basma (Long Press) mantığı
+              const handlePointerDown = () => {
+                calendarTimerRef.current = setTimeout(() => {
+                  setCalendarMode('month');
+                  calendarTimerRef.current = null;
+                }, 3000);
+              };
+              const handlePointerUp = () => {
+                if (calendarTimerRef.current) {
+                  clearTimeout(calendarTimerRef.current);
+                  calendarTimerRef.current = null;
+                  // Kısa tıklama mantığı:
+                  if (calendarMode === 'closed') setCalendarMode('7');
+                  else if (calendarMode === '7') setCalendarMode('21'); // Genişlet
+                  else if (calendarMode === '21') setCalendarMode('7'); // Küçült
+                  else setCalendarMode('closed');
+                }
+              };
+              const handlePointerLeave = () => {
+                if (calendarTimerRef.current) {
+                  clearTimeout(calendarTimerRef.current);
+                  calendarTimerRef.current = null;
+                }
+              };
+
+              return (
+                <button
+                  onPointerDown={handlePointerDown}
+                  onPointerUp={handlePointerUp}
+                  onPointerLeave={handlePointerLeave}
+                  className={`relative flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-[11px] font-medium transition-colors duration-300 outline-none group select-none ${
+                    isActive ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {!isActive && (
+                    <div className="absolute inset-0 bg-white/0 group-hover:bg-white/[0.04] rounded-xl transition-colors duration-300" />
+                  )}
+                  {isActive && (
+                    <motion.div
+                      layoutId="history-tab-pill"
+                      className="absolute inset-0 bg-gradient-to-b from-orange-500 to-orange-600 rounded-xl border border-orange-400/30 shadow-[0_2px_12px_rgba(245,158,11,0.35)]"
+                      style={{ zIndex: 0 }}
+                      initial={false}
+                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                    />
+                  )}
+                  {isPanelOpen && (
+                    <div className="absolute inset-0 bg-white/[0.06] rounded-xl -z-10" />
+                  )}
+                  <span className="relative z-10 drop-shadow-sm flex items-center justify-center gap-1">
+                    {label}
+                    {showChevron && (
+                      <ChevronDown size={12} className={`transition-transform duration-300 ${chevronDirection}`} />
+                    )}
+                  </span>
+                </button>
+              );
+            })()}
           </div>
-          
-          {/* Özel tarih seçildiyse ufak bilgi */}
-          {customDate && (
-            <div className="flex items-center justify-center gap-2 mt-2.5">
-              <span className="text-[10px] font-medium text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
-                {new Date(customDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </span>
-              <button 
-                onClick={() => { setCustomDate(''); setDateFilterDays(1); }} 
-                className="text-[10px] text-slate-500 hover:text-slate-300 underline transition-colors"
+
+          {/* ─── BİRLEŞTİRİLMİŞ TAKVİM PANELİ ─── */}
+          <AnimatePresence>
+            {calendarMode !== 'closed' && (
+              <motion.div
+                layout
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.7 }}
+                className="overflow-hidden bg-[#0F1219] border border-white/[0.08] rounded-2xl shadow-2xl mt-2 relative z-50"
               >
-                Temizle
-              </button>
-            </div>
-          )}
+                <AnimatePresence mode="popLayout" initial={false}>
+                  {calendarMode === '7' || calendarMode === '21' ? (
+                    // --- 7 veya 21 GÜNLÜK GÖRÜNÜM ---
+                    <motion.div 
+                      key="grid-view"
+                      initial={{ opacity: 0, filter: 'blur(4px)' }} 
+                      animate={{ opacity: 1, filter: 'blur(0px)' }} 
+                      exit={{ opacity: 0, filter: 'blur(4px)' }}
+                      transition={{ duration: 0.2 }}
+                      className="p-1.5"
+                    >
+                      <div className="grid grid-cols-7 gap-0.5">
+                        {Array.from({ length: calendarMode === '7' ? 7 : 21 }, (_, i) => {
+                          const max = calendarMode === '7' ? 6 : 20;
+                          const d = new Date();
+                          d.setDate(d.getDate() - (max - i)); // Geçmişe dönük
+                          const dateStr = d.toISOString().slice(0, 10);
+                          const isSelected = historyDate === dateStr;
+                          const dayNames = ['Pz', 'Pt', 'Sa', 'Çr', 'Pe', 'Cu', 'Ct'];
+                          const dayName = dayNames[d.getDay()];
+                          const dayNum = d.getDate();
+                          const isFullCached = cachedDates.includes(dateStr);
+                          const isEmptyCached = emptyCachedDates.includes(dateStr);
+                          return (
+                            <button
+                              key={dateStr}
+                              onClick={() => {
+                                setHistoryDate(dateStr);
+                                setCalendarMode('closed');
+                              }}
+                              className={`relative flex flex-col items-center py-1.5 rounded-xl transition-all duration-150 border border-transparent ${
+                                isSelected
+                                  ? 'bg-orange-500 text-white shadow-[0_2px_8px_rgba(245,158,11,0.4)]'
+                                  : 'hover:bg-white/[0.06] text-slate-400 hover:text-white'
+                              } ${isFullCached && !isSelected ? 'bg-orange-500/10 shadow-[inset_0_0_8px_rgba(245,158,11,0.1)]' : ''} ${isEmptyCached && !isSelected ? 'bg-orange-500/15 shadow-[inset_0_0_8px_rgba(249,115,22,0.1)]' : ''}`}
+                            >
+                              <span className="text-[9px] font-medium opacity-70">{dayName}</span>
+                              <span className="text-[13px] font-bold mt-0.5">{dayNum}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  ) : calendarMode === 'month' ? (
+                    // --- TÜM AY GÖRÜNÜMÜ ---
+                    <motion.div 
+                      key="month"
+                      initial={{ opacity: 0, filter: 'blur(4px)' }} 
+                      animate={{ opacity: 1, filter: 'blur(0px)' }} 
+                      exit={{ opacity: 0, filter: 'blur(4px)' }}
+                      transition={{ duration: 0.2 }}
+                      className="p-1.5 pt-2"
+                    >
+                      <div className="flex items-center justify-between mb-2 px-2">
+                        <button onClick={() => setCalendarViewDate(new Date(calendarViewDate.setMonth(calendarViewDate.getMonth() - 1)))} className="p-1 hover:bg-white/5 rounded-lg transition-colors"><ChevronLeft size={16} className="text-slate-400"/></button>
+                        <span className="text-[11px] font-bold text-slate-200 uppercase tracking-wider">
+                          {calendarViewDate.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' })}
+                        </span>
+                        <button onClick={() => setCalendarViewDate(new Date(calendarViewDate.setMonth(calendarViewDate.getMonth() + 1)))} className="p-1 hover:bg-white/5 rounded-lg transition-colors"><ChevronRight size={16} className="text-slate-400"/></button>
+                      </div>
+
+                      <div className="grid grid-cols-7 gap-0.5">
+                        {(() => {
+                          const year = calendarViewDate.getFullYear();
+                          const month = calendarViewDate.getMonth();
+                          const firstDay = new Date(year, month, 1).getDay();
+                          const adjFirstDay = firstDay === 0 ? 6 : firstDay - 1;
+                          const daysInMonth = new Date(year, month + 1, 0).getDate();
+                          
+                          const days = [];
+                          for(let i=0; i<adjFirstDay; i++) days.push(<div key={`pad-${i}`} />);
+                          
+                          for(let day=1; day<=daysInMonth; day++) {
+                            const dObj = new Date(year, month, day);
+                            const dStr = dObj.toISOString().slice(0, 10);
+                            const isSelected = historyDate === dStr;
+                            const dayNames = ['Pz', 'Pt', 'Sa', 'Çr', 'Pe', 'Cu', 'Ct'];
+                            const dayName = dayNames[dObj.getDay()];
+                            const isFullCached = cachedDates.includes(dStr);
+                            const isEmptyCached = emptyCachedDates.includes(dStr);
+                            
+                            days.push(
+                              <button
+                                key={day}
+                                onClick={() => { setHistoryDate(dStr); setCalendarMode('closed'); }}
+                                className={`relative flex flex-col items-center py-1.5 rounded-xl transition-all duration-150 border border-transparent ${
+                                  isSelected
+                                    ? 'bg-orange-500 text-white shadow-[0_2px_8px_rgba(245,158,11,0.4)]'
+                                    : 'hover:bg-white/[0.06] text-slate-400 hover:text-white'
+                                } ${isFullCached && !isSelected ? 'bg-orange-500/10 shadow-[inset_0_0_8px_rgba(245,158,11,0.1)]' : ''} ${isEmptyCached && !isSelected ? 'bg-orange-500/15 shadow-[inset_0_0_8px_rgba(249,115,22,0.1)]' : ''}`}
+                              >
+                                <span className="text-[9px] font-medium opacity-70">{dayName}</span>
+                                <span className="text-[13px] font-bold mt-0.5">{day}</span>
+                              </button>
+                            );
+                          }
+                          return days;
+                        })()}
+                      </div>
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
+
 
         {/* Araç Seçici (Dropdown) */}
         <div className="px-3 pb-3">
@@ -442,7 +821,7 @@ export default function RouteHistory({
             className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-white/[0.06] bg-white/[0.04] hover:bg-white/[0.07] transition-all duration-200"
           >
             <span className="text-[11.5px] font-semibold text-slate-300 truncate">
-              {selectedDriver ? getDisplayName(selectedDriver) : 'Araç seç...'}
+              {selectedDriver ? getDisplayName(selectedDriver) : 'Yükleniyor...'}
             </span>
             <motion.div
               animate={{ rotate: isVehicleDropdownOpen ? 180 : 0 }}
@@ -464,48 +843,64 @@ export default function RouteHistory({
                 className="overflow-hidden mt-1"
               >
                 <div className="rounded-xl overflow-hidden border border-white/[0.04] bg-white/[0.02]">
-                  {Object.entries(sessionsByDriver).filter(([_, sessions]) => sessions.length > 0).map(([driver, sessions]) => {
-                    const visibleCount = dateFilterDays === 0
-                      ? sessions.length
-                      : sessions.filter(s => {
-                            const stats = calcStats(s);
-                            return parseFloat(stats.km) >= 10 && parseInt(stats.durationMin) >= 15;
-                          }).length;
-                    if (visibleCount === 0) return null;
+                  {Object.keys(deviceMappings).map((driver) => {
                     return (
                       <button
                         key={driver}
                         onClick={() => { 
                           setSelectedDriver(driver); 
                           setIsVehicleDropdownOpen(false); 
-                          setSelectedSession(null); 
                         }}
                         className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between border-b border-white/[0.04] last:border-0 transition-all duration-150 ${
                           selectedDriver === driver
-                            ? 'bg-indigo-500/[0.12]'
+                            ? 'bg-orange-500/[0.12]'
                             : 'hover:bg-white/[0.04]'
                         }`}
                       >
                         <span className={`text-[11px] font-semibold ${
-                          selectedDriver === driver ? 'text-indigo-300' : 'text-slate-400'
+                          selectedDriver === driver ? 'text-orange-300' : 'text-slate-400'
                         }`}>
                           {getDisplayName(driver)}
-                        </span>
-                        <span className="text-[9.5px] text-slate-600 font-medium px-1.5 py-0.5 bg-white/[0.04] rounded-md ml-2 flex-shrink-0">
-                          {visibleCount} rota
                         </span>
                       </button>
                     );
                   })}
+                  {Object.keys(deviceMappings).length === 0 && (
+                    <div className="px-4 py-3 text-[11px] text-slate-600">Araç bulunamadı</div>
+                  )}
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Seçili Aracın Rotası */}
-        <div ref={listCallbackRef} className="flex-1 overflow-y-auto px-3 pb-3 space-y-2" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', minHeight: '300px' }}>
-          {selectedDriver && sessionsByDriver[selectedDriver] && (
+        {/* Seçili Aracın Rotaları */}
+        <div ref={listCallbackRef} className="flex-1 overflow-y-auto px-3 pb-3" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', minHeight: '300px' }}>
+
+          {/* Yükleniyor */}
+          {historyLoading && (
+            <div className="flex flex-col items-center justify-center mt-12 gap-3">
+              <Loader2 size={22} className="text-orange-400 animate-spin" />
+              <p className="text-xs text-slate-500">Önbellek kontrol ediliyor...</p>
+            </div>
+          )}
+
+          {/* Hata Durumu */}
+          {fetchError && !historyLoading && (
+            <div className="mx-2 mt-4 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl">
+              <p className="text-[11px] text-rose-400 leading-relaxed text-center">{fetchError}</p>
+            </div>
+          )}
+
+          {/* Araç seçilmedi veya veri yok */}
+          {!historyLoading && !fetchError && selectedDriver && (!sessionsByDriver[selectedDriver] || sessionsByDriver[selectedDriver].length === 0) && (
+            <div className="flex flex-col items-center justify-center mt-12 gap-2">
+              <p className="text-xs text-slate-600 text-center px-4">Bu tarih aralığında kayıtlı veri bulunamadı.</p>
+            </div>
+          )}
+
+          {/* Rota listesi */}
+          {!historyLoading && selectedDriver && sessionsByDriver[selectedDriver]?.length > 0 && (
             <div className="space-y-1.5">
               {[...sessionsByDriver[selectedDriver]].reverse().map((session, i) => {
                 const totalSessions = sessionsByDriver[selectedDriver].length;
@@ -514,21 +909,24 @@ export default function RouteHistory({
                 const isSelected = selectedSession === session;
                 const { km, durationMin } = calcStats(session);
 
-                // "Tümü" seçili değilse 10 km altı veya 15 dk altı rotaları gizle
-                if (dateFilterDays !== 0 && (parseFloat(km) < 10 || parseInt(durationMin) < 15)) return null;
+                // Kısa rotaları gizle kuralı (5 km altı veya 5 dk altı)
+                if (parseFloat(km) < 5 || parseInt(durationMin) < 5) return null;
 
                 return (
                   <React.Fragment key={i}>
-                    <button
+                    <div
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setSelectedSession(isSelected ? null : session)}
-                      className={`w-full text-left px-3 py-3 rounded-xl border transition-all duration-200 relative overflow-hidden ${
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedSession(isSelected ? null : session) }}
+                      className={`w-full text-left px-3 py-3 rounded-xl border transition-all duration-200 relative overflow-hidden cursor-pointer outline-none ${
                         isSelected
-                          ? 'bg-indigo-500/10 border-indigo-500/25 shadow-[inset_0_0_0_1px_rgba(99,102,241,0.2)]'
+                          ? 'bg-orange-500/10 border-orange-500/25 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.2)]'
                           : 'bg-white/[0.02] border-white/[0.04] hover:border-white/[0.09] hover:bg-white/[0.04]'
                       }`}
                     >
                       {isSelected && (
-                        <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-indigo-500 rounded-full" />
+                        <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-orange-500 rounded-full" />
                       )}
                       <div className="flex justify-between items-center mb-2.5 pl-2">
                         {/* Sol: sefer adı + tarih */}
@@ -540,7 +938,7 @@ export default function RouteHistory({
                               animate={{ opacity: 1, y: 0 }}
                               exit={{ opacity: 0, y: -4 }}
                               transition={{ duration: 0.15, ease: 'easeOut' }}
-                              className="flex items-center gap-2 w-full"
+                              className="flex items-center justify-between gap-1 w-full"
                               onClick={e => e.stopPropagation()}
                             >
                               <input 
@@ -548,34 +946,56 @@ export default function RouteHistory({
                                 value={editNameValue}
                                 onChange={e => setEditNameValue(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter') { setCustomRouteName(session[0].timestamp, editNameValue); setEditingSessionKey(null); } }}
-                                className="bg-[#0B0E14] border border-indigo-500/50 rounded-lg px-2 py-1 text-xs text-white outline-none flex-1 min-w-0"
+                                className="bg-[#0B0E14] border border-orange-500/50 rounded-md px-1.5 py-1 text-[11px] text-white outline-none w-[70px] min-w-[70px]"
                                 placeholder={`Sefer ${totalSessions - i}`}
                               />
-                              {/* ✂ Böl — önce */}
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const ts = interpolatedData?.timestamp ?? session[Math.floor(session.length / 2)]?.timestamp;
-                                  if (ts) addManualSplit(ts, selectedDriver);
-                                  setEditingSessionKey(null);
-                                }}
-                                className="text-rose-400 p-1.5 hover:bg-rose-400/10 rounded-lg flex-shrink-0 transition-colors"
-                                title="Rotayı Buradan Böl"
-                              >
-                                <Scissors size={14} />
-                              </button>
-                              {/* ✔ Kaydet — sonra */}
-                              <button 
-                                onClick={async (e) => { e.stopPropagation(); await setCustomRouteName(session[0].timestamp, editNameValue); setEditingSessionKey(null); }}
-                                className="text-emerald-400 p-1.5 hover:bg-emerald-400/10 rounded-lg flex-shrink-0 transition-colors"
-                                title="İsmi Kaydet"
-                              >
-                                <Check size={14} />
-                              </button>
+                              <div className="flex items-center gap-0.5 flex-shrink-0">
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const ts = interpolatedData?.timestamp ?? session[Math.floor(session.length / 2)]?.timestamp;
+                                    if (ts) addManualSplit(ts, selectedDriver);
+                                    setEditingSessionKey(null);
+                                  }}
+                                  className="text-rose-400 p-1 hover:bg-rose-400/10 rounded-md transition-colors"
+                                  title="Rotayı Buradan Böl"
+                                >
+                                  <Scissors size={13} />
+                                </button>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (session[0]?.timestamp) addManualMerge(session[0].timestamp, selectedDriver);
+                                    setEditingSessionKey(null);
+                                  }}
+                                  className="text-orange-400 p-1 hover:bg-orange-400/10 rounded-md transition-colors"
+                                  title="Önceki Seferle Birleştir"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                                </button>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (session[0]?.timestamp) addManualDelete(session[0].timestamp, selectedDriver);
+                                    setEditingSessionKey(null);
+                                  }}
+                                  className="text-red-500 p-1 hover:bg-red-500/10 rounded-md transition-colors"
+                                  title="Seferi Sil (Gizle)"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                                </button>
+                                <button 
+                                  onClick={async (e) => { e.stopPropagation(); await setCustomRouteName(session[0].timestamp, editNameValue); setEditingSessionKey(null); }}
+                                  className="text-emerald-400 p-1 hover:bg-emerald-400/10 rounded-md transition-colors"
+                                  title="İsmi Kaydet"
+                                >
+                                  <Check size={13} />
+                                </button>
+                              </div>
                             </motion.div>
                           ) : (
                             <>
-                              <span className={`text-xs font-bold ${isSelected ? 'text-indigo-400' : 'text-slate-300'}`}>
+                              <span className={`text-xs font-bold ${isSelected ? 'text-orange-400' : 'text-slate-300'}`}>
                                 {customRouteNames[session[0].timestamp] || `Sefer ${totalSessions - i}`}
                               </span>
                               <span className="text-[10px] text-slate-600 font-medium">
@@ -584,14 +1004,24 @@ export default function RouteHistory({
                             </>
                           )}
                         </div>
-                        {/* Sağ: kalem ikonu */}
-                        {editingSessionKey !== session[0].timestamp && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setEditNameValue(customRouteNames[session[0].timestamp] || `Sefer ${totalSessions - i}`); setEditingSessionKey(session[0].timestamp); }}
-                            className="p-1.5 rounded-lg text-slate-700 hover:text-indigo-400 hover:bg-white/[0.05] transition-all flex-shrink-0"
-                          >
-                            <Edit2 size={13} />
-                          </button>
+                        {/* Sağ: kaydet ve kalem ikonu (sadece seçiliyken) */}
+                        {isSelected && editingSessionKey !== session[0].timestamp && (
+                          <div className="flex items-center">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openSaveModal(session); }}
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-orange-400 hover:bg-orange-500/10 transition-all flex-shrink-0"
+                              title="Rotayı Kaydet"
+                            >
+                              <BookmarkPlus size={14} />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setEditNameValue(customRouteNames[session[0].timestamp] || `Sefer ${totalSessions - i}`); setEditingSessionKey(session[0].timestamp); }}
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-orange-400 hover:bg-white/[0.05] transition-all flex-shrink-0"
+                              title="İsmi Düzenle"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                          </div>
                         )}
                       </div>
                       <div className="flex gap-1.5 pl-2">
@@ -601,19 +1031,13 @@ export default function RouteHistory({
                         <span className="px-2 py-0.5 bg-white/[0.05] rounded-lg text-[10px] text-slate-400 font-semibold border border-white/[0.05]">
                           {formatDuration(durationMin)}
                         </span>
+                        <span className="px-2 py-0.5 bg-white/[0.05] rounded-lg text-[10px] text-slate-500 font-medium border border-white/[0.05]">
+                          {start.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
-                    </button>
+                    </div>
 
-                    {isSelected && (
-                      <div className="flex gap-1.5 mt-1.5" onClick={e => e.stopPropagation()}>
-                        <button
-                          onClick={e => { e.stopPropagation(); openSaveModal(session); }}
-                          className="flex-1 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-400 text-[11px] font-bold rounded-xl transition-all flex items-center justify-center gap-1.5"
-                        >
-                          <BookmarkPlus size={13} /> Rotayı Kaydet
-                        </button>
-                      </div>
-                    )}
+
                   </React.Fragment>
                 );
               })}
@@ -632,9 +1056,9 @@ export default function RouteHistory({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.8, opacity: 0 }}
             onClick={() => setShowSidebar(true)}
-            className="absolute left-4 top-[76px] z-[1500] p-3.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-2xl border border-indigo-500/20 transition-all backdrop-blur-md"
+            className="absolute left-4 top-[76px] z-[1500] p-3.5 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-2xl border border-orange-500/20 transition-all backdrop-blur-md"
           >
-            <CalendarDays size={16} />
+            <Clock size={16} />
           </motion.button>
         )}
       </AnimatePresence>
@@ -658,7 +1082,7 @@ export default function RouteHistory({
             {/* Play / Pause */}
             <button
               onClick={() => setIsPlaying(!isPlaying)}
-              className="w-11 h-11 rounded-full bg-indigo-500 flex items-center justify-center text-white hover:bg-indigo-600 active:scale-95 transition-all shadow-lg shadow-indigo-500/30 flex-shrink-0"
+              className="w-11 h-11 rounded-full bg-orange-500 flex items-center justify-center text-white hover:bg-orange-600 active:scale-95 transition-all flex-shrink-0"
             >
               {isPlaying
                 ? <Pause fill="currentColor" size={18} />
@@ -670,7 +1094,7 @@ export default function RouteHistory({
               <div className="flex justify-between text-[10px] font-semibold text-slate-600 mb-2 uppercase tracking-wide">
                 <span>{new Date(selectedSession[0].timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
                 {interpolatedData && (
-                  <span className="text-indigo-400 px-2 py-0.5 bg-indigo-500/10 rounded-full border border-indigo-500/15">
+                  <span className="text-orange-400 px-2 py-0.5 bg-orange-500/10 rounded-full border border-orange-500/15">
                     {Math.round((interpolatedData.speed || 0) * 3.6)} km/h
                   </span>
                 )}
@@ -686,15 +1110,14 @@ export default function RouteHistory({
                   onChange={e => { setIsPlaying(false); setProgress(parseFloat(e.target.value)); }}
                   className="w-full h-1.5 appearance-none rounded-full outline-none cursor-pointer"
                   style={{
-                    background: `linear-gradient(to right, #6366f1 ${progress}%, rgba(255,255,255,0.08) ${progress}%)`,
+                    background: `linear-gradient(to right, #f97316 ${progress}%, rgba(255,255,255,0.08) ${progress}%)`,
                   }}
                 />
                 <style>{`
                   input[type='range']::-webkit-slider-thumb {
                     -webkit-appearance: none; appearance: none;
                     width: 16px; height: 16px; border-radius: 50%;
-                    background: #fff; border: 2.5px solid #6366f1;
-                    box-shadow: 0 0 12px rgba(99,102,241,0.7);
+                    background: #fff; border: 2.5px solid #f97316;
                     cursor: pointer; transition: transform 0.15s;
                   }
                   input[type='range']::-webkit-slider-thumb:hover { transform: scale(1.25); }
@@ -740,7 +1163,7 @@ export default function RouteHistory({
             {/* Başlık */}
             <div className="flex justify-between items-center mb-5">
               <h3 className="text-white font-bold text-base flex items-center gap-2">
-                <BookmarkPlus size={17} className="text-indigo-400" /> Rotayı Kaydet
+                <BookmarkPlus size={17} className="text-orange-400" /> Rotayı Kaydet
               </h3>
               <button
                 onClick={() => { setSavingSession(null); setSaveDropdownOpen(false); }}
@@ -757,7 +1180,7 @@ export default function RouteHistory({
                 <button
                   type="button"
                   onClick={() => setSaveDropdownOpen(v => !v)}
-                  className="w-full flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-2xl px-3 py-2.5 text-sm hover:border-indigo-500/40 transition-colors"
+                  className="w-full flex items-center justify-between bg-white/[0.04] border border-white/[0.08] rounded-2xl px-3 py-2.5 text-sm hover:border-orange-500/40 transition-colors"
                 >
                   <span className={saveTripId ? 'text-white' : 'text-slate-500'}>
                     {saveTripId
@@ -797,7 +1220,7 @@ export default function RouteHistory({
                               setSaveDropdownOpen(false);
                             }}
                             className={`w-full text-left px-4 py-2.5 text-xs transition-colors hover:bg-white/[0.06] border-b border-white/[0.03] ${
-                              saveTripId === String(r.id) ? 'bg-indigo-500/15 text-indigo-400' : 'text-slate-300'
+                              saveTripId === String(r.id) ? 'bg-orange-500/15 text-orange-400' : 'text-slate-300'
                             }`}
                           >
                             <span className="font-semibold">{r.from} → {r.to}</span>
@@ -817,7 +1240,7 @@ export default function RouteHistory({
                   value={saveName}
                   onChange={e => setSaveName(e.target.value)}
                   placeholder="Örn: Çayırhan → Baştaş"
-                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 transition-colors"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-orange-500/50 transition-colors"
                 />
               </div>
 
@@ -832,14 +1255,14 @@ export default function RouteHistory({
                     value={field.value}
                     onChange={e => field.set(e.target.value)}
                     placeholder={field.placeholder}
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 transition-colors"
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-orange-500/50 transition-colors"
                   />
                 </div>
               ))}
 
               <button
                 onClick={handleSaveRoute}
-                className="w-full py-3 bg-gradient-to-b from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500 text-white font-bold rounded-2xl transition-all shadow-lg shadow-indigo-500/20 mt-1"
+                className="w-full py-3 bg-gradient-to-b from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white font-bold rounded-2xl transition-all shadow-lg shadow-orange-500/20 mt-1"
               >
                 Kaydet
               </button>

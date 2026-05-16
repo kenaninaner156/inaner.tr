@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy, getDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, getDoc, setDoc, doc, limit } from 'firebase/firestore';
 import { db } from '../../services/firebaseConfig';
 import { useCompany } from '../../context/CompanyContext';
-import { BarChart3, TrendingUp, Clock, Activity, CalendarDays, Navigation } from 'lucide-react';
+import { BarChart3, TrendingUp, Clock, Activity, Navigation, Save, RefreshCw } from 'lucide-react';
 import { haversineKm } from '../../utils/mapUtils';
 import { useTruck } from '../../context/TruckContext';
 
@@ -13,7 +13,13 @@ const RANGES = [
   { id: 'custom',  label: 'Özel' },
 ];
 
-export default function VehicleAnalysis({ activeTruckId }) {
+// Günlük snapshot koleksiyonu: vehicle_daily_stats/{companyId}_{deviceId}_{YYYY-MM-DD}
+const getSnapshotId = (companyId, deviceId, dateStr) =>
+  `${companyId || 'default'}_${deviceId}_${dateStr}`;
+
+const toDateStr = (date) => date.toISOString().slice(0, 10); // "YYYY-MM-DD"
+
+export default function VehicleAnalysis() {
   const { activeCompanyId } = useCompany();
   const { trucks } = useTruck();
   const [deviceMappings, setDeviceMappings] = useState({});
@@ -22,7 +28,8 @@ export default function VehicleAnalysis({ activeTruckId }) {
   const [customStart, setCustomStart]       = useState('');
   const [customEnd, setCustomEnd]           = useState('');
   const [loading, setLoading]               = useState(false);
-  const [stats, setStats] = useState({ km: 0, duration: 0, maxSpeed: 0, avgSpeed: 0, tripCount: 0 });
+  const [stats, setStats] = useState(null); // null = henüz hesaplanmadı
+  const [snapshotInfo, setSnapshotInfo] = useState(null); // { fromCache: bool, savedCount: number }
 
   useEffect(() => {
     const mappingsDocId = `device_mappings_${activeCompanyId || 'default'}`;
@@ -40,131 +47,200 @@ export default function VehicleAnalysis({ activeTruckId }) {
 
   const devices = Object.keys(deviceMappings);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        let startIso = '';
-        let endIso   = new Date().toISOString();
-        const now    = new Date();
+  // ── Günlük snapshot kaydet ──────────────────────────────────────────────
+  const saveSnapshot = async (deviceId, dateStr, dayStats) => {
+    try {
+      const snapId = getSnapshotId(activeCompanyId, deviceId, dateStr);
+      await setDoc(doc(db, 'vehicle_daily_stats', snapId), {
+        deviceId,
+        date: dateStr,
+        companyId: activeCompanyId || 'default',
+        ...dayStats,
+        calculatedAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Snapshot kaydedilemedi:', e);
+    }
+  };
 
-        if (dateRange === 'today') {
-          const s = new Date(now); s.setHours(0, 0, 0, 0);
-          startIso = s.toISOString();
-        } else if (dateRange === 'weekly') {
-          const s = new Date(now); s.setDate(s.getDate() - 7);
-          startIso = s.toISOString();
-        } else if (dateRange === 'monthly') {
-          const s = new Date(now); s.setMonth(s.getMonth() - 1);
-          startIso = s.toISOString();
-        } else if (dateRange === 'custom') {
-          if (!customStart || !customEnd) { setLoading(false); return; }
-          startIso = new Date(customStart).toISOString();
-          const e = new Date(customEnd); e.setHours(23, 59, 59, 999);
-          endIso = e.toISOString();
-        }
+  // ── Tek bir günün verisini ham GPS'ten hesapla ──────────────────────────
+  const calcDayStats = async (deviceId, dayStart, dayEnd) => {
+    const conditions = [
+      where('timestamp', '>=', dayStart.toISOString()),
+      where('timestamp', '<=', dayEnd.toISOString()),
+      orderBy('timestamp', 'asc'),
+      limit(1500),
+    ];
+    if (deviceId !== 'all') {
+      conditions.unshift(where('driverId', '==', deviceId));
+    }
 
-        const q = query(
+    const q = query(collection(db, 'truck_routes'), ...conditions);
+    const snap = await getDocs(q);
+    let data = snap.docs.map(d => d.data());
+
+    // Şirket izolasyonu
+    if (activeCompanyId) {
+      data = data.filter(d => !d.companyId || d.companyId === activeCompanyId);
+    }
+    if (deviceId !== 'all') {
+      // deviceId de dene (fallback)
+      if (data.length === 0) {
+        const q2 = query(
           collection(db, 'truck_routes'),
-          where('timestamp', '>=', startIso),
-          where('timestamp', '<=', endIso),
-          orderBy('timestamp', 'asc')
+          where('deviceId', '==', deviceId),
+          where('timestamp', '>=', dayStart.toISOString()),
+          where('timestamp', '<=', dayEnd.toISOString()),
+          orderBy('timestamp', 'asc'),
+          limit(1500),
         );
+        const snap2 = await getDocs(q2);
+        data = snap2.docs.map(d => d.data());
+        if (activeCompanyId) {
+          data = data.filter(d => !d.companyId || d.companyId === activeCompanyId);
+        }
+      }
+    }
 
-        const snapshot = await getDocs(q);
-        const allData  = snapshot.docs.map(d => d.data());
+    let totalKm = 0, topSpeed = 0, speedSum = 0, speedPoints = 0;
+    const sessions = [];
+    let curSession = [];
 
-        // Şirket izolasyonu (eski kayıtlarda companyId yok → İnaner kabul edilir)
-        const companyData = activeCompanyId
-          ? allData.filter(d => !d.companyId || d.companyId === activeCompanyId)
-          : allData;
+    for (let i = 0; i < data.length; i++) {
+      const pt = data[i];
+      const speedKmh = (pt.speed || 0) * 3.6;
+      if (speedKmh > topSpeed) topSpeed = speedKmh;
+      if (speedKmh > 5) { speedSum += speedKmh; speedPoints++; }
 
-        const filteredData = selectedDevice === 'all'
-          ? companyData
-          : companyData.filter(d => d.driverId === selectedDevice);
+      if (curSession.length === 0) {
+        curSession.push(pt);
+      } else {
+        const prev = curSession[curSession.length - 1];
+        const diff = new Date(pt.timestamp).getTime() - new Date(prev.timestamp).getTime();
+        if (diff > 30 * 60 * 1000) {
+          sessions.push(curSession); curSession = [pt];
+        } else {
+          totalKm += haversineKm(prev.lat, prev.lon, pt.lat, pt.lon);
+          curSession.push(pt);
+        }
+      }
+    }
+    if (curSession.length > 0) sessions.push(curSession);
 
-        // Hesaplamalar
-        let totalKm = 0, topSpeed = 0, speedSum = 0, speedPoints = 0;
-        const sessions = [];
-        let currentSession = [];
+    let totalDurMin = 0;
+    sessions.forEach(s => {
+      if (s.length > 1)
+        totalDurMin += (new Date(s[s.length-1].timestamp).getTime() - new Date(s[0].timestamp).getTime()) / 60000;
+    });
 
-        for (let i = 0; i < filteredData.length; i++) {
-          const pt       = filteredData[i];
-          const speedKmh = (pt.speed || 0) * 3.6;
+    return {
+      km: Math.round(totalKm * 10) / 10,
+      duration: Math.round(totalDurMin / 60 * 10) / 10,
+      maxSpeed: Math.round(topSpeed),
+      avgSpeed: speedPoints > 0 ? Math.round(speedSum / speedPoints) : 0,
+      tripCount: sessions.length,
+      pointCount: data.length,
+    };
+  };
 
-          if (speedKmh > topSpeed) topSpeed = speedKmh;
-          if (speedKmh > 5) { speedSum += speedKmh; speedPoints++; }
+  // ── Ana Hesaplama ───────────────────────────────────────────────────────
+  const handleCalculate = async () => {
+    setLoading(true);
+    setSnapshotInfo(null);
+    try {
+      const now = new Date();
+      const todayStr = toDateStr(now);
 
-          if (currentSession.length === 0) {
-            currentSession.push(pt);
-          } else {
-            const prev     = currentSession[currentSession.length - 1];
-            const timeDiff = new Date(pt.timestamp).getTime() - new Date(prev.timestamp).getTime();
-            if (timeDiff > 30 * 60 * 1000) {
-              sessions.push(currentSession);
-              currentSession = [pt];
-            } else {
-              totalKm += haversineKm(prev.lat, prev.lon, pt.lat, pt.lon);
-              currentSession.push(pt);
-            }
+      // ── Tarih aralığını belirle ──
+      let days = []; // [{ dateStr, dayStart, dayEnd }]
+
+      if (dateRange === 'today') {
+        const s = new Date(now); s.setHours(0,0,0,0);
+        const e = new Date(now); e.setHours(23,59,59,999);
+        days = [{ dateStr: todayStr, dayStart: s, dayEnd: e }];
+
+      } else if (dateRange === 'weekly' || dateRange === 'monthly') {
+        const count = dateRange === 'weekly' ? 7 : 30;
+        for (let i = 0; i < count; i++) {
+          const d = new Date(now);
+          d.setDate(d.getDate() - i);
+          const ds = toDateStr(d);
+          const dayStart = new Date(d); dayStart.setHours(0,0,0,0);
+          const dayEnd   = new Date(d); dayEnd.setHours(23,59,59,999);
+          days.push({ dateStr: ds, dayStart, dayEnd });
+        }
+
+      } else if (dateRange === 'custom') {
+        if (!customStart || !customEnd) { setLoading(false); return; }
+        const s = new Date(customStart);
+        const e = new Date(customEnd);
+        for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+          const ds = toDateStr(d);
+          const dayStart = new Date(d); dayStart.setHours(0,0,0,0);
+          const dayEnd   = new Date(d); dayEnd.setHours(23,59,59,999);
+          days.push({ dateStr: ds, dayStart, dayEnd });
+        }
+      }
+
+      // ── Her gün için snapshot kontrol et veya hesapla ──
+      let totalKm = 0, totalDur = 0, totalTrips = 0, maxSp = 0, avgSpSum = 0, avgSpCount = 0;
+      let fromCacheCount = 0;
+      let savedCount = 0;
+
+      for (const { dateStr, dayStart, dayEnd } of days) {
+        const isToday = dateStr === todayStr;
+        const devKey = selectedDevice === 'all' ? 'all' : selectedDevice;
+        const snapId = getSnapshotId(activeCompanyId, devKey, dateStr);
+
+        let dayStats = null;
+
+        // Bugün değilse cache'e bak
+        if (!isToday) {
+          const cached = await getDoc(doc(db, 'vehicle_daily_stats', snapId));
+          if (cached.exists()) {
+            dayStats = cached.data();
+            fromCacheCount++;
           }
         }
-        if (currentSession.length > 0) sessions.push(currentSession);
 
-        let totalDurationMin = 0;
-        sessions.forEach(s => {
-          if (s.length > 1) {
-            totalDurationMin += (new Date(s[s.length - 1].timestamp).getTime() - new Date(s[0].timestamp).getTime()) / 60000;
+        // Cache yoksa veya bugünse canlı hesapla
+        if (!dayStats) {
+          dayStats = await calcDayStats(selectedDevice, dayStart, dayEnd);
+          // Bugün değilse cache'e kaydet
+          if (!isToday && dayStats.km > 0) {
+            await saveSnapshot(devKey, dateStr, dayStats);
+            savedCount++;
           }
-        });
+        }
 
-        setStats({
-          km:        Math.round(totalKm),
-          duration:  Math.round(totalDurationMin / 60),
-          maxSpeed:  Math.round(topSpeed),
-          avgSpeed:  speedPoints > 0 ? Math.round(speedSum / speedPoints) : 0,
-          tripCount: sessions.length,
-        });
-      } catch (err) {
-        console.error('Analiz verisi çekme hatası:', err);
+        totalKm    += dayStats.km || 0;
+        totalDur   += dayStats.duration || 0;
+        totalTrips += dayStats.tripCount || 0;
+        if ((dayStats.maxSpeed || 0) > maxSp) maxSp = dayStats.maxSpeed;
+        if (dayStats.avgSpeed > 0) { avgSpSum += dayStats.avgSpeed; avgSpCount++; }
       }
-      setLoading(false);
-    };
 
-    fetchData();
-  }, [dateRange, customStart, customEnd, selectedDevice, activeCompanyId]);
+      setStats({
+        km: Math.round(totalKm),
+        duration: Math.round(totalDur),
+        maxSpeed: maxSp,
+        avgSpeed: avgSpCount > 0 ? Math.round(avgSpSum / avgSpCount) : 0,
+        tripCount: totalTrips,
+      });
+      setSnapshotInfo({ fromCache: fromCacheCount, saved: savedCount, total: days.length });
+
+    } catch (err) {
+      console.error('Analiz hatası:', err);
+    }
+    setLoading(false);
+  };
 
   const statCards = [
-    {
-      label: 'Toplam Mesafe',
-      value: stats.km.toLocaleString('tr-TR'),
-      unit: 'km',
-      icon: TrendingUp,
-      color: 'indigo',
-    },
-    {
-      label: 'Ort. / Max Hız',
-      value: stats.avgSpeed,
-      unit: 'km/h',
-      extra: `Max ${stats.maxSpeed}`,
-      extraColor: 'text-rose-400',
-      icon: Activity,
-      color: 'sky',
-    },
-    {
-      label: 'Sürüş Süresi',
-      value: stats.duration,
-      unit: 'saat',
-      icon: Clock,
-      color: 'amber',
-    },
-    {
-      label: 'Gerçekleşen Sefer',
-      value: stats.tripCount,
-      unit: 'adet',
-      icon: Navigation,
-      color: 'emerald',
-    },
+    { label: 'Toplam Mesafe',   value: stats?.km?.toLocaleString('tr-TR') ?? '-', unit: 'km',   icon: TrendingUp, color: 'indigo' },
+    { label: 'Ort. / Max Hız',  value: stats?.avgSpeed ?? '-',                    unit: 'km/h', icon: Activity,   color: 'sky',
+      extra: stats ? `Max ${stats.maxSpeed}` : '', extraColor: 'text-rose-400' },
+    { label: 'Sürüş Süresi',    value: stats?.duration ?? '-',                    unit: 'saat', icon: Clock,      color: 'amber' },
+    { label: 'Gerçekleşen Sefer',value: stats?.tripCount ?? '-',                  unit: 'adet', icon: Navigation, color: 'emerald' },
   ];
 
   const colorMap = {
@@ -193,12 +269,12 @@ export default function VehicleAnalysis({ activeTruckId }) {
           </div>
 
           {/* Filtreler */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
             {/* Araç seçimi */}
             <div className="relative">
               <select
                 value={selectedDevice}
-                onChange={e => setSelectedDevice(e.target.value)}
+                onChange={e => { setSelectedDevice(e.target.value); setStats(null); }}
                 className="appearance-none bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-2.5 pr-8 text-sm text-slate-200 focus:outline-none focus:border-indigo-500/40 transition-colors cursor-pointer"
                 style={{ colorScheme: 'dark' }}
               >
@@ -214,7 +290,7 @@ export default function VehicleAnalysis({ activeTruckId }) {
               {RANGES.map(r => (
                 <button
                   key={r.id}
-                  onClick={() => setDateRange(r.id)}
+                  onClick={() => { setDateRange(r.id); setStats(null); setSnapshotInfo(null); }}
                   className={`px-3 py-2 text-xs rounded-xl font-semibold transition-all duration-200 ${
                     dateRange === r.id
                       ? 'bg-gradient-to-b from-indigo-500 to-indigo-600 text-white shadow-md shadow-indigo-500/20'
@@ -225,6 +301,17 @@ export default function VehicleAnalysis({ activeTruckId }) {
                 </button>
               ))}
             </div>
+
+            <button
+              onClick={handleCalculate}
+              disabled={loading}
+              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-semibold rounded-2xl transition-colors shadow-lg shadow-indigo-500/25"
+            >
+              {loading
+                ? <><RefreshCw size={14} className="animate-spin" /> Hesaplanıyor...</>
+                : <><BarChart3 size={14} /> Hesapla</>
+              }
+            </button>
           </div>
         </div>
 
@@ -249,12 +336,27 @@ export default function VehicleAnalysis({ activeTruckId }) {
           </div>
         )}
 
-        {/* İstatistik Kartları */}
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+        {/* Henüz hesaplanmadı */}
+        {!stats && !loading && (
+          <div className="flex flex-col items-center justify-center py-16 bg-white/[0.02] border border-white/[0.05] rounded-3xl">
+            <BarChart3 size={48} className="text-slate-700 mb-4" />
+            <p className="text-slate-400 text-sm font-medium">Analizi görmek için "Hesapla" butonuna tıklayın</p>
+            <p className="text-slate-600 text-xs mt-2 text-center max-w-xs">
+              Geçmiş günler otomatik olarak önbelleğe alınır — bir sonraki sorguda anında gösterilir.
+            </p>
           </div>
-        ) : (
+        )}
+
+        {/* Yükleniyor */}
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin mb-4" />
+            <p className="text-slate-400 text-sm">Veriler hesaplanıyor...</p>
+          </div>
+        )}
+
+        {/* İstatistik Kartları */}
+        {stats && !loading && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {statCards.map(card => {
               const colors = colorMap[card.color];
@@ -264,13 +366,10 @@ export default function VehicleAnalysis({ activeTruckId }) {
                   key={card.label}
                   className="bg-white/[0.025] border border-white/[0.05] rounded-3xl p-5 relative overflow-hidden hover:border-white/[0.09] transition-all duration-300 group"
                 >
-                  {/* Glow */}
-                  <div className={`absolute -right-4 -top-4 w-20 h-20 ${colors.glow} rounded-full blur-2xl group-hover:opacity-150 transition-opacity`} />
-
+                  <div className={`absolute -right-4 -top-4 w-20 h-20 ${colors.glow} rounded-full blur-2xl`} />
                   <div className={`w-9 h-9 ${colors.bg} rounded-2xl flex items-center justify-center mb-4`}>
                     <Icon size={17} className={colors.text} />
                   </div>
-
                   <p className="text-[11px] text-slate-600 font-semibold mb-1">{card.label}</p>
                   <div className="flex items-baseline gap-1.5 flex-wrap">
                     <span className="text-2xl font-bold text-white">{card.value}</span>
@@ -285,13 +384,27 @@ export default function VehicleAnalysis({ activeTruckId }) {
           </div>
         )}
 
-        {/* Bilgi notu */}
-        <div className="flex items-center gap-3 p-4 bg-indigo-500/[0.07] border border-indigo-500/15 rounded-2xl">
-          <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse flex-shrink-0" />
-          <p className="text-xs text-indigo-300/70">
-            Veriler 30 dakikalık duraksamalara göre otomatik sefer mantığıyla bölünerek hesaplanmıştır.
-          </p>
-        </div>
+        {/* Snapshot bilgi notu */}
+        {snapshotInfo && !loading && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 p-4 bg-indigo-500/[0.07] border border-indigo-500/15 rounded-2xl">
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse flex-shrink-0" />
+              <p className="text-xs text-indigo-300/70">
+                {snapshotInfo.total} günlük veri analiz edildi.
+                {snapshotInfo.fromCache > 0 && ` ${snapshotInfo.fromCache} gün önbellekten okundu (0 ekstra okuma).`}
+              </p>
+            </div>
+            {snapshotInfo.saved > 0 && (
+              <div className="flex items-center gap-3 p-4 bg-emerald-500/[0.07] border border-emerald-500/15 rounded-2xl">
+                <Save size={12} className="text-emerald-400 flex-shrink-0" />
+                <p className="text-xs text-emerald-300/70">
+                  {snapshotInfo.saved} günün özeti kaydedildi. Bir sonraki sorguda otomatik önbellekten okunacak.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   );

@@ -19,7 +19,7 @@ export function haversineKm(lat1, lon1, lat2, lon2) {
  * 30 dakikadan uzun hareketsizliklere veya özel bölgelerdeki bekleme sürelerine (örn: 5 dk)
  * göre konum noktalarını oturumlara (rotalara) böler.
  */
-export function groupIntoSessions(points, maxGapMinutes = 30, geofences = [], manualSplits = []) {
+export function groupIntoSessions(points, maxGapMinutes = 30, geofences = [], manualSplits = [], manualMerges = []) {
   if (!points || !points.length) return [];
   const sessions = [];
   let curSession = [points[0]];
@@ -76,6 +76,18 @@ export function groupIntoSessions(points, maxGapMinutes = 30, geofences = [], ma
       });
       if (crossedSplit) {
         splitTriggered = true;
+      }
+    }
+
+    // Kural 4: Manuel Birleştirme Kontrolü (Kullanıcı arayüzden önceki seferle birleştirdiyse)
+    if (splitTriggered && manualMerges && manualMerges.length > 0) {
+      const crossedMerge = manualMerges.some(mergeIso => {
+        const mergeTime = new Date(mergeIso).getTime();
+        // Birleştirme noktası tam olarak curTime'a eşit veya aralığa düşüyorsa
+        return mergeTime === curTime || (mergeTime > prevTime && mergeTime <= curTime);
+      });
+      if (crossedMerge) {
+        splitTriggered = false; // Bölmeyi iptal et, birleştir!
       }
     }
 

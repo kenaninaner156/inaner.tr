@@ -10,15 +10,15 @@ const PANEL_BG     = 'rgba(13, 18, 25, 0.95)';
 const PANEL_BORDER = '1px solid rgba(255, 255, 255, 0.05)';
 const CARD_BG      = 'rgba(255, 255, 255, 0.03)';
 const CARD_BORDER  = '1px solid rgba(255, 255, 255, 0.05)';
-const ACTIVE_BG    = 'rgba(99, 102, 241, 0.1)';
-const ACTIVE_BORDER= '1px solid rgba(99, 102, 241, 0.22)';
+const ACTIVE_BG    = 'rgba(16, 185, 129, 0.1)';
+const ACTIVE_BORDER= '1px solid rgba(16, 185, 129, 0.22)';
 
 // ── Leaflet ikonları ─────────────────────────────────────────────────────
 const onlineIcon = new L.Icon({
   iconUrl: '/tir-clear.png?v=8',
   iconSize: [38, 38], iconAnchor: [19, 19],
   popupAnchor: [130, -10],
-  className: 'bg-white rounded-full border-[2.5px] border-indigo-500 shadow-[0_0_16px_rgba(99,102,241,0.55)] object-contain cursor-pointer',
+  className: 'bg-white rounded-full border-[2.5px] border-emerald-500 shadow-[0_0_16px_rgba(16,185,129,0.55)] object-contain cursor-pointer',
 });
 const offlineIcon = new L.Icon({
   iconUrl: '/tir-clear.png?v=8',
@@ -38,9 +38,16 @@ function getSpeedColor(speedMs) {
   return '#22c55e';
 }
 
-function SpeedPolylines({ session, isFollowed }) {
+function SpeedPolylines({ session, isFollowed, isOffline, zoom }) {
   if (!session || session.length < 2) return null;
   const segments = [];
+  
+  // Uzak mesafelerde kesik çizgi çok gürültülü durduğu için zoom bazlı mantık:
+  const shouldDash = isOffline && zoom >= 12;
+  const dashArray = shouldDash ? "10, 15" : null;
+  const opacity = isOffline ? (zoom < 12 ? 0.3 : 0.45) : (isFollowed ? 0.9 : 0.6);
+  const weight = isFollowed ? (zoom < 12 ? 3 : 5) : (zoom < 12 ? 1.5 : 3.5);
+
   for (let i = 0; i < session.length - 1; i++) {
     const a = session[i], b = session[i + 1];
     if (isNaN(a.lat) || isNaN(b.lat)) continue;
@@ -59,18 +66,25 @@ function SpeedPolylines({ session, isFollowed }) {
           key={i}
           positions={seg.positions}
           color={seg.color}
-          weight={isFollowed ? 5 : 3.5}
-          opacity={isFollowed ? 0.9 : 0.6}
+          weight={weight}
+          opacity={opacity}
+          dashArray={dashArray}
+          smoothFactor={2}
         />
       ))}
     </>
   );
 }
 
-function MapController({ sessionsByDriver, followedDriverId, setFollowedDriverId, didInitRef }) {
+function MapController({ sessionsByDriver, followedDriverId, setFollowedDriverId, didInitRef, setZoom }) {
   const map = useMap();
-  useMapEvents({ dragstart: () => setFollowedDriverId(null) });
+  
+  useMapEvents({ 
+    dragstart: () => setFollowedDriverId(null),
+    zoomend: () => setZoom(map.getZoom())
+  });
 
+  // 1. İLK AÇILIŞTA TÜM ARAÇLARI GÖRÜNTÜLE
   useEffect(() => {
     if (didInitRef.current || !map) return;
     const pts = [];
@@ -82,12 +96,15 @@ function MapController({ sessionsByDriver, followedDriverId, setFollowedDriverId
       if (!isNaN(p.lat) && !isNaN(p.lon)) pts.push([p.lat, p.lon]);
     });
     if (pts.length === 1) {
-      map.setView(pts[0], 13, { animate: true }); didInitRef.current = true;
+      map.setView(pts[0], 11, { animate: true, duration: 1 }); 
+      didInitRef.current = true;
     } else if (pts.length > 1) {
-      map.fitBounds(L.latLngBounds(pts), { padding: [80, 80], maxZoom: 13, animate: true }); didInitRef.current = true;
+      map.fitBounds(L.latLngBounds(pts), { padding: [80, 80], maxZoom: 11, animate: true, duration: 1 }); 
+      didInitRef.current = true;
     }
   }, [sessionsByDriver, map, didInitRef]);
 
+  // 2. TAKİP MODUNDA ARACI ORTALA
   useEffect(() => {
     if (!followedDriverId || !map) return;
     const sessions = sessionsByDriver[followedDriverId];
@@ -95,7 +112,10 @@ function MapController({ sessionsByDriver, followedDriverId, setFollowedDriverId
     const last = sessions[sessions.length - 1];
     if (!last.length) return;
     const p = last[last.length - 1];
-    if (!isNaN(p.lat) && !isNaN(p.lon)) map.panTo([p.lat, p.lon], { animate: true, duration: 0.5 });
+    if (!isNaN(p.lat) && !isNaN(p.lon)) {
+      // Sadece çok ufak kaymalar yap (smooth panning)
+      map.panTo([p.lat, p.lon], { animate: true, duration: 0.8 });
+    }
   }, [sessionsByDriver, followedDriverId, map]);
 
   return null;
@@ -110,8 +130,10 @@ function VehicleMarker({ driverId, lastPoint, isOnline, isFollowed, speedKmh, km
       setTimeout(() => { markerRef.current?.openPopup(); }, 50);
     } else {
       setFollowedDriverId(driverId);
+      // Daha geniş bir bakış açısı için zoom 11 (13 hala yakındı)
+      // 'flyTo' yerine 'setView' kullanıyoruz çünkü flyTo animasyonunda canvas bulanıklaşıyor
       setTimeout(() => {
-        map.flyTo([lastPoint.lat, lastPoint.lon], 16, { duration: 1.5, easeLinearity: 0.25 });
+        map.setView([lastPoint.lat, lastPoint.lon], 11, { animate: true, duration: 1.2 });
       }, 20);
     }
   };
@@ -166,7 +188,7 @@ function SidebarItem({ driverId, name, isOnline, speedKmh, km, lastPoint, isFoll
   return (
     <button
       onClick={() => {
-        map.flyTo([lastPoint.lat, lastPoint.lon], 16, { duration: 1.5, easeLinearity: 0.25 });
+        map.setView([lastPoint.lat, lastPoint.lon], 11, { animate: true, duration: 1.2 });
         setFollowedDriverId(driverId);
       }}
       style={{
@@ -179,15 +201,15 @@ function SidebarItem({ driverId, name, isOnline, speedKmh, km, lastPoint, isFoll
       <div style={{
         width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: isOnline ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.03)',
-        border: isOnline ? '1px solid rgba(99,102,241,0.2)' : '1px solid rgba(255,255,255,0.05)',
+        background: isOnline ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.03)',
+        border: isOnline ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(255,255,255,0.05)',
       }}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={isOnline ? '#818cf8' : '#475569'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={isOnline ? '#34d399' : '#475569'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
         </svg>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: isFollowed ? '#a5b4fc' : '#e2e8f0', truncate: true }}>{name}</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: isFollowed ? '#34d399' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
           <span style={{ fontSize: 10, color: isOnline ? '#22c55e' : '#475569', fontWeight: 500 }}>
             {isOnline ? '● Çevrimiçi' : '○ Çevrimdışı'}
@@ -203,7 +225,9 @@ function SidebarItem({ driverId, name, isOnline, speedKmh, km, lastPoint, isFoll
 export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappings, trucks }) {
   const [followedDriverId, setFollowedDriverId] = useState(null);
   const [showSidebar, setShowSidebar]           = useState(true);
+  const [zoom, setZoom] = useState(13);
   const didInitRef = useRef(false);
+  const autoSelectRef = useRef(false);
 
   // Harita etkileşimini sidebar üzerinde engelle
   const sidebarCallbackRef = useCallback(node => {
@@ -214,7 +238,11 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
   }, []);
 
   useEffect(() => {
-    if (!isVisible) { didInitRef.current = false; setFollowedDriverId(null); }
+    if (!isVisible) { 
+      didInitRef.current = false; 
+      autoSelectRef.current = false;
+      setFollowedDriverId(null); 
+    }
   }, [isVisible]);
 
   const listCallbackRef = useCallback((el) => {
@@ -226,7 +254,7 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
   const getDisplayName = (deviceId) => {
     const m = deviceMappings[deviceId];
     if (!m) return deviceId;
-    const truck = trucks.find(t => t.id === m.truckId);
+    const truck = (trucks||[]).find(t => t.id === m.truckId);
     return [m.driverName, truck?.plate].filter(Boolean).join(' - ') || deviceId;
   };
 
@@ -243,6 +271,13 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
       return { driverId, latestSession, lastPoint, isOnline, speedKmh, km, durationMin, name: getDisplayName(driverId) };
     }).filter(Boolean);
 
+  useEffect(() => {
+    if (isVisible && vehicleList.length === 1 && !autoSelectRef.current) {
+      setFollowedDriverId(vehicleList[0].driverId);
+      autoSelectRef.current = true;
+    }
+  }, [isVisible, vehicleList.length]);
+
   const onlineCount = vehicleList.filter(v => v.isOnline).length;
 
   return (
@@ -258,15 +293,18 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
         .vehicle-popup .leaflet-popup-close-button { color: #475569 !important; top: 8px !important; right: 10px !important; font-size: 20px !important; }
       `}</style>
 
-      <MapController sessionsByDriver={sessionsByDriver} followedDriverId={followedDriverId} setFollowedDriverId={setFollowedDriverId} didInitRef={didInitRef} />
+      <MapController sessionsByDriver={sessionsByDriver} followedDriverId={followedDriverId} setFollowedDriverId={setFollowedDriverId} didInitRef={didInitRef} setZoom={setZoom} />
 
       {/* Harita Katmanları — isVisible ise göster */}
       {isVisible && vehicleList.map(v => (
         <React.Fragment key={`live-${v.driverId}`}>
           {v.latestSession.length > 1 && (
-            v.isOnline
-              ? <SpeedPolylines session={v.latestSession} isFollowed={followedDriverId === v.driverId} />
-              : <Polyline positions={v.latestSession.filter(p => !isNaN(p.lat)).map(p => [p.lat, p.lon])} color="#334155" weight={2.5} opacity={0.4} dashArray="6,10" />
+            <SpeedPolylines 
+              session={v.latestSession} 
+              isFollowed={followedDriverId === v.driverId} 
+              isOffline={!v.isOnline}
+              zoom={zoom}
+            />
           )}
           <VehicleMarker driverId={v.driverId} lastPoint={v.lastPoint} isOnline={v.isOnline} isFollowed={followedDriverId === v.driverId} speedKmh={v.speedKmh} km={v.km} durationMin={v.durationMin} name={v.name} setFollowedDriverId={setFollowedDriverId} />
         </React.Fragment>
@@ -275,37 +313,42 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
       {/* Sidebar — Framer Motion ile Akışkan Geçiş */}
       <AnimatePresence>
         {isVisible && showSidebar && (
-          <motion.div 
+            <motion.div 
             ref={sidebarCallbackRef}
-            initial={{ x: -20, opacity: 0, scale: 0.98, filter: 'blur(10px)' }}
+            initial={{ x: -10, opacity: 0, scale: 0.99, filter: 'blur(4px)' }}
             animate={{ x: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
-            exit={{ x: -20, opacity: 0, scale: 0.98, filter: 'blur(10px)' }}
-            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-            className="absolute left-4 z-[1500]" 
-            style={{ top: '76px', width: 280, background: PANEL_BG, border: PANEL_BORDER, borderRadius: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.55)', overflow: 'hidden' }}
+            exit={{ x: -10, opacity: 0, scale: 0.99, filter: 'blur(4px)' }}
+            transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+            className="absolute top-[76px] left-4 w-[300px] z-[1500] flex flex-col rounded-3xl" 
+            style={{
+              background: 'rgba(13,18,25,0.97)',
+              border: '1px solid rgba(255,255,255,0.04)',
+              boxShadow: '0 8px 40px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.03)',
+              backdropFilter: 'blur(24px)',
+              overflow: 'hidden'
+            }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px 10px', borderBottom: CARD_BORDER }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Activity size={14} color="#818cf8" /><span style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0' }}>Canlı Araçlar</span></div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#22c55e', padding: '2px 7px', borderRadius: 20, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)' }}>{onlineCount} Aktif</span>
-                <button 
-                  onClick={() => setShowSidebar(false)} 
-                  style={{ 
-                    width: 24, height: 24, borderRadius: 8, 
-                    background: 'rgba(255,255,255,0.08)', 
-                    color: '#94a3b8', 
-                    border: 'none', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = '#fff'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#94a3b8'; }}
+            {/* Başlık */}
+            <div className="flex justify-between items-center px-5 py-4 border-b border-white/[0.05] shrink-0">
+              <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                <Activity size={15} className="text-emerald-400" />
+                Canlı Araçlar
+              </h2>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-bold text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-400/10 border border-emerald-400/20">
+                  {onlineCount} Aktif
+                </span>
+                <button
+                  onClick={() => setShowSidebar(false)}
+                  className="p-1.5 text-slate-500 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] rounded-xl transition-all"
                 >
-                  <X size={14} />
+                  <X size={13} />
                 </button>
               </div>
             </div>
-            <div ref={listCallbackRef} style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto', scrollbarWidth: 'none' }}>
+
+            {/* Liste */}
+            <div ref={listCallbackRef} className="p-3 flex flex-col gap-2 overflow-y-auto max-h-[calc(100vh-180px)]" style={{ scrollbarWidth: 'none' }}>
               {vehicleList.length === 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', gap: 8 }}><WifiOff size={24} color="#334155" /><span style={{ fontSize: 11, color: '#334155' }}>Aktif araç yok</span></div>
               ) : (
@@ -318,15 +361,14 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
 
       <AnimatePresence>
         {isVisible && !showSidebar && (
-          <motion.button 
+          <motion.button
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.8, opacity: 0 }}
-            onClick={() => setShowSidebar(true)} 
-            className="absolute left-4 z-[1500]" 
-            style={{ top: '76px', padding: '10px 14px', background: PANEL_BG, border: PANEL_BORDER, borderRadius: 14, color: '#818cf8', cursor: 'pointer', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: 6 }}
+            onClick={() => setShowSidebar(true)}
+            className="absolute left-4 top-[76px] z-[1500] p-3.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-2xl border border-emerald-500/20 transition-all backdrop-blur-md"
           >
-            <Activity size={15} /><span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>Araçlar</span>
+            <Activity size={16} />
           </motion.button>
         )}
       </AnimatePresence>
