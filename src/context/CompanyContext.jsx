@@ -15,6 +15,10 @@ export const CompanyProvider = ({ children }) => {
     const [companies, setCompanies] = useState([]);
 
     useEffect(() => {
+        // Only establish onSnapshot listeners if the user is authenticated
+        const hasSession = !!localStorage.getItem('tir_auth_kenan_v1');
+        if (!hasSession) return;
+
         const unsub = onSnapshot(collection(db, 'companies'), (snapshot) => {
             setCompanies(snapshot.docs.map(doc => ({ ...doc.data(), docRefId: doc.id })));
         });
@@ -22,7 +26,9 @@ export const CompanyProvider = ({ children }) => {
     }, []);
 
     useEffect(() => {
-        if (!activeCompanyId) return;
+        const hasSession = !!localStorage.getItem('tir_auth_kenan_v1');
+        if (!hasSession || !activeCompanyId) return;
+
         const unsub = onSnapshot(query(collection(db, 'companies'), where('id', '==', activeCompanyId)), (snapshot) => {
             if (!snapshot.empty) {
                 setCompanyData(snapshot.docs[0].data());

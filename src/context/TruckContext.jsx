@@ -16,7 +16,9 @@ export const TruckProvider = ({ children }) => {
 
     // Fetch all trucks for the active company
     useEffect(() => {
-        if (!activeCompanyId) return;
+        const hasSession = !!localStorage.getItem('tir_auth_kenan_v1');
+        if (!hasSession || !activeCompanyId) return;
+
         const unsub = onSnapshot(query(collection(db, 'trucks'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
             setTrucks(data);
