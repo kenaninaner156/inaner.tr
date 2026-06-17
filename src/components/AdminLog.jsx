@@ -29,7 +29,7 @@ const ACTION_LABELS = {
 };
 
 const AdminLog = () => {
-    const { adminLog, pendingUsers, approvedUsers, onlineUsers, approveUser, rejectUser, editUser, refreshUsers, restoreData, addApprovedUser, clearLog } = useContext(DataContext);
+    const { adminLog, pendingUsers, approvedUsers, onlineUsers, approveUser, rejectUser, editUser, refreshUsers, restoreData, addApprovedUser, clearLog, deleteUser } = useContext(DataContext);
     const { companies, activeCompanyId } = useContext(CompanyContext);
     const [filter, setFilter] = useState('TUMU');
     const [tab, setTab] = useState('log'); // 'log' | 'users'
@@ -63,11 +63,14 @@ const AdminLog = () => {
 
     const handleEditStart = (u) => {
         setEditingUserId(u.id);
-        setEditForm({ username: u.username, password: u.password, role: u.role || 'şoför', companyId: u.companyId || activeCompanyId || '' });
+        setEditForm({ username: u.username, password: '', role: u.role || 'şoför', companyId: u.companyId || activeCompanyId || '' });
     };
 
     const handleEditSave = async (userId) => {
-        // Artık ham metin olarak saklıyoruz (user isteği üzerine btoa kaldırıldı)
+        if (editForm.password && editForm.password.length < 6) {
+            alert("Şifre en az 6 karakter olmalı!");
+            return;
+        }
         await editUser(userId, editForm);
         setEditingUserId(null);
         if (refreshUsers) refreshUsers();
@@ -75,7 +78,10 @@ const AdminLog = () => {
 
     const handleAddManualUser = async (e) => {
         e.preventDefault();
-        // Ham metin olarak kaydediliyor
+        if (newUserForm.password.length < 6) {
+            alert("Şifre en az 6 karakter olmalı!");
+            return;
+        }
         const finalCompanyId = newUserForm.companyId || activeCompanyId;
         await addApprovedUser({ ...newUserForm, companyId: finalCompanyId });
         setIsAddUserModalOpen(false);
@@ -426,7 +432,7 @@ const AdminLog = () => {
                                                         <span className="text-[10px] bg-slate-500/10 text-[var(--text-secondary)] border border-slate-500/20 px-1.5 py-0.5 rounded-md uppercase tracking-wider">{u.role || 'Şoför'}</span>
                                                         <span className="text-[10px] bg-slate-500/10 text-slate-300 border border-slate-500/20 px-1.5 py-0.5 rounded-md font-bold tracking-wider">{(companies || []).find(c => c.id === u.companyId)?.name || 'Şirketsiz'}</span>
                                                     </p>
-                                                    <p className="text-[var(--text-primary)] text-xs mt-0.5 bg-white/5 inline-block px-1.5 py-0.5 rounded border border-[var(--border-color)] mt-1.5 font-mono">Şifre: {u.password}</p>
+                                                    <p className="text-[var(--text-primary)] text-xs mt-0.5 bg-white/5 inline-block px-1.5 py-0.5 rounded border border-[var(--border-color)] mt-1.5 font-mono">Şifre: *******</p>
                                                     <p className="text-slate-500 text-[10px] mt-1">Onay: {new Date(u.approvedAt).toLocaleDateString('tr-TR')}</p>
                                                 </div>
                                             </div>
@@ -548,8 +554,7 @@ const AdminLog = () => {
                             </button>
                             <button onClick={async () => {
                                 try {
-                                    const { doc, deleteDoc } = await import('firebase/firestore');
-                                    await deleteDoc(doc(db, 'approved_users', userToDelete.id));
+                                    await deleteUser(userToDelete.id);
                                     setIsDeleteModalOpen(false);
                                     setUserToDelete(null);
                                     if (refreshUsers) refreshUsers();

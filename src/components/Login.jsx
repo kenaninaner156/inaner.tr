@@ -2,7 +2,7 @@ import React, { useState, useContext, useEffect } from 'react';
 import { DataContext } from '../context/DataContext';
 import { User, Lock, Eye, EyeOff, AlertCircle, UserPlus, ChevronLeft } from 'lucide-react';
 import { db, auth } from '../services/firebaseConfig';
-import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 
 const getAdvancedMeta = async () => {
@@ -127,31 +127,30 @@ const Login = () => {
 
         try {
             // Firebase Auth Login
-            await signInWithEmailAndPassword(auth, email, password);
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            const uid = userCredential.user.uid;
 
-            // Fetch user role from approved_users
-            const usersRef = collection(db, 'approved_users');
-            const q = query(usersRef, where('authEmail', '==', email));
-            const querySnapshot = await getDocs(q);
+            // Fetch user role from approved_users directly by UID document ID
+            const userDocRef = doc(db, 'approved_users', uid);
+            const userDocSnap = await getDoc(userDocRef);
 
             let userRole = 'user';
             let companyId = null;
 
-            if (!querySnapshot.empty) {
-                const userDoc = querySnapshot.docs[0].data();
+            if (userDocSnap.exists()) {
+                const userDoc = userDocSnap.data();
                 userRole = userDoc.role || 'user';
                 companyId = userDoc.companyId;
             } else if (uname === 'kenan') {
                 userRole = 'super_admin';
             } else {
-                // Check if pending
-                const pendingRef = collection(db, 'pending_users');
-                const pq = query(pendingRef, where('username', '==', uname));
-                const pSnapshot = await getDocs(pq);
+                // Check if pending directly by UID
+                const pendingDocRef = doc(db, 'pending_users', uid);
+                const pendingSnap = await getDoc(pendingDocRef);
                 
                 await signOut(auth); // Sign out if not approved
                 
-                if (!pSnapshot.empty) {
+                if (pendingSnap.exists()) {
                     setError('Hesabınız henüz admin tarafından onaylanmadı. Lütfen bekleyin.');
                 } else {
                     setError('Kullanıcı hesabı bulunamadı. Lütfen yetkiliyle görüşün.');
@@ -206,10 +205,12 @@ const Login = () => {
 
         try {
             const email = `${uname}@inaner.com`;
+            let uid = null;
             
             // Create Firebase Auth user
             try {
-                await createUserWithEmailAndPassword(auth, email, password);
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                uid = userCredential.user.uid;
                 await signOut(auth); // Immediately sign out the pending user
             } catch (authError) {
                 if (authError.code === 'auth/email-already-in-use') {
@@ -221,8 +222,8 @@ const Login = () => {
                 return;
             }
 
-            // Şifreyi VERİTABANINA ASLA KAYDETMİYORUZ. Sadece Auth tablosunda güvenle tutulur.
-            await addDoc(collection(db, 'pending_users'), {
+            // Şifreyi VERİTABANINA ASLA KAYDETMİYORUZ. UID'yi döküman kimliği yaparak pending_users'a yazıyoruz.
+            await setDoc(doc(db, 'pending_users', uid), {
                 username: uname,
                 role: 'user',
                 createdAt: new Date().toISOString()

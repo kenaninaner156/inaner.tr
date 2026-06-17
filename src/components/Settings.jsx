@@ -3,6 +3,7 @@ import { Settings as SettingsIcon, Database, Save, Server, ShieldCheck, Camera, 
 import WipeData from './WipeData';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
+import { auth } from '../services/firebaseConfig';
 
 const Settings = () => {
     const { updateTruckImage, currentSession, approvedUsers, editUser, addLog } = useContext(DataContext);
@@ -56,8 +57,8 @@ const Settings = () => {
         e.preventDefault();
         setPasswordStatus({ type: '', message: '' });
 
-        if (newPassword.length < 4) {
-            setPasswordStatus({ type: 'error', message: 'Şifreniz en az 4 karakter uzunluğunda olmalıdır.' });
+        if (newPassword.length < 6) {
+            setPasswordStatus({ type: 'error', message: 'Şifreniz en az 6 karakter uzunluğunda olmalıdır.' });
             return;
         }
 
@@ -67,20 +68,16 @@ const Settings = () => {
         }
 
         try {
-            // "approved_users" içinden currentSession username ile ID bul
-            const currentUserDoc = approvedUsers.find(u => u.username === currentSession?.username);
+            const currentUid = auth.currentUser?.uid;
             
-            if (currentUserDoc && currentUserDoc.id) {
-                await editUser(currentUserDoc.id, { password: newPassword });
+            if (currentUid) {
+                await editUser(currentUid, { password: newPassword });
                 addLog('SIFRE_DEGISTIR', `${currentSession.username} kendi şifresini güncelledi`);
                 setPasswordStatus({ type: 'success', message: 'Şifreniz başarıyla değiştirildi!' });
                 setNewPassword('');
                 setConfirmNewPassword('');
-            } else if (currentSession?.username === 'kenan') {
-                // Eğer kenan db'de yok ama hardcoded login ise:
-                setPasswordStatus({ type: 'error', message: 'Süper admin için veritabanında "kenan" hesabını göremedik. Önce CompanyAdmin kaydı açmalısınız.' });
             } else {
-                setPasswordStatus({ type: 'error', message: 'Hesap bilgilerinize ulaşılamadı.' });
+                setPasswordStatus({ type: 'error', message: 'Oturum bilgilerinize ulaşılamadı. Lütfen tekrar giriş yapın.' });
             }
         } catch {
             setPasswordStatus({ type: 'error', message: 'Şifre güncellenirken bir hata oluştu.' });

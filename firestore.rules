@@ -1,0 +1,140 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Yardımcı Fonksiyonlar
+    
+    // Kullanıcının giriş yapıp yapmadığını kontrol eder
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Giriş yapan kullanıcının onaylı (approved) olup olmadığını kontrol eder ve onaylı kullanıcı dökümanını döner
+    function getApprovedUser() {
+      return get(/databases/$(database)/documents/approved_users/$(request.auth.uid)).data;
+    }
+    
+    // Kullanıcının onaylı bir üye olup olmadığını doğrular
+    function isApproved() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/approved_users/$(request.auth.uid));
+    }
+    
+    // Kullanıcının şirket ID'sini alır
+    function getCompanyId() {
+      return getApprovedUser().companyId;
+    }
+    
+    // Kullanıcının rolünü alır
+    function getUserRole() {
+      return getApprovedUser().role;
+    }
+    
+    // Kullanıcının Super Admin olup olmadığını kontrol eder (Kenan için yedekli kontrol)
+    function isSuperAdmin() {
+      return isApproved() && (getUserRole() == 'super_admin' || request.auth.token.email == 'kenan@inaner.com');
+    }
+    
+    // Kullanıcının Şirket Yöneticisi olup olmadığını kontrol eder
+    function isCompanyAdmin() {
+      return isApproved() && getUserRole() == 'company_admin';
+    }
+    
+    // Kullanıcının Admin veya Super Admin olup olmadığını kontrol eder
+    function isAdmin() {
+      return isSuperAdmin() || isCompanyAdmin();
+    }
+
+    // --- Kurallar ---
+
+    // 1. Şirketler (companies)
+    match /companies/{companyDoc} {
+      // Herhangi bir onaylı kullanıcı şirketleri listeleyebilir/okuyabilir
+      allow read: if isApproved();
+      // Sadece Super Admin şirket oluşturabilir, askıya alabilir veya silebilir
+      allow write: if isSuperAdmin();
+    }
+
+    // 2. Bekleyen Başvurular (pending_users)
+    match /pending_users/{userId} {
+      // Bir kullanıcı kendi UID'si ile başvuru oluşturabilir ve kendi başvurusunu okuyabilir
+      allow create, read: if isAuthenticated() && request.auth.uid == userId;
+      // Adminler tüm bekleyen başvuruları görebilir ve silebilir (onaylama/reddetme sürecinde)
+      allow read, delete: if isApproved() && isAdmin();
+      // Diğer durumlarda güncellenemez
+      allow update: if false;
+    }
+
+    // 3. Onaylı Kullanıcılar (approved_users)
+    match /approved_users/{userId} {
+      // Bir kullanıcı kendi bilgilerini okuyabilir
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      // Aynı şirketteki onaylı kullanıcılar birbirlerini listeleyebilir (Şoför listesi vb. için)
+      allow read: if isApproved() && getCompanyId() == resource.data.companyId;
+      // Super Admin her kaydı oluşturabilir/güncelleyebilir/silebilir
+      allow write: if isSuperAdmin();
+      // Şirket Yöneticisi kendi şirketindeki kullanıcıları yönetebilir (başka bir admin veya super_admin oluşturamaz)
+      allow write: if isCompanyAdmin() 
+                    && (resource == null || resource.data.companyId == getCompanyId()) 
+                    && (request.resource == null || request.resource.data.companyId == getCompanyId())
+                    && (request.resource == null || (request.resource.data.role != 'company_admin' && request.resource.data.role != 'super_admin'));
+    }
+
+    // 4. Şirket Verileri (Tüm Şirket Alt Koleksiyonları: trips, fuel, maintenance, payments, penalties, vb.)
+    // Bu koleksiyonlar sadece ait oldukları şirket çalışanları tarafından erişilebilir.
+    
+    match /{collectionName}/{document} {
+      // Şirket verisi içeren koleksiyonlar listesi
+      function isCompanyDataCollection() {
+        return collectionName in [
+          'trips', 'fuel', 'maintenance', 'payments', 'penalties', 
+          'invoices', 'payouts', 'spare_parts', 'mechanics', 'shopping_list', 
+          'geofences', 'manual_splits', 'manual_merges', 'manual_deletes', 
+          'custom_route_names', 'maintenance_folders', 'company_data'
+        ];
+      }
+      
+      // Şirket verileri için okuma/yazma kuralı
+      allow read: if isApproved() && isCompanyDataCollection() && (
+        (resource != null && resource.data.companyId == getCompanyId()) ||
+        // company_data dökümanları şirket ID'si ile başlayan isimlendirmeye sahip olabiliyor (Örn: comp_xxx_info)
+        (collectionName == 'company_data' && (document == 'info' || document.startsWith(getCompanyId())))
+      );
+      
+      allow write: if isApproved() && isCompanyDataCollection() && (
+        // Yeni veri eklerken kendi şirket ID'sini yazmak zorundadır
+        (request.resource != null && request.resource.data.companyId == getCompanyId()) ||
+        // company_data dökümanları için yetkilendirme
+        (collectionName == 'company_data' && document.startsWith(getCompanyId()))
+      );
+    }
+
+    // 5. Canlı Konum Takibi (truck_routes)
+    match /truck_routes/{routeId} {
+      // Canlı konumları haritada görmek için aynı şirketteki onaylı üyeler okuyabilir
+      allow read: if isApproved();
+      // GÜVENLİK AÇIĞI KAPATILDI: İstemci (tarayıcı) doğrudan konum yazamaz.
+      // Yazma işlemi sadece backend sunucusundaki Firebase Admin SDK (save-location) tarafından gerçekleştirilir.
+      allow write: if false;
+    }
+    
+    // 6. Sistem Logları (admin_logs)
+    match /admin_logs/{logId} {
+      // Logları okuma yetkisi sadece Adminlere verilir (Kendi şirketlerinin logları)
+      allow read: if isApproved() && isAdmin() && (
+        isSuperAdmin() || resource.data.companyId == getCompanyId()
+      );
+      // Log yazma yetkisi tüm onaylı kullanıcılara veya misafirlere (ziyaretçi girişi logları için) açıktır
+      allow create: if true;
+      // Loglar güncellenemez veya silinemez (Log bütünlüğü koruması)
+      allow update, delete: if false;
+    }
+    
+    // 7. Online Durum Takibi (presence)
+    match /presence/{presenceId} {
+      // Her onaylı kullanıcı online listesini okuyabilir ve kendi durumunu güncelleyebilir/silebilir
+      allow read: if isApproved();
+      allow write: if isAuthenticated() && presenceId.startsWith(request.auth.uid) || presenceId.startsWith(getApprovedUser().username);
+    }
+  }
+}

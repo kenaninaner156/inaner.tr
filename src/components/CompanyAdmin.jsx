@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
 import { DataContext } from '../context/DataContext';
-import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key, BarChart3 } from 'lucide-react';
+import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key, BarChart3, Award } from 'lucide-react';
 import { db } from '../services/firebaseConfig';
 import { collection, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import VehicleAnalysis from './map/VehicleAnalysis';
@@ -10,7 +10,7 @@ import VehicleAnalysis from './map/VehicleAnalysis';
 const CompanyAdmin = () => {
     const { activeCompanyId, companyData } = useCompany();
     const { trucks, activeTruckId, setActiveTruckId } = useTruck();
-    const { approvedUsers, pendingUsers, approveUser, rejectUser } = useContext(DataContext);
+    const { approvedUsers, pendingUsers, approveUser, rejectUser, premiums, updatePremiums, editUser, deleteUser } = useContext(DataContext);
 
     const [activeTab, setActiveTab] = useState('trucks');
 
@@ -21,7 +21,6 @@ const CompanyAdmin = () => {
     // Yeni: Şifre Düzenleme
     const [editingUserId, setEditingUserId] = useState(null);
     const [newUserPassword, setNewUserPassword] = useState('');
-    const { editUser } = useContext(DataContext);
 
 
     // Truck Form
@@ -31,6 +30,65 @@ const CompanyAdmin = () => {
 
     const [editingTruckId, setEditingTruckId] = useState(null);
     const [editTruckForm, setEditTruckForm] = useState({ plate: '', brand: '', status: 'active' });
+
+    // Premiums Management State
+    const [showPremiumForm, setShowPremiumForm] = useState(false);
+    const [editingPremiumId, setEditingPremiumId] = useState(null);
+    const [premName, setPremName] = useState('');
+    const [premType, setPremType] = useState('fixed');
+    const [premAmount, setPremAmount] = useState('');
+
+    const resetPremiumForm = () => {
+        setPremName('');
+        setPremType('fixed');
+        setPremAmount('');
+    };
+
+    const handleSavePremium = async (e) => {
+        e.preventDefault();
+        const amountVal = parseFloat(premAmount) || 0;
+        let newPremiums;
+        
+        if (editingPremiumId) {
+            newPremiums = premiums.map(p => p.id === editingPremiumId ? { ...p, name: premName, type: premType, amount: amountVal } : p);
+        } else {
+            const newPremium = {
+                id: 'prim_' + Date.now().toString(36),
+                name: premName,
+                type: premType,
+                amount: amountVal
+            };
+            newPremiums = [...premiums, newPremium];
+        }
+
+        try {
+            await updatePremiums(newPremiums);
+            resetPremiumForm();
+            setShowPremiumForm(false);
+            setEditingPremiumId(null);
+        } catch {
+            alert("Prim kaydedilirken hata oluştu.");
+        }
+    };
+
+    const handleEditPremium = (prem) => {
+        setEditingPremiumId(prem.id);
+        setPremName(prem.name);
+        setPremType(prem.type);
+        setPremAmount(prem.amount);
+        setShowPremiumForm(true);
+    };
+
+    const handleDeletePremium = async (id, name) => {
+        if (window.confirm(`"${name}" prim şablonunu silmek istediğinize emin misiniz?`)) {
+            try {
+                const newPremiums = premiums.filter(p => p.id !== id);
+                await updatePremiums(newPremiums);
+            } catch {
+                alert("Prim silinirken hata oluştu.");
+            }
+        }
+    };
 
     const handleAddTruck = async (e) => {
         e.preventDefault();
@@ -102,6 +160,14 @@ const CompanyAdmin = () => {
                 >
                     <div className="flex items-center"><BarChart3 size={16} className="mr-2" /> Araç Analiz</div>
                 </button>
+                {companyData?.personnelEnabled && (
+                    <button
+                        onClick={() => setActiveTab('premiums')}
+                        className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'premiums' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                    >
+                        <div className="flex items-center"><Award size={16} className="mr-2" /> Prim Ayarları</div>
+                    </button>
+                )}
             </div>
 
             {/* Trucks Tab */}
@@ -253,17 +319,17 @@ const CompanyAdmin = () => {
                                             </span>
                                             {editingUserId !== driver.id && (
                                                 <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full flex items-center font-mono cursor-pointer hover:bg-slate-600 transition"
-                                                      onClick={() => { setEditingUserId(driver.id); setNewUserPassword(driver.password); }}
+                                                      onClick={() => { setEditingUserId(driver.id); setNewUserPassword(''); }}
                                                       title="Şifreyi Değiştirmek için Tıkla">
-                                                    <Key size={10} className="mr-1" /> {driver.password}
+                                                    <Key size={10} className="mr-1" /> Şifre Değiştir
                                                 </span>
                                             )}
                                         </div>
                                         {editingUserId === driver.id && (
                                             <div className="mt-2 flex gap-1">
-                                                <input type="text" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)}
-                                                    className="w-full bg-[var(--bg-base)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs rounded-md px-2 py-1 outline-none" placeholder="Yeni Şifre" />
-                                                <button onClick={() => { if(newUserPassword.length>3){ editUser(driver.id, {password: newUserPassword}); setEditingUserId(null); }else{ alert('Şifre en az 4 karakter olmalı!'); } }} className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 p-1 rounded-md"><Check size={14}/></button>
+                                                <input type="password" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)}
+                                                    className="w-full bg-[var(--bg-base)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs rounded-md px-2 py-1 outline-none" placeholder="Yeni Şifre (En az 6 karakter)" />
+                                                <button onClick={() => { if(newUserPassword.length>=6){ editUser(driver.id, {password: newUserPassword}); setEditingUserId(null); }else{ alert('Şifre en az 6 karakter olmalı!'); } }} className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 p-1 rounded-md"><Check size={14}/></button>
                                                 <button onClick={() => setEditingUserId(null)} className="bg-slate-700 hover:bg-slate-600 text-slate-300 p-1 rounded-md"><X size={14}/></button>
                                             </div>
                                         )}
@@ -297,6 +363,80 @@ const CompanyAdmin = () => {
                 </div>
             )}
 
+            {/* Premiums Tab */}
+            {activeTab === 'premiums' && companyData?.personnelEnabled && (
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center bg-[var(--bg-panel-hover)] p-4 rounded-xl border border-[var(--border-color)]">
+                        <div className="text-sm text-[var(--text-primary)]">Sistemde tanımlı toplam <strong>{premiums.length}</strong> prim şablonu bulunuyor.</div>
+                        <button onClick={() => { setShowPremiumForm(!showPremiumForm); setEditingPremiumId(null); resetPremiumForm(); }} className="bg-indigo-500 hover:bg-indigo-600 text-[var(--text-primary)] px-4 py-2 rounded-lg text-sm font-medium flex items-center transition-colors">
+                            <Plus size={16} className="mr-1.5" /> Yeni Prim Şablonu Ekle
+                        </button>
+                    </div>
+
+                    {showPremiumForm && (
+                        <form onSubmit={handleSavePremium} className="glass-panel p-5 grid grid-cols-1 md:grid-cols-4 gap-4 border border-indigo-500/20">
+                            <div>
+                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Prim Adı</label>
+                                <input type="text" required value={premName} onChange={e => setPremName(e.target.value)} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none" placeholder="Örn: Kısa Yol Primi" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Prim Tipi</label>
+                                <select value={premType} onChange={e => setPremType(e.target.value)} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none">
+                                    <option value="fixed">Sabit Tutar</option>
+                                    <option value="perTonnage">Ton Başı Tutar</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">{premType === 'fixed' ? 'Sabit Tutar (₺)' : 'Ton Başı Tutar (₺)'}</label>
+                                <input type="number" required value={premAmount} onChange={e => setPremAmount(e.target.value)} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none" placeholder="Örn: 500" />
+                            </div>
+                            <div className="flex items-end">
+                                <button type="submit" className="w-full bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                                    {editingPremiumId ? 'Güncelle' : 'Kaydet'}
+                                </button>
+                            </div>
+                        </form>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {premiums.map(prem => (
+                            <div key={prem.id} className="glass-panel p-5 relative group transition-all border-[var(--border-color)] hover:border-slate-600 flex flex-col">
+                                <div className="flex justify-between items-start mb-3">
+                                    <div className="w-10 h-10 rounded-lg bg-[var(--bg-panel-hover)] flex items-center justify-center border border-[var(--border-color)]">
+                                        <Award size={20} className="text-indigo-400" />
+                                    </div>
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400">
+                                        {prem.type === 'fixed' ? 'SABİT TUTAR' : 'TON BAŞI'}
+                                    </span>
+                                </div>
+
+                                <div className="mb-4 flex-1">
+                                    <h4 className="text-lg font-bold tracking-tight text-[var(--text-primary)] mb-1 truncate" title={prem.name}>{prem.name}</h4>
+                                    <p className="text-2xl font-black text-emerald-400 leading-none mt-2">
+                                        ₺{Number(prem.amount).toLocaleString('tr-TR')}
+                                        {prem.type === 'perTonnage' && <span className="text-xs text-[var(--text-secondary)] font-normal"> / ton</span>}
+                                    </p>
+                                </div>
+
+                                <div className="pt-3 border-t border-[var(--border-color)] flex justify-end gap-1.5 mt-auto">
+                                    <button onClick={() => handleEditPremium(prem)} className="text-slate-500 hover:text-indigo-400 p-1.5 bg-[var(--bg-panel-hover)] hover:bg-indigo-500/10 rounded-md transition-colors" title="Düzenle">
+                                        <Edit2 size={13} />
+                                    </button>
+                                    <button onClick={() => handleDeletePremium(prem.id, prem.name)} className="text-slate-500 hover:text-red-400 p-1.5 bg-[var(--bg-panel-hover)] hover:bg-red-500/10 rounded-md transition-colors" title="Sil">
+                                        <Trash2 size={13} />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                        {premiums.length === 0 && (
+                            <div className="col-span-full text-center py-10 text-slate-500 text-sm">
+                                Henüz tanımlı prim şablonu bulunmuyor.
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Kullanıcı Silme Onay Modalı */}
             {isDeleteModalOpen && userToDelete && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[var(--bg-base)] backdrop-blur-md">
@@ -314,7 +454,7 @@ const CompanyAdmin = () => {
                             </button>
                             <button onClick={async () => {
                                 try {
-                                    await deleteDoc(doc(db, 'approved_users', userToDelete.id));
+                                    await deleteUser(userToDelete.id);
                                     setIsDeleteModalOpen(false);
                                     setUserToDelete(null);
                                 } catch {

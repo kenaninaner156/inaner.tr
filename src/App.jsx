@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 import {
   Menu, X, Truck, MapPin, FileText, Droplet, Wrench,
-  CreditCard, PieChart, Calendar, Settings, Shield, LogOut, Bell, AlertTriangle, Sun, Moon, Waves, ChevronDown, Building2, Server
+  CreditCard, PieChart, Calendar, Settings, Shield, LogOut, Bell, AlertTriangle, Sun, Moon, Waves, ChevronDown, Building2, Server, Users
 } from 'lucide-react'
 import Dashboard from './components/Dashboard'
 import Trips from './components/Trips'
@@ -22,6 +22,7 @@ import { useCompany } from './context/CompanyContext'
 import { useTruck } from './context/TruckContext'
 import PremiumLogo from './components/PremiumLogo'
 import MapPage from './components/MapPage'
+import Personnel from './components/Personnel'
 
 function App() {
   const [activeTab, setActiveTab] = useState(() => {
@@ -180,6 +181,7 @@ function App() {
     { id: 'detaylar', label: 'Ceza & Belgeler', icon: <AlertTriangle size={20} />, badge: notifCount, theme: 'from-red-500/80 to-red-600/80 shadow-[0_2px_12px_rgba(239,68,68,0.3)] border-red-400/30', hoverText: 'group-hover:text-red-400' },
     { id: 'invoices', label: 'Fatura Durumu', icon: <FileText size={20} />, theme: 'from-emerald-500/80 to-emerald-600/80 shadow-[0_2px_12px_rgba(16,185,129,0.3)] border-emerald-400/30', hoverText: 'group-hover:text-emerald-400' },
     { id: 'payments', label: 'Ödeme Takibi', icon: <CreditCard size={20} />, theme: 'from-green-500/80 to-green-600/80 shadow-[0_2px_12px_rgba(34,197,94,0.3)] border-green-400/30', hoverText: 'group-hover:text-green-400' },
+    { id: 'personel', label: 'Personel', icon: <Users size={20} />, theme: 'from-orange-500/80 to-orange-600/80 shadow-[0_2px_12px_rgba(249,115,22,0.3)] border-orange-400/30', hoverText: 'group-hover:text-orange-400' },
     { id: 'map', label: 'Harita', badge_beta: true, icon: <MapPin size={20} />, theme: 'from-[#c99c37]/70 to-[#c99c37]/90 shadow-[0_2px_12px_rgba(201,156,55,0.3)] border-[#c99c37]/30', hoverText: 'group-hover:text-[#c99c37]' },
     { id: 'company_admin', label: 'Şirket Yönetimi', icon: <Building2 size={20} />, theme: 'from-indigo-500/80 to-indigo-600/80 shadow-[0_2px_12px_rgba(99,102,241,0.3)] border-indigo-400/30', hoverText: 'group-hover:text-indigo-400' },
     { id: 'super_admin', label: 'SaaS Yönetimi', icon: <Server size={20} />, theme: 'from-fuchsia-500/80 to-fuchsia-600/80 shadow-[0_2px_12px_rgba(217,70,239,0.3)] border-fuchsia-400/30', hoverText: 'group-hover:text-fuchsia-400' },
@@ -189,6 +191,9 @@ function App() {
 
 
   const filteredMenuItems = menuItems.filter(item => {
+    if (item.id === 'personel' && !companyData?.personnelEnabled) return false;
+    if (item.id === 'map' && !companyData?.mapEnabled) return false;
+
     if (userRole === 'super_admin') return true;
 
     if (userRole === 'company_admin') {
@@ -196,7 +201,7 @@ function App() {
     }
 
     // Default 'şoför' (Sürücü) -> Sadece operasyonel sekmeleri görür
-    return !['adminlog', 'super_admin', 'company_admin', 'map'].includes(item.id);
+    return !['adminlog', 'super_admin', 'company_admin', 'map', 'personel'].includes(item.id);
   })
 
   // Login ekranı
@@ -550,6 +555,7 @@ function App() {
               {activeTab === 'detaylar' && <Detaylar />}
               {activeTab === 'invoices' && <Invoices />}
               {activeTab === 'payments' && <Payments />}
+              {activeTab === 'personel' && <Personnel />}
               {activeTab === 'settings' && <SettingsPage />}
               {activeTab === 'company_admin' && <CompanyAdmin />}
               {activeTab === 'super_admin' && <SuperAdmin />}

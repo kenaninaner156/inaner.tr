@@ -194,6 +194,18 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--accent-glow) inset, 0 4px 12px rgba(0, 0, 0, 0.05);
   }
+
+  /* Tarih takvim ikonunu karanlık modda görünür yap */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+  }
+  
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -242,6 +254,10 @@
 
 .light .glass-input::placeholder {
   color: #ADB5BD !important;
+}
+
+.light input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0);
 }
 
 .light .bg-slate-900\/50,

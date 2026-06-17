@@ -3,9 +3,13 @@ import { createPortal } from 'react-dom';
 import { Plus, Search, MapPin, X, ChevronDown, Check, Trash2, Paperclip, FileText, Pencil, StickyNote, Truck } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import FileUpload from './FileUpload';
+import CustomSelect from './CustomSelect';
+import CustomDatePicker from './CustomDatePicker';
+import { useCompany } from '../context/CompanyContext';
 
 const Trips = () => {
-    const { trips, addTrip, deleteTrip, editTrip, routes, addRoute, updateRoute, deleteRoute } = useContext(DataContext);
+    const { trips, addTrip, deleteTrip, editTrip, routes, addRoute, updateRoute, deleteRoute, premiums, allDrivers } = useContext(DataContext);
+    const { companyData } = useCompany();
     const [editingTrip, setEditingTrip] = useState(null);
     const [editForm, setEditForm] = useState({});
     const [viewFiles, setViewFiles] = useState(null);
@@ -43,7 +47,10 @@ const Trips = () => {
         km: '',
         tonnage: '',
         notes: '',
-        files: []
+        files: [],
+        driverName: '',
+        premiumId: '',
+        premiumAmount: 0
     });
 
     // Kayıtlı rota seçildiğinde formu doldur (Yeni Ekle)
@@ -51,31 +58,99 @@ const Trips = () => {
         if (useSavedRoute && selectedRouteId) {
             const route = routes.find(r => r.id === parseInt(selectedRouteId));
             if (route) {
+                const sortedTrips = [...trips].sort((a,b) => new Date(b.date) - new Date(a.date));
+                const matchedTrip = sortedTrips.find(t => !t.deleted && t.from.trim().toLowerCase() === route.from.trim().toLowerCase() && t.to.trim().toLowerCase() === route.to.trim().toLowerCase());
                 // eslint-disable-next-line
-                setFormData(prev => ({
-                    ...prev,
-                    from: route.from,
-                    to: route.to,
-                    km: route.km || ''
-                }));
+                setFormData(prev => {
+                    const newFrom = route.from;
+                    const newTo = route.to;
+                    const newKm = route.km || '';
+                    let newDriver = prev.driverName;
+                    let newPremId = prev.premiumId;
+                    let newPremAmt = prev.premiumAmount;
+                    
+                    if (matchedTrip && companyData?.personnelEnabled) {
+                        newDriver = matchedTrip.driverName || prev.driverName;
+                        newPremId = matchedTrip.premiumId || '';
+                        newPremAmt = matchedTrip.premiumAmount || 0;
+                    }
+                    
+                    if (prev.from !== newFrom || prev.to !== newTo || prev.km !== newKm || prev.driverName !== newDriver || prev.premiumId !== newPremId || prev.premiumAmount !== newPremAmt) {
+                        return { ...prev, from: newFrom, to: newTo, km: newKm, driverName: newDriver, premiumId: newPremId, premiumAmount: newPremAmt };
+                    }
+                    return prev;
+                });
             }
         }
-    }, [selectedRouteId, useSavedRoute, routes]);
+    }, [selectedRouteId, useSavedRoute, routes, trips, companyData?.personnelEnabled]);
 
     // Kayıtlı rota seçildiğinde formu doldur (Düzenle)
     useEffect(() => {
         if (editUseSavedRoute && editSelectedRouteId) {
             const route = routes.find(r => r.id === parseInt(editSelectedRouteId));
             if (route) {
-                setEditForm(prev => ({
-                    ...prev,
-                    from: route.from,
-                    to: route.to,
-                    km: route.km || ''
-                }));
+                const sortedTrips = [...trips].sort((a,b) => new Date(b.date) - new Date(a.date));
+                const matchedTrip = sortedTrips.find(t => !t.deleted && t.from.trim().toLowerCase() === route.from.trim().toLowerCase() && t.to.trim().toLowerCase() === route.to.trim().toLowerCase());
+                setEditForm(prev => {
+                    const newFrom = route.from;
+                    const newTo = route.to;
+                    const newKm = route.km || '';
+                    let newDriver = prev.driverName;
+                    let newPremId = prev.premiumId;
+                    let newPremAmt = prev.premiumAmount;
+
+                    if (matchedTrip && companyData?.personnelEnabled) {
+                        newDriver = matchedTrip.driverName || prev.driverName;
+                        newPremId = matchedTrip.premiumId || '';
+                        newPremAmt = matchedTrip.premiumAmount || 0;
+                    }
+
+                    if (prev.from !== newFrom || prev.to !== newTo || prev.km !== newKm || prev.driverName !== newDriver || prev.premiumId !== newPremId || prev.premiumAmount !== newPremAmt) {
+                        return { ...prev, from: newFrom, to: newTo, km: newKm, driverName: newDriver, premiumId: newPremId, premiumAmount: newPremAmt };
+                    }
+                    return prev;
+                });
             }
         }
-    }, [editSelectedRouteId, editUseSavedRoute, routes]);
+    }, [editSelectedRouteId, editUseSavedRoute, routes, trips, companyData?.personnelEnabled]);
+
+    // Manuel rota yazıldığında son girilen şoför ve primi bul
+    useEffect(() => {
+        if (!useSavedRoute && formData.from && formData.to && companyData?.personnelEnabled) {
+            const sortedTrips = [...trips].sort((a,b) => new Date(b.date) - new Date(a.date));
+            const matchedTrip = sortedTrips.find(t => !t.deleted && t.from.trim().toLowerCase() === formData.from.trim().toLowerCase() && t.to.trim().toLowerCase() === formData.to.trim().toLowerCase());
+            if (matchedTrip) {
+                setFormData(prev => {
+                    const newDriver = matchedTrip.driverName || prev.driverName;
+                    const newPremId = matchedTrip.premiumId || '';
+                    const newPremAmt = matchedTrip.premiumAmount || 0;
+                    if (prev.driverName !== newDriver || prev.premiumId !== newPremId || prev.premiumAmount !== newPremAmt) {
+                        return { ...prev, driverName: newDriver, premiumId: newPremId, premiumAmount: newPremAmt };
+                    }
+                    return prev;
+                });
+            }
+        }
+    }, [formData.from, formData.to, useSavedRoute, companyData?.personnelEnabled, trips]);
+
+    // Manuel rota yazıldığında son girilen şoför ve primi bul (Düzenleme)
+    useEffect(() => {
+        if (!editUseSavedRoute && editForm.from && editForm.to && companyData?.personnelEnabled) {
+            const sortedTrips = [...trips].sort((a,b) => new Date(b.date) - new Date(a.date));
+            const matchedTrip = sortedTrips.find(t => !t.deleted && t.from.trim().toLowerCase() === editForm.from.trim().toLowerCase() && t.to.trim().toLowerCase() === editForm.to.trim().toLowerCase());
+            if (matchedTrip) {
+                setEditForm(prev => {
+                    const newDriver = matchedTrip.driverName || prev.driverName;
+                    const newPremId = matchedTrip.premiumId || '';
+                    const newPremAmt = matchedTrip.premiumAmount || 0;
+                    if (prev.driverName !== newDriver || prev.premiumId !== newPremId || prev.premiumAmount !== newPremAmt) {
+                        return { ...prev, driverName: newDriver, premiumId: newPremId, premiumAmount: newPremAmt };
+                    }
+                    return prev;
+                });
+            }
+        }
+    }, [editForm.from, editForm.to, editUseSavedRoute, companyData?.personnelEnabled, trips]);
 
     // Formlardaki veri değiştiğinde başarılı kayıt (Kaydedildi) buton durumlarını sıfırla
     useEffect(() => {
@@ -100,8 +175,6 @@ const Trips = () => {
             document.documentElement.style.overflow = '';
         };
     }, [isRouteSelectorOpen, isModalOpen, editingTrip, isRouteManagerOpen, viewFiles]);
-
-    // (Önceki Dropdown click-outside temizlendi, modal mantığına geçildi)
 
     // Akıllı Sıralama: En çok kullanılan rotaları belirle
     const sortedRoutes = React.useMemo(() => {
@@ -128,6 +201,39 @@ const Trips = () => {
         });
     }, [routes, trips]);
 
+    const calculatePremAmount = (premId, tonnageVal) => {
+        const prem = premiums.find(p => p.id === premId);
+        if (!prem) return 0;
+        if (prem.type === 'fixed') {
+            return Number(prem.amount) || 0;
+        } else if (prem.type === 'perTonnage') {
+            return (parseFloat(tonnageVal) || 0) * (Number(prem.amount) || 0);
+        }
+        return 0;
+    };
+
+    const handlePremiumChange = (premId, mode) => {
+        if (mode === 'add') {
+            if (premId === 'custom') {
+                setFormData(prev => ({ ...prev, premiumId: 'custom', premiumAmount: 0 }));
+            } else if (!premId) {
+                setFormData(prev => ({ ...prev, premiumId: '', premiumAmount: 0 }));
+            } else {
+                const amt = calculatePremAmount(premId, formData.tonnage);
+                setFormData(prev => ({ ...prev, premiumId: premId, premiumAmount: amt }));
+            }
+        } else {
+            if (premId === 'custom') {
+                setEditForm(prev => ({ ...prev, premiumId: 'custom', premiumAmount: 0 }));
+            } else if (!premId) {
+                setEditForm(prev => ({ ...prev, premiumId: '', premiumAmount: 0 }));
+            } else {
+                const amt = calculatePremAmount(premId, editForm.tonnage);
+                setEditForm(prev => ({ ...prev, premiumId: premId, premiumAmount: amt }));
+            }
+        }
+    };
+
     const openEditModal = (trip) => {
         setEditingTrip(trip);
         setEditForm({
@@ -138,7 +244,10 @@ const Trips = () => {
             tonnage: trip.tonnage,
             status: trip.status || 'Fatura Bekliyor',
             notes: trip.notes || '',
-            files: trip.files || []
+            files: trip.files || [],
+            driverName: trip.driverName || '',
+            premiumId: trip.premiumId || '',
+            premiumAmount: trip.premiumAmount || 0
         });
 
         // Rota seçimini sıfırla/başlat
@@ -146,8 +255,6 @@ const Trips = () => {
         setEditSelectedRouteId('');
         setEditSaveNewRoute(false);
     };
-
-
 
     const handleManualAdd = (e) => {
         e.preventDefault();
@@ -172,7 +279,14 @@ const Trips = () => {
             price: 0,
             status: 'Fatura Bekliyor',
             notes: formData.notes,
-            files: formData.files
+            files: formData.files,
+            ...(companyData?.personnelEnabled ? {
+                driverName: formData.driverName,
+                premiumId: formData.premiumId,
+                premiumName: formData.premiumId === 'custom' ? 'Özel Prim' : (premiums.find(p => p.id === formData.premiumId)?.name || 'Prim Yok'),
+                premiumAmount: Number(formData.premiumAmount) || 0,
+                premiumStatus: 'unpaid'
+            } : {})
         });
 
         setIsModalOpen(false);
@@ -227,7 +341,14 @@ const Trips = () => {
             tonnage: parseFloat(editForm.tonnage),
             status: editForm.status,
             notes: editForm.notes,
-            files: editForm.files
+            files: editForm.files,
+            ...(companyData?.personnelEnabled ? {
+                driverName: editForm.driverName,
+                premiumId: editForm.premiumId,
+                premiumName: editForm.premiumId === 'custom' ? 'Özel Prim' : (premiums.find(p => p.id === editForm.premiumId)?.name || 'Prim Yok'),
+                premiumAmount: Number(editForm.premiumAmount) || 0,
+                premiumStatus: editingTrip.premiumStatus || 'unpaid'
+            } : {})
         });
         setEditingTrip(null);
     };
@@ -244,7 +365,10 @@ const Trips = () => {
             km: '',
             tonnage: '',
             notes: '',
-            files: []
+            files: [],
+            driverName: '',
+            premiumId: '',
+            premiumAmount: 0
         });
         setSelectedRouteId('');
         setUseSavedRoute(true);
@@ -317,6 +441,18 @@ const Trips = () => {
                                                 <div className="flex items-center gap-1 mt-0.5">
                                                     <StickyNote size={9} className="text-slate-500" />
                                                     <span className="text-xs text-slate-500 truncate max-w-[200px]">{trip.notes}</span>
+                                                </div>
+                                            )}
+                                            {companyData?.personnelEnabled && trip.driverName && (
+                                                <div className="flex items-center gap-1.5 mt-1">
+                                                    <span className="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/20 font-medium whitespace-nowrap">
+                                                        👤 {trip.driverName}
+                                                    </span>
+                                                    {trip.premiumAmount > 0 && (
+                                                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 font-bold whitespace-nowrap">
+                                                            ₺{trip.premiumAmount} Prim
+                                                        </span>
+                                                    )}
                                                 </div>
                                             )}
                                         </td>
@@ -393,6 +529,19 @@ const Trips = () => {
                                         {trip.from} <span className="text-sky-400">→</span> {trip.to}
                                     </div>
 
+                                    {companyData?.personnelEnabled && trip.driverName && (
+                                        <div className="flex flex-wrap items-center gap-1.5 mb-2 mt-0.5">
+                                            <span className="text-[9px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/20 font-medium whitespace-nowrap">
+                                                👤 {trip.driverName}
+                                            </span>
+                                            {trip.premiumAmount > 0 && (
+                                                <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 font-bold whitespace-nowrap">
+                                                    ₺{trip.premiumAmount} Prim
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {/* Not gösterimi */}
                                     {trip.notes && (
                                         <div className="flex items-center gap-1 mb-2">
@@ -431,11 +580,13 @@ const Trips = () => {
                         </h3>
                         <div className="space-y-4">
                             {/* Tarih */}
-                            <div>
-                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Tarih</label>
-                                <input type="date" className="w-full glass-input px-3 py-2 text-sm"
+                            <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1 uppercase tracking-wider">Tarih</label>
+                                <CustomDatePicker 
                                     value={editForm.date}
-                                    onChange={e => setEditForm({ ...editForm, date: e.target.value })} />
+                                    onChange={(val) => setEditForm({ ...editForm, date: val })}
+                                    className="glass-input text-left px-3 py-2 text-sm"
+                                />
                             </div>
                             {/* Güzergah Belirleme */}
                             <div className="p-4 bg-sky-500/5 border border-sky-500/20 rounded-2xl space-y-4 shadow-lg shadow-sky-500/5 transition-all duration-300 border-dashed md:border-solid">
@@ -567,7 +718,16 @@ const Trips = () => {
                                     <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1 uppercase tracking-wider">Tonaj</label>
                                     <input type="number" step="0.01" className="w-full glass-input px-3 py-2 text-sm"
                                         value={editForm.tonnage}
-                                        onChange={e => setEditForm({ ...editForm, tonnage: e.target.value })} />
+                                        onChange={(e) => {
+                                            const ton = e.target.value;
+                                            setEditForm(prev => {
+                                                const next = { ...prev, tonnage: ton };
+                                                if (prev.premiumId && prev.premiumId !== 'custom') {
+                                                    next.premiumAmount = calculatePremAmount(prev.premiumId, ton);
+                                                }
+                                                return next;
+                                            });
+                                        }} />
                                 </div>
 
                                 {/* Ek Bilgiler Toggle */}
@@ -585,18 +745,59 @@ const Trips = () => {
                                 </button>
                             </div>
 
-                            {/* Durum */}
-                            <div>
-                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1 uppercase tracking-wider">Durum</label>
-                                <select className="w-full glass-input px-3 py-2 text-sm bg-[var(--bg-panel)]"
-                                    value={editForm.status}
-                                    onChange={e => setEditForm({ ...editForm, status: e.target.value })}>
-                                    <option value="Fatura Bekliyor">Fatura Bekliyor</option>
-                                    <option value="Fatura Kesildi">Fatura Kesildi</option>
-                                    <option value="Faturalandı">Faturalandı</option>
-                                </select>
-                            </div>
+                            {/* Personnel & Premium inputs (Edit) */}
+                            {companyData?.personnelEnabled && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Şoför</label>
+                                        <CustomSelect
+                                            value={editForm.driverName}
+                                            onChange={val => setEditForm({ ...editForm, driverName: val })}
+                                            placeholder="Şoför Seçin..."
+                                            options={[
+                                                { label: 'Şoför Seçin...', value: '' },
+                                                ...allDrivers.map(d => ({ label: d.name, value: d.name }))
+                                            ]}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Prim Şablonu</label>
+                                        <CustomSelect
+                                            value={editForm.premiumId}
+                                            onChange={val => handlePremiumChange(val, 'edit')}
+                                            placeholder="Prim Yok"
+                                            options={[
+                                                { label: 'Prim Yok', value: '' },
+                                                ...premiums.map(p => ({ label: p.name, value: p.id })),
+                                                { label: 'Özel Tutar...', value: 'custom' }
+                                            ]}
+                                        />
+                                    </div>
+                                </div>
+                            )}
 
+                            {companyData?.personnelEnabled && editForm.premiumId === 'custom' && (
+                                <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Özel Prim Tutarı (₺)</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        placeholder="Örn: 750"
+                                        className="w-full glass-input px-3 py-2 text-sm"
+                                        value={editForm.premiumAmount || ''}
+                                        onChange={e => setEditForm({ ...editForm, premiumAmount: parseFloat(e.target.value) || 0 })}
+                                    />
+                                </div>
+                            )}
+
+                            {companyData?.personnelEnabled && editForm.premiumId && editForm.premiumId !== 'custom' && (
+                                <div className="flex items-center justify-between bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2 animate-in fade-in duration-200">
+                                    <span className="text-xs text-slate-400">Hesaplanan Hak Ediş Primi</span>
+                                    <span className="text-amber-400 font-bold text-sm">
+                                        ₺{calculatePremAmount(editForm.premiumId, editForm.tonnage).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                            )}
 
                             {editShowExtra && (
                                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300 p-3 bg-white/5 rounded-xl border border-white/5 mt-2">
@@ -649,15 +850,14 @@ const Trips = () => {
                             <MapPin className="mr-2 text-sky-500" /> Yeni Sefer / Rota
                         </h3>
 
-                        <form onSubmit={handleManualAdd} className="space-y-5 overflow-y-auto custom-scrollbar pr-2 flex-1 pb-4">
-                            <div>
-                                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Tarih</label>
-                                <input
-                                    type="date"
-                                    required
-                                    className="w-full glass-input px-4 py-2"
+                        <form onSubmit={handleManualAdd} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar pb-20">
+                            {/* Tarih */}
+                            <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1 uppercase tracking-wider">Tarih</label>
+                                <CustomDatePicker 
                                     value={formData.date}
-                                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                    onChange={(val) => setFormData({ ...formData, date: val })}
+                                    className="glass-input text-left px-4 py-2 text-sm"
                                 />
                             </div>
 
@@ -798,7 +998,16 @@ const Trips = () => {
                                         placeholder="Örn: 24.5"
                                         className="w-full glass-input px-4 py-2 text-sm"
                                         value={formData.tonnage}
-                                        onChange={(e) => setFormData({ ...formData, tonnage: e.target.value })}
+                                        onChange={(e) => {
+                                            const ton = e.target.value;
+                                            setFormData(prev => {
+                                                const next = { ...prev, tonnage: ton };
+                                                if (prev.premiumId && prev.premiumId !== 'custom') {
+                                                    next.premiumAmount = calculatePremAmount(prev.premiumId, ton);
+                                                }
+                                                return next;
+                                            });
+                                        }}
                                     />
                                 </div>
 
@@ -816,6 +1025,61 @@ const Trips = () => {
                                     </div>
                                 </button>
                             </div>
+
+                            {/* Personnel & Premium inputs (Add) */}
+                            {companyData?.personnelEnabled && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Şoför</label>
+                                        <CustomSelect
+                                            value={formData.driverName}
+                                            onChange={val => setFormData({ ...formData, driverName: val })}
+                                            placeholder="Şoför Seçin..."
+                                            options={[
+                                                { label: 'Şoför Seçin...', value: '' },
+                                                ...allDrivers.map(d => ({ label: d.name, value: d.name }))
+                                            ]}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Prim Şablonu</label>
+                                        <CustomSelect
+                                            value={formData.premiumId}
+                                            onChange={val => handlePremiumChange(val, 'add')}
+                                            placeholder="Prim Yok"
+                                            dropup={true}
+                                            options={[
+                                                { label: 'Prim Yok', value: '' },
+                                                ...premiums.map(p => ({ label: p.name, value: p.id })),
+                                                { label: 'Özel Tutar...', value: 'custom' }
+                                            ]}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {companyData?.personnelEnabled && formData.premiumId === 'custom' && (
+                                <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Özel Prim Tutarı (₺)</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        placeholder="Örn: 750"
+                                        className="w-full glass-input px-3 py-2 text-sm"
+                                        value={formData.premiumAmount || ''}
+                                        onChange={e => setFormData({ ...formData, premiumAmount: parseFloat(e.target.value) || 0 })}
+                                    />
+                                </div>
+                            )}
+
+                            {companyData?.personnelEnabled && formData.premiumId && formData.premiumId !== 'custom' && (
+                                <div className="flex items-center justify-between bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2 animate-in fade-in duration-200">
+                                    <span className="text-xs text-slate-400">Hesaplanan Hak Ediş Primi</span>
+                                    <span className="text-amber-400 font-bold text-sm">
+                                        ₺{calculatePremAmount(formData.premiumId, formData.tonnage).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                            )}
 
                             {/* Toplam Önizleme */}
                             {formData.tonnage && formData.price && (

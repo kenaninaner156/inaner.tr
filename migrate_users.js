@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, doc, updateDoc, deleteField } from 'firebase/firestore';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 
 const firebaseConfig = {
     apiKey: "AIzaSyDZBOiVMPCQEiGxvJ1SIbFIxpfr1xIHoYo",
@@ -46,22 +46,39 @@ async function migrateUsers() {
         }
 
         try {
-            const userCredential = await createUserWithEmailAndPassword(auth, email, plainPassword);
-            const user = userCredential.user;
+            let user;
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, plainPassword);
+                user = userCredential.user;
+            } catch (error) {
+                if (error.code === 'auth/email-already-in-use') {
+                    // Try to sign in to fetch their UID
+                    const userCredential = await signInWithEmailAndPassword(auth, email, plainPassword);
+                    user = userCredential.user;
+                } else {
+                    throw error;
+                }
+            }
             
-            await updateDoc(doc(db, 'approved_users', userDoc.id), {
-                password: deleteField(),
-                uid: user.uid,
-                authEmail: email
+            // approved_users dökümanını UID'si ile oluştur
+            await setDoc(doc(db, 'approved_users', user.uid), {
+                username: data.username.toLowerCase(),
+                authEmail: email,
+                role: data.role || 'şoför',
+                companyId: data.companyId || null,
+                createdAt: data.createdAt || new Date().toISOString(),
+                status: 'approved'
             });
+
+            // Eğer döküman ID'si ile UID uyuşmuyorsa eski dökümanı sil (UID'ye taşındı)
+            if (userDoc.id !== user.uid) {
+                await deleteDoc(doc(db, 'approved_users', userDoc.id));
+            }
+
             console.log(`+ Başarılı: ${data.username} taşındı. (UID: ${user.uid})`);
             successCount++;
         } catch (error) {
-            if (error.code === 'auth/email-already-in-use') {
-                console.log(`- Zaten kayıtlı: ${email}`);
-            } else {
-                console.log(`- Hata (${data.username}): ${error.message} (${error.code})`);
-            }
+            console.log(`- Hata (${data.username}): ${error.message} (${error.code})`);
         }
     }
     

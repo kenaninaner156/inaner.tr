@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { ShieldAlert, Building2, Plus, Server, Activity, Trash2, Key, Edit2, PauseCircle, PlayCircle, Users, Truck, Check, X, AlertOctagon, LogIn, Download, Database } from 'lucide-react';
 import { db } from '../services/firebaseConfig';
 import { collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, writeBatch, where, getDocs } from 'firebase/firestore';
 import { useCompany } from '../context/CompanyContext';
+import { DataContext } from '../context/DataContext';
 
 const SuperAdmin = () => {
     const { activeCompanyId, setActiveCompanyId } = useCompany();
+    const { editUser, deleteUser, addApprovedUser } = useContext(DataContext);
     const [companies, setCompanies] = useState([]);;
     const [showForm, setShowForm] = useState(false);
     const [compName, setCompName] = useState('');
@@ -70,16 +72,17 @@ const SuperAdmin = () => {
                 name: compName,
                 adminId: compAdmin,
                 status: 'active',
+                personnelEnabled: false,
+                mapEnabled: false,
                 createdAt: new Date().toISOString()
             });
 
-            // Şirket oluşturulunca, hemen o şirketin sahibini "approved_users" içine ekliyoruz
-            await addDoc(collection(db, 'approved_users'), {
+            // Şirket oluşturulunca, hemen o şirketin sahibini güvenli bir şekilde ekliyoruz (Auth hesabı ile beraber)
+            await addApprovedUser({
                 username: compAdmin.toLowerCase().trim(),
                 password: compPassword,
                 role: 'company_admin',
-                companyId: newCompanyId,
-                createdAt: new Date().toISOString()
+                companyId: newCompanyId
             });
 
             setCompName('');
@@ -112,6 +115,22 @@ const SuperAdmin = () => {
         }
     };
 
+    const handleTogglePersonnel = async (docRefId, currentStatus) => {
+        try {
+            await updateDoc(doc(db, 'companies', docRefId), {
+                personnelEnabled: !currentStatus
+            });
+        } catch { /* empty */ }
+    };
+
+    const handleToggleMap = async (docRefId, currentStatus) => {
+        try {
+            await updateDoc(doc(db, 'companies', docRefId), {
+                mapEnabled: !currentStatus
+            });
+        } catch { /* empty */ }
+    };
+
     const handleDeleteCompany = async (company) => {
         const confirmMsg = `DİKKAT! ${company.name} şirketini siliyorsunuz!\n\nBu işlem şirketi ve o şirkete ait TÜM kullanıcıları, araçları ve kayıtları DERİNLEMESİNE silecektir. Bu işlem GERİ ALINAMAZ!\n\nEmin misiniz?`;
         if (window.confirm(confirmMsg)) {
@@ -140,9 +159,9 @@ const SuperAdmin = () => {
     };
 
     const handleEditUserPassword = async (userId) => {
-        if(editUserForm.password.length < 4) { alert("Şifre en az 4 karakter olmalı."); return; }
+        if(editUserForm.password.length < 6) { alert("Şifre en az 6 karakter olmalı."); return; }
         try {
-            await updateDoc(doc(db, 'approved_users', userId), { password: editUserForm.password });
+            await editUser(userId, { password: editUserForm.password });
             setEditingUserId(null);
         } catch { alert("Hata oluştu."); }
     };
@@ -150,7 +169,7 @@ const SuperAdmin = () => {
     const handleDeleteUser = async (userId, username) => {
         if(window.confirm(`DİKKAT! ${username} kullanıcısını siliyorsunuz. Emin misiniz?`)) {
             try {
-                await deleteDoc(doc(db, 'approved_users', userId));
+                await deleteUser(userId);
             } catch { alert("Hata."); }
         }
     };
@@ -320,7 +339,7 @@ const SuperAdmin = () => {
                             )}
 
                             {/* Stats */}
-                            <div className="flex gap-2 mb-4">
+                            <div className="flex gap-2 mb-3">
                                 <div className="flex-1 bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg py-2 flex flex-col items-center justify-center" title="Araç sayısı">
                                     <Truck size={14} className="text-slate-500 mb-1" />
                                     <span className="text-sm font-bold text-[var(--text-primary)] leading-none">{tCount}</span>
@@ -329,6 +348,42 @@ const SuperAdmin = () => {
                                     <Users size={14} className="text-slate-500 mb-1" />
                                     <span className="text-sm font-bold text-[var(--text-primary)] leading-none">{dCount}</span>
                                 </div>
+                            </div>
+
+                            {/* Personnel Toggle */}
+                            <div className="flex items-center justify-between border-t border-[var(--border-color)]/30 pt-3 mb-2">
+                                <span className="text-xs text-[var(--text-secondary)] font-medium">Personel & Prim Takibi</span>
+                                <button
+                                    type="button"
+                                    onClick={() => handleTogglePersonnel(comp.docRefId, comp.personnelEnabled)}
+                                    className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 outline-none flex items-center ${
+                                        comp.personnelEnabled ? 'bg-indigo-500' : 'bg-slate-800 border border-[var(--border-color)]'
+                                    }`}
+                                >
+                                    <div
+                                        className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 ${
+                                            comp.personnelEnabled ? 'translate-x-4' : 'translate-x-0'
+                                        }`}
+                                    />
+                                </button>
+                            </div>
+
+                            {/* Map Toggle */}
+                            <div className="flex items-center justify-between pt-1 mb-4">
+                                <span className="text-xs text-[var(--text-secondary)] font-medium">Harita Modülü</span>
+                                <button
+                                    type="button"
+                                    onClick={() => handleToggleMap(comp.docRefId, comp.mapEnabled)}
+                                    className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 outline-none flex items-center ${
+                                        comp.mapEnabled ? 'bg-indigo-500' : 'bg-slate-800 border border-[var(--border-color)]'
+                                    }`}
+                                >
+                                    <div
+                                        className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 ${
+                                            comp.mapEnabled ? 'translate-x-4' : 'translate-x-0'
+                                        }`}
+                                    />
+                                </button>
                             </div>
 
                             <div className="pt-3 border-t border-[var(--border-color)] flex justify-between items-center mt-auto">
@@ -399,19 +454,19 @@ const SuperAdmin = () => {
                                         <td className="py-3">
                                             {editingUserId === user.id ? (
                                                 <div className="flex items-center gap-1">
-                                                    <input type="text" value={editUserForm.password} onChange={e => setEditUserForm({password: e.target.value})} className="w-24 bg-[var(--bg-base)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs rounded-md px-2 py-1 outline-none" />
+                                                    <input type="password" value={editUserForm.password} onChange={e => setEditUserForm({password: e.target.value})} className="w-24 bg-[var(--bg-base)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs rounded-md px-2 py-1 outline-none" placeholder="Şifre" />
                                                     <button onClick={() => handleEditUserPassword(user.id)} className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 p-1 rounded-md"><Check size={14}/></button>
                                                     <button onClick={() => setEditingUserId(null)} className="bg-slate-700 hover:bg-slate-600 text-slate-300 p-1 rounded-md"><X size={14}/></button>
                                                 </div>
                                             ) : (
                                                 <span className="font-mono text-xs text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">
-                                                    {user.password || 'BİLİNMİYOR'}
+                                                    *******
                                                 </span>
                                             )}
                                         </td>
                                         <td className="py-3 text-right pr-2">
                                             <div className="flex justify-end gap-1">
-                                                <button onClick={() => { setEditingUserId(user.id); setEditUserForm({password: user.password}); }} className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/20 rounded-md transition" title="Şifreyi Düzenle"><Edit2 size={14}/></button>
+                                                <button onClick={() => { setEditingUserId(user.id); setEditUserForm({password: ''}); }} className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/20 rounded-md transition" title="Şifreyi Düzenle"><Edit2 size={14}/></button>
                                                 <button onClick={() => handleDeleteUser(user.id, user.username)} className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/20 rounded-md transition" title="Kullanıcıyı Sil"><Trash2 size={14}/></button>
                                             </div>
                                         </td>

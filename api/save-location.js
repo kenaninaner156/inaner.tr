@@ -1,4 +1,29 @@
 /* eslint-env node */
+import admin from 'firebase-admin';
+
+// Initialize Firebase Admin SDK
+if (!admin.apps.length) {
+    try {
+        const projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID;
+        const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+        const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+        if (projectId && clientEmail && privateKey) {
+            admin.initializeApp({
+                credential: admin.credential.cert({
+                    projectId,
+                    clientEmail,
+                    privateKey: privateKey.replace(/\\n/g, '\n')
+                })
+            });
+            console.log("Firebase Admin SDK initialized successfully in save-location handler.");
+        } else {
+            console.warn("Firebase Admin credentials missing, falling back to public Firestore REST API.");
+        }
+    } catch (err) {
+        console.error("Firebase Admin SDK initialization failed:", err);
+    }
+}
 
 export default async function handler(req, res) {
     if (req.method !== 'GET' && req.method !== 'POST') {
@@ -69,41 +94,64 @@ export default async function handler(req, res) {
             }
         }
 
-        const locationData = {
-            fields: {
-                driverId: { stringValue: String(deviceId).trim() },
-                lat: { doubleValue: lat },
-                lon: { doubleValue: lon },
-                speed: { doubleValue: speed },
-                altitude: { doubleValue: altitude },
-                timestamp: { stringValue: formattedTimestamp },
-                recordedAt: { stringValue: new Date().toISOString() },
-                source: { stringValue: 'traccar_ios' }
-            }
+        const plainLocationData = {
+            driverId: String(deviceId).trim(),
+            lat: lat,
+            lon: lon,
+            speed: speed,
+            altitude: altitude,
+            timestamp: formattedTimestamp,
+            recordedAt: new Date().toISOString(),
+            source: 'traccar_ios'
         };
 
-        const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/truck_routes`;
+        // Eğer Firebase Admin SDK aktifse, güvenli bir şekilde admin yetkileriyle yazıyoruz.
+        if (admin.apps.length > 0) {
+            const db = admin.firestore();
+            const docRef = await db.collection('truck_routes').add(plainLocationData);
+            return res.status(200).json({ 
+                success: true, 
+                message: 'Konum basariyla kaydedildi (Admin SDK)',
+                id: docRef.id
+            });
+        } else {
+            // Firebase Admin SDK yapılandırılmamışsa, eski REST API yöntemine geri dön (local geliştirme fallback)
+            const locationData = {
+                fields: {
+                    driverId: { stringValue: plainLocationData.driverId },
+                    lat: { doubleValue: plainLocationData.lat },
+                    lon: { doubleValue: plainLocationData.lon },
+                    speed: { doubleValue: plainLocationData.speed },
+                    altitude: { doubleValue: plainLocationData.altitude },
+                    timestamp: { stringValue: plainLocationData.timestamp },
+                    recordedAt: { stringValue: plainLocationData.recordedAt },
+                    source: { stringValue: plainLocationData.source }
+                }
+            };
 
-        const response = await fetch(firestoreUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(locationData)
-        });
+            const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/truck_routes`;
 
-        if (!response.ok) {
-            const errBody = await response.text();
-            throw new Error(`Firebase Error: ${response.status} - ${errBody}`);
+            const response = await fetch(firestoreUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(locationData)
+            });
+
+            if (!response.ok) {
+                const errBody = await response.text();
+                throw new Error(`Firebase REST Error: ${response.status} - ${errBody}`);
+            }
+
+            const result = await response.json();
+
+            return res.status(200).json({ 
+                success: true, 
+                message: 'Konum basariyla kaydedildi (REST API Fallback)',
+                id: result.name
+            });
         }
-
-        const result = await response.json();
-
-        return res.status(200).json({ 
-            success: true, 
-            message: 'Konum basariyla kaydedildi',
-            id: result.name
-        });
 
     } catch (error) {
         console.error("Konum kaydedilirken hata:", error);

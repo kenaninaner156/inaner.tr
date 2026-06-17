@@ -28,6 +28,8 @@ export const DataProvider = ({ children }) => {
     const [manualMerges, setManualMerges] = useState([]);
     const [manualDeletes, setManualDeletes] = useState([]);
     const [customRouteNames, setCustomRouteNames] = useState({});
+    const [payouts, setPayouts] = useState([]);
+    const [premiums, setPremiums] = useState([]);
 
     const [vehicleInfo, setVehicleInfo] = useState({
         plate: '06 FTN 692', trailerPlate: '06 ABC 123', driverName: 'Ahmet Şoför',
@@ -186,6 +188,8 @@ export const DataProvider = ({ children }) => {
         setManualDeletes([]);
         setCustomRouteNames({});
         setDocs({});
+        setPayouts([]);
+        setPremiums([]);
         
         // Defaults for non-existing company docs
         const isInaner = activeCompanyId === 'inaner_logistics';
@@ -271,6 +275,14 @@ export const DataProvider = ({ children }) => {
                 .filter(d => !activeTruckId || d.truckId === activeTruckId)
                 .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             setInvoices(data);
+        }));
+
+        // 8.5 Payouts config
+        unsubs.push(onSnapshot(query(collection(db, 'payouts'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                .filter(d => !activeTruckId || d.truckId === activeTruckId)
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            setPayouts(data);
         }));
 
         // 9. Users config
@@ -377,6 +389,15 @@ export const DataProvider = ({ children }) => {
                         { id: '3', name: 'Hava Filtresi', intervalKm: 20000, warningKm: 1000 }
                     ] : []);
                 }
+
+                if (data.premiums !== undefined) {
+                    setPremiums(data.premiums);
+                } else {
+                    setPremiums([
+                        { id: 'prim_kisa', name: 'Kısa Yol Primi', type: 'fixed', amount: 300 },
+                        { id: 'prim_uzun', name: 'Uzun Yol Primi', type: 'fixed', amount: 600 }
+                    ]);
+                }
             } else {
                 const isInaner = activeCompanyId === 'inaner_logistics';
                 setDrivers([]);
@@ -387,6 +408,10 @@ export const DataProvider = ({ children }) => {
                     { id: '2', name: 'Şanzıman Yağı', intervalKm: 80000, warningKm: 5000 },
                     { id: '3', name: 'Hava Filtresi', intervalKm: 20000, warningKm: 1000 }
                 ] : []);
+                setPremiums([
+                    { id: 'prim_kisa', name: 'Kısa Yol Primi', type: 'fixed', amount: 300 },
+                    { id: 'prim_uzun', name: 'Uzun Yol Primi', type: 'fixed', amount: 600 }
+                ]);
                 setDraftInvoice(null);
             }
             setIsDataLoading(false); // Finished loading essential config
@@ -752,37 +777,95 @@ export const DataProvider = ({ children }) => {
         return entry;
     };
 
+    const callAdminApi = async (action, payload) => {
+        const currentUser = auth.currentUser;
+        if (!currentUser) throw new Error("İşlem yapmak için oturum açmış olmanız gerekmektedir.");
+        const token = await currentUser.getIdToken(true);
+        
+        const response = await fetch('/api/admin-action', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ action, payload })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || `Sunucu hatası: ${response.status}`);
+        }
+        return await response.json();
+    };
+
     const approveUser = async (userId, role = 'şoför', assignedCompanyId = null) => {
-        const user = pendingUsers.find(u => u.id === userId);
-        if (!user) return;
-
-        const finalCompanyId = assignedCompanyId || user.companyId || activeCompanyId;
-        const approved = { ...user, status: 'approved', role, companyId: finalCompanyId, approvedAt: new Date().toISOString() };
-        delete approved.id;
-
-        await addDoc(collection(db, 'approved_users'), approved);
-        await deleteDoc(doc(db, 'pending_users', userId));
-
-        addLog('KULLANICI_ONAYLA', `${user.username} adlı kullanıcı '${role}' yetkisiyle onaylandı`);
+        try {
+            const finalCompanyId = assignedCompanyId || activeCompanyId;
+            await callAdminApi('approveUser', { uid: userId, role, assignedCompanyId: finalCompanyId });
+            const user = pendingUsers.find(u => u.id === userId);
+            addLog('KULLANICI_ONAYLA', `${user?.username || 'Kullanıcı'} adlı kullanıcı '${role}' yetkisiyle onaylandı`);
+        } catch (error) {
+            console.error("Kullanıcı onaylanırken hata:", error);
+            alert("Kullanıcı onaylanırken hata oluştu: " + error.message);
+        }
     };
 
     const addApprovedUser = async (userData) => {
-        const approved = { ...userData, status: 'approved', companyId: userData.companyId || activeCompanyId, approvedAt: new Date().toISOString() };
-        await addDoc(collection(db, 'approved_users'), approved);
-        addLog('KULLANICI_EKLE', `${userData.username} kullanıcısı manuel olarak '${userData.role}' yetkisiyle eklendi`);
-        return approved;
+        try {
+            const finalCompanyId = userData.companyId || activeCompanyId;
+            const result = await callAdminApi('createUser', {
+                username: userData.username,
+                password: userData.password,
+                role: userData.role,
+                companyId: finalCompanyId
+            });
+            addLog('KULLANICI_EKLE', `${userData.username} kullanıcısı manuel olarak '${userData.role}' yetkisiyle eklendi`);
+            return { ...userData, id: result.uid, status: 'approved', companyId: finalCompanyId, approvedAt: new Date().toISOString() };
+        } catch (error) {
+            console.error("Kullanıcı eklenirken hata:", error);
+            alert("Kullanıcı eklenirken hata oluştu: " + error.message);
+            throw error;
+        }
     };
 
     const editUser = async (userId, updates) => {
-        await updateDoc(doc(db, 'approved_users', userId), updates);
-        addLog('KULLANICI_DUZENLE', `Kullanıcı güncellendi: ${updates.username || 'Kullanıcı'}`);
+        try {
+            if (updates.password) {
+                await callAdminApi('updateUserPassword', { uid: userId, newPassword: updates.password });
+            }
+            
+            const cleanUpdates = { ...updates };
+            delete cleanUpdates.password;
+            
+            if (Object.keys(cleanUpdates).length > 0) {
+                await updateDoc(doc(db, 'approved_users', userId), cleanUpdates);
+            }
+            addLog('KULLANICI_DUZENLE', `Kullanıcı güncellendi: ${updates.username || 'Kullanıcı'}`);
+        } catch (error) {
+            console.error("Kullanıcı güncellenirken hata:", error);
+            alert("Kullanıcı güncellenirken hata oluştu: " + error.message);
+        }
     };
 
     const rejectUser = async (userId) => {
-        const user = pendingUsers.find(u => u.id === userId);
-        if (user) {
-            await deleteDoc(doc(db, 'pending_users', userId));
-            addLog('KULLANICI_RED', `${user.username} başvurusu reddedildi`);
+        try {
+            await callAdminApi('deleteUser', { uid: userId });
+            const user = pendingUsers.find(u => u.id === userId);
+            addLog('KULLANICI_RED', `${user?.username || 'Kullanıcı'} başvurusu reddedildi`);
+        } catch (error) {
+            console.error("Kullanıcı reddedilirken hata:", error);
+            alert("Kullanıcı reddedilirken hata oluştu: " + error.message);
+        }
+    };
+
+    const deleteUser = async (userId) => {
+        try {
+            await callAdminApi('deleteUser', { uid: userId });
+            addLog('KULLANICI_SIL', `Kullanıcı silindi`, { table: 'approved_users', id: userId });
+        } catch (error) {
+            console.error("Kullanıcı silinirken hata:", error);
+            alert("Kullanıcı silinirken hata oluştu: " + error.message);
+            throw error;
         }
     };
 
@@ -834,6 +917,29 @@ export const DataProvider = ({ children }) => {
     const deleteInvoice = async (id) => {
         await deleteDoc(doc(db, 'invoices', id));
         addLog('FATURA_SIL', `Fatura silindi`, { table: 'Invoices', id });
+    };
+
+    // Payouts CRUD
+    const addPayout = async (payout) => {
+        await addDoc(collection(db, 'payouts'), { ...payout, companyId: activeCompanyId, truckId: activeTruckId, deleted: false, createdAt: new Date().toISOString() });
+        addLog('ODEME_PIRIM_ONAY', `${payout.startDate} - ${payout.endDate} periyodu için Prim Hak Edişi onaylandı. Şoför: ${payout.driverName}`);
+    };
+
+    const updatePayout = async (id, updatedFields) => {
+        await updateDoc(doc(db, 'payouts', id), updatedFields);
+        addLog('ODEME_PIRIM_GUNCELLE', `Prim hakediş kaydı güncellendi.`);
+    };
+
+    const deletePayout = async (id) => {
+        await deleteDoc(doc(db, 'payouts', id));
+        addLog('ODEME_PIRIM_SIL', `Prim hakediş kaydı silindi`, { table: 'Payouts', id });
+    };
+
+    // Premiums CRUD
+    const updatePremiums = async (newPremiums) => {
+        const docId = activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`;
+        await setDoc(doc(db, 'company_data', docId), { premiums: newPremiums }, { merge: true });
+        addLog('PRIM_SABLON_GUNCELLE', 'Prim şablonları güncellendi');
     };
 
     const clearLog = async () => {
@@ -989,7 +1095,7 @@ export const DataProvider = ({ children }) => {
             savedTrackingRoutes, addSavedTrackingRoute, deleteSavedTrackingRoute, updateSavedTrackingRoute,
             adminLog, addLog, clearLog, restoreData,
             currentSession, loginSession, logoutSession,
-            pendingUsers, approvedUsers, registerUser, approveUser, rejectUser, editUser, refreshUsers, addApprovedUser,
+            pendingUsers, approvedUsers, registerUser, approveUser, rejectUser, editUser, refreshUsers, addApprovedUser, deleteUser,
             drivers, allDrivers, updateDrivers,
             docs, updateDocs, deleteDocField,
             spareParts, addSparePart, updateSparePart, deleteSparePart,
@@ -998,6 +1104,8 @@ export const DataProvider = ({ children }) => {
             penalties, addPenalty, deletePenalty, togglePenaltyPaid,
             invoices, addInvoice, updateInvoice, deleteInvoice,
             updateRoute,
+            payouts, addPayout, deletePayout, updatePayout,
+            premiums, updatePremiums,
             draftInvoice, saveDraftInvoice, clearDraftInvoice,
             onlineUsers,
             shoppingItems, addShoppingItem, updateShoppingItem, deleteShoppingItem, updateShoppingItemsOrder,
