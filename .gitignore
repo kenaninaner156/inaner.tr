@@ -28,3 +28,5 @@ dist-ssr
 .env.local
 .env.*
 seed_route.js
+
+.vercel

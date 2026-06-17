@@ -73,7 +73,6 @@ const MapPage = () => {
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
                                 exit={{ opacity: 0, y: 40, filter: "blur(10px)" }}
-                                transition={{ duration: 0.6 }}
                                 onClick={() => setIsMapLaunched(true)}
                                 className="group flex items-center justify-center gap-4 bg-[#c99c37]/5 hover:bg-[#c99c37]/10 backdrop-blur-md text-amber-50 border border-[#c99c37]/60 px-14 py-5 rounded-2xl font-bold text-xl transition-all duration-500 shadow-[0_40px_120px_15px_rgba(0,0,0,0.8)] hover:shadow-[0_30px_100px_rgba(201,156,55,0.1)] transform outline-none"
                                 disabled={isMapLaunched}

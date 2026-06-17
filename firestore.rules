@@ -37,7 +37,7 @@ service cloud.firestore {
     
     // Kullanıcının Şirket Yöneticisi olup olmadığını kontrol eder
     function isCompanyAdmin() {
-      return isApproved() && getUserRole() == 'company_admin';
+      return isApproved() && (getUserRole() == 'company_admin' || getUserRole() == 'admin');
     }
     
     // Kullanıcının Admin veya Super Admin olup olmadığını kontrol eder
@@ -90,22 +90,30 @@ service cloud.firestore {
           'trips', 'fuel', 'maintenance', 'payments', 'penalties', 
           'invoices', 'payouts', 'spare_parts', 'mechanics', 'shopping_list', 
           'geofences', 'manual_splits', 'manual_merges', 'manual_deletes', 
-          'custom_route_names', 'maintenance_folders', 'company_data'
+          'custom_route_names', 'maintenance_folders', 'company_data',
+          'trucks', 'vehicle_daily_stats'
         ];
       }
       
       // Şirket verileri için okuma/yazma kuralı
       allow read: if isApproved() && isCompanyDataCollection() && (
         (resource != null && resource.data.companyId == getCompanyId()) ||
-        // company_data dökümanları şirket ID'si ile başlayan isimlendirmeye sahip olabiliyor (Örn: comp_xxx_info)
-        (collectionName == 'company_data' && (document == 'info' || document.startsWith(getCompanyId())))
+        // company_data dökümanları şirket ID'si ile başlayan/biten veya info adında olabiliyor
+        (collectionName == 'company_data' && (
+          document == 'info' || 
+          document.startsWith(getCompanyId()) || 
+          document.endsWith(getCompanyId())
+        ))
       );
       
       allow write: if isApproved() && isCompanyDataCollection() && (
         // Yeni veri eklerken kendi şirket ID'sini yazmak zorundadır
         (request.resource != null && request.resource.data.companyId == getCompanyId()) ||
         // company_data dökümanları için yetkilendirme
-        (collectionName == 'company_data' && document.startsWith(getCompanyId()))
+        (collectionName == 'company_data' && (
+          document.startsWith(getCompanyId()) || 
+          document.endsWith(getCompanyId())
+        ))
       );
     }
 

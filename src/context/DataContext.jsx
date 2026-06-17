@@ -206,6 +206,7 @@ export const DataProvider = ({ children }) => {
         if (!activeTruckId) setIsDataLoading(true);
 
         const unsubs = [];
+        const isAdminSession = currentSession?.role === 'super_admin' || currentSession?.role === 'company_admin' || currentSession?.role === 'admin';
 
         // Helper function for sorting by date and createdAt
         const sortData = (data) => data.sort((a, b) => {
@@ -258,17 +259,21 @@ export const DataProvider = ({ children }) => {
             setMaintenanceFolders(data);
         }));
 
-        // 7. AdminLogs config
-        unsubs.push(onSnapshot(query(
-            collection(db, 'admin_logs'), 
-            where('companyId', '==', activeCompanyId),
-            orderBy('timestamp', 'desc'),
-            limit(100)
-        ), (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-            setAdminLog(data);
-        }));
+        // 7. AdminLogs config (Admin Only)
+        if (isAdminSession) {
+            unsubs.push(onSnapshot(query(
+                collection(db, 'admin_logs'), 
+                where('companyId', '==', activeCompanyId),
+                orderBy('timestamp', 'desc'),
+                limit(100)
+            ), (snapshot) => {
+                const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                setAdminLog(data);
+            }));
+        } else {
+            setAdminLog([]);
+        }
 
         // 8. Invoices config
         unsubs.push(onSnapshot(query(collection(db, 'invoices'), where('companyId', '==', activeCompanyId)), (snapshot) => {
@@ -286,10 +291,14 @@ export const DataProvider = ({ children }) => {
             setPayouts(data);
         }));
 
-        // 9. Users config
-        unsubs.push(onSnapshot(query(collection(db, 'pending_users'), where('companyId', '==', activeCompanyId)), (snapshot) => {
-            setPendingUsers(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
-        }));
+        // 9. Users config (Admin Only)
+        if (isAdminSession) {
+            unsubs.push(onSnapshot(query(collection(db, 'pending_users'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+                setPendingUsers(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+            }));
+        } else {
+            setPendingUsers([]);
+        }
 
         unsubs.push(onSnapshot(query(collection(db, 'approved_users'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             setApprovedUsers(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
