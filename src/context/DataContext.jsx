@@ -835,6 +835,9 @@ export const DataProvider = ({ children }) => {
 
                 await setDoc(doc(db, 'approved_users', userId), {
                     username: pendingData.username,
+                    firstName: pendingData.firstName || '',
+                    lastName: pendingData.lastName || '',
+                    fullName: pendingData.fullName || `${pendingData.firstName || ''} ${pendingData.lastName || ''}`.trim() || pendingData.username,
                     authEmail: email,
                     role,
                     companyId: finalCompanyId,

@@ -165,6 +165,9 @@ export default async function handler(req, res) {
                 // approved_users koleksiyonuna UID ile kaydet
                 await db.collection('approved_users').doc(uid).set({
                     username: pendingData.username,
+                    firstName: pendingData.firstName || '',
+                    lastName: pendingData.lastName || '',
+                    fullName: pendingData.fullName || `${pendingData.firstName || ''} ${pendingData.lastName || ''}`.trim() || pendingData.username,
                     authEmail: email,
                     role,
                     companyId: targetCompanyId,

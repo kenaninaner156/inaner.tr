@@ -154,12 +154,14 @@ const CompanyAdmin = () => {
                 >
                     <div className="flex items-center"><Users size={16} className="mr-2" /> Şoförler</div>
                 </button>
-                <button
-                    onClick={() => setActiveTab('analysis')}
-                    className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'analysis' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
-                >
-                    <div className="flex items-center"><BarChart3 size={16} className="mr-2" /> Araç Analiz</div>
-                </button>
+                {companyData?.mapEnabled && (
+                    <button
+                        onClick={() => setActiveTab('analysis')}
+                        className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'analysis' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                    >
+                        <div className="flex items-center"><BarChart3 size={16} className="mr-2" /> Araç Analiz</div>
+                    </button>
+                )}
                 {companyData?.personnelEnabled && (
                     <button
                         onClick={() => setActiveTab('premiums')}
@@ -283,8 +285,9 @@ const CompanyAdmin = () => {
                                 {pendingUsers.map(user => (
                                     <div key={user.id} className="flex items-center justify-between bg-[var(--bg-panel-hover)] p-3 rounded-lg border border-[var(--border-color)]">
                                         <div>
-                                            <p className="font-medium text-[var(--text-primary)]">{user.username}</p>
-                                            <p className="text-xs text-slate-500">Kayıt: {new Date(user.requestedAt).toLocaleDateString('tr-TR')}</p>
+                                            <p className="font-medium text-[var(--text-primary)]">{user.fullName || (user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user.username)}</p>
+                                            <p className="text-xs text-slate-400">@{user.username}</p>
+                                            <p className="text-xs text-slate-500">Kayıt: {new Date(user.requestedAt || user.createdAt).toLocaleDateString('tr-TR')}</p>
                                         </div>
                                         <div className="flex space-x-2">
                                             <button onClick={() => approveUser(user.id, 'şoför')} className="bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 p-2 rounded-md transition-colors" title="Şoför Olarak Onayla">
@@ -312,7 +315,8 @@ const CompanyAdmin = () => {
                                         <Users size={20} />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="font-bold text-[var(--text-primary)] truncate">{driver.username}</p>
+                                        <p className="font-bold text-[var(--text-primary)] truncate">{driver.fullName || (driver.firstName ? `${driver.firstName} ${driver.lastName || ''}`.trim() : driver.username)}</p>
+                                        <p className="text-xs text-slate-500 truncate">@{driver.username}</p>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className="text-[10px] uppercase tracking-wider font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full inline-block">
                                                 ŞOFÖR
@@ -357,7 +361,7 @@ const CompanyAdmin = () => {
             )}
 
             {/* Analysis Tab */}
-            {activeTab === 'analysis' && (
+            {activeTab === 'analysis' && companyData?.mapEnabled && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <VehicleAnalysis activeTruckId={activeTruckId} />
                 </div>

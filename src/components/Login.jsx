@@ -85,6 +85,8 @@ const Login = () => {
     const { loginSession } = useContext(DataContext);
     const [mode, setMode] = useState('login'); // 'login' | 'register' | 'pending'
     const [username, setUsername] = useState('');
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -307,7 +309,11 @@ const Login = () => {
             try {
                 await setDoc(doc(db, 'pending_users', uid), {
                     username: uname,
+                    firstName: firstName.trim(),
+                    lastName: lastName.trim(),
+                    fullName: `${firstName.trim()} ${lastName.trim()}`,
                     role: 'user',
+                    companyId: 'inaner_logistics',
                     createdAt: new Date().toISOString()
                 });
                 
@@ -444,6 +450,24 @@ const Login = () => {
                                     ⚠️ Hesabınız admin onayından sonra aktif olur.
                                 </p>
                                 <form onSubmit={handleRegister} className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="block text-xs text-[var(--text-secondary)] mb-1">Ad</label>
+                                            <div className="relative">
+                                                <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                                                <input type="text" placeholder="Adınız" value={firstName}
+                                                    onChange={e => setFirstName(e.target.value)} className="w-full glass-input text-sm pl-9 pr-3 py-2" required />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-[var(--text-secondary)] mb-1">Soyad</label>
+                                            <div className="relative">
+                                                <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                                                <input type="text" placeholder="Soyadınız" value={lastName}
+                                                    onChange={e => setLastName(e.target.value)} className="w-full glass-input text-sm pl-9 pr-3 py-2" required />
+                                            </div>
+                                        </div>
+                                    </div>
                                     <div>
                                         <label className="block text-xs text-[var(--text-secondary)] mb-1">Kullanıcı Adı</label>
                                         <div className="relative">
