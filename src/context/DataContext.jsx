@@ -163,7 +163,8 @@ export const DataProvider = ({ children }) => {
 
     // Firebase Listener Setup
     useEffect(() => {
-        if (!activeCompanyId) {
+        // Only establish Firestore snapshot listeners if we have an active, authenticated user session
+        if (!currentSession?.username || !activeCompanyId) {
             setIsDataLoading(false);
             return;
         }
@@ -479,7 +480,7 @@ export const DataProvider = ({ children }) => {
         return () => {
             unsubs.forEach(unsub => unsub());
         };
-    }, [activeCompanyId, activeTruckId]);
+    }, [currentSession, activeCompanyId, activeTruckId]);
 
     // Heartbeat Effect
     useEffect(() => {
