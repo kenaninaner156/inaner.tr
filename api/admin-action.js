@@ -1,12 +1,27 @@
 /* eslint-env node */
 import admin from 'firebase-admin';
+import fs from 'fs';
 
 // Firebase Admin SDK'yı başlatıyoruz (Tek seferlik)
 if (!admin.apps.length) {
     try {
-        const projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID;
-        const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-        const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+        let projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID;
+        let clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+        let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+        // Yerel geliştirme için masaüstündeki JSON yedek kimlik bilgisi kontrolü
+        const localJsonPath = "C:/Users/kenan/Desktop/tr/v2-tir-firebase-adminsdk-fbsvc-7c846d0b8b.json";
+        if ((!privateKey || !clientEmail) && fs.existsSync(localJsonPath)) {
+            try {
+                const fbData = JSON.parse(fs.readFileSync(localJsonPath, 'utf-8'));
+                projectId = fbData.project_id;
+                clientEmail = fbData.client_email;
+                privateKey = fbData.private_key;
+                console.log("Firebase Admin SDK yerel JSON dosyasından başarıyla yapılandırıldı.");
+            } catch (jsonErr) {
+                console.error("Yerel Firebase JSON dosyası okunurken hata:", jsonErr);
+            }
+        }
 
         if (!privateKey || !clientEmail) {
             console.warn("Firebase Admin kimlik bilgileri (FIREBASE_PRIVATE_KEY veya FIREBASE_CLIENT_EMAIL) eksik. Admin fonksiyonları çalışmayacaktır.");

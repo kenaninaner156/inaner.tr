@@ -95,24 +95,25 @@ service cloud.firestore {
         ];
       }
       
-      // Şirket verileri için okuma/yazma kuralı
       allow read: if isApproved() && isCompanyDataCollection() && (
+        isSuperAdmin() ||
         (resource != null && resource.data.companyId == getCompanyId()) ||
         // company_data dökümanları şirket ID'si ile başlayan/biten veya info adında olabiliyor
         (collectionName == 'company_data' && (
           document == 'info' || 
-          document.startsWith(getCompanyId()) || 
-          document.endsWith(getCompanyId())
+          document.matches('^' + getCompanyId() + '.*') || 
+          document.matches('.*' + getCompanyId() + '$')
         ))
       );
       
       allow write: if isApproved() && isCompanyDataCollection() && (
+        isSuperAdmin() ||
         // Yeni veri eklerken kendi şirket ID'sini yazmak zorundadır
         (request.resource != null && request.resource.data.companyId == getCompanyId()) ||
         // company_data dökümanları için yetkilendirme
         (collectionName == 'company_data' && (
-          document.startsWith(getCompanyId()) || 
-          document.endsWith(getCompanyId())
+          document.matches('^' + getCompanyId() + '.*') || 
+          document.matches('.*' + getCompanyId() + '$')
         ))
       );
     }
@@ -142,7 +143,7 @@ service cloud.firestore {
     match /presence/{presenceId} {
       // Her onaylı kullanıcı online listesini okuyabilir ve kendi durumunu güncelleyebilir/silebilir
       allow read: if isApproved();
-      allow write: if isAuthenticated() && presenceId.startsWith(request.auth.uid) || presenceId.startsWith(getApprovedUser().username);
+      allow write: if isAuthenticated() && (presenceId.matches('^' + request.auth.uid + '.*') || presenceId.matches('^' + getApprovedUser().username + '.*'));
     }
   }
 }

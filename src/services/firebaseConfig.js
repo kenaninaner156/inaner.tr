@@ -2,7 +2,7 @@ import { initializeApp } from "firebase/app";
 import { initializeFirestore, persistentLocalCache } from "firebase/firestore";
 import { getAnalytics } from "firebase/analytics";
 import { getStorage } from "firebase/storage";
-import { getAuth } from "firebase/auth";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -25,4 +25,6 @@ const storage = getStorage(app);
 const auth = getAuth(app);
 const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
 
-export { db, storage, auth, analytics };
+const googleProvider = new GoogleAuthProvider();
+
+export { db, storage, auth, analytics, googleProvider };

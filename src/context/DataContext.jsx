@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { db, auth } from '../services/firebaseConfig';
-import { collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, query, setDoc, getDocs, writeBatch, where, deleteField, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, doc, getDoc, updateDoc, deleteDoc, query, setDoc, getDocs, writeBatch, where, deleteField, orderBy, limit } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { useCompany } from './CompanyContext';
 import { useTruck } from './TruckContext';
@@ -207,6 +207,8 @@ export const DataProvider = ({ children }) => {
 
         const unsubs = [];
         const isAdminSession = currentSession?.role === 'super_admin' || currentSession?.role === 'company_admin' || currentSession?.role === 'admin';
+
+        setDataError(null);
 
         // Helper function for sorting by date and createdAt
         const sortData = (data) => data.sort((a, b) => {
@@ -424,13 +426,14 @@ export const DataProvider = ({ children }) => {
                 ]);
                 setDraftInvoice(null);
             }
+            setDataError(null);
             setIsDataLoading(false); // Finished loading essential config
         }, (error) => {
             console.error("Firebase Listener Error:", error);
             if (error.code === 'permission-denied') {
-                setDataError("Firebase Veritabanı erişim izni reddedildi. Muhtemelen Test Modu süresi doldu. Lütfen Firebase Console üzerinden Rules (Kurallar) kısmını güncelleyiniz.");
+                setDataError("Veritabanı erişim izni reddedildi. Yetkiniz olmayan bir sayfaya erişmeye çalışıyor olabilirsiniz. Lütfen sistem yöneticinizle iletişime geçin.");
             } else {
-                setDataError(error.message);
+                setDataError("Sunucu bağlantısında bir sorun oluştu. Lütfen bağlantınızı kontrol edip tekrar deneyin.");
             }
             setIsDataLoading(false);
         }));
@@ -801,6 +804,11 @@ export const DataProvider = ({ children }) => {
             body: JSON.stringify({ action, payload })
         });
 
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            throw new Error("API geçersiz yanıt döndürdü (HTML/Text). Yerel geliştirme ortamında çalışırken lütfen 'npx vercel dev' komutu ile başlattığınızdan emin olun.");
+        }
+
         if (!response.ok) {
             const errData = await response.json();
             throw new Error(errData.error || `Sunucu hatası: ${response.status}`);
@@ -809,14 +817,37 @@ export const DataProvider = ({ children }) => {
     };
 
     const approveUser = async (userId, role = 'şoför', assignedCompanyId = null) => {
+        const finalCompanyId = assignedCompanyId || activeCompanyId;
+        const user = pendingUsers.find(u => u.id === userId);
         try {
-            const finalCompanyId = assignedCompanyId || activeCompanyId;
             await callAdminApi('approveUser', { uid: userId, role, assignedCompanyId: finalCompanyId });
-            const user = pendingUsers.find(u => u.id === userId);
             addLog('KULLANICI_ONAYLA', `${user?.username || 'Kullanıcı'} adlı kullanıcı '${role}' yetkisiyle onaylandı`);
         } catch (error) {
-            console.error("Kullanıcı onaylanırken hata:", error);
-            alert("Kullanıcı onaylanırken hata oluştu: " + error.message);
+            console.warn("API ile onaylama başarısız oldu, doğrudan veritabanı üzerinden deneniyor...", error);
+            try {
+                const pendingDocRef = doc(db, 'pending_users', userId);
+                const pendingSnap = await getDoc(pendingDocRef);
+                if (!pendingSnap.exists) {
+                    throw new Error("Onaylanacak bekleyen kullanıcı bulunamadı.");
+                }
+                const pendingData = pendingSnap.data();
+                const email = `${pendingData.username}@inaner.com`;
+
+                await setDoc(doc(db, 'approved_users', userId), {
+                    username: pendingData.username,
+                    authEmail: email,
+                    role,
+                    companyId: finalCompanyId,
+                    approvedAt: new Date().toISOString(),
+                    status: 'approved'
+                });
+
+                await deleteDoc(pendingDocRef);
+                addLog('KULLANICI_ONAYLA', `${user?.username || 'Kullanıcı'} adlı kullanıcı '${role}' yetkisiyle onaylandı (Yerel veritabanı üzerinden)`);
+            } catch (fallbackError) {
+                console.error("Doğrudan onaylama da başarısız oldu:", fallbackError);
+                alert("Kullanıcı onaylanırken hata oluştu: " + error.message);
+            }
         }
     };
 
@@ -858,13 +889,19 @@ export const DataProvider = ({ children }) => {
     };
 
     const rejectUser = async (userId) => {
+        const user = pendingUsers.find(u => u.id === userId);
         try {
             await callAdminApi('deleteUser', { uid: userId });
-            const user = pendingUsers.find(u => u.id === userId);
             addLog('KULLANICI_RED', `${user?.username || 'Kullanıcı'} başvurusu reddedildi`);
         } catch (error) {
-            console.error("Kullanıcı reddedilirken hata:", error);
-            alert("Kullanıcı reddedilirken hata oluştu: " + error.message);
+            console.warn("API ile reddetme başarısız oldu, doğrudan veritabanı üzerinden deneniyor...", error);
+            try {
+                await deleteDoc(doc(db, 'pending_users', userId));
+                addLog('KULLANICI_RED', `${user?.username || 'Kullanıcı'} başvurusu reddedildi (Yerel veritabanı üzerinden)`);
+            } catch (fallbackError) {
+                console.error("Doğrudan reddetme da başarısız oldu:", fallbackError);
+                alert("Kullanıcı reddedilirken hata oluştu: " + error.message);
+            }
         }
     };
 
@@ -873,9 +910,15 @@ export const DataProvider = ({ children }) => {
             await callAdminApi('deleteUser', { uid: userId });
             addLog('KULLANICI_SIL', `Kullanıcı silindi`, { table: 'approved_users', id: userId });
         } catch (error) {
-            console.error("Kullanıcı silinirken hata:", error);
-            alert("Kullanıcı silinirken hata oluştu: " + error.message);
-            throw error;
+            console.warn("API ile silme başarısız oldu, doğrudan veritabanı üzerinden deneniyor...", error);
+            try {
+                await deleteDoc(doc(db, 'approved_users', userId));
+                addLog('KULLANICI_SIL', `Kullanıcı silindi (Yerel veritabanı üzerinden)`);
+            } catch (fallbackError) {
+                console.error("Doğrudan silme da başarısız oldu:", fallbackError);
+                alert("Kullanıcı silinirken hata oluştu: " + error.message);
+                throw fallbackError;
+            }
         }
     };
 

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { Settings as SettingsIcon, Database, Save, Server, ShieldCheck, Camera, UploadCloud, Truck, Loader2, Globe, Key, AlertCircle } from 'lucide-react';
+import { Settings as SettingsIcon, Database, Save, Server, ShieldCheck, Camera, UploadCloud, Truck, Loader2, Globe, Key, AlertCircle, Link2, Unlink, CheckCircle2 } from 'lucide-react';
 import WipeData from './WipeData';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
-import { auth } from '../services/firebaseConfig';
+import { auth, googleProvider } from '../services/firebaseConfig';
+import { linkWithPopup, unlink } from 'firebase/auth';
 
 const Settings = () => {
     const { updateTruckImage, currentSession, approvedUsers, editUser, addLog } = useContext(DataContext);
@@ -13,6 +14,19 @@ const Settings = () => {
     const [uploadError, setUploadError] = useState('');
     const fileInputRef = useRef(null);
     const IMGBB_KEY = 'b9783b951fef452d9dee0c3c0fc206cc';
+
+    // Google Link State
+    const [googleLinkStatus, setGoogleLinkStatus] = useState({ type: '', message: '' });
+    const [googleLinkLoading, setGoogleLinkLoading] = useState(false);
+    const [linkedGoogle, setLinkedGoogle] = useState(null);
+
+    useEffect(() => {
+        const user = auth.currentUser;
+        if (user) {
+            const googleInfo = user.providerData.find(p => p.providerId === 'google.com');
+            setLinkedGoogle(googleInfo || null);
+        }
+    }, []);
 
     // Password Change State
     const [newPassword, setNewPassword] = useState('');
@@ -81,6 +95,45 @@ const Settings = () => {
             }
         } catch {
             setPasswordStatus({ type: 'error', message: 'Şifre güncellenirken bir hata oluştu.' });
+        }
+    };
+
+    const handleLinkGoogle = async () => {
+        setGoogleLinkStatus({ type: '', message: '' });
+        setGoogleLinkLoading(true);
+        try {
+            const result = await linkWithPopup(auth.currentUser, googleProvider);
+            const googleInfo = result.user.providerData.find(p => p.providerId === 'google.com');
+            setLinkedGoogle(googleInfo || null);
+            setGoogleLinkStatus({ type: 'success', message: `Google hesabınız (${googleInfo?.email}) başarıyla bağlandı! Artık Google ile de giriş yapabilirsiniz.` });
+            addLog('GOOGLE_BAGLAMA', `${currentSession.username} Google hesabını bağladı: ${googleInfo?.email}`);
+        } catch (error) {
+            console.error('Google bağlama hatası:', error);
+            if (error.code === 'auth/popup-closed-by-user') {
+                setGoogleLinkStatus({ type: '', message: '' });
+            } else if (error.code === 'auth/credential-already-in-use') {
+                setGoogleLinkStatus({ type: 'error', message: 'Bu Google hesabı zaten başka bir kullanıcıya bağlı.' });
+            } else {
+                setGoogleLinkStatus({ type: 'error', message: 'Google hesabı bağlanırken bir hata oluştu.' });
+            }
+        } finally {
+            setGoogleLinkLoading(false);
+        }
+    };
+
+    const handleUnlinkGoogle = async () => {
+        if (!window.confirm('Google hesabınızın bağlantısını kaldırmak istediğinize emin misiniz?')) return;
+        setGoogleLinkLoading(true);
+        try {
+            await unlink(auth.currentUser, 'google.com');
+            setLinkedGoogle(null);
+            setGoogleLinkStatus({ type: 'success', message: 'Google hesabı bağlantısı kaldırıldı.' });
+            addLog('GOOGLE_KALDIR', `${currentSession.username} Google hesap bağlantısını kaldırdı`);
+        } catch (error) {
+            console.error('Google bağlantı kaldırma hatası:', error);
+            setGoogleLinkStatus({ type: 'error', message: 'Google bağlantısı kaldırılırken hata oluştu.' });
+        } finally {
+            setGoogleLinkLoading(false);
         }
     };
 
@@ -205,6 +258,79 @@ const Settings = () => {
                             <Save size={16} /> Şifreyi Kaydet
                         </button>
                     </form>
+                </div>
+            </div>
+
+            {/* Google Hesap Bağlama */}
+            <div className="glass-panel border-blue-500/20 overflow-hidden">
+                <div className="p-6 border-b border-[var(--border-color)] flex items-center justify-between">
+                    <h4 className="font-bold text-lg text-[var(--text-primary)] flex items-center">
+                        <Link2 className="mr-2 text-blue-400" size={20} />
+                        Google Hesap Bağlama
+                    </h4>
+                    {linkedGoogle && (
+                        <span className="bg-emerald-500/20 text-emerald-400 text-xs px-2 py-1 rounded-md font-medium flex items-center">
+                            <CheckCircle2 size={14} className="mr-1" /> Bağlı
+                        </span>
+                    )}
+                </div>
+                <div className="p-6">
+                    {linkedGoogle ? (
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-4 bg-white/5 border border-blue-500/20 rounded-xl p-4">
+                                {linkedGoogle.photoURL && (
+                                    <img src={linkedGoogle.photoURL} alt="" className="w-10 h-10 rounded-full border-2 border-blue-400/30" />
+                                )}
+                                <div className="flex-1">
+                                    <p className="text-sm font-medium text-[var(--text-primary)]">{linkedGoogle.displayName || 'Google Kullanıcısı'}</p>
+                                    <p className="text-xs text-[var(--text-secondary)]">{linkedGoogle.email}</p>
+                                </div>
+                                <button
+                                    onClick={handleUnlinkGoogle}
+                                    disabled={googleLinkLoading}
+                                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 border border-red-500/20"
+                                >
+                                    <Unlink size={14} /> Bağlantıyı Kaldır
+                                </button>
+                            </div>
+                            <p className="text-[var(--text-secondary)] text-xs">
+                                Google hesabınız bağlı. Giriş ekranından hem kullanıcı adı/şifre hem de Google ile giriş yapabilirsiniz.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            <p className="text-[var(--text-secondary)] text-sm">
+                                Google hesabınızı bağlayarak, giriş ekranından <strong className="text-[var(--text-primary)]">"Google ile Giriş Yap"</strong> butonuyla da sisteme erişebilirsiniz. 
+                                Mevcut kullanıcı adınız ve şifreniz de çalışmaya devam eder.
+                            </p>
+                            <button
+                                onClick={handleLinkGoogle}
+                                disabled={googleLinkLoading}
+                                className="bg-white/10 hover:bg-white/15 disabled:bg-white/5 disabled:cursor-not-allowed text-[var(--text-primary)] text-sm font-medium py-2.5 px-5 rounded-lg transition-all border border-[var(--border-color)] flex items-center gap-2"
+                            >
+                                {googleLinkLoading ? (
+                                    <Loader2 size={16} className="animate-spin" />
+                                ) : (
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+                                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                                    </svg>
+                                )}
+                                Google Hesabımı Bağla
+                            </button>
+                        </div>
+                    )}
+
+                    {googleLinkStatus.message && (
+                        <div className={`flex items-center gap-2 text-sm p-3 rounded-md border mt-4 ${
+                            googleLinkStatus.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                        }`}>
+                            {googleLinkStatus.type === 'error' ? <AlertCircle size={16}/> : <CheckCircle2 size={16}/>}
+                            {googleLinkStatus.message}
+                        </div>
+                    )}
                 </div>
             </div>
 
