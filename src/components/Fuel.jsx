@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Droplet, Plus, MapPin, X, Trash2, Paperclip, FileText, Download, Pencil, StickyNote, ChevronDown, Calendar, Activity, Wallet } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import FileUpload from './FileUpload';
+import { sendDiscordAlert } from '../services/discordWebhook';
 
 const Fuel = () => {
     const { fuelRecords, addFuel, deleteFuel, editFuel } = useContext(DataContext);
@@ -162,6 +163,18 @@ const Fuel = () => {
             notes: formData.notes,
             files: formData.files
         });
+        // Y1: Yeni yakıt fişi bildirimi
+        sendDiscordAlert({
+            type: 'info',
+            title: '⛽ Yeni Yakıt Fişi Eklendi',
+            description: `Yakıt kaydı oluşturuldu.`,
+            fields: [
+                { name: '📍 İstasyon', value: String(formData.station || '—'), inline: true },
+                { name: '🛢️ Miktar', value: String(formData.liters || '—') + ' litre', inline: true },
+                { name: '💰 Tutar', value: String(formData.price || '—') + ' ₺', inline: true },
+                { name: '📅 Tarih', value: String(formData.date || '—'), inline: true },
+            ]
+        });
         setIsModalOpen(false);
         setShowExtra(false);
         setFormData({ date: new Date().toISOString().split('T')[0], station: '', liters: '', price: '', odometer: '', notes: '', files: [] });
@@ -181,7 +194,20 @@ const Fuel = () => {
     };
 
     const handleDelete = (id) => {
+        const deletedRecord = fuelRecords.find(r => r.id === id);
         deleteFuel(id);
+        // Y3: Yakıt fişi silme bildirimi
+        sendDiscordAlert({
+            type: 'warning',
+            title: '🗑️ Yakıt Fişi Silindi',
+            description: 'Bir yakıt kaydı silindi.',
+            fields: [
+                { name: '📍 İstasyon', value: String(deletedRecord?.station || '—'), inline: true },
+                { name: '💰 Tutar', value: String(deletedRecord?.price || '—') + ' ₺', inline: true },
+                { name: '🛢️ Miktar', value: String(deletedRecord?.liters || '—') + ' litre', inline: true },
+                { name: '📅 Tarih', value: String(deletedRecord?.date || '—'), inline: true },
+            ]
+        });
     };
 
     const activeFuelRecords = fuelRecords.filter(r => !r.deleted);

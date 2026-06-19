@@ -1,6 +1,7 @@
 import React, { useState, useContext, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { DataContext } from '../context/DataContext';
-import { Wallet, Search, Filter, TrendingUp, TrendingDown, Plus, Download, Trash2, Calendar, Pencil, ArrowDownRight, ArrowUpRight, X } from 'lucide-react';
+import { Wallet, Search, Filter, TrendingUp, TrendingDown, Plus, Download, Trash2, Calendar, Pencil, ArrowDownRight, ArrowUpRight, X, ChevronDown, Check } from 'lucide-react';
 import FileUpload from './FileUpload';
 
 const Payments = () => {
@@ -13,6 +14,10 @@ const Payments = () => {
 
     const [filterType, setFilterType] = useState('Hepsi'); // 'Hepsi', 'Tahsilat', 'Ödeme'
     const [filterMonth, setFilterMonth] = useState(''); // 'YYYY-MM'
+    
+    // Custom select dropdown states
+    const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+    const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [editingPaymentId, setEditingPaymentId] = useState(null);
@@ -150,15 +155,40 @@ const Payments = () => {
             {/* Aksiyon Barı */}
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-2">
                 <div className="flex flex-wrap items-center gap-4">
-                    <div className="glass-input flex items-center px-4 py-2 hover:border-green-500/30 transition-colors">
-                        <Filter size={16} className="text-[var(--text-secondary)] mr-2" />
-                        <span className="text-sm font-medium text-[var(--text-secondary)] mr-2">Tür:</span>
-                        <select className="bg-transparent text-sm font-semibold focus:outline-none cursor-pointer"
-                            value={filterType} onChange={e => setFilterType(e.target.value)}>
-                            <option className="text-slate-900 font-medium" value="Hepsi">Tümü</option>
-                            <option className="text-slate-900 font-medium" value="Tahsilat">Tahsilatlar</option>
-                            <option className="text-slate-900 font-medium" value="Ödeme">Ödemeler</option>
-                        </select>
+                    <div className="relative">
+                        <button
+                            type="button"
+                            onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                            className="glass-input flex items-center px-4 py-2 hover:border-green-500/30 transition-colors text-sm font-semibold text-[var(--text-primary)]"
+                        >
+                            <Filter size={16} className="text-[var(--text-secondary)] mr-2" />
+                            <span className="text-sm font-medium text-[var(--text-secondary)] mr-1">Tür:</span>
+                            {filterType === 'Hepsi' ? 'Tümü' : filterType === 'Tahsilat' ? 'Tahsilatlar' : filterType === 'Ödeme' ? 'Ödemeler' : 'Rapor Dışı'}
+                            <ChevronDown size={14} className={`ml-2 transition-transform text-slate-400 ${isFilterDropdownOpen ? 'rotate-180 text-green-400' : ''}`} />
+                        </button>
+                        {isFilterDropdownOpen && (
+                            <div className="absolute left-0 mt-1 z-50 w-44 bg-[#0b1120]/95 backdrop-blur-xl border border-green-500/20 rounded-xl shadow-2xl overflow-hidden p-1">
+                                {[
+                                    { value: 'Hepsi', label: 'Tümü' },
+                                    { value: 'Tahsilat', label: 'Tahsilatlar' },
+                                    { value: 'Ödeme', label: 'Ödemeler' },
+                                    { value: 'Rapor Dışı', label: 'Rapor Dışı' }
+                                ].map((opt) => (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        className={`w-full text-left px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-between ${filterType === opt.value ? 'bg-green-500/20 text-green-400 font-semibold' : 'text-slate-300 hover:bg-white/5'}`}
+                                        onClick={() => {
+                                            setFilterType(opt.value);
+                                            setIsFilterDropdownOpen(false);
+                                        }}
+                                    >
+                                        {opt.label}
+                                        {filterType === opt.value && <Check size={12} />}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                     <div className="glass-input flex items-center px-4 py-2 hover:border-green-500/30 transition-colors relative group">
                         <Calendar size={16} className={`mr-1 transition-colors ${filterMonth ? 'text-green-400' : 'text-[var(--text-secondary)] group-hover:text-green-400'}`} />
@@ -222,7 +252,9 @@ const Payments = () => {
                                         <td className="p-4">
                                             <span className={`px-3 py-1 rounded-full text-xs font-medium border ${record.type === 'Tahsilat'
                                                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                                : 'bg-red-500/10 text-red-400 border-red-500/20'
+                                                : record.type === 'Ödeme'
+                                                ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                                                : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
                                                 }`}>
                                                 {record.type}
                                             </span>
@@ -288,9 +320,9 @@ const Payments = () => {
             </div>
 
             {/* Yeni İşlem Ekleme Modalı */}
-            {isAddModalOpen && (
-                <div className="fixed inset-0 bg-[var(--bg-panel)] backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <div className="glass-panel w-full max-w-md p-6 border border-[var(--border-color)] rounded-2xl animate-in zoom-in-95 duration-200">
+            {typeof document !== 'undefined' && isAddModalOpen && createPortal(
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
+                    <div className="glass-panel w-full max-w-md max-h-[90vh] overflow-y-auto p-6 border border-[var(--border-color)] rounded-2xl animate-in zoom-in-95 duration-200 custom-scrollbar">
                         <h2 className="text-xl font-bold mb-4 flex items-center text-[var(--text-primary)]">
                             <Wallet className="mr-2 text-green-400" />
                             {editingPaymentId ? 'İşlemi Düzenle' : 'Yeni İşlem (Para Giriş/Çıkış)'}
@@ -299,14 +331,18 @@ const Payments = () => {
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">İşlem Türü</label>
-                                <select
-                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all appearance-none"
-                                    value={formData.type}
-                                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                                >
-                                    <option value="Tahsilat">Tahsilat (Para Girişi)</option>
-                                    <option value="Ödeme">Ödeme (Para Çıkışı)</option>
-                                </select>
+                                <div className="relative">
+                                    <select
+                                        className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-green-500 transition-all appearance-none cursor-pointer text-sm font-semibold"
+                                        value={formData.type}
+                                        onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                                    >
+                                        <option value="Tahsilat" className="bg-[#0b1120] text-slate-100 py-2">Tahsilat (Para Girişi)</option>
+                                        <option value="Ödeme" className="bg-[#0b1120] text-slate-100 py-2">Ödeme (Para Çıkışı)</option>
+                                        <option value="Rapor Dışı" className="bg-[#0b1120] text-slate-100 py-2">Rapor Dışı (Bilgi)</option>
+                                    </select>
+                                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                </div>
                             </div>
 
                             <div>

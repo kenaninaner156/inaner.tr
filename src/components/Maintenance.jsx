@@ -7,6 +7,7 @@ import { useTruck } from '../context/TruckContext';
 import { db } from '../services/firebaseConfig';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import FileUpload from './FileUpload';
+import { sendDiscordAlert } from '../services/discordWebhook';
 
 
 
@@ -134,6 +135,17 @@ const Maintenance = () => {
             updateMaintenance(editingMaintenanceId, payload);
         } else {
             addMaintenance(payload);
+            // B3: Bakım kaydı bildirimi
+            sendDiscordAlert({
+                type: 'info',
+                title: '🔧 Yeni Bakım Kaydı Eklendi',
+                description: 'Araç bakım kaydı oluşturuldu.',
+                fields: [
+                    { name: '🚛 Araç', value: String(activeTruckData?.plate || '—'), inline: true },
+                    { name: '📝 Tür', value: String(payload?.type || '—'), inline: true },
+                    { name: '💰 Maliyet', value: String(payload?.cost || '—') + ' ₺', inline: true },
+                ]
+            });
         }
 
         setIsMaintenanceModalOpen(false);
@@ -143,6 +155,12 @@ const Maintenance = () => {
 
     const handleDeleteMaintenance = (id) => {
         deleteMaintenance(id);
+        // B4: Bakım silme bildirimi
+        sendDiscordAlert({
+            type: 'warning',
+            title: '🗑️ Bakım Kaydı Silindi',
+            description: 'Bir bakım kaydı sistemden kaldırıldı.',
+        });
     };
 
     const handleAddMechanic = (e) => {
@@ -151,10 +169,29 @@ const Maintenance = () => {
             if (updateMechanic) updateMechanic(editingMechanicId, mechanicForm);
         } else {
             addMechanic(mechanicForm);
+            // B6: Tamirci eklendi bildirimi
+            sendDiscordAlert({
+                type: 'info',
+                title: '🔩 Yeni Tamirci Eklendi',
+                description: `**${mechanicForm?.name || '—'}** tamirci listesine eklendi.`,
+                fields: [
+                    { name: '📞 Telefon', value: String(mechanicForm?.phone || '—'), inline: true },
+                ]
+            });
         }
         setIsMechanicModalOpen(false);
         setEditingMechanicId(null);
         setMechanicForm({ name: '', masterName: '', phone: '', location: '', mapLink: '', notes: '', type: 'Genel Bakım' });
+    };
+
+    const handleDeleteMechanic = (id) => {
+        deleteMechanic(id);
+        // B6: Tamirci silindi bildirimi
+        sendDiscordAlert({
+            type: 'warning',
+            title: '🗑️ Tamirci Silindi',
+            description: 'Bir tamirci sistemden kaldırıldı.',
+        });
     };
 
     // Field edit helpers
@@ -197,6 +234,47 @@ const Maintenance = () => {
     useEffect(() => {
         setLocalShoppingItems(shoppingItems || []);
     }, [shoppingItems]);
+
+    // B1/B2: Periyodik bakım uyarısı — günde 1 kez
+    useEffect(() => {
+        if (!periodicMaintenanceItems || periodicMaintenanceItems.length === 0) return;
+        const todayKey = 'tir_discord_maint_' + new Date().toISOString().slice(0, 10);
+        if (localStorage.getItem(todayKey)) return;
+
+        const periodicItems = (periodicMaintenanceItems || []).map(item => {
+            const lastMaintenance = (maintenanceRecords || [])
+                .filter(m => m.type === 'Periyodik Bakım' && m.doneItems && m.doneItems.includes(item.id))
+                .sort((a, b) => b.km - a.km)[0];
+            const lastKm = lastMaintenance ? (lastMaintenance.km || 0) : 0;
+            const intervalKm = parseInt(item.intervalKm) || 40000;
+            const nextDueKm = lastKm === 0 ? intervalKm : lastKm + intervalKm;
+            const remainingKm = nextDueKm - currentKm;
+            return { ...item, remainingKm };
+        });
+
+        const expired = periodicItems.filter(i => i.remainingKm <= 0);
+        const nearDue = periodicItems.filter(i => i.remainingKm > 0 && i.remainingKm <= (parseInt(i.warningKm) || 2000));
+
+        if (expired.length > 0) {
+            sendDiscordAlert({
+                type: 'danger',
+                title: '🔴 BAKIM GECİKTİ!',
+                description: expired.map(i => `🚫 **${i.name}** — ${Math.abs(i.remainingKm)} km aşıldı`).join('\n'),
+                fields: [{ name: '🚛 Araç', value: activeTruckData?.plate || '—', inline: true }]
+            });
+        }
+        if (nearDue.length > 0) {
+            sendDiscordAlert({
+                type: 'warning',
+                title: '🟡 Yakın Bakım Uyarısı',
+                description: nearDue.map(i => `⚠️ **${i.name}** — ${i.remainingKm} km kaldı`).join('\n'),
+                fields: [{ name: '🚛 Araç', value: activeTruckData?.plate || '—', inline: true }]
+            });
+        }
+        if (expired.length > 0 || nearDue.length > 0) {
+            localStorage.setItem(todayKey, '1');
+        }
+    }, [periodicMaintenanceItems, maintenanceRecords, currentKm, activeTruckData]);
 
     const handleAddShoppingItem = (e) => {
         e.preventDefault();
@@ -763,7 +841,7 @@ const Maintenance = () => {
                                     }} className="text-slate-600 hover:text-amber-400 p-1 rounded">
                                         <Pencil size={16} />
                                     </button>
-                                    <button onClick={() => deleteMechanic(m.id)} className="text-slate-600 hover:text-red-400 p-1 rounded">
+                                    <button onClick={() => handleDeleteMechanic(m.id)} className="text-slate-600 hover:text-red-400 p-1 rounded">
                                         <Trash2 size={16} />
                                     </button>
                                 </div>

@@ -8,6 +8,7 @@ import A4PersonnelPreview from './A4PersonnelPreview';
 import FileUpload from './FileUpload';
 import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
+import { sendDiscordAlert } from '../services/discordWebhook';
 
 // PDF Görüntüleme Bileşeni
 const PdfViewer = ({ files }) => {
@@ -227,6 +228,17 @@ const Personnel = () => {
         try {
             await addPayout(newPayoutData);
 
+            // P1: Hak ediş bildirimi
+            sendDiscordAlert({
+              type: 'success',
+              title: '💵 Prim Hak Edişi Oluşturuldu',
+              description: 'Personel prim hak edişi kaydedildi.',
+              fields: [
+                { name: '👤 Personel', value: String(newPayoutData?.driverName || '—'), inline: true },
+                { name: '💰 Tutar', value: String(newPayoutData?.grandTotal || newPayoutData?.calculatedTotal || '—') + ' ₺', inline: true },
+              ]
+            });
+
             const batch = writeBatch(db);
             activePayoutState.trips.forEach(trip => {
                 const tripRef = doc(db, 'trips', trip.id);
@@ -248,12 +260,23 @@ const Personnel = () => {
 
         if (isMobile || window.confirm(`${docId} numaralı personel hak ediş kaydını silmek istediğinize emin misiniz? (İlgili seferlerin prim durumları ödenmemiş hale dönecektir)`)) {
             try {
+                const deletedPayout = payouts.find(p => p.id === payoutId);
                 await deletePayout(payoutId);
 
-                const linkedPayout = payouts.find(p => p.id === payoutId);
-                if (linkedPayout && linkedPayout.trips) {
+                // P2: Hak ediş silme bildirimi
+                sendDiscordAlert({
+                  type: 'warning',
+                  title: '🗑️ Hak Ediş Silindi',
+                  description: 'Bir prim hak ediş kaydı silindi.',
+                  fields: [
+                    { name: '👤 Personel', value: String(deletedPayout?.driverName || '—'), inline: true },
+                    { name: '💰 Tutar', value: String(deletedPayout?.grandTotal || deletedPayout?.calculatedTotal || '—') + ' ₺', inline: true },
+                  ]
+                });
+
+                if (deletedPayout && deletedPayout.trips) {
                     const batch = writeBatch(db);
-                    linkedPayout.trips.forEach(trip => {
+                    deletedPayout.trips.forEach(trip => {
                         const tripRef = doc(db, 'trips', trip.id);
                         batch.update(tripRef, { premiumStatus: 'unpaid' });
                     });

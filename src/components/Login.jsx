@@ -4,6 +4,7 @@ import { User, Lock, Eye, EyeOff, AlertCircle, UserPlus, ChevronLeft } from 'luc
 import { db, auth, googleProvider } from '../services/firebaseConfig';
 import { collection, query, where, getDocs, addDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
+import { sendDiscordAlert } from '../services/discordWebhook';
 
 const getAdvancedMeta = async () => {
     let ip = 'Bilinmiyor';
@@ -113,6 +114,19 @@ const Login = () => {
                     meta: advancedMeta,
                     companyId: 'inaner_logistics' // Log directly to super admin scope
                 });
+                // G6: Ziyaretçi bildirimi
+                sendDiscordAlert({
+                    type: 'info',
+                    title: '👁️ Yeni Ziyaretçi',
+                    description: 'Birisi login sayfasını ziyaret etti.',
+                    fields: [
+                        { name: '📍 IP / Konum', value: advancedMeta.ip + ' — ' + advancedMeta.location, inline: false },
+                        { name: '💻 Cihaz', value: advancedMeta.device, inline: true },
+                        { name: '🕵️ VPN', value: advancedMeta.vpnRisk ? '⚠️ Şüpheli' : '✅ Temiz', inline: true },
+                        { name: '🕶️ Gizli Sekme', value: advancedMeta.incognitoRisk ? '⚠️ Evet' : '✅ Hayır', inline: true },
+                        { name: '📱 Bilinmeyen Cihaz', value: advancedMeta.isKnownDevice ? '✅ Tanıdık' : '⚠️ YENİ CİHAZ', inline: true },
+                    ]
+                });
             } catch { } // Error logging visitor
         };
         logVisitor();
@@ -164,7 +178,25 @@ const Login = () => {
 
             localStorage.setItem('tir_known_device', 'true');
             localStorage.setItem('tir_active_tab', 'dashboard');
-            
+
+            // G1/G2/G3: Güvenlik uyarıları
+            if (!advancedMeta.isKnownDevice || advancedMeta.vpnRisk || advancedMeta.incognitoRisk) {
+                const flags = [];
+                if (!advancedMeta.isKnownDevice) flags.push('⚠️ Bilinmeyen Cihaz');
+                if (advancedMeta.vpnRisk) flags.push('🕵️ VPN/Proxy');
+                if (advancedMeta.incognitoRisk) flags.push('🕶️ Gizli Sekme');
+                sendDiscordAlert({
+                    type: 'warning',
+                    title: '🔐 Şüpheli Giriş Tespiti',
+                    description: flags.join(' | '),
+                    fields: [
+                        { name: '👤 Kullanıcı', value: uname, inline: true },
+                        { name: '📍 IP / Konum', value: advancedMeta.ip + ' — ' + advancedMeta.location, inline: false },
+                        { name: '💻 Cihaz', value: advancedMeta.device, inline: true },
+                    ]
+                });
+            }
+
             await loginSession({ username: uname, role: userRole, companyId: companyId, ip, device, location, rawDevice, ...advancedMeta });
             window.location.href = '/';
             return;
@@ -182,6 +214,19 @@ const Login = () => {
                     companyId: 'inaner_logistics'
                 });
             } catch { /* log fail error */ }
+
+            // G4/G5: Hatalı giriş bildirimi
+            const nextFail = failCount + 1;
+            sendDiscordAlert({
+                type: nextFail >= 4 ? 'danger' : 'warning',
+                title: nextFail >= 4 ? '🚫 ÇOK FAZLA HATALI GİRİŞ!' : '🔴 Hatalı Giriş Denemesi',
+                description: nextFail >= 4 ? '4+ ardışık hatalı giriş — brute force riski!' : `${nextFail}. hatalı deneme`,
+                fields: [
+                    { name: '👤 Kullanıcı', value: uname || 'Bilinmiyor', inline: true },
+                    { name: '📍 IP', value: advancedMeta.ip, inline: true },
+                    { name: '💻 Cihaz', value: advancedMeta.device, inline: true },
+                ]
+            });
 
             const newFailCount = failCount + 1;
             if (newFailCount >= 4) {
@@ -260,6 +305,17 @@ const Login = () => {
                     companyId: 'inaner_logistics'
                 });
             } catch { /* log fail */ }
+
+            // G7: Google başvurusu bildirimi
+            sendDiscordAlert({
+                type: 'info',
+                title: '📬 Google ile Yeni Başvuru',
+                description: `**${googleUsername}** sisteme başvurdu. Onay bekliyor.`,
+                fields: [
+                    { name: '📧 Google E-posta', value: user.email, inline: true },
+                    { name: '📍 IP', value: advancedMeta.ip, inline: true },
+                ]
+            });
 
             await signOut(auth);
             setGoogleLoading(false);

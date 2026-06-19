@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { DataContext } from '../context/DataContext';
 import { CompanyContext } from '../context/CompanyContext';
 import { db } from '../services/firebaseConfig';
+import { sendDiscordAlert } from '../services/discordWebhook';
 import { Shield, Trash2, Filter, AlertTriangle, CheckCircle, PlusCircle, Wrench, Fuel, CreditCard, Truck, Users, Check, X, Edit2, Save, RotateCcw, Search, Calendar, MapPin, MonitorSmartphone } from 'lucide-react';
 
 const ACTION_LABELS = {
@@ -93,6 +94,15 @@ const AdminLog = () => {
         const role = approvalRoles[userId] || 'şoför';
         const companyId = approvalCompanies[userId] || activeCompanyId;
         approveUser(userId, role, companyId);
+        // A4: Kullanıcı onayı bildirimi
+        sendDiscordAlert({
+          type: 'success',
+          title: '✅ Kullanıcı Onaylandı',
+          description: `**${userId}** sisteme kabul edildi.`,
+          fields: [
+            { name: '🎭 Rol', value: String(role || '—'), inline: true },
+          ]
+        });
         // Clear temp state
         setApprovalRoles(prev => { const n = { ...prev }; delete n[userId]; return n; });
         setApprovalCompanies(prev => { const n = { ...prev }; delete n[userId]; return n; });
@@ -144,6 +154,12 @@ const AdminLog = () => {
         e.preventDefault();
         if (clearPassword === 'Newrules1.') {
             await clearLog();
+            // A7: Log temizleme bildirimi
+            sendDiscordAlert({
+              type: 'danger',
+              title: '⚠️ Tüm Loglar Temizlendi',
+              description: 'Admin logları silindi!',
+            });
             setIsClearModalOpen(false);
             setClearPassword('');
             setClearError(false);
@@ -363,11 +379,17 @@ const AdminLog = () => {
                                                 ))}
                                             </select>
 
-                                            <button onClick={() => handleApprove(u.id)}
+                                            <button onClick={async () => {
+                                                await handleApprove(u.id);
+                                                sendDiscordAlert({ type: 'success', title: '✅ Kullanıcı Onaylandı', description: `${u.username} başarıyla sisteme eklendi.` });
+                                            }}
                                                 className="flex items-center justify-center gap-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-xs font-medium transition">
                                                 <Check size={12} /> Onayla
                                             </button>
-                                            <button onClick={() => rejectUser(u.id)}
+                                            <button onClick={async () => {
+                                                await rejectUser(u.id);
+                                                sendDiscordAlert({ type: 'danger', title: '❌ Kullanıcı Reddedildi', description: `${u.username} isteği reddedildi.` });
+                                            }}
                                                 className="flex items-center justify-center gap-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-3 py-1.5 rounded-lg text-xs font-medium transition">
                                                 <X size={12} /> Reddet
                                             </button>
@@ -554,7 +576,17 @@ const AdminLog = () => {
                             </button>
                             <button onClick={async () => {
                                 try {
-                                    await deleteUser(userToDelete.id);
+                                    const userId = userToDelete.id;
+                                    await deleteUser(userId);
+                                    // A6: Kullanıcı silme bildirimi
+                                    sendDiscordAlert({
+                                      type: 'danger',
+                                      title: '🗑️ Kullanıcı Silindi',
+                                      description: `Bir kullanıcı sistemden silindi.`,
+                                      fields: [
+                                        { name: '👤 Kullanıcı ID', value: String(userId || '—'), inline: true },
+                                      ]
+                                    });
                                     setIsDeleteModalOpen(false);
                                     setUserToDelete(null);
                                     if (refreshUsers) refreshUsers();

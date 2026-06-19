@@ -8,6 +8,7 @@ import A4InvoicePreview from './A4InvoicePreview';
 import FileUpload from './FileUpload';
 import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
+import { sendDiscordAlert } from '../services/discordWebhook';
 
 // PDF Görüntüleme Bileşeni
 const PdfViewer = ({ files }) => {
@@ -200,6 +201,17 @@ const Invoices = () => {
             await batch.commit();
             await clearDraftInvoice();
 
+            // F1: Fatura kesildi bildirimi
+            sendDiscordAlert({
+              type: 'success',
+              title: '🧾 Yeni Fatura Kesildi',
+              description: 'Fatura başarıyla oluşturuldu.',
+              fields: [
+                { name: '🏢 Firma', value: String(newInvoiceData?.customer || newInvoiceData?.company || '—'), inline: true },
+                { name: '💰 Tutar', value: String(newInvoiceData?.grandTotal || '—') + ' ₺', inline: true },
+              ]
+            });
+
             addLog('FATURA_KESILDI', `${activeInvoice.startDate} - ${activeInvoice.endDate} periyodu için fatura başarıyla kesildi.`);
 
             setActiveInvoice({ ...newInvoiceData, id: newInvoiceData.docId });
@@ -218,7 +230,18 @@ const Invoices = () => {
         if (isMobile || window.confirm(`${docId} numaralı faturayı/dökümü silmek istediğinize emin misiniz? (Bağlı seferler faturası kesilmemiş hale dönecektir)`)) {
             try {
                 // Faturayı siliyoruz (Soft Delete)
+                const deletedInvoice = invoices.find(inv => inv.id === invoiceId);
                 await deleteInvoice(invoiceId);
+
+                // F2: Fatura silme bildirimi
+                sendDiscordAlert({
+                  type: 'danger',
+                  title: '🗑️ Fatura Silindi',
+                  description: 'Bir fatura kaydı silindi.',
+                  fields: [
+                    { name: '💰 Tutar', value: String(deletedInvoice?.grandTotal || deletedInvoice?.amount || deletedInvoice?.total || '—') + ' ₺', inline: true },
+                  ]
+                });
 
                 // Bu faturaya bağlı olan seferleri bulup statülerini "Fatura Bekliyor" olarak geri alıyoruz
                 const linkedInvoice = invoices.find(inv => inv.id === invoiceId);
@@ -444,6 +467,12 @@ const Invoices = () => {
                                 onSavePrice={activeInvoice?.status === 'Sent' && isViewingOldInvoice ? async () => {
                                     await updateInvoice(activeInvoice.id, { grandTotal: netPrice });
                                     addLog('FATURA_FIYAT', `${activeInvoice.docId} net fiyat güncellendi: ₺${netPrice?.toLocaleString('tr-TR')}`);
+                                    // F3: Fatura güncelleme bildirimi
+                                    sendDiscordAlert({
+                                      type: 'info',
+                                      title: '✏️ Fatura Güncellendi',
+                                      description: 'Fatura bilgileri değiştirildi.',
+                                    });
                                 } : undefined}
                                 fuelRecords={fuelRecords}
                             />
@@ -521,6 +550,12 @@ const Invoices = () => {
                                         await updateInvoice(noteModalInvoice.id, { note: modalNote, files: modalFiles, grandTotal: newPrice });
                                         if (activeInvoice?.id === noteModalInvoice.id) setNetPrice(newPrice);
                                         addLog('FATURA_NOT', `${noteModalInvoice.docId} güncellendi`);
+                                        // F3: Fatura güncelleme bildirimi
+                                        sendDiscordAlert({
+                                          type: 'info',
+                                          title: '✏️ Fatura Güncellendi',
+                                          description: 'Fatura bilgileri değiştirildi.',
+                                        });
                                         setNoteModalInvoice(null);
                                     } catch { /* empty */ }
                                     setIsSavingNote(false);

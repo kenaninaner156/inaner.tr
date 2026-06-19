@@ -23,6 +23,7 @@ import { useTruck } from './context/TruckContext'
 import PremiumLogo from './components/PremiumLogo'
 import MapPage from './components/MapPage'
 import Personnel from './components/Personnel'
+import { sendDiscordAlert } from './services/discordWebhook'
 
 function App() {
   const [activeTab, setActiveTab] = useState(() => {
@@ -130,6 +131,12 @@ function App() {
   }
 
   const handleLogout = () => {
+    // G8: Çıkış bildirimi
+    sendDiscordAlert({
+      type: 'info',
+      title: '🚪 Kullanıcı Çıkış Yaptı',
+      description: `**${currentUser?.username || '?'}** oturumu kapattı.`,
+    });
     logoutSession()
     localStorage.removeItem('tir_active_tab')
     setIsMenuOpen(false)
@@ -137,6 +144,61 @@ function App() {
 
   // Belge uyarısı hesapla (Detaylar sekmesi badge) - DataContext'ten gelen verilerle
   const DOC_WARNINGS = { bandrol: 30, inspection: 45, trailerInspection: 45, insurance: 30, k1: 60, l1: 60, srcBelgesi: 60, odp: 30 }
+
+  // D1-D8: Belge uyarıları — günde 1 kez Discord'a gönder
+  useEffect(() => {
+    if (!docs || !currentUser) return;
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const sentKey = 'tir_discord_doc_alert_' + todayKey;
+    if (localStorage.getItem(sentKey)) return; // Bugün zaten gönderildi
+
+    const DOC_LABELS = {
+      bandrol: 'Bandrol',
+      inspection: 'Çekici Muayene',
+      trailerInspection: 'Dorse Muayene',
+      insurance: 'Sigorta',
+      k1: 'K1 Belgesi',
+      l1: 'L1 Belgesi',
+      srcBelgesi: 'SRC Belgesi',
+      odp: 'ODP Sigortası',
+    };
+
+    const warnings = [];
+    const expired = [];
+
+    Object.entries(DOC_WARNINGS).forEach(([key, days]) => {
+      const d = docs[key]?.date;
+      if (!d) return;
+      const diff = Math.ceil((new Date(d) - new Date()) / 86400000);
+      if (diff <= 0) {
+        expired.push(`🚫 **${DOC_LABELS[key]}** — SÜRESİ DOLDU! (${d})`);
+      } else if (diff <= days) {
+        warnings.push(`⚠️ **${DOC_LABELS[key]}** — ${diff} gün kaldı (${d})`);
+      }
+    });
+
+    if (expired.length > 0) {
+      sendDiscordAlert({
+        type: 'danger',
+        title: '🚫 ARAÇ BELGESİ SÜRESİ DOLDU!',
+        description: expired.join('\n'),
+        fields: [{ name: '🚛 Araç', value: activeTruckData?.plate || activeTruckId || '—', inline: true }]
+      });
+    }
+
+    if (warnings.length > 0) {
+      sendDiscordAlert({
+        type: 'warning',
+        title: '📋 Araç Belgesi Uyarısı',
+        description: warnings.join('\n'),
+        fields: [{ name: '🚛 Araç', value: activeTruckData?.plate || activeTruckId || '—', inline: true }]
+      });
+    }
+
+    if (expired.length > 0 || warnings.length > 0) {
+      localStorage.setItem(sentKey, '1');
+    }
+  }, [docs, currentUser, activeTruckId, activeTruckData]);
 
   // Sync badges across components via custom event and storage updates
   const [readDocsNotif, setReadDocsNotif] = useState(() => {

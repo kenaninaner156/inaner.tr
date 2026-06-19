@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
 import { DataContext } from '../context/DataContext';
-import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key, BarChart3, Award } from 'lucide-react';
+import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key, BarChart3, Award, User } from 'lucide-react';
 import { db } from '../services/firebaseConfig';
 import { collection, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import VehicleAnalysis from './map/VehicleAnalysis';
@@ -10,7 +10,7 @@ import VehicleAnalysis from './map/VehicleAnalysis';
 const CompanyAdmin = () => {
     const { activeCompanyId, companyData } = useCompany();
     const { trucks, activeTruckId, setActiveTruckId } = useTruck();
-    const { approvedUsers, pendingUsers, approveUser, rejectUser, premiums, updatePremiums, editUser, deleteUser } = useContext(DataContext);
+    const { approvedUsers, pendingUsers, approveUser, rejectUser, premiums, updatePremiums, editUser, deleteUser, drivers, updateDrivers } = useContext(DataContext);
 
     const [activeTab, setActiveTab] = useState('trucks');
 
@@ -37,6 +37,12 @@ const CompanyAdmin = () => {
     const [premName, setPremName] = useState('');
     const [premType, setPremType] = useState('fixed');
     const [premAmount, setPremAmount] = useState('');
+
+    // Offline Drivers state
+    const [showOfflineDriverForm, setShowOfflineDriverForm] = useState(false);
+    const [newOfflineDriverName, setNewOfflineDriverName] = useState('');
+    const [newOfflineDriverPhone, setNewOfflineDriverPhone] = useState('');
+    const [editingOfflineDriverId, setEditingOfflineDriverId] = useState(null);
 
     const resetPremiumForm = () => {
         setPremName('');
@@ -86,6 +92,57 @@ const CompanyAdmin = () => {
                 await updatePremiums(newPremiums);
             } catch {
                 alert("Prim silinirken hata oluştu.");
+            }
+        }
+    };
+
+    const handleSaveOfflineDriver = async (e) => {
+        e.preventDefault();
+        if (!newOfflineDriverName.trim()) return;
+
+        const newDriver = {
+            id: editingOfflineDriverId || `manual_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`,
+            name: newOfflineDriverName.trim(),
+            phone: newOfflineDriverPhone.trim()
+        };
+
+        let updatedDrivers;
+        if (editingOfflineDriverId) {
+            updatedDrivers = (drivers || []).map(d => d.id === editingOfflineDriverId ? newDriver : d);
+        } else {
+            const exists = (drivers || []).some(d => d.name.toLowerCase() === newOfflineDriverName.trim().toLowerCase());
+            if (exists) {
+                alert("Bu isimde bir şoför zaten kayıtlı!");
+                return;
+            }
+            updatedDrivers = [...(drivers || []), newDriver];
+        }
+
+        try {
+            await updateDrivers(updatedDrivers);
+            setNewOfflineDriverName('');
+            setNewOfflineDriverPhone('');
+            setEditingOfflineDriverId(null);
+            setShowOfflineDriverForm(false);
+        } catch {
+            alert("Şoför kaydedilirken hata oluştu.");
+        }
+    };
+
+    const handleEditOfflineDriver = (driver) => {
+        setEditingOfflineDriverId(driver.id);
+        setNewOfflineDriverName(driver.name);
+        setNewOfflineDriverPhone(driver.phone || '');
+        setShowOfflineDriverForm(true);
+    };
+
+    const handleDeleteOfflineDriver = async (driverId, driverName) => {
+        if (window.confirm(`"${driverName}" adlı çevrimdışı şoförü silmek istediğinize emin misiniz?`)) {
+            try {
+                const updatedDrivers = (drivers || []).filter(d => d.id !== driverId);
+                await updateDrivers(updatedDrivers);
+            } catch {
+                alert("Şoför silinirken hata oluştu.");
             }
         }
     };
@@ -303,10 +360,38 @@ const CompanyAdmin = () => {
                         </div>
                     )}
 
-                    {/* Aktif Şoförler */}
+                    <div className="flex justify-between items-center bg-[var(--bg-panel-hover)] p-4 rounded-xl border border-[var(--border-color)]">
+                        <div className="text-sm text-[var(--text-primary)]">Şirketinizdeki şoför listesini yönetin (aktif sistem kullanıcıları ve sadece kaydı bulunan çevrimdışı şoförler).</div>
+                        <button onClick={() => { setShowOfflineDriverForm(!showOfflineDriverForm); setEditingOfflineDriverId(null); setNewOfflineDriverName(''); setNewOfflineDriverPhone(''); }} className="bg-indigo-500 hover:bg-indigo-600 text-[var(--text-primary)] px-4 py-2 rounded-lg text-sm font-medium flex items-center transition-colors">
+                            <Plus size={16} className="mr-1.5" /> Yeni Çevrimdışı Şoför Ekle
+                        </button>
+                    </div>
+
+                    {showOfflineDriverForm && (
+                        <form onSubmit={handleSaveOfflineDriver} className="glass-panel p-5 grid grid-cols-1 md:grid-cols-3 gap-4 border border-indigo-500/20">
+                            <div>
+                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Şoför Adı Soyadı</label>
+                                <input type="text" required value={newOfflineDriverName} onChange={e => setNewOfflineDriverName(e.target.value)} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none" placeholder="Örn: Ahmet Yılmaz" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">Telefon Numarası (İsteğe Bağlı)</label>
+                                <input type="text" value={newOfflineDriverPhone} onChange={e => setNewOfflineDriverPhone(e.target.value)} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none" placeholder="Örn: 0555..." />
+                            </div>
+                            <div className="flex items-end gap-2">
+                                <button type="submit" className="flex-1 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                                    {editingOfflineDriverId ? 'Güncelle' : 'Kaydet'}
+                                </button>
+                                <button type="button" onClick={() => { setShowOfflineDriverForm(false); setEditingOfflineDriverId(null); }} className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                                    İptal
+                                </button>
+                            </div>
+                        </form>
+                    )}
+
+                    {/* Aktif Şoförler (Sistem Kullanıcıları) */}
                     <div className="glass-panel p-5">
                         <div className="flex justify-between items-center mb-4">
-                            <h4 className="text-sm font-bold text-[var(--text-primary)]">Aktif Şoförler</h4>
+                            <h4 className="text-sm font-bold text-[var(--text-primary)]">Aktif Şoförler (Sistem Kullanıcıları)</h4>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {approvedUsers.filter(u => u.role === 'şoför' || u.role === 'user').map(driver => (
@@ -352,7 +437,43 @@ const CompanyAdmin = () => {
                             ))}
                             {approvedUsers.filter(u => u.role === 'şoför' || u.role === 'user').length === 0 && (
                                 <div className="col-span-full text-center py-6 text-slate-500 text-sm">
-                                    Henüz kayıtlı şoför bulunmuyor.
+                                    Henüz kayıtlı sistem şoförü bulunmuyor.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Çevrimdışı Şoförler (Sadece Listede Görünenler) */}
+                    <div className="glass-panel p-5">
+                        <div className="flex justify-between items-center mb-4">
+                            <h4 className="text-sm font-bold text-[var(--text-primary)]">Çevrimdışı Şoförler (Sadece Listede Görünenler)</h4>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {(drivers || []).map(driver => (
+                                <div key={driver.id} className="bg-[var(--bg-panel-hover)] p-4 rounded-xl border border-[var(--border-color)] flex items-center space-x-4">
+                                    <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-[var(--text-primary)] flex-shrink-0">
+                                        <User size={20} className="text-slate-400" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-[var(--text-primary)] truncate">{driver.name}</p>
+                                        <p className="text-xs text-slate-500 truncate">{driver.phone || 'Telefon belirtilmedi'}</p>
+                                        <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 bg-slate-500/10 px-2 py-0.5 rounded-full inline-block mt-1">
+                                            ÇEVRİMDIŞI
+                                        </span>
+                                    </div>
+                                    <div className="flex gap-1">
+                                        <button onClick={() => handleEditOfflineDriver(driver)} className="text-slate-500 hover:text-indigo-400 p-1.5 bg-[var(--bg-panel-hover)] hover:bg-indigo-500/10 rounded-md transition-colors" title="Düzenle">
+                                            <Edit2 size={13} />
+                                        </button>
+                                        <button onClick={() => handleDeleteOfflineDriver(driver.id, driver.name)} className="text-slate-500 hover:text-red-400 p-1.5 bg-[var(--bg-panel-hover)] hover:bg-red-500/10 rounded-md transition-colors" title="Sil">
+                                            <Trash2 size={13} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {(drivers || []).length === 0 && (
+                                <div className="col-span-full text-center py-6 text-slate-500 text-sm">
+                                    Henüz kayıtlı çevrimdışı şoför bulunmuyor.
                                 </div>
                             )}
                         </div>

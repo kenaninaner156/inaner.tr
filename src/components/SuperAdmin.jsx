@@ -4,6 +4,7 @@ import { db } from '../services/firebaseConfig';
 import { collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, writeBatch, where, getDocs } from 'firebase/firestore';
 import { useCompany } from '../context/CompanyContext';
 import { DataContext } from '../context/DataContext';
+import { sendDiscordAlert } from '../services/discordWebhook';
 
 const SuperAdmin = () => {
     const { activeCompanyId, setActiveCompanyId } = useCompany();
@@ -85,6 +86,13 @@ const SuperAdmin = () => {
                 companyId: newCompanyId
             });
 
+            // A1: Yeni şirket bildirimi
+            sendDiscordAlert({
+              type: 'success',
+              title: '🏢 Yeni Şirket Oluşturuldu',
+              description: `**${compName || '—'}** sisteme eklendi.`,
+            });
+
             setCompName('');
             setCompAdmin('');
             setCompPassword('');
@@ -108,9 +116,22 @@ const SuperAdmin = () => {
     const handleToggleStatus = async (docRefId, currentStatus) => {
         if (window.confirm(`Şirketi ${currentStatus === 'active' ? 'ASKIYA ALMAK' : 'AKTİF ETMEK'} istediğinize emin misiniz?`)) {
             try {
+                const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
+                const company = companies.find(c => c.docRefId === docRefId);
                 await updateDoc(doc(db, 'companies', docRefId), {
-                    status: currentStatus === 'active' ? 'suspended' : 'active'
+                    status: newStatus
                 });
+                if (newStatus === 'suspended') {
+                    // A2: Şirket askıya alma bildirimi
+                    sendDiscordAlert({
+                        type: 'danger',
+                        title: '🚫 Şirket Askıya Alındı',
+                        description: `Bir şirket erişimi engellendi.`,
+                        fields: [
+                            { name: '🏢 Şirket', value: String(company?.name || docRefId || '—'), inline: true },
+                        ]
+                    });
+                }
             } catch { /* empty */ }
         }
     };
@@ -153,6 +174,16 @@ const SuperAdmin = () => {
                     batch.delete(doc(db, 'companies', company.docRefId));
 
                     await batch.commit();
+
+                    // A3: Şirket silme bildirimi
+                    sendDiscordAlert({
+                        type: 'danger',
+                        title: '💣 ŞİRKET SİLİNDİ — TÜM VERİLER GİTTİ!',
+                        description: `Bir şirket ve tüm verisi sistemden kaldırıldı. Bu işlem geri alınamaz!`,
+                        fields: [
+                            { name: '🏢 Şirket', value: String(company?.name || company?.id || '—'), inline: true },
+                        ]
+                    });
                 } catch { /* empty */ }
             }
         }
@@ -201,6 +232,13 @@ const SuperAdmin = () => {
             document.body.appendChild(downloadAnchorNode); // Firefox trigger required
             downloadAnchorNode.click();
             downloadAnchorNode.remove();
+
+            // A8: Veritabanı yedeği bildirimi
+            sendDiscordAlert({
+                type: 'admin',
+                title: '💾 Veritabanı Yedeği Alındı',
+                description: 'Tüm sistem verisi JSON olarak indirildi.',
+            });
 
         } catch (error) {
             console.error("Yedekleme hatası:", error);
