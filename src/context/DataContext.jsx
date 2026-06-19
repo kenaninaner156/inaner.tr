@@ -1157,6 +1157,7 @@ export const DataProvider = ({ children }) => {
             spareParts, addSparePart, updateSparePart, deleteSparePart,
             sparePartCategories, addSparePartCategory,
             periodicMaintenanceItems, updatePeriodicMaintenanceItems,
+            maintenanceTypes, updateMaintenanceTypes,
             penalties, addPenalty, deletePenalty, togglePenaltyPaid,
             invoices, addInvoice, updateInvoice, deleteInvoice,
             updateRoute,

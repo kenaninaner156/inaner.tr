@@ -125,7 +125,7 @@ const Maintenance = () => {
             description: maintenanceForm.description,
             mechanicName: mechanic ? mechanic.name : 'Belirtilmedi',
             km: parseInt(maintenanceForm.km) || 0,
-            cost: parseFloat(maintenanceForm.cost),
+            cost: parseFloat(String(maintenanceForm.cost).replace(',', '.')) || 0,
             files: maintenanceForm.files,
             doneItems: maintenanceForm.type === 'Periyodik Bakım' ? (maintenanceForm.doneItems || []) : []
         };
@@ -170,7 +170,7 @@ const Maintenance = () => {
     };
 
     const activeMaintenanceRecords = maintenanceRecords.filter(r => !r.deleted);
-    const totalCost = activeMaintenanceRecords.reduce((acc, r) => acc + r.cost, 0);
+    const totalCost = activeMaintenanceRecords.reduce((acc, r) => acc + (parseFloat(r.cost) || 0), 0);
 
     const tabs = [
         { id: 'info', label: 'Araç Bilgileri', icon: <Truck size={16} />, theme: 'from-blue-500 to-blue-600 shadow-[0_2px_12px_rgba(59,130,246,0.3)] border-blue-400/30', hoverText: 'group-hover:text-blue-400' },
@@ -562,8 +562,8 @@ const Maintenance = () => {
                                                     </div>
                                                 )}
                                             </td>
-                                            <td className="p-3 text-center text-[var(--text-secondary)] text-sm">{rec.km > 0 ? `${rec.km.toLocaleString()} km` : '—'}</td>
-                                            <td className="p-3 text-right text-amber-400 font-bold text-sm">₺{rec.cost.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
+                                            <td className="p-3 text-center text-[var(--text-secondary)] text-sm">{rec.km > 0 ? `${(parseInt(rec.km) || 0).toLocaleString('tr-TR')} km` : '—'}</td>
+                                            <td className="p-3 text-right text-amber-400 font-bold text-sm">₺{(parseFloat(rec.cost) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
                                             <td className="p-3 text-center">
                                                 {rec.files && rec.files.length > 0 ? (
                                                     <button onClick={() => setViewFiles({ title: rec.description || 'Bakım Kaydı', files: rec.files })}

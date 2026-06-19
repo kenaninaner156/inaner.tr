@@ -129,7 +129,7 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
         if (includeAll) {
             paymentRecords.filter(p => !p.deleted && p.type === 'Tahsilat').forEach(pay => addToGroup(pay.date, 'income', pay.amount || 0));
             paymentRecords.filter(p => !p.deleted && p.type === 'Ödeme').forEach(pay => addToGroup(pay.date, 'expense', pay.amount || 0));
-            maintenanceRecords.filter(m => !m.deleted).forEach(m => addToGroup(m.date, 'expense', m.totalCost || m.price || 0));
+            maintenanceRecords.filter(m => !m.deleted).forEach(m => addToGroup(m.date, 'expense', m.cost || m.totalCost || m.price || 0));
             penalties.filter(p => !p.deleted).forEach(p => addToGroup(p.date || p.createdAt, 'expense', p.amount || p.total || p.cost || 0));
         }
 
