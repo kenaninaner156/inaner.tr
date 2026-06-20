@@ -496,7 +496,7 @@ export const DataProvider = ({ children }) => {
         return () => {
             unsubs.forEach(unsub => unsub());
         };
-    }, [currentSession, activeCompanyId, activeTruckId]);
+    }, [currentSession?.username, activeCompanyId, activeTruckId]);
 
     // Heartbeat Effect
     useEffect(() => {
