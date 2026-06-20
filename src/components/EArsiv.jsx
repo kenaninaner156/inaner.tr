@@ -256,7 +256,10 @@ const EArsiv = () => {
             }
 
             if (!response.ok || !result.success) {
-                throw new Error(result.error || "GİB portalına gönderim sırasında bir hata oluştu.");
+                const errMsg = result.details 
+                    ? `${result.error} (Detay: ${result.details})` 
+                    : (result.error || "GİB portalına gönderim sırasında bir hata oluştu.");
+                throw new Error(errMsg);
             }
 
             // Save client details to history (Autocomplete pool)

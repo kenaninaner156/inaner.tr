@@ -24,11 +24,29 @@ if (!admin.apps.length) {
             }
         }
 
+        // Clean and sanitize inputs to prevent quote wrapping issues from Vercel settings
+        if (projectId) {
+            projectId = projectId.trim();
+            if (projectId.startsWith('"') && projectId.endsWith('"')) projectId = projectId.substring(1, projectId.length - 1);
+            if (projectId.startsWith("'") && projectId.endsWith("'")) projectId = projectId.substring(1, projectId.length - 1);
+        }
+        if (clientEmail) {
+            clientEmail = clientEmail.trim();
+            if (clientEmail.startsWith('"') && clientEmail.endsWith('"')) clientEmail = clientEmail.substring(1, clientEmail.length - 1);
+            if (clientEmail.startsWith("'") && clientEmail.endsWith("'")) clientEmail = clientEmail.substring(1, clientEmail.length - 1);
+        }
+        if (privateKey) {
+            privateKey = privateKey.trim();
+            if (privateKey.startsWith('"') && privateKey.endsWith('"')) privateKey = privateKey.substring(1, privateKey.length - 1);
+            if (privateKey.startsWith("'") && privateKey.endsWith("'")) privateKey = privateKey.substring(1, privateKey.length - 1);
+            privateKey = privateKey.replace(/\\n/g, '\n');
+        }
+
         admin.initializeApp({
             credential: admin.credential.cert({
                 projectId,
                 clientEmail,
-                privateKey: privateKey ? privateKey.replace(/\\n/g, '\n') : undefined
+                privateKey
             })
         });
     } catch (err) {
