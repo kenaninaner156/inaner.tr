@@ -17,7 +17,10 @@ service cloud.firestore {
     
     // Kullanıcının onaylı bir üye olup olmadığını doğrular
     function isApproved() {
-      return isAuthenticated() && exists(/databases/$(database)/documents/approved_users/$(request.auth.uid));
+      return isAuthenticated() && (
+        exists(/databases/$(database)/documents/approved_users/$(request.auth.uid)) ||
+        request.auth.token.email == 'kenan@inaner.com'
+      );
     }
     
     // Kullanıcının şirket ID'sini alır

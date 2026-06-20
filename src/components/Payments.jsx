@@ -322,7 +322,7 @@ const Payments = () => {
             {/* Yeni İşlem Ekleme Modalı */}
             {typeof document !== 'undefined' && isAddModalOpen && createPortal(
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
-                    <div className="glass-panel w-full max-w-md max-h-[90vh] overflow-y-auto p-6 border border-[var(--border-color)] rounded-2xl animate-in zoom-in-95 duration-200 custom-scrollbar">
+                    <div className="glass-panel w-full max-w-md max-h-[90vh] overflow-y-auto p-6 border border-[var(--border-color)] rounded-2xl animate-in zoom-in-95 duration-200 custom-scrollbar translate-y-6">
                         <h2 className="text-xl font-bold mb-4 flex items-center text-[var(--text-primary)]">
                             <Wallet className="mr-2 text-green-400" />
                             {editingPaymentId ? 'İşlemi Düzenle' : 'Yeni İşlem (Para Giriş/Çıkış)'}
@@ -414,7 +414,8 @@ const Payments = () => {
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Dosya Görüntüleme Modalı (Çoklu dosya varsa) */}

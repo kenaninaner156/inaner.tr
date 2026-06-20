@@ -36,6 +36,7 @@ export const DataProvider = ({ children }) => {
         model: 'İveco Stralis 460', insuranceDate: '2026-12-31', inspectionDate: '2026-10-15'
     });
     const [drivers, setDrivers] = useState([]);
+    const [dailyNotes, setDailyNotes] = useState({});
     const [spareParts, setSpareParts] = useState([]);
     const [sparePartCategories, setSparePartCategories] = useState(['Yağ', 'Filtre', 'Kayış', 'Balata', 'Aydınlatma', 'Lastik', 'Genel']);
     const [maintenanceTypes, setMaintenanceTypes] = useState(['Periyodik Bakım', 'Lastik', 'Motor', 'Fren', 'Şanzıman', 'Elektrik', 'Kaporta', 'Diğer']);
@@ -378,6 +379,9 @@ export const DataProvider = ({ children }) => {
 
                 if (data.drivers) setDrivers(data.drivers);
                 else setDrivers([]);
+ 
+                if (data.dailyNotes) setDailyNotes(data.dailyNotes);
+                else setDailyNotes({});
 
                 if (data.sparePartCategories && data.sparePartCategories.length > 0) {
                     setSparePartCategories(data.sparePartCategories);
@@ -666,6 +670,18 @@ export const DataProvider = ({ children }) => {
         const docId = activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`;
         await setDoc(doc(db, 'company_data', docId), { maintenanceTypes: newTypes }, { merge: true });
         addLog('BAKIM_TIPLERI_GUNCELLE', 'Bakım türleri güncellendi');
+    };
+ 
+    const updateDailyNote = async (dateStr, noteText) => {
+        const docId = activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`;
+        
+        if (noteText && noteText.trim()) {
+            await setDoc(doc(db, 'company_data', docId), { dailyNotes: { [dateStr]: noteText.trim() } }, { merge: true });
+        } else {
+            await setDoc(doc(db, 'company_data', docId), { dailyNotes: { [dateStr]: deleteField() } }, { merge: true });
+        }
+        
+        addLog('NOT_GUNCELLE', `${dateStr} tarihli operasyon notu güncellendi`);
     };
 
     const addSparePartCategory = async (newCategory) => {
@@ -1169,6 +1185,7 @@ export const DataProvider = ({ children }) => {
             updateTruckImage,
             isDataLoading, dataError,
             geofences, addGeofence, deleteGeofence,
+            dailyNotes, updateDailyNote,
             manualSplits, addManualSplit,
             manualMerges, addManualMerge,
             manualDeletes, addManualDelete,

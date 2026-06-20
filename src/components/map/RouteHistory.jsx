@@ -45,14 +45,10 @@ const SpeedPolylines = React.memo(({ session }) => {
     }
   }
 
-  // Dinamik çizgi kalınlığı: Uzaktayken ince, yakındayken kalın
-  let lineWeight = 5;
-  if (zoom <= 9) lineWeight = 1.5;
-  else if (zoom <= 11) lineWeight = 2.5;
-  else if (zoom <= 13) lineWeight = 4;
-  else lineWeight = 6;
-
-  const shadowWeight = lineWeight + 4;
+  // Dinamik çizgi kalınlığı: Uzaktayken ince, yakındayken kalın (kesintisiz/smooth geçiş)
+  const base = Math.max(1, (zoom - 7) * 0.35 + 1.2);
+  const lineWeight = Math.min(5.0, Math.max(1.2, base));
+  const shadowWeight = lineWeight + 2.5;
 
   return (
     <>
@@ -96,16 +92,24 @@ const DATE_FILTERS = [
 
 export default function RouteHistory({
   isVisible,
-  deviceMappings, trucks,
+  onClose,
+  deviceMappings,
+  trucks,
   historyDate, setHistoryDate,
   activeCompanyId,
   liveLocations = [],
+  selectedDriver,
+  setSelectedDriver,
 }) {
   const map = useMap();
   const { addManualSplit, customRouteNames, setCustomRouteName, geofences, manualSplits, manualMerges, addManualMerge, manualDeletes, addManualDelete } = useContext(DataContext);
 
+  const liveLocationsRef = useRef(liveLocations);
+  useEffect(() => {
+    liveLocationsRef.current = liveLocations;
+  }, [liveLocations]);
+
   const [selectedSession, setSelectedSession] = useState(null);
-  const [selectedDriver, setSelectedDriver]   = useState(null);
   const [isVehicleDropdownOpen, setIsVehicleDropdownOpen] = useState(false);
   const [cachedDates, setCachedDates] = useState([]); // Hangi günlerin Firebase'de verili cache'i var?
   const [emptyCachedDates, setEmptyCachedDates] = useState([]); // Hangi günlerin "Boş" olduğu Firebase'e işlendi?
@@ -194,8 +198,9 @@ export default function RouteHistory({
         let points = [];
 
         // Eğer bugün seçiliyse ve MapLayout'tan liveLocations geldiyse:
-        if (isToday && liveLocations && liveLocations.length > 0) {
-          points = liveLocations.filter(loc => 
+        const currentLive = liveLocationsRef.current;
+        if (isToday && currentLive && currentLive.length > 0) {
+          points = currentLive.filter(loc => 
             (loc.driverId === selectedDriver || loc.deviceId === selectedDriver) &&
             loc.timestamp && loc.timestamp.startsWith(todayStr)
           );
@@ -323,18 +328,37 @@ export default function RouteHistory({
     };
     
     doFetch();
-  }, [isVisible, selectedDriver, historyDate, activeCompanyId, geofences, manualSplits?.length, manualMerges?.length, manualDeletes?.length, liveLocations]);
+  }, [isVisible, selectedDriver, historyDate, activeCompanyId, geofences, manualSplits?.length, manualMerges?.length, manualDeletes?.length]);
 
-  // Yeni veri gelince en güncel seferi otomatik seç
+  // Yeni veri gelince en güncel seferi otomatik seç veya seçili oturumu güncelle (ezmeden)
   useEffect(() => {
-    if (!selectedDriver || !sessionsByDriver[selectedDriver]?.length) {
+    if (!selectedDriver) return;
+    const driverSessions = sessionsByDriver[selectedDriver] || [];
+    if (driverSessions.length === 0) {
+      setSelectedSession(null);
       return;
     }
-    const driverSessions = sessionsByDriver[selectedDriver];
-    setSelectedSession(driverSessions[driverSessions.length - 1]);
-    setProgress(0);
-    setIsPlaying(false);
-  }, [sessionsByDriver, selectedDriver]);
+
+    if (selectedSession) {
+      // Halihazırda bir oturum seçili. Yeni veri gelince bu oturumun güncel halini bulalım (timestamp ile eşleştirerek)
+      const currentStartTs = selectedSession[0]?.timestamp;
+      const updated = driverSessions.find(s => s[0]?.timestamp === currentStartTs);
+      if (updated) {
+        // Oturumu güncelle ama progress/isPlaying durumuna dokunma!
+        setSelectedSession(updated);
+      } else {
+        // Eğer seçili oturum artık yoksa (silinmiş veya başka bir gün), son oturumu seç
+        setSelectedSession(driverSessions[driverSessions.length - 1]);
+        setProgress(0);
+        setIsPlaying(false);
+      }
+    } else {
+      // İlk defa veri yükleniyor, son oturumu otomatik seç
+      setSelectedSession(driverSessions[driverSessions.length - 1]);
+      setProgress(0);
+      setIsPlaying(false);
+    }
+  }, [sessionsByDriver, selectedDriver, selectedSession]);
 
   // Harita ile kullanıcı etkileşimini dinle
   useEffect(() => {

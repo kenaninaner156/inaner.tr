@@ -75,6 +75,7 @@ const SuperAdmin = () => {
                 status: 'active',
                 personnelEnabled: false,
                 mapEnabled: false,
+                earsivEnabled: false,
                 createdAt: new Date().toISOString()
             });
 
@@ -148,6 +149,14 @@ const SuperAdmin = () => {
         try {
             await updateDoc(doc(db, 'companies', docRefId), {
                 mapEnabled: !currentStatus
+            });
+        } catch { /* empty */ }
+    };
+
+    const handleToggleEArsiv = async (docRefId, currentStatus) => {
+        try {
+            await updateDoc(doc(db, 'companies', docRefId), {
+                earsivEnabled: !currentStatus
             });
         } catch { /* empty */ }
     };
@@ -419,6 +428,24 @@ const SuperAdmin = () => {
                                     <div
                                         className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 ${
                                             comp.mapEnabled ? 'translate-x-4' : 'translate-x-0'
+                                        }`}
+                                    />
+                                </button>
+                            </div>
+
+                            {/* E-Arşiv Toggle */}
+                            <div className="flex items-center justify-between pt-1 mb-4">
+                                <span className="text-xs text-[var(--text-secondary)] font-medium">E-Arşiv Modülü</span>
+                                <button
+                                    type="button"
+                                    onClick={() => handleToggleEArsiv(comp.docRefId, comp.earsivEnabled)}
+                                    className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 outline-none flex items-center ${
+                                        comp.earsivEnabled ? 'bg-indigo-500' : 'bg-slate-800 border border-[var(--border-color)]'
+                                    }`}
+                                >
+                                    <div
+                                        className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 ${
+                                            comp.earsivEnabled ? 'translate-x-4' : 'translate-x-0'
                                         }`}
                                     />
                                 </button>

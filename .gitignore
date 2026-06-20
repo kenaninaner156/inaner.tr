@@ -30,3 +30,4 @@ dist-ssr
 seed_route.js
 
 .vercel
+.env*.local

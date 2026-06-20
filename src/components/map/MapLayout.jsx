@@ -76,6 +76,82 @@ function MapCameraSync({ activeTab, sessionsByDriver, deviceMappings }) {
   return null;
 }
 
+// ── Modül Düzeyinde Canlı Konum Önbelleği (Firebase Kota Tasarrufu) ──────────────────
+let globalLocations = [];
+let globalUnsubscribe = null;
+const globalListeners = new Set();
+let globalLoading = true;
+let lastCompanyId = null;
+let cleanupTimeout = null;
+
+const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
+  if (cleanupTimeout) {
+    clearTimeout(cleanupTimeout);
+    cleanupTimeout = null;
+  }
+
+  // Şirket değiştiyse aboneliği sıfırla
+  if (lastCompanyId !== companyId) {
+    if (globalUnsubscribe) {
+      globalUnsubscribe();
+      globalUnsubscribe = null;
+    }
+    globalLocations = [];
+    globalLoading = true;
+    lastCompanyId = companyId;
+  }
+
+  const listener = { onUpdate, onError };
+  globalListeners.add(listener);
+
+  // Önbellekteki verileri anında gönder (yükleme gecikmesini sıfırlar)
+  onUpdate(globalLocations, globalLoading);
+
+  if (!globalUnsubscribe) {
+    globalLoading = true;
+    const past24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const q = query(
+      collection(db, 'truck_routes'),
+      where('timestamp', '>=', past24h),
+      orderBy('timestamp', 'asc')
+    );
+
+    globalUnsubscribe = onSnapshot(q, (snap) => {
+      const allData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const filtered = companyId
+        ? allData.filter(d => !d.companyId || d.companyId === companyId)
+        : allData;
+
+      globalLocations = filtered;
+      globalLoading = false;
+
+      // Tüm dinleyicileri güncelle
+      globalListeners.forEach(l => l.onUpdate(filtered, false));
+    }, (error) => {
+      console.error('Harita verisi çekme hatası:', error);
+      globalLoading = false;
+      globalListeners.forEach(l => l.onError(error));
+    });
+  }
+
+  return () => {
+    globalListeners.delete(listener);
+    // Haritadan tamamen çıkıldığında kota tasarrufu için 5 dakikalık bekleme süresi
+    if (globalListeners.size === 0) {
+      cleanupTimeout = setTimeout(() => {
+        if (globalListeners.size === 0 && globalUnsubscribe) {
+          globalUnsubscribe();
+          globalUnsubscribe = null;
+          globalLoading = true;
+          globalLocations = [];
+          lastCompanyId = null;
+          console.log("Firestore truck_routes aboneliği inaktivite nedeniyle kapatıldı.");
+        }
+      }, 5 * 60 * 1000); // 5 dakika
+    }
+  };
+};
+
 export default function MapLayout({ onReady }) {
   const { trucks } = useTruck();
   const { activeCompanyId } = useCompany();
@@ -98,6 +174,7 @@ export default function MapLayout({ onReady }) {
   const todayStr = new Date().toISOString().slice(0, 10);
   const [historyDate, setHistoryDate] = useState(todayStr); // "YYYY-MM-DD"
   const [showMapSettings, setShowMapSettings] = useState(false);
+  const [selectedHistoryDriver, setSelectedHistoryDriver] = useState(null);
   
   const [isEditingGeofence, setIsEditingGeofence] = useState(false);
   const [draftZone, setDraftZone] = useState({ lat: null, lon: null, radiusKm: 1, name: '' });
@@ -124,31 +201,23 @@ export default function MapLayout({ onReady }) {
   };
 
   useEffect(() => {
-    setLoading(true);
-    // Canlı Takip için son 24 saatin tüm verisini getiriyoruz (Son molayı yakalamak için)
-    const past24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const q = query(
-      collection(db, 'truck_routes'),
-      where('timestamp', '>=', past24h),
-      orderBy('timestamp', 'asc')
+    const unsubscribe = subscribeToLiveLocations(
+      activeCompanyId,
+      (data, isLoading) => {
+        setLocations(data);
+        setLoading(isLoading);
+        if (!isLoading) {
+          onReady?.();
+        }
+      },
+      (error) => {
+        console.error('Harita verisi yüklenirken hata:', error);
+        alert('Harita verisi yüklenemedi. Yetki veya bağlantı hatası: ' + error.message);
+        setLoading(false);
+      }
     );
-
-    const unsubscribe = onSnapshot(q, (snap) => {
-      // Veri zaten asc (eskiden yeniye) geliyor, ters çevirmeye gerek yok
-      const allData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const filtered = activeCompanyId
-        ? allData.filter(d => !d.companyId || d.companyId === activeCompanyId)
-        : allData;
-      setLocations(filtered);
-      setLoading(false);
-      onReady?.();
-    }, (error) => {
-      console.error('Harita verisi çekme hatası:', error);
-      setLoading(false);
-    });
-
     return () => unsubscribe();
-  }, [activeCompanyId]); // dateFilterDays ve customDate bağımlılıklarını çıkardık
+  }, [activeCompanyId]);
 
   useEffect(() => {
     const mappingsDocId = `device_mappings_${activeCompanyId || 'default'}`;
@@ -185,6 +254,10 @@ export default function MapLayout({ onReady }) {
     });
     return res;
   }, [locations, geofences, manualSplits]);
+
+  const unmappedActiveDeviceIds = useMemo(() => {
+    return Object.keys(sessionsByDriver).filter(id => !deviceMappings[id] && id !== 'Bilinmeyen');
+  }, [sessionsByDriver, deviceMappings]);
 
   // historySessionsByDriver kaldırıldı, RouteHistory kendi yönetecek.
 
@@ -320,6 +393,8 @@ export default function MapLayout({ onReady }) {
               sessionsByDriver={sessionsByDriver}
               deviceMappings={deviceMappings}
               trucks={trucks}
+              setActiveTab={setActiveTab}
+              setSelectedHistoryDriver={setSelectedHistoryDriver}
             />
             <RouteHistory
               isVisible={activeTab === 'history'}
@@ -330,6 +405,8 @@ export default function MapLayout({ onReady }) {
               setHistoryDate={setHistoryDate}
               liveLocations={locations}
               activeCompanyId={activeCompanyId}
+              selectedDriver={selectedHistoryDriver}
+              setSelectedDriver={setSelectedHistoryDriver}
             />
             <SavedRoutes
               isVisible={activeTab === 'saved'}
@@ -363,6 +440,7 @@ export default function MapLayout({ onReady }) {
             setIsEditingGeofence(true);
             setDraftZone({ lat: null, lon: null, radiusKm: 0.5, name: '' });
           }}
+          unmappedActiveDeviceIds={unmappedActiveDeviceIds}
         />
       )}
     </div>

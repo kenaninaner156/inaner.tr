@@ -581,3 +581,22 @@ input[type="number"] {
   transform: translateZ(0);
   isolation: isolate;
 }
+
+/* Recharts & SVG Focus Outline Removal */
+.recharts-wrapper,
+.recharts-wrapper:focus,
+.recharts-wrapper *:focus,
+.recharts-surface,
+.recharts-surface:focus,
+.recharts-surface *:focus,
+svg,
+svg:focus,
+svg *:focus,
+text,
+text:focus,
+tspan,
+tspan:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent;
+}

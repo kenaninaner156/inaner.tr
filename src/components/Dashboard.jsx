@@ -1,4 +1,6 @@
 import React, { useContext, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     Activity,
     Wallet,
@@ -11,7 +13,9 @@ import {
     Minus,
     CalendarDays,
     BarChart2,
-    Truck
+    Truck,
+    Pencil,
+    Trash2
 } from 'lucide-react';
 import {
     ComposedChart,
@@ -30,7 +34,8 @@ const CustomTooltip = ({ active, payload, label, isAllTime }) => {
     if (active && payload && payload.length) {
         const hasFuel = payload[0]?.payload['Yakıt (Lt)'] > 0;
         const fuelAmount = payload[0]?.payload['Yakıt (Lt)'];
-
+        const note = payload[0]?.payload?.note;
+ 
         return (
             <div style={{
                 background: 'rgba(10, 15, 30, 0.93)',
@@ -44,7 +49,7 @@ const CustomTooltip = ({ active, payload, label, isAllTime }) => {
                 <p style={{ color: '#64748b', fontSize: '10px', fontWeight: 700, marginBottom: '10px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     {isAllTime ? label : `${label}. Gün`}
                 </p>
-                {payload.filter(p => p.value > 0 && p.dataKey !== 'Yakıt (Lt)').map((entry, i) => (
+                {payload.filter(p => p.value > 0 && p.dataKey !== 'Yakıt (Lt)' && p.dataKey !== 'Yakıt Zemin').map((entry, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
                         <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', background: entry.color, flexShrink: 0, boxShadow: `0 0 8px ${entry.color}` }} />
                         <span style={{ color: '#94a3b8', fontSize: '11px', flex: 1 }}>{entry.name}:</span>
@@ -53,13 +58,23 @@ const CustomTooltip = ({ active, payload, label, isAllTime }) => {
                         </span>
                     </div>
                 ))}
-
+ 
                 {hasFuel && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                         <span style={{ fontSize: '12px' }}>⛽</span>
                         <span style={{ color: '#f59e0b', fontSize: '11px', fontWeight: 700 }}>
                             Yakıt Alındı ({fuelAmount} Lt)
                         </span>
+                    </div>
+                )}
+
+                {note && (
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                        <span style={{ fontSize: '12px' }}>📝</span>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ color: '#818cf8', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '2px' }}>Günlük Not</span>
+                            <span style={{ color: '#e2e8f0', fontSize: '11px', lineHeight: '1.4' }}>{note}</span>
+                        </div>
                     </div>
                 )}
             </div>
@@ -86,7 +101,7 @@ const KDV_RATE = 1.20;
 const FUEL_L_PER_100KM = 32;
 
 const Dashboard = () => {
-    const { trips, invoices, fuelRecords, maintenanceRecords, paymentRecords, penalties } = useContext(DataContext);
+    const { trips, invoices, fuelRecords, maintenanceRecords, paymentRecords, penalties, dailyNotes, updateDailyNote } = useContext(DataContext);
     const [isProfitModalOpen, setIsProfitModalOpen] = useState(false);
 
     const now = new Date();
@@ -115,6 +130,39 @@ const Dashboard = () => {
     });
     
     const [isAllTime, setIsAllTime] = useState(false);
+ 
+    // Daily Notes edit state
+    const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+    const [editNoteDay, setEditNoteDay] = useState('');
+    const [modalNoteText, setModalNoteText] = useState('');
+    const [confirmDeleteNote, setConfirmDeleteNote] = useState(false);
+ 
+    const lastHistDay = useMemo(() => {
+        const todayDate = now.getDate();
+        const todayMonth = now.getMonth();
+        const todayYear = now.getFullYear();
+        const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+        const isCurrentMonth = selectedMonth === todayMonth && selectedYear === todayYear;
+        return isCurrentMonth ? todayDate : daysInMonth;
+    }, [selectedMonth, selectedYear, now]);
+ 
+    const handleSaveModalNote = async (e) => {
+        if (e) e.preventDefault();
+        const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(editNoteDay).padStart(2, '0')}`;
+        await updateDailyNote(dateStr, modalNoteText);
+        setIsNoteModalOpen(false);
+    };
+
+    const handleDeleteModalNote = async () => {
+        if (!confirmDeleteNote) {
+            setConfirmDeleteNote(true);
+            return;
+        }
+        const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(editNoteDay).padStart(2, '0')}`;
+        await updateDailyNote(dateStr, '');
+        setIsNoteModalOpen(false);
+        setConfirmDeleteNote(false);
+    };
 
     const activeTrips = useMemo(() => trips.filter(t => !t.deleted), [trips]);
     const activeInvoices = useMemo(() => invoices ? invoices.filter(inv => !inv.deleted) : [], [invoices]);
@@ -158,18 +206,13 @@ const Dashboard = () => {
             return { chartData: data, activeDays: totalAD, periodTrips: data.reduce((s, d) => s + d['Sefer Sayısı'], 0), periodTonnage: data.reduce((s, d) => s + d['Taşınan Tonaj'], 0), prevDailyTrips: null };
         }
 
-        // Aylık mod
-        const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-        const isCurrentMonth = selectedMonth === todayMonth && selectedYear === todayYear;
-        const lastHistDay = isCurrentMonth ? todayDate : daysInMonth;
-
         const dayMap = {};
         for (let d = 1; d <= lastHistDay; d++) dayMap[d] = { trips: 0, tonnage: 0, fuel: 0 };
-
+ 
         const inMonth = (date) => { if (!date) return false; const d = new Date(date); return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth; };
         const monthTrips = activeTrips.filter(t => inMonth(t.date));
         const monthFuel = activeFuel.filter(f => inMonth(f.date));
-
+ 
         monthTrips.forEach(t => { 
             const day = new Date(t.date).getDate(); 
             if (dayMap[day]) {
@@ -183,27 +226,31 @@ const Dashboard = () => {
                 dayMap[day].fuel += (f.liters || 0);
             }
         });
-
+ 
         const activeDaySet = new Set(monthTrips.map(t => new Date(t.date).getDate()));
         const periodTotalTrips = monthTrips.length;
         const periodTotalTonnage = monthTrips.reduce((s, t) => s + (t.tonnage || 0), 0);
-
-        const data = Array.from({ length: lastHistDay }, (_, i) => ({
-            name: String(i + 1),
-            'Sefer Sayısı': dayMap[i + 1].trips,
-            'Taşınan Tonaj': dayMap[i + 1].tonnage,
-            'Yakıt (Lt)': dayMap[i + 1].fuel,
-            'Yakıt Zemin': dayMap[i + 1].fuel > 0 ? 0 : null
-        }));
-
-        // Geçen ay (Sadece karşılaştırma için)
+ 
+        const data = Array.from({ length: lastHistDay }, (_, i) => {
+            const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`;
+            return {
+                name: String(i + 1),
+                'Sefer Sayısı': dayMap[i + 1].trips,
+                'Taşınan Tonaj': dayMap[i + 1].tonnage,
+                'Yakıt (Lt)': dayMap[i + 1].fuel,
+                'Yakıt Zemin': dayMap[i + 1].fuel > 0 ? 0 : null,
+                dateStr,
+                note: dailyNotes?.[dateStr] || ''
+            };
+        });
+ 
         const pMo = selectedMonth === 0 ? 11 : selectedMonth - 1;
         const pYr = selectedMonth === 0 ? selectedYear - 1 : selectedYear;
         const pTrips = activeTrips.filter(t => { if (!t.date) return false; const d = new Date(t.date); return d.getFullYear() === pYr && d.getMonth() === pMo; });
         const pAD = new Set(pTrips.map(t => new Date(t.date).getDate())).size;
-
+ 
         return { chartData: data, activeDays: activeDaySet.size, periodTrips: periodTotalTrips, periodTonnage: periodTotalTonnage, prevDailyTrips: pAD > 0 ? pTrips.length / pAD : null };
-    }, [activeTrips, activeFuel, selectedMonth, selectedYear, isAllTime]);
+    }, [activeTrips, activeFuel, selectedMonth, selectedYear, isAllTime, dailyNotes, lastHistDay]);
 
     const currentDailyTrips = activeDays > 0 ? periodTrips / activeDays : 0;
     const currentDailyTonnage = activeDays > 0 ? periodTonnage / activeDays : 0;
@@ -278,9 +325,14 @@ const Dashboard = () => {
                 {/* Başlık Satırı */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
                     <div className="flex items-center gap-3 flex-wrap">
-                        <h3 className="font-semibold text-lg flex items-center text-[var(--text-primary)]">
+                        <h3 className="font-semibold text-lg flex items-center text-[var(--text-primary)] gap-2 flex-wrap">
                             <Activity className="mr-2 text-violet-400" size={20} />
-                            Aylık Operasyon Hacmi
+                            <span>Aylık Operasyon Hacmi</span>
+                            {!isAllTime && (
+                                <span className="text-[10px] font-normal text-violet-400 bg-violet-400/10 px-2.5 py-0.5 rounded-full select-none tracking-wider">
+                                    Düzenlemek için güne çift tıklayın
+                                </span>
+                            )}
                         </h3>
                     </div>
 
@@ -303,16 +355,30 @@ const Dashboard = () => {
                 </div>
 
                 {/* Grafik */}
-                <div className="h-[320px] w-full relative">
+                <div className="h-[320px] w-full relative select-none outline-none focus:outline-none">
                     {chartData.every(d => (d['Sefer Sayısı'] || 0) === 0 && (d['Taşınan Tonaj'] || 0) === 0) ? (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-500">
+                        <div className="flex flex-col items-center justify-center h-full text-slate-500 select-text">
                             <Activity size={32} className="mb-3 opacity-30 animate-pulse" />
                             <p className="font-medium">Bu dönemde veri bulunamadı.</p>
                             <p className="text-sm mt-1 opacity-70">Operasyonlar kaydedildikçe grafiğiniz oluşacaktır.</p>
                         </div>
                     ) : (
                         <ResponsiveContainer width="100%" height="100%">
-                            <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <ComposedChart
+                                data={chartData}
+                                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                                style={{ outline: 'none' }}
+                                onDoubleClick={(state) => {
+                                    if (!isAllTime && state && state.activeLabel) {
+                                        const dayStr = state.activeLabel;
+                                        setEditNoteDay(dayStr);
+                                        const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${dayStr.padStart(2, '0')}`;
+                                        setModalNoteText(dailyNotes?.[dateStr] || '');
+                                        setIsNoteModalOpen(true);
+                                        setConfirmDeleteNote(false);
+                                    }
+                                }}
+                            >
                                 <defs>
                                     <linearGradient id="gradSefer" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
@@ -372,13 +438,98 @@ const Dashboard = () => {
                     </div>
                 )}
             </div>
-
+ 
             {/* Kâr/Zarar Analizi Modalı */}
             <ProfitAnalysisModal 
                 isOpen={isProfitModalOpen} 
                 onClose={() => setIsProfitModalOpen(false)} 
                 data={{ invoices, fuelRecords, maintenanceRecords, paymentRecords, penalties }} 
             />
+
+            {/* Çift Tıklama Günlük Not Modalı */}
+            {createPortal(
+                <AnimatePresence>
+                    {isNoteModalOpen && (
+                        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                            {/* Backdrop */}
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                onClick={() => { setIsNoteModalOpen(false); setConfirmDeleteNote(false); }}
+                                className="absolute inset-0 bg-slate-950/60 backdrop-blur-md"
+                            />
+                            
+                            {/* Modal Card */}
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                                transition={{ type: "spring", duration: 0.3 }}
+                                className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-slate-900/90 p-6 shadow-2xl backdrop-blur-xl"
+                            >
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
+                                
+                                <h4 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
+                                    <CalendarDays size={18} className="text-violet-400" />
+                                    {editNoteDay}. Gün Operasyon Notu
+                                </h4>
+                                <p className="text-xs text-slate-400 mb-4 uppercase tracking-wider font-medium">
+                                    {MONTHS_TR[selectedMonth]} {selectedYear}
+                                </p>
+
+                                <form onSubmit={handleSaveModalNote} className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-400 uppercase mb-1.5">
+                                            Not / Açıklama
+                                        </label>
+                                        <textarea
+                                            value={modalNoteText}
+                                            onChange={(e) => {
+                                                setModalNoteText(e.target.value);
+                                                setConfirmDeleteNote(false);
+                                            }}
+                                            placeholder="Örn: Şoför izinliydi, araç çalışmadı"
+                                            rows={3}
+                                            autoFocus
+                                            className="w-full bg-white/5 border border-white/10 text-white rounded-xl px-3.5 py-2.5 text-sm focus:border-violet-500 focus:ring-1 focus:ring-violet-500 outline-none resize-none transition-all placeholder:text-slate-500"
+                                        />
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3 pt-2">
+                                        <div>
+                                            {dailyNotes?.[`${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(editNoteDay).padStart(2, '0')}`] && (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleDeleteModalNote}
+                                                    className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all border ${confirmDeleteNote ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-500/20 scale-105' : 'text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-500/20'}`}
+                                                >
+                                                    {confirmDeleteNote ? 'Emin misiniz?' : 'Notu Sil'}
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setIsNoteModalOpen(false); setConfirmDeleteNote(false); }}
+                                                className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white rounded-xl transition-all hover:bg-white/5"
+                                            >
+                                                İptal
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                className="px-5 py-2 text-xs font-semibold text-white bg-violet-600 hover:bg-violet-500 rounded-xl transition-all shadow-lg shadow-violet-500/20 hover:shadow-violet-500/35"
+                                            >
+                                                Kaydet
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
         </div>
     );
 };

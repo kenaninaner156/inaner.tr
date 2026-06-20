@@ -6,7 +6,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { useTruck } from '../../context/TruckContext';
 import { DataContext } from '../../context/DataContext';
 
-export default function MapSettingsModal({ onClose, onStartAddGeofence }) {
+export default function MapSettingsModal({ onClose, onStartAddGeofence, unmappedActiveDeviceIds }) {
   const [activeTab, setActiveTab] = useState('devices'); // 'devices' or 'geofences'
 
   return (
@@ -52,7 +52,7 @@ export default function MapSettingsModal({ onClose, onStartAddGeofence }) {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6 pt-8 custom-scrollbar">
-            {activeTab === 'devices' ? <DeviceTab /> : <GeofenceTab onClose={onClose} onStartAddGeofence={onStartAddGeofence} />}
+            {activeTab === 'devices' ? <DeviceTab unmappedActiveDeviceIds={unmappedActiveDeviceIds} /> : <GeofenceTab onClose={onClose} onStartAddGeofence={onStartAddGeofence} />}
           </div>
         </div>
       </div>
@@ -63,7 +63,7 @@ export default function MapSettingsModal({ onClose, onStartAddGeofence }) {
 // ==========================================
 // TAB 1: CİHAZ EŞLEŞTİRMELERİ
 // ==========================================
-function DeviceTab() {
+function DeviceTab({ unmappedActiveDeviceIds }) {
   const { activeCompanyId } = useCompany();
   const { trucks } = useTruck();
   const [deviceMappings, setDeviceMappings] = useState({});
@@ -122,6 +122,41 @@ function DeviceTab() {
   return (
     <div className="space-y-5 animate-in fade-in duration-300 pt-1">
       
+      {/* Keşfedilen Eşleştirilmemiş Cihazlar */}
+      {unmappedActiveDeviceIds && unmappedActiveDeviceIds.length > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              ⚠️ Keşfedilen Cihazlar
+            </h4>
+            <span className="bg-amber-500/20 text-amber-300 text-[9px] font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
+              {unmappedActiveDeviceIds.length} Aktif
+            </span>
+          </div>
+          <p className="text-slate-400 text-xs leading-relaxed">
+            Son 24 saat içinde sinyal gönderen ama eşleştirilmemiş cihazlar tespit edildi. Hemen atama yapabilirsiniz:
+          </p>
+          <div className="space-y-2 pt-1">
+            {unmappedActiveDeviceIds.map(id => (
+              <div key={id} className="flex justify-between items-center bg-[#0a0c10]/40 rounded-xl px-3 py-2 border border-white/5">
+                <span className="text-xs font-mono text-slate-300 font-bold">{id}</span>
+                <button
+                  onClick={() => {
+                    setMappingDevice(id);
+                    setMappingTruckId('');
+                    setMappingDriverName('');
+                    setNewDeviceId(id);
+                  }}
+                  className="text-[11px] font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20 transition-all cursor-pointer"
+                >
+                  Eşleştir
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Mevcut Eşleştirmeler Başlık */}
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-bold text-slate-300">Aktif Cihazlar</h3>

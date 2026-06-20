@@ -13,6 +13,7 @@
     "@tailwindcss/vite": "^4.2.1",
     "autoprefixer": "^10.4.27",
     "chart.js": "^4.5.1",
+    "e-fatura": "^2.0.1",
     "firebase": "^12.10.0",
     "framer-motion": "^12.36.0",
     "leaflet": "^1.9.4",

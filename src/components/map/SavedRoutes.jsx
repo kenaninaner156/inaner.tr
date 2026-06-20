@@ -18,6 +18,7 @@ const endIcon = new L.Icon({
 
 export default function SavedRoutes({ isVisible }) {
   const { savedTrackingRoutes, deleteSavedTrackingRoute, updateSavedTrackingRoute } = useContext(DataContext);
+  const [showSidebar, setShowSidebar]     = useState(true);
   const [searchTerm, setSearchTerm]     = useState('');
   const [selectedRoute, setSelectedRoute] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null); // custom confirm
@@ -26,6 +27,16 @@ export default function SavedRoutes({ isVisible }) {
   const [editFrom, setEditFrom]         = useState('');
   const [editTo, setEditTo]             = useState('');
   const map = useMap();
+  const [zoom, setZoom] = useState(map ? map.getZoom() : 13);
+
+  useEffect(() => {
+    if (!map) return;
+    const onZoom = () => setZoom(map.getZoom());
+    map.on('zoomend', onZoom);
+    return () => {
+      map.off('zoomend', onZoom);
+    };
+  }, [map]);
 
   // Harita etkileşimini sidebar üzerinde engelle
   const sidebarCallbackRef = useCallback(node => {
@@ -100,28 +111,31 @@ export default function SavedRoutes({ isVisible }) {
           <Marker position={[selectedRoute.endPoint.lat, selectedRoute.endPoint.lon]} icon={endIcon}>
             <Popup><div className="p-1 text-xs font-semibold text-rose-600">Bitiş: {selectedRoute.to}</div></Popup>
           </Marker>
-          {/* ── İnce Gölge ── */}
-          <Polyline
-            positions={
-              selectedRoute.path
-                ? selectedRoute.path.map(p => p.lat != null ? [p.lat, p.lon] : p)
-                : [[selectedRoute.startPoint.lat, selectedRoute.startPoint.lon], [selectedRoute.endPoint.lat, selectedRoute.endPoint.lon]]
-            }
-            color="#000" weight={6} opacity={0.3} />
-          {/* ── Ana Çizgi ── */}
-          <Polyline
-            positions={
-              selectedRoute.path
-                ? selectedRoute.path.map(p => p.lat != null ? [p.lat, p.lon] : p)
-                : [[selectedRoute.startPoint.lat, selectedRoute.startPoint.lon], [selectedRoute.endPoint.lat, selectedRoute.endPoint.lon]]
-            }
-            color="#8b5cf6" weight={4} opacity={0.8} />
+          {/* ── İnce Gölge & Ana Çizgi (Dinamik Kalınlık) ── */}
+          {(() => {
+            const base = Math.max(1, (zoom - 7) * 0.35 + 1.2);
+            const routeWeight = Math.min(5.0, Math.max(1.2, base));
+            const shadowWeight = routeWeight + 2.5;
+            const positions = selectedRoute.path
+              ? selectedRoute.path.map(p => p.lat != null ? [p.lat, p.lon] : p)
+              : [[selectedRoute.startPoint.lat, selectedRoute.startPoint.lon], [selectedRoute.endPoint.lat, selectedRoute.endPoint.lon]];
+            return (
+              <>
+                <Polyline
+                  positions={positions}
+                  color="#000" weight={shadowWeight} opacity={0.3} />
+                <Polyline
+                  positions={positions}
+                  color="#8b5cf6" weight={routeWeight} opacity={0.8} />
+              </>
+            );
+          })()}
         </>
       )}
 
       {/* ── Sidebar ── */}
       <AnimatePresence>
-        {isVisible && (
+        {isVisible && showSidebar && (
           <motion.div
             ref={sidebarCallbackRef}
             initial={{ x: -20, opacity: 0, scale: 0.98, filter: 'blur(10px)' }}
@@ -138,9 +152,17 @@ export default function SavedRoutes({ isVisible }) {
           >
             {/* Başlık */}
             <div className="px-5 py-4 border-b border-white/[0.05]">
-              <h2 className="text-sm font-bold text-white flex items-center gap-2 mb-3">
-                <Bookmark size={15} className="text-violet-400" /> Kayıtlı Rotalar
-              </h2>
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Bookmark size={15} className="text-violet-400" /> Kayıtlı Rotalar
+                </h2>
+                <button
+                  onClick={() => setShowSidebar(false)}
+                  className="p-1.5 text-slate-500 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] rounded-xl transition-all"
+                >
+                  <X size={13} />
+                </button>
+              </div>
               <div className="relative">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none" />
                 <input
@@ -242,6 +264,21 @@ export default function SavedRoutes({ isVisible }) {
       </motion.div>
     )}
     </AnimatePresence>
+
+      {/* Sidebar kapalıyken aç butonu */}
+      <AnimatePresence>
+        {isVisible && !showSidebar && (
+          <motion.button
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            onClick={() => setShowSidebar(true)}
+            className="absolute left-4 top-[76px] z-[1500] p-3.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-2xl border border-indigo-500/20 transition-all backdrop-blur-md"
+          >
+            <Bookmark size={16} />
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       {/* ── Silme Onay Modalı (custom) ── */}
       {confirmDeleteId && (
