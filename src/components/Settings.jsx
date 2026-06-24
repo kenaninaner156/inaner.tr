@@ -33,6 +33,16 @@ const Settings = () => {
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
     const [passwordStatus, setPasswordStatus] = useState({ type: '', message: '' });
 
+    // 3D Lastik Kalibrasyon Modu State
+    const [calibrationMode, setCalibrationMode] = useState(() => {
+        return localStorage.getItem('tire-3d-calibration-mode') === 'true';
+    });
+
+    const handleCalibrationToggle = (val) => {
+        setCalibrationMode(val);
+        localStorage.setItem('tire-3d-calibration-mode', val ? 'true' : 'false');
+    };
+
     useEffect(() => {
         setProfilePic(activeTruckData?.imageUrl || null);
     }, [activeTruckData?.imageUrl]);
@@ -359,6 +369,41 @@ const Settings = () => {
                                 </p>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Lastik Kalibrasyon Ayarı */}
+            <div className="glass-panel border-[var(--border-color)] overflow-hidden">
+                <div className="p-6 border-b border-[var(--border-color)] flex items-center justify-between">
+                    <h4 className="font-bold text-lg text-[var(--text-primary)] flex items-center">
+                        <SettingsIcon className="mr-2 text-zinc-400" size={20} />
+                        3D Lastik Kalibrasyon Ayarı
+                    </h4>
+                </div>
+                <div className="p-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="block font-medium text-[var(--text-primary)] text-sm mb-1">
+                                3D Lastik İnce Ayar (Kalibrasyon) Panelini Göster
+                            </label>
+                            <p className="text-xs text-[var(--text-secondary)]">
+                                Aktif edildiğinde, lastik yönetimi ekranında 3D tekerlek koordinat kaydırma panelini açan buton görünür olacaktır.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => handleCalibrationToggle(!calibrationMode)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors outline-none cursor-pointer ${
+                                calibrationMode ? 'bg-amber-500' : 'bg-zinc-800'
+                            }`}
+                        >
+                            <span
+                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    calibrationMode ? 'translate-x-6' : 'translate-x-1'
+                                }`}
+                            />
+                        </button>
                     </div>
                 </div>
             </div>

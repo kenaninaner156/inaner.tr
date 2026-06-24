@@ -1,6 +1,6 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Wrench, Plus, Calendar, X, MapPin, Truck, Trash2, Pencil, Check, User, Users, FileText, StickyNote, AlertCircle, ChevronDown, Download, Eye, Paperclip, FolderOpen, FolderPlus, Map, Phone, Package, ShoppingCart, Link, GripVertical, ExternalLink, Settings as SettingsIcon, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Wrench, Plus, Calendar, X, MapPin, Truck, Trash2, Pencil, Check, User, Users, FileText, StickyNote, AlertCircle, ChevronDown, Download, Eye, Paperclip, FolderOpen, FolderPlus, Map, Phone, Package, ShoppingCart, Link, GripVertical, ExternalLink, Settings as SettingsIcon, AlertTriangle, CheckCircle, Disc } from 'lucide-react';
 import { motion, Reorder, AnimatePresence } from 'framer-motion';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
@@ -8,6 +8,7 @@ import { db } from '../services/firebaseConfig';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import FileUpload from './FileUpload';
 import { sendDiscordAlert } from '../services/discordWebhook';
+import Tire3DViewer from './Tire3DViewer';
 
 
 
@@ -230,6 +231,7 @@ const Maintenance = () => {
     const [editingShoppingId, setEditingShoppingId] = useState(null);
     const [shoppingForm, setShoppingForm] = useState({ name: '', description: '', price: '', link: '' });
     const [localShoppingItems, setLocalShoppingItems] = useState([]);
+    const [isTireModalOpen, setIsTireModalOpen] = useState(false);
 
     useEffect(() => {
         setLocalShoppingItems(shoppingItems || []);
@@ -548,6 +550,11 @@ const Maintenance = () => {
                                     <span className="text-slate-500">Güncel KM: </span>
                                     <span className="font-bold text-[var(--text-primary)]">{currentKm > 0 ? currentKm.toLocaleString() : '—'}</span>
                                 </div>
+                                <button onClick={() => {
+                                    setIsTireModalOpen(true);
+                                }} className="bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-400 px-3 py-1.5 rounded-lg text-xs font-semibold border border-fuchsia-500/20 transition-colors flex items-center gap-1">
+                                    <Disc size={14} /> Lastik Yönetimi (3D)
+                                </button>
                                 <button onClick={() => {
                                     setTemplateForm([...(periodicMaintenanceItems || [])]);
                                     setIsTemplateModalOpen(true);
@@ -1467,6 +1474,24 @@ const Maintenance = () => {
                         </div>
                     </motion.div>
                     </motion.div>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
+            {/* 3D Lastik Yönetimi Modalı */}
+            {typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
+                    {isTireModalOpen && (
+                        <motion.div 
+                            key="tires-modal" 
+                            initial={{ opacity: 0 }} 
+                            animate={{ opacity: 1 }} 
+                            exit={{ opacity: 0 }} 
+                            transition={{ duration: 0.3, ease: "easeInOut" }} 
+                            className="fixed inset-0 bg-[#070709] z-[9999]"
+                        >
+                            <Tire3DViewer currentKm={currentKm} onClose={() => setIsTireModalOpen(false)} />
+                        </motion.div>
                     )}
                 </AnimatePresence>,
                 document.body
