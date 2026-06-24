@@ -977,10 +977,10 @@ export default function Tire3DViewer({ currentKm, onClose }) {
       </div>
 
       {/* 3D Canvas Background Container */}
-      <div className={`h-[45vh] lg:h-full lg:absolute lg:inset-0 lg:z-0 bg-[#070709] transition-all duration-500 ease-in-out ${
+      <div className={`h-[45vh] lg:h-full lg:absolute lg:inset-0 lg:z-0 bg-[#070709] transition-transform duration-500 ease-in-out w-full lg:w-[calc(100%+360px)] ${
         selectedTireId && selectedTireObj 
-          ? 'w-full lg:w-[calc(100%+360px)] lg:-translate-x-[360px]' 
-          : 'w-full lg:w-full lg:translate-x-0'
+          ? 'lg:-translate-x-[360px]' 
+          : 'lg:-translate-x-[180px]'
       }`}>
         {hasError ? (
           <ErrorFallbackUI 
