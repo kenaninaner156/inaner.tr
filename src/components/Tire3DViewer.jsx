@@ -54,16 +54,35 @@ const TIRE_POSITIONS = [
 ];
 
 const DEFAULT_CALIBRATION = {
-  radius: 0.36,
-  width: 0.24,
+  radius: 0.28,
+  width: 0.18,
   offsets: {
-    L1: [0, 0, 0], R1: [0, 0, 0],
-    L2_out: [0, 0, 0], L2_in: [0, 0, 0], R2_in: [0, 0, 0], R2_out: [0, 0, 0],
-    TL1: [0, 0, 0], TR1: [0, 0, 0],
-    TL2: [0, 0, 0], TR2: [0, 0, 0],
-    TL3: [0, 0, 0], TR3: [0, 0, 0]
+    L1:     [-0.13, -0.04, -0.02],
+    R1:     [-0.13, -0.04,  0.03],
+    L2_out: [-0.03, -0.07, -0.08],
+    L2_in:  [-0.03, -0.07, -0.03],
+    R2_in:  [-0.04, -0.07,  0.04],
+    R2_out: [-0.02, -0.05,  0.07],
+    TL1:    [ 0.10, -0.07, -0.05],
+    TR1:    [ 0.10, -0.07,  0.06],
+    TL2:    [-0.03, -0.07, -0.05],
+    TR2:    [-0.02, -0.07,  0.06],
+    TL3:    [-0.15, -0.07, -0.04],
+    TR3:    [-0.15, -0.07,  0.06]
   },
-  sizes: {}
+  sizes: {
+    R2_in:  { radius: 0.22, width: 0.15 },
+    R2_out: { radius: 0.23, width: 0.15 },
+    R1:     { radius: 0.27, width: 0.18 },
+    TR3:    { radius: 0.24, width: 0.29 },
+    TR2:    { radius: 0.24, width: 0.29 },
+    TR1:    { radius: 0.24, width: 0.29 },
+    L2_in:  { radius: 0.24, width: 0.09 },
+    L2_out: { radius: 0.24, width: 0.15 },
+    TL1:    { radius: 0.23, width: 0.29 },
+    TL2:    { radius: 0.23, width: 0.29 },
+    TL3:    { radius: 0.23, width: 0.29 }
+  }
 };
 
 // Lastik Vurgulama Bileşeni (3D Saydam Kaplama)
