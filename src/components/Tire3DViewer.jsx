@@ -90,19 +90,10 @@ function TireOverlay({ tireId, tiresData, calibrationRef, isSelected, onSelectTi
       const z = tireObj.pos3D[2] + offsets[2];
       meshRef.current.position.set(x, y, z);
 
-      // Ölçek güncellemesi (Yarıçap ve genişlik + pulsing)
+      // Ölçek güncellemesi (Yarıçap ve genişlik - animasyon yok)
       const r = cal.sizes?.[tireId]?.radius ?? cal.radius;
       const w = cal.sizes?.[tireId]?.width ?? cal.width;
-      if (isSelected) {
-        const pulse = 1 + Math.sin(state.clock.getElapsedTime() * 4.5) * 0.03;
-        meshRef.current.scale.set(r * pulse, w, r * pulse);
-        
-        // Z ekseninde (tekerleğin dönüş yönünde) yavaş dönüş
-        meshRef.current.rotation.y = state.clock.getElapsedTime() * 0.3;
-      } else {
-        meshRef.current.scale.set(r, w, r);
-        meshRef.current.rotation.y = 0;
-      }
+      meshRef.current.scale.set(r, w, r);
     }
   });
 
