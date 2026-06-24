@@ -62,7 +62,8 @@ const DEFAULT_CALIBRATION = {
     TL1: [0, 0, 0], TR1: [0, 0, 0],
     TL2: [0, 0, 0], TR2: [0, 0, 0],
     TL3: [0, 0, 0], TR3: [0, 0, 0]
-  }
+  },
+  sizes: {}
 };
 
 // Lastik Vurgulama Bileşeni (3D Saydam Kaplama)
@@ -90,14 +91,16 @@ function TireOverlay({ tireId, tiresData, calibrationRef, isSelected, onSelectTi
       meshRef.current.position.set(x, y, z);
 
       // Ölçek güncellemesi (Yarıçap ve genişlik + pulsing)
+      const r = cal.sizes?.[tireId]?.radius ?? cal.radius;
+      const w = cal.sizes?.[tireId]?.width ?? cal.width;
       if (isSelected) {
         const pulse = 1 + Math.sin(state.clock.getElapsedTime() * 4.5) * 0.03;
-        meshRef.current.scale.set(cal.radius * pulse, cal.width, cal.radius * pulse);
+        meshRef.current.scale.set(r * pulse, w, r * pulse);
         
         // Z ekseninde (tekerleğin dönüş yönünde) yavaş dönüş
         meshRef.current.rotation.y = state.clock.getElapsedTime() * 0.3;
       } else {
-        meshRef.current.scale.set(cal.radius, cal.width, cal.radius);
+        meshRef.current.scale.set(r, w, r);
         meshRef.current.rotation.y = 0;
       }
     }
@@ -615,6 +618,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (!parsed.offsets) parsed.offsets = {};
+        if (!parsed.sizes) parsed.sizes = {};
         TIRE_POSITIONS.forEach(p => {
           if (!parsed.offsets[p.id]) parsed.offsets[p.id] = [0, 0, 0];
         });
@@ -634,11 +638,13 @@ export default function Tire3DViewer({ currentKm, onClose }) {
     if (!cal.offsets) cal.offsets = {};
     const offsets = cal.offsets[selectedTireId] || [0, 0, 0];
 
+    const r = cal.sizes?.[selectedTireId]?.radius ?? cal.radius;
+    const w = cal.sizes?.[selectedTireId]?.width ?? cal.width;
     const txtRadius = document.getElementById('val-radius');
-    if (txtRadius) txtRadius.innerText = cal.radius.toFixed(2);
+    if (txtRadius) txtRadius.innerText = r.toFixed(2);
 
     const txtWidth = document.getElementById('val-width');
-    if (txtWidth) txtWidth.innerText = cal.width.toFixed(2);
+    if (txtWidth) txtWidth.innerText = w.toFixed(2);
 
     const txtX = document.getElementById('val-offsetX');
     if (txtX) {
@@ -685,10 +691,12 @@ export default function Tire3DViewer({ currentKm, onClose }) {
     const sliderZ = document.getElementById('slider-offsetZ');
     if (sliderZ) sliderZ.value = currentOffsets[2];
 
+    const r = cal.sizes?.[selectedTireId]?.radius ?? cal.radius;
+    const w = cal.sizes?.[selectedTireId]?.width ?? cal.width;
     const sliderRadius = document.getElementById('slider-radius');
-    if (sliderRadius) sliderRadius.value = cal.radius;
+    if (sliderRadius) sliderRadius.value = r;
     const sliderWidth = document.getElementById('slider-width');
-    if (sliderWidth) sliderWidth.value = cal.width;
+    if (sliderWidth) sliderWidth.value = w;
 
     const t = setTimeout(() => {
       updateTextDisplays();
@@ -1098,7 +1106,11 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                     step="0.01"
                     defaultValue={calibrationRef.current.radius}
                     onChange={e => {
-                      calibrationRef.current.radius = parseFloat(e.target.value);
+                      const val = parseFloat(e.target.value);
+                      const cal = calibrationRef.current;
+                      if (!cal.sizes) cal.sizes = {};
+                      if (!cal.sizes[selectedTireId]) cal.sizes[selectedTireId] = { radius: cal.radius, width: cal.width };
+                      cal.sizes[selectedTireId].radius = val;
                       updateTextDisplays();
                     }}
                     className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-fuchsia-500"
@@ -1118,7 +1130,11 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                     step="0.01"
                     defaultValue={calibrationRef.current.width}
                     onChange={e => {
-                      calibrationRef.current.width = parseFloat(e.target.value);
+                      const val = parseFloat(e.target.value);
+                      const cal = calibrationRef.current;
+                      if (!cal.sizes) cal.sizes = {};
+                      if (!cal.sizes[selectedTireId]) cal.sizes[selectedTireId] = { radius: cal.radius, width: cal.width };
+                      cal.sizes[selectedTireId].width = val;
                       updateTextDisplays();
                     }}
                     className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-fuchsia-500"
