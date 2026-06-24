@@ -977,8 +977,10 @@ export default function Tire3DViewer({ currentKm, onClose }) {
       </div>
 
       {/* 3D Canvas Background Container */}
-      <div className={`w-full h-[45vh] lg:h-full lg:w-full lg:absolute lg:inset-0 lg:z-0 bg-[#070709] transition-transform duration-500 ease-in-out ${
-        selectedTireId && selectedTireObj ? 'lg:-translate-x-[180px]' : 'lg:translate-x-0'
+      <div className={`h-[45vh] lg:h-full lg:absolute lg:inset-0 lg:z-0 bg-[#070709] transition-all duration-500 ease-in-out ${
+        selectedTireId && selectedTireObj 
+          ? 'w-full lg:w-[calc(100%+360px)] lg:-translate-x-[360px]' 
+          : 'w-full lg:w-full lg:translate-x-0'
       }`}>
         {hasError ? (
           <ErrorFallbackUI 
@@ -1050,212 +1052,212 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                 />
               </Canvas>
             </ErrorBoundary>
-
-            {/* 3D Kalibrasyon/İnce Ayar Paneli */}
-            {isCalibrationMode && !hasError && selectedTireId && selectedTireObj && (
-              <div className="absolute top-20 left-4 z-20 pointer-events-auto">
-                {!showTuning ? (
-                  <button
-                    onClick={() => setShowTuning(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/90 border border-slate-700/80 text-slate-300 hover:text-white rounded-xl text-xs font-semibold backdrop-blur-md transition-all shadow-lg hover:bg-slate-800"
-                    type="button"
-                  >
-                    <Sliders size={13} className="text-fuchsia-400" />
-                    <span>3D İnce Ayar (Kalibrasyon)</span>
-                  </button>
-                ) : (
-                  <div className="w-64 bg-slate-900/95 border border-slate-850 p-4 rounded-2xl shadow-2xl backdrop-blur-md text-slate-200">
-                    <div className="flex justify-between items-center border-b border-slate-800/80 pb-2 mb-3">
-                      <span className="text-xs font-bold flex items-center gap-1.5">
-                        <Sliders size={13} className="text-fuchsia-400" />
-                        <span>3D Hizalama Paneli</span>
-                      </span>
-                      <button
-                        onClick={() => setShowTuning(false)}
-                        className="text-[10px] text-slate-400 hover:text-white bg-slate-800 px-2 py-0.5 rounded-lg transition"
-                        type="button"
-                      >
-                        Kapat
-                      </button>
-                    </div>
-
-                    <div className="flex flex-col gap-2.5 text-[11px]">
-                      <div>
-                        <div className="flex justify-between text-slate-400 mb-1">
-                          <span>Yarıçap (R):</span>
-                          <span id="val-radius" className="font-mono text-fuchsia-400">0.36</span>
-                        </div>
-                        <input
-                          id="slider-radius"
-                          type="range"
-                          min="0.25"
-                          max="0.45"
-                          step="0.01"
-                          defaultValue={calibrationRef.current.radius}
-                          onChange={e => {
-                            calibrationRef.current.radius = parseFloat(e.target.value);
-                            updateTextDisplays();
-                          }}
-                          className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-fuchsia-500"
-                        />
-                      </div>
-
-                      <div>
-                        <div className="flex justify-between text-slate-400 mb-1">
-                          <span>Genişlik (W):</span>
-                          <span id="val-width" className="font-mono text-fuchsia-400">0.24</span>
-                        </div>
-                        <input
-                          id="slider-width"
-                          type="range"
-                          min="0.15"
-                          max="0.35"
-                          step="0.01"
-                          defaultValue={calibrationRef.current.width}
-                          onChange={e => {
-                            calibrationRef.current.width = parseFloat(e.target.value);
-                            updateTextDisplays();
-                          }}
-                          className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-fuchsia-500"
-                        />
-                      </div>
-
-                      <div className="border-t border-slate-800/85 my-1"></div>
-
-                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Seçili Tekerlek ({selectedTireId})</span>
-
-                      <div>
-                        <div className="flex justify-between text-slate-400 mb-1">
-                          <span>Konum X:</span>
-                          <span id="val-offsetX" className="font-mono text-fuchsia-400">0.00</span>
-                        </div>
-                        <input
-                          id="slider-offsetX"
-                          type="range"
-                          min="-0.5"
-                          max="0.5"
-                          step="0.01"
-                          onChange={e => {
-                            const val = parseFloat(e.target.value);
-                            if (!calibrationRef.current.offsets) calibrationRef.current.offsets = {};
-                            if (!calibrationRef.current.offsets[selectedTireId]) calibrationRef.current.offsets[selectedTireId] = [0, 0, 0];
-                            calibrationRef.current.offsets[selectedTireId][0] = val;
-                            updateTextDisplays();
-                          }}
-                          className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-fuchsia-500"
-                        />
-                      </div>
-
-                      <div>
-                        <div className="flex justify-between text-slate-400 mb-1">
-                          <span>Konum Y:</span>
-                          <span id="val-offsetY" className="font-mono text-fuchsia-400">0.00</span>
-                        </div>
-                        <input
-                          id="slider-offsetY"
-                          type="range"
-                          min="-0.5"
-                          max="0.5"
-                          step="0.01"
-                          onChange={e => {
-                            const val = parseFloat(e.target.value);
-                            if (!calibrationRef.current.offsets) calibrationRef.current.offsets = {};
-                            if (!calibrationRef.current.offsets[selectedTireId]) calibrationRef.current.offsets[selectedTireId] = [0, 0, 0];
-                            calibrationRef.current.offsets[selectedTireId][1] = val;
-                            updateTextDisplays();
-                          }}
-                          className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-fuchsia-500"
-                        />
-                      </div>
-
-                      <div>
-                        <div className="flex justify-between text-slate-400 mb-1">
-                          <span>Konum Z:</span>
-                          <span id="val-offsetZ" className="font-mono text-fuchsia-400">0.00</span>
-                        </div>
-                        <input
-                          id="slider-offsetZ"
-                          type="range"
-                          min="-0.5"
-                          max="0.5"
-                          step="0.01"
-                          onChange={e => {
-                            const val = parseFloat(e.target.value);
-                            if (!calibrationRef.current.offsets) calibrationRef.current.offsets = {};
-                            if (!calibrationRef.current.offsets[selectedTireId]) calibrationRef.current.offsets[selectedTireId] = [0, 0, 0];
-                            calibrationRef.current.offsets[selectedTireId][2] = val;
-                            updateTextDisplays();
-                          }}
-                          className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-fuchsia-500"
-                        />
-                      </div>
-
-                      <div className="mt-2 bg-slate-950 p-2 rounded-lg border border-slate-800 flex flex-col gap-1.5">
-                        <span className="text-[9px] text-slate-500 font-bold uppercase">Değer İşlemleri</span>
-                        
-                        <div id="val-copyable" className="font-mono text-[9px] text-emerald-400 select-all break-all bg-slate-900 px-1.5 py-1 rounded border border-slate-850">
-                          pos3D: [0.00, 0.00, 0.00]
-                        </div>
-
-                        <div className="flex gap-1.5 mt-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const txtCopy = document.getElementById('val-copyable');
-                              if (txtCopy) {
-                                navigator.clipboard.writeText(txtCopy.innerText);
-                              }
-                            }}
-                            className="flex-1 py-1.5 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/20 rounded text-[10px] font-bold transition text-center"
-                          >
-                            Kopyala
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              localStorage.setItem('tire-3d-calibrations', JSON.stringify(calibrationRef.current));
-                              alert('Kalibrasyon ayarları tarayıcı belleğine kaydedildi!');
-                            }}
-                            className="flex-1 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded text-[10px] font-bold transition text-center"
-                          >
-                            Kaydet
-                          </button>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (window.confirm('Tüm tekerlek ince ayarlarını sıfırlamak istediğinize emin misiniz?')) {
-                              localStorage.removeItem('tire-3d-calibrations');
-                              calibrationRef.current = JSON.parse(JSON.stringify(DEFAULT_CALIBRATION));
-                              
-                              const sR = document.getElementById('slider-radius');
-                              if (sR) sR.value = 0.36;
-                              const sW = document.getElementById('slider-width');
-                              if (sW) sW.value = 0.24;
-                              ['offsetX', 'offsetY', 'offsetZ'].forEach(axis => {
-                                const s = document.getElementById(`slider-${axis}`);
-                                if (s) s.value = 0;
-                              });
-                              
-                              updateTextDisplays();
-                              alert('Tüm kalibrasyon ayarları sıfırlandı.');
-                            }
-                          }}
-                          className="w-full py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700/60 rounded text-[9px] font-bold transition text-center"
-                        >
-                          Tümünü Sıfırla
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         )}
       </div>
+
+      {/* 3D Kalibrasyon/İnce Ayar Paneli (Şshifted out of translated container to prevent clipping) */}
+      {isCalibrationMode && !hasError && selectedTireId && selectedTireObj && (
+        <div className="absolute top-20 left-4 z-20 pointer-events-auto">
+          {!showTuning ? (
+            <button
+              onClick={() => setShowTuning(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/90 border border-slate-700/80 text-slate-300 hover:text-white rounded-xl text-xs font-semibold backdrop-blur-md transition-all shadow-lg hover:bg-slate-800"
+              type="button"
+            >
+              <Sliders size={13} className="text-fuchsia-400" />
+              <span>3D İnce Ayar (Kalibrasyon)</span>
+            </button>
+          ) : (
+            <div className="w-64 bg-slate-900/95 border border-slate-850 p-4 rounded-2xl shadow-2xl backdrop-blur-md text-slate-200">
+              <div className="flex justify-between items-center border-b border-slate-800/80 pb-2 mb-3">
+                <span className="text-xs font-bold flex items-center gap-1.5">
+                  <Sliders size={13} className="text-fuchsia-400" />
+                  <span>3D Hizalama Paneli</span>
+                </span>
+                <button
+                  onClick={() => setShowTuning(false)}
+                  className="text-[10px] text-slate-400 hover:text-white bg-slate-800 px-2 py-0.5 rounded-lg transition"
+                  type="button"
+                >
+                  Kapat
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-2.5 text-[11px]">
+                <div>
+                  <div className="flex justify-between text-slate-400 mb-1">
+                    <span>Yarıçap (R):</span>
+                    <span id="val-radius" className="font-mono text-fuchsia-400">0.36</span>
+                  </div>
+                  <input
+                    id="slider-radius"
+                    type="range"
+                    min="0.25"
+                    max="0.45"
+                    step="0.01"
+                    defaultValue={calibrationRef.current.radius}
+                    onChange={e => {
+                      calibrationRef.current.radius = parseFloat(e.target.value);
+                      updateTextDisplays();
+                    }}
+                    className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-fuchsia-500"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-slate-400 mb-1">
+                    <span>Genişlik (W):</span>
+                    <span id="val-width" className="font-mono text-fuchsia-400">0.24</span>
+                  </div>
+                  <input
+                    id="slider-width"
+                    type="range"
+                    min="0.15"
+                    max="0.35"
+                    step="0.01"
+                    defaultValue={calibrationRef.current.width}
+                    onChange={e => {
+                      calibrationRef.current.width = parseFloat(e.target.value);
+                      updateTextDisplays();
+                    }}
+                    className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-fuchsia-500"
+                  />
+                </div>
+
+                <div className="border-t border-slate-800/85 my-1"></div>
+
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Seçili Tekerlek ({selectedTireId})</span>
+
+                <div>
+                  <div className="flex justify-between text-slate-400 mb-1">
+                    <span>Konum X:</span>
+                    <span id="val-offsetX" className="font-mono text-fuchsia-400">0.00</span>
+                  </div>
+                  <input
+                    id="slider-offsetX"
+                    type="range"
+                    min="-0.5"
+                    max="0.5"
+                    step="0.01"
+                    onChange={e => {
+                      const val = parseFloat(e.target.value);
+                      if (!calibrationRef.current.offsets) calibrationRef.current.offsets = {};
+                      if (!calibrationRef.current.offsets[selectedTireId]) calibrationRef.current.offsets[selectedTireId] = [0, 0, 0];
+                      calibrationRef.current.offsets[selectedTireId][0] = val;
+                      updateTextDisplays();
+                    }}
+                    className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-fuchsia-500"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-slate-400 mb-1">
+                    <span>Konum Y:</span>
+                    <span id="val-offsetY" className="font-mono text-fuchsia-400">0.00</span>
+                  </div>
+                  <input
+                    id="slider-offsetY"
+                    type="range"
+                    min="-0.5"
+                    max="0.5"
+                    step="0.01"
+                    onChange={e => {
+                      const val = parseFloat(e.target.value);
+                      if (!calibrationRef.current.offsets) calibrationRef.current.offsets = {};
+                      if (!calibrationRef.current.offsets[selectedTireId]) calibrationRef.current.offsets[selectedTireId] = [0, 0, 0];
+                      calibrationRef.current.offsets[selectedTireId][1] = val;
+                      updateTextDisplays();
+                    }}
+                    className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-fuchsia-500"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-slate-400 mb-1">
+                    <span>Konum Z:</span>
+                    <span id="val-offsetZ" className="font-mono text-fuchsia-400">0.00</span>
+                  </div>
+                  <input
+                    id="slider-offsetZ"
+                    type="range"
+                    min="-0.5"
+                    max="0.5"
+                    step="0.01"
+                    onChange={e => {
+                      const val = parseFloat(e.target.value);
+                      if (!calibrationRef.current.offsets) calibrationRef.current.offsets = {};
+                      if (!calibrationRef.current.offsets[selectedTireId]) calibrationRef.current.offsets[selectedTireId] = [0, 0, 0];
+                      calibrationRef.current.offsets[selectedTireId][2] = val;
+                      updateTextDisplays();
+                    }}
+                    className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-fuchsia-500"
+                  />
+                </div>
+
+                <div className="mt-2 bg-slate-950 p-2 rounded-lg border border-slate-800 flex flex-col gap-1.5">
+                  <span className="text-[9px] text-slate-500 font-bold uppercase">Değer İşlemleri</span>
+                  
+                  <div id="val-copyable" className="font-mono text-[9px] text-emerald-400 select-all break-all bg-slate-900 px-1.5 py-1 rounded border border-slate-850">
+                    pos3D: [0.00, 0.00, 0.00]
+                  </div>
+
+                  <div className="flex gap-1.5 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const txtCopy = document.getElementById('val-copyable');
+                        if (txtCopy) {
+                          navigator.clipboard.writeText(txtCopy.innerText);
+                        }
+                      }}
+                      className="flex-1 py-1.5 bg-fuchsia-500/10 hover:bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/20 rounded text-[10px] font-bold transition text-center"
+                    >
+                      Kopyala
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        localStorage.setItem('tire-3d-calibrations', JSON.stringify(calibrationRef.current));
+                        alert('Kalibrasyon ayarları tarayıcı belleğine kaydedildi!');
+                      }}
+                      className="flex-1 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded text-[10px] font-bold transition text-center"
+                    >
+                      Kaydet
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('Tüm tekerlek ince ayarlarını sıfırlamak istediğinize emin misiniz?')) {
+                        localStorage.removeItem('tire-3d-calibrations');
+                        calibrationRef.current = JSON.parse(JSON.stringify(DEFAULT_CALIBRATION));
+                        
+                        const sR = document.getElementById('slider-radius');
+                        if (sR) sR.value = 0.36;
+                        const sW = document.getElementById('slider-width');
+                        if (sW) sW.value = 0.24;
+                        ['offsetX', 'offsetY', 'offsetZ'].forEach(axis => {
+                          const s = document.getElementById(`slider-${axis}`);
+                          if (s) s.value = 0;
+                        });
+                        
+                        updateTextDisplays();
+                        alert('Tüm kalibrasyon ayarları sıfırlandı.');
+                      }
+                    }}
+                    className="w-full py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700/60 rounded text-[9px] font-bold transition text-center"
+                  >
+                    Tümünü Sıfırla
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
 
 
