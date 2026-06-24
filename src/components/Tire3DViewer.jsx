@@ -3,7 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Html, useGLTF, Environment, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 import { db } from '../services/firebaseConfig';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { useTruck } from '../context/TruckContext';
 import { Disc, Calendar, AlertTriangle, CheckCircle, Save, RotateCcw, Info, Sparkles, HelpCircle, Activity, Sliders, X, History, ArrowLeftRight, Pencil, ArrowLeft } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
@@ -602,24 +602,32 @@ export default function Tire3DViewer({ currentKm, onClose }) {
   const [isSwapMode, setIsSwapMode] = useState(false);
   const [swapSourceId, setSwapSourceId] = useState(null);
   
-  // Kalibrasyon değerlerini localStorage'dan yükle veya varsayılanı kullan
-  const calibrationRef = useRef(useMemo(() => {
-    try {
-      const saved = localStorage.getItem('tire-3d-calibrations');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (!parsed.offsets) parsed.offsets = {};
-        if (!parsed.sizes) parsed.sizes = {};
-        TIRE_POSITIONS.forEach(p => {
-          if (!parsed.offsets[p.id]) parsed.offsets[p.id] = [0, 0, 0];
-        });
-        return parsed;
+  // Kalibrasyon — Firestore'dan yükle
+  const calibrationRef = useRef(JSON.parse(JSON.stringify(DEFAULT_CALIBRATION)));
+  const [calibLoaded, setCalibLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!activeTruckId) return;
+    const load = async () => {
+      try {
+        const ref = doc(db, 'trucks', activeTruckId, 'settings', 'calibration3d');
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const data = snap.data();
+          if (!data.offsets) data.offsets = {};
+          if (!data.sizes) data.sizes = {};
+          TIRE_POSITIONS.forEach(p => {
+            if (!data.offsets[p.id]) data.offsets[p.id] = [0, 0, 0];
+          });
+          calibrationRef.current = data;
+        }
+      } catch (e) {
+        console.warn('Kalibrasyon yüklenemedi:', e);
       }
-    } catch (e) {
-      console.warn("Failed to load calibrations:", e);
-    }
-    return JSON.parse(JSON.stringify(DEFAULT_CALIBRATION));
-  }, []));
+      setCalibLoaded(true);
+    };
+    load();
+  }, [activeTruckId]);
 
   // UI metinlerini DOM manipülasyonu ile anlık olarak güncelleyen optimize fonksiyon
   const updateTextDisplays = () => {
@@ -1247,9 +1255,14 @@ export default function Tire3DViewer({ currentKm, onClose }) {
 
                     <button
                       type="button"
-                      onClick={() => {
-                        localStorage.setItem('tire-3d-calibrations', JSON.stringify(calibrationRef.current));
-                        alert('Kalibrasyon ayarları tarayıcı belleğine kaydedildi!');
+                      onClick={async () => {
+                        try {
+                          const ref = doc(db, 'trucks', activeTruckId, 'settings', 'calibration3d');
+                          await setDoc(ref, calibrationRef.current);
+                          alert('Kalibrasyon ayarları buluta kaydedildi! Her cihazda geçerli.');
+                        } catch (e) {
+                          alert('Kayıt hatası: ' + e.message);
+                        }
                       }}
                       className="flex-1 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded text-[10px] font-bold transition text-center"
                     >
@@ -1259,11 +1272,15 @@ export default function Tire3DViewer({ currentKm, onClose }) {
 
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       if (window.confirm('Tüm tekerlek ince ayarlarını sıfırlamak istediğinize emin misiniz?')) {
-                        localStorage.removeItem('tire-3d-calibrations');
                         calibrationRef.current = JSON.parse(JSON.stringify(DEFAULT_CALIBRATION));
-                        
+                        try {
+                          const ref = doc(db, 'trucks', activeTruckId, 'settings', 'calibration3d');
+                          await setDoc(ref, calibrationRef.current);
+                        } catch (e) {
+                          console.warn('Sıfırlama kaydedilemedi:', e);
+                        }
                         const sR = document.getElementById('slider-radius');
                         if (sR) sR.value = 0.36;
                         const sW = document.getElementById('slider-width');
@@ -1272,9 +1289,8 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                           const s = document.getElementById(`slider-${axis}`);
                           if (s) s.value = 0;
                         });
-                        
                         updateTextDisplays();
-                        alert('Tüm kalibrasyon ayarları sıfırlandı.');
+                        alert('Tüm kalibrasyon ayarları sıfırlandı ve buluta kaydedildi.');
                       }
                     }}
                     className="w-full py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700/60 rounded text-[9px] font-bold transition text-center"
