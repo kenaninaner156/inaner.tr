@@ -613,6 +613,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
         const ref = doc(db, 'trucks', activeTruckId, 'settings', 'calibration3d');
         const snap = await getDoc(ref);
         if (snap.exists()) {
+          // Firestore'da veri var — yükle
           const data = snap.data();
           if (!data.offsets) data.offsets = {};
           if (!data.sizes) data.sizes = {};
@@ -620,6 +621,26 @@ export default function Tire3DViewer({ currentKm, onClose }) {
             if (!data.offsets[p.id]) data.offsets[p.id] = [0, 0, 0];
           });
           calibrationRef.current = data;
+        } else {
+          // Firestore boş — localStorage'da eski veri var mı kontrol et (migrasyon)
+          try {
+            const legacy = localStorage.getItem('tire-3d-calibrations');
+            if (legacy) {
+              const parsed = JSON.parse(legacy);
+              if (!parsed.offsets) parsed.offsets = {};
+              if (!parsed.sizes) parsed.sizes = {};
+              TIRE_POSITIONS.forEach(p => {
+                if (!parsed.offsets[p.id]) parsed.offsets[p.id] = [0, 0, 0];
+              });
+              calibrationRef.current = parsed;
+              // Otomatik olarak Firestore'a kaydet
+              await setDoc(ref, parsed);
+              localStorage.removeItem('tire-3d-calibrations');
+              console.log('✅ Kalibrasyon localStorage\'dan Firestore\'a taşındı.');
+            }
+          } catch (migrErr) {
+            console.warn('Migrasyon hatası:', migrErr);
+          }
         }
       } catch (e) {
         console.warn('Kalibrasyon yüklenemedi:', e);
