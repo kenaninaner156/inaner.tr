@@ -910,6 +910,28 @@ export default function Tire3DViewer({ currentKm, onClose }) {
         setSwapSourceId(null);
       }
     } else {
+      // Çift tekerlek döngüsü: aynı aks/taraftaki _out ve _in arasında geçiş
+      const clickedTire = TIRE_POSITIONS.find(t => t.id === tireId);
+      if (clickedTire && (clickedTire.type === 'dual-out' || clickedTire.type === 'dual-in')) {
+        // Bu lastikle aynı aks ve taraftaki dual çiftini bul
+        const pairedType = clickedTire.type === 'dual-out' ? 'dual-in' : 'dual-out';
+        const pairedTire = TIRE_POSITIONS.find(
+          t => t.axle === clickedTire.axle && t.side === clickedTire.side && t.type === pairedType
+        );
+        // Şu an seçili olan tıklananın çifti ise çifte geç (toggle)
+        if (pairedTire && selectedTireId === tireId) {
+          setSelectedTireId(pairedTire.id);
+          return;
+        }
+        // Aksi halde her zaman önce _out'u seç
+        const outerTire = TIRE_POSITIONS.find(
+          t => t.axle === clickedTire.axle && t.side === clickedTire.side && t.type === 'dual-out'
+        );
+        if (outerTire && selectedTireId !== outerTire.id && selectedTireId !== pairedTire?.id) {
+          setSelectedTireId(outerTire.id);
+          return;
+        }
+      }
       setSelectedTireId(tireId);
     }
   };
@@ -1305,11 +1327,30 @@ export default function Tire3DViewer({ currentKm, onClose }) {
               {/* Başlık Grubu */}
               <div className="flex justify-between items-start border-b border-slate-800 pb-3">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="bg-fuchsia-500/10 text-fuchsia-400 border border-fuchsia-500/20 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
                       {selectedTireObj.group}
                     </span>
                     <span className="text-[10px] text-slate-400 font-semibold">{selectedTireId} Konumu</span>
+                    {/* Çift tekerlek göstergesi */}
+                    {(selectedTireObj.type === 'dual-out' || selectedTireObj.type === 'dual-in') && (() => {
+                      const pairedType = selectedTireObj.type === 'dual-out' ? 'dual-in' : 'dual-out';
+                      const pairedTire = TIRE_POSITIONS.find(
+                        t => t.axle === selectedTireObj.axle && t.side === selectedTireObj.side && t.type === pairedType
+                      );
+                      return pairedTire ? (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTireId(pairedTire.id)}
+                          className="flex items-center gap-1 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/25 text-indigo-400 hover:text-indigo-300 text-[9px] font-bold px-2 py-0.5 rounded-full transition cursor-pointer"
+                          title={`${pairedTire.label} lastığine geç`}
+                        >
+                          <span>{selectedTireObj.type === 'dual-out' ? '⊙ Dış' : '◎ İç'}</span>
+                          <ArrowLeftRight size={9} />
+                          <span>{pairedTire.type === 'dual-out' ? 'Dış' : 'İç'}</span>
+                        </button>
+                      ) : null;
+                    })()}
                   </div>
                   <h3 className="text-sm font-bold text-white mt-1">{selectedTireObj.label}</h3>
                 </div>
