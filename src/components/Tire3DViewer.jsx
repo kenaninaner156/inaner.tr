@@ -1101,8 +1101,8 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                   <input
                     id="slider-radius"
                     type="range"
-                    min="0.25"
-                    max="0.45"
+                    min="0.10"
+                    max="0.50"
                     step="0.01"
                     defaultValue={calibrationRef.current.radius}
                     onChange={e => {
@@ -1125,8 +1125,8 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                   <input
                     id="slider-width"
                     type="range"
-                    min="0.15"
-                    max="0.35"
+                    min="0.05"
+                    max="0.40"
                     step="0.01"
                     defaultValue={calibrationRef.current.width}
                     onChange={e => {
