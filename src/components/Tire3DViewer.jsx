@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Suspense, useRef, useMemo, useContext } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Html, useGLTF, Environment, ContactShadows } from '@react-three/drei';
+import { OrbitControls, Html, useGLTF, Environment, ContactShadows, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { db } from '../services/firebaseConfig';
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
@@ -21,15 +21,53 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.warn("3D Loader Error caught by boundary:", error, errorInfo);
+    if (this.props.onError) {
+      this.props.onError(error);
+    }
   }
 
   render() {
     if (this.state.hasError) {
-      return this.props.fallback(this.state.error);
+      return (
+        <ErrorFallbackUI 
+          error={this.state.error} 
+          onReset={() => {
+            this.setState({ hasError: false, error: null });
+            if (this.props.onReset) this.props.onReset();
+          }}
+        />
+      );
     }
     return this.props.children;
   }
 }
+
+// Gelişmiş Hata Arayüzü
+function ErrorFallbackUI({ error, selectedTireId, onSelectTire, tiresData, onReset }) {
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center p-6 bg-slate-900/95 text-slate-100 text-center relative z-10 backdrop-blur-md">
+      <div className="p-6 bg-red-950/45 border border-red-800/60 rounded-2xl max-w-md shadow-2xl">
+        <div className="w-12 h-12 bg-red-900/30 border border-red-700/50 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+          <AlertTriangle size={24} className="text-red-400" />
+        </div>
+        <h3 className="text-lg font-bold text-red-400 mb-2">3D Modül Hatası</h3>
+        <p className="text-sm text-slate-300 mb-4 leading-relaxed">
+          3D showroom veya tır modeli yüklenirken bir grafik hatası oluştu. Tarayıcınız WebGL'i desteklemiyor veya ekran kartı sürücünüzün sıfırlanması gerekebilir.
+        </p>
+        <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-xs text-left overflow-x-auto mb-5 max-h-32 text-red-300 font-mono">
+          {error?.message || String(error || 'Bilinmeyen Hata')}
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white font-medium rounded-xl text-sm transition-all cursor-pointer shadow-lg shadow-red-900/20 active:scale-95"
+        >
+          Sayfayı Yeniden Yükle
+        </button>
+      </div>
+    </div>
+  );
+}
+
 
 // X ekseni boyunca hizalanmış (Tır uzunluğu X ekseninde) 12 Lastik Koordinatları
 const TIRE_POSITIONS = [
@@ -88,6 +126,7 @@ const DEFAULT_CALIBRATION = {
 // Lastik Vurgulama Bileşeni (3D Saydam Kaplama)
 function TireOverlay({ tireId, tiresData, calibrationRef, isSelected, onSelectTire }) {
   const meshRef = useRef();
+  const [hovered, setHovered] = useState(false);
 
   const tireObj = useMemo(() => TIRE_POSITIONS.find(t => t.id === tireId), [tireId]);
   if (!tireObj) return null;
@@ -97,7 +136,7 @@ function TireOverlay({ tireId, tiresData, calibrationRef, isSelected, onSelectTi
   const status = tiresData?.[tireId]?.status || 'İyi';
   const baseColor = statusColors[status] || '#10b981';
 
-  // Animasyon: Pulsing, yavaş dönme ve konum/ölçek güncelleme (sadece seçili tekerlek için aktif)
+  // Animasyon: Pulsing, yavaş dönme ve konum/ölçek güncelleme
   useFrame((state) => {
     if (meshRef.current) {
       const cal = calibrationRef.current;
@@ -109,7 +148,7 @@ function TireOverlay({ tireId, tiresData, calibrationRef, isSelected, onSelectTi
       const z = tireObj.pos3D[2] + offsets[2];
       meshRef.current.position.set(x, y, z);
 
-      // Ölçek güncellemesi (Yarıçap ve genişlik - animasyon yok)
+      // Ölçek güncellemesi (Yarıçap ve genişlik)
       const r = cal.sizes?.[tireId]?.radius ?? cal.radius;
       const w = cal.sizes?.[tireId]?.width ?? cal.width;
       meshRef.current.scale.set(r, w, r);
@@ -126,21 +165,24 @@ function TireOverlay({ tireId, tiresData, calibrationRef, isSelected, onSelectTi
       }}
       onPointerOver={(e) => {
         e.stopPropagation();
+        setHovered(true);
         document.body.style.cursor = 'pointer';
       }}
       onPointerOut={(e) => {
         e.stopPropagation();
+        setHovered(false);
         document.body.style.cursor = 'auto';
       }}
+      visible={isSelected || hovered}
     >
       {/* Base radius = 1, base height = 1. Scale makes it actual radius & width */}
       <cylinderGeometry args={[1, 1, 1, 32, 1, false]} />
       <meshStandardMaterial 
         color={baseColor}
         emissive={baseColor}
-        emissiveIntensity={isSelected ? 1.2 : 0.4}
+        emissiveIntensity={isSelected ? 1.2 : 0.3}
         transparent={true}
-        opacity={isSelected ? 0.6 : 0.3}
+        opacity={isSelected ? 0.65 : 0.25}
         depthWrite={true}
         depthTest={true}
         roughness={0.2}
@@ -163,6 +205,56 @@ function TruckModel({ selectedTireId, onSelectTire, tiresData, calibrationRef })
     const toRemove = [];
     cloned.traverse((child) => {
       if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+
+        // PBR Material Enhancement for Environment Harmony
+        if (child.material) {
+          const oldMat = child.material;
+
+          const processMaterial = (mat) => {
+            if (!mat) return mat;
+            let newMat = mat.clone();
+            const matName = (mat.name || child.name || '').toLowerCase();
+
+            if (mat.isMeshBasicMaterial) {
+              newMat = new THREE.MeshStandardMaterial({
+                color: mat.color,
+                map: mat.map,
+                roughness: 0.4,
+                metalness: 0.2
+              });
+            }
+
+            if (matName.includes('glass') || matName.includes('cam') || matName.includes('window')) {
+              newMat.roughness = 0.05;
+              newMat.metalness = 0.95;
+              newMat.transparent = true;
+              newMat.opacity = 0.3;
+            } else if (matName.includes('chrome') || matName.includes('metal') || matName.includes('rim') || matName.includes('jant') || matName.includes('steel') || matName.includes('krom')) {
+              newMat.metalness = 0.95;
+              newMat.roughness = 0.15;
+            } else if (matName.includes('paint') || matName.includes('body') || matName.includes('gövde') || matName.includes('kabin') || matName.includes('cab') || matName.includes('carpaint') || matName.includes('red') || matName.includes('kırmızı')) {
+              newMat.roughness = 0.22;
+              newMat.metalness = 0.1;
+            } else {
+              if (newMat.roughness !== undefined) {
+                newMat.roughness = Math.min(newMat.roughness, 0.35);
+              }
+              if (newMat.metalness !== undefined) {
+                newMat.metalness = Math.max(newMat.metalness, 0.3);
+              }
+            }
+            return newMat;
+          };
+
+          if (Array.isArray(oldMat)) {
+            child.material = oldMat.map(processMaterial);
+          } else {
+            child.material = processMaterial(oldMat);
+          }
+        }
+
         const count = child.geometry.attributes.position.count;
         if (count < 1000) {
           toRemove.push(child);
@@ -304,297 +396,973 @@ function Loader3D() {
 }
 
 // Kırmızı Alet Dolabı ve Diagnostik Terminal (Workshop Toolbox & Diagnostic Laptop)
-function WorkshopToolbox({ position, rotation }) {
+// Dekoratif Süs Bitkisi
+function ShowroomPlant({ position }) {
+  return (
+    <group position={position}>
+      {/* Beyaz Seramik Saksı */}
+      <mesh position={[0, 0.35, 0]} castShadow>
+        <boxGeometry args={[0.35, 0.7, 0.35]} />
+        <meshStandardMaterial color="#ffffff" roughness={0.1} metalness={0.1} />
+      </mesh>
+      {/* Toprak */}
+      <mesh position={[0, 0.695, 0]}>
+        <boxGeometry args={[0.33, 0.02, 0.33]} />
+        <meshStandardMaterial color="#1c1917" roughness={0.9} />
+      </mesh>
+      {/* Yapraklar (Monstera / Ficus Tarzı) */}
+      <group position={[0, 0.7, 0]}>
+        <mesh position={[0, 0.15, 0.05]} rotation={[0.4, 0, 0.2]} castShadow>
+          <boxGeometry args={[0.15, 0.35, 0.01]} />
+          <meshStandardMaterial color="#166534" roughness={0.7} />
+        </mesh>
+        <mesh position={[0.08, 0.2, -0.05]} rotation={[-0.3, 0.5, -0.4]} castShadow>
+          <boxGeometry args={[0.12, 0.32, 0.01]} />
+          <meshStandardMaterial color="#15803d" roughness={0.75} />
+        </mesh>
+        <mesh position={[-0.08, 0.25, 0.02]} rotation={[0.2, -0.5, 0.4]} castShadow>
+          <boxGeometry args={[0.14, 0.38, 0.01]} />
+          <meshStandardMaterial color="#166534" roughness={0.7} />
+        </mesh>
+        <mesh position={[0.05, 0.3, 0.08]} rotation={[0.5, 0.2, -0.2]} castShadow>
+          <boxGeometry args={[0.13, 0.34, 0.01]} />
+          <meshStandardMaterial color="#14532d" roughness={0.65} />
+        </mesh>
+        <mesh position={[-0.05, 0.18, -0.08]} rotation={[-0.4, -0.3, 0.3]} castShadow>
+          <boxGeometry args={[0.16, 0.3, 0.01]} />
+          <meshStandardMaterial color="#15803d" roughness={0.7} />
+        </mesh>
+        <mesh position={[0, 0.35, -0.02]} rotation={[-0.1, 0, 0.1]} castShadow>
+          <boxGeometry args={[0.1, 0.4, 0.01]} />
+          <meshStandardMaterial color="#166534" roughness={0.7} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+// Eames Tarzı Tasarım Koltuk (Taba Deri & Ahşap)
+function ShowroomArmchair({ position, rotation }) {
   return (
     <group position={position} rotation={rotation}>
-      {/* Tekerlekler (Wheels/Casters) - Y=0.04 tekerlek merkezidir, böylece taban Y=0'a teğettir */}
-      <mesh position={[-0.22, 0.04, 0.12]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.04, 0.04, 0.03, 8]} />
-        <meshStandardMaterial color="#27272a" roughness={0.8} />
+      {/* Koltuk Krem Dış Gövde */}
+      <mesh position={[0, 0.25, 0]} castShadow>
+        <boxGeometry args={[0.52, 0.04, 0.52]} />
+        <meshStandardMaterial color="#f5f5f4" roughness={0.8} />
       </mesh>
-      <mesh position={[0.22, 0.04, 0.12]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.04, 0.04, 0.03, 8]} />
-        <meshStandardMaterial color="#27272a" roughness={0.8} />
-      </mesh>
-      <mesh position={[-0.22, 0.04, -0.12]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.04, 0.04, 0.03, 8]} />
-        <meshStandardMaterial color="#27272a" roughness={0.8} />
-      </mesh>
-      <mesh position={[0.22, 0.04, -0.12]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.04, 0.04, 0.03, 8]} />
-        <meshStandardMaterial color="#27272a" roughness={0.8} />
+      <mesh position={[0, 0.42, -0.22]} rotation={[0.15, 0, 0]} castShadow>
+        <boxGeometry args={[0.52, 0.38, 0.04]} />
+        <meshStandardMaterial color="#f5f5f4" roughness={0.8} />
       </mesh>
 
-      {/* Ana kırmızı gövde - Yükseklik 0.7 birim, Y=0.08'den başlar */}
-      <mesh castShadow receiveShadow position={[0, 0.43, 0]}>
-        <boxGeometry args={[0.6, 0.7, 0.4]} />
-        <meshStandardMaterial color="#b91c1c" roughness={0.3} metalness={0.5} />
+      {/* Koltuk Deri Minderler (Taba Deri) */}
+      <mesh position={[0, 0.28, -0.02]} castShadow>
+        <boxGeometry args={[0.46, 0.05, 0.46]} />
+        <meshStandardMaterial color="#78350f" roughness={0.5} metalness={0.1} />
+      </mesh>
+      <mesh position={[0, 0.43, -0.19]} rotation={[0.15, 0, 0]} castShadow>
+        <boxGeometry args={[0.46, 0.32, 0.03]} />
+        <meshStandardMaterial color="#78350f" roughness={0.5} metalness={0.1} />
+      </mesh>
+
+      {/* Kol Dayama Kolları */}
+      <mesh position={[-0.27, 0.36, -0.04]} castShadow>
+        <boxGeometry args={[0.03, 0.18, 0.38]} />
+        <meshStandardMaterial color="#f5f5f4" roughness={0.8} />
+      </mesh>
+      <mesh position={[0.27, 0.36, -0.04]} castShadow>
+        <boxGeometry args={[0.03, 0.18, 0.38]} />
+        <meshStandardMaterial color="#f5f5f4" roughness={0.8} />
+      </mesh>
+
+      {/* Kolçak Üst Siyah Kaplaması */}
+      <mesh position={[-0.27, 0.455, -0.04]}>
+        <boxGeometry args={[0.04, 0.01, 0.4]} />
+        <meshStandardMaterial color="#0f172a" roughness={0.7} />
+      </mesh>
+      <mesh position={[0.27, 0.455, -0.04]}>
+        <boxGeometry args={[0.04, 0.01, 0.4]} />
+        <meshStandardMaterial color="#0f172a" roughness={0.7} />
+      </mesh>
+
+      {/* Ahşap Ayaklar */}
+      <mesh position={[-0.18, 0.12, 0.18]} rotation={[0.2, 0, -0.2]} castShadow>
+        <cylinderGeometry args={[0.014, 0.008, 0.26, 8]} />
+        <meshStandardMaterial color="#b45309" roughness={0.6} />
+      </mesh>
+      <mesh position={[0.18, 0.12, 0.18]} rotation={[0.2, 0, 0.2]} castShadow>
+        <cylinderGeometry args={[0.014, 0.008, 0.26, 8]} />
+        <meshStandardMaterial color="#b45309" roughness={0.6} />
+      </mesh>
+      <mesh position={[-0.18, 0.12, -0.18]} rotation={[-0.2, 0, -0.2]} castShadow>
+        <cylinderGeometry args={[0.014, 0.008, 0.26, 8]} />
+        <meshStandardMaterial color="#b45309" roughness={0.6} />
+      </mesh>
+      <mesh position={[0.18, 0.12, -0.18]} rotation={[-0.2, 0, 0.2]} castShadow>
+        <cylinderGeometry args={[0.014, 0.008, 0.26, 8]} />
+        <meshStandardMaterial color="#b45309" roughness={0.6} />
+      </mesh>
+      {/* Ayaklar Arası İnce Metal Bağlantı Çubukları */}
+      <mesh position={[0, 0.2, 0]} rotation={[0, 0, Math.PI / 4]}>
+        <boxGeometry args={[0.36, 0.006, 0.006]} />
+        <meshStandardMaterial color="#292524" metalness={0.9} />
+      </mesh>
+      <mesh position={[0, 0.2, 0]} rotation={[0, 0, -Math.PI / 4]}>
+        <boxGeometry args={[0.36, 0.006, 0.006]} />
+        <meshStandardMaterial color="#292524" metalness={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
+// ── CANVAS TEXTURE CREATORS FOR ULTRA HIGH PERFORMANCE (GPU RENDERING, NO LAG, PERFECT DEPTH) ──
+const createLogoSignCanvas = (logoImage) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 2048;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  
+  // Zemin: Tam Derin Siyah
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, 2048, 512);
+  
+  // Logo İkonu Çiz
+  if (logoImage) {
+    ctx.drawImage(logoImage, 120, 56, 400, 400);
+  }
+  
+  // "İNANER.TR" Yazısı - Metin Ölçümü İle Düzgün Yapışık Hizalama
+  ctx.font = 'bold 168px Montserrat, Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('İNANER', 560, 280);
+  
+  const widthInaner = ctx.measureText('İNANER').width;
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillText('.TR', 560 + widthInaner + 20, 280);
+  
+  // Alt Metin
+  ctx.font = 'bold 44px Montserrat, Arial, sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('LOJİSTİK', 570, 390);
+  
+  const widthLojistik = ctx.measureText('LOJİSTİK').width;
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('telemetry', 570 + widthLojistik + 30, 390);
+  
+  return canvas;
+};
+
+const createPosterCanvas = () => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 1440;
+  const ctx = canvas.getContext('2d');
+  
+  // Zemin: Derin Gece Siyahı
+  ctx.fillStyle = '#030307';
+  ctx.fillRect(0, 0, 1024, 1440);
+  
+  // Neon Çerçeve
+  ctx.strokeStyle = '#d946ef';
+  ctx.lineWidth = 10;
+  ctx.strokeRect(20, 20, 984, 1400);
+  
+  // Başlık
+  ctx.font = 'bold 72px Montserrat, Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('İNANER.TR', 80, 130);
+  
+  ctx.font = 'bold 24px Montserrat, Arial, sans-serif';
+  ctx.fillStyle = '#d946ef';
+  ctx.fillText('ACTIVE FLEET DIAGNOSTICS & SYSTEM PORTAL', 80, 180);
+  
+  // İnce Yatay Çizgi
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(80, 220);
+  ctx.lineTo(944, 220);
+  ctx.stroke();
+
+  // Şematik Başlık
+  ctx.font = 'bold 28px Montserrat, Arial, sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('VEHICLE SYSTEM DIAGNOSTICS SCHEMATIC', 80, 290);
+
+  // Modern Şematik Kasa
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(200, 360, 624, 160);
+  
+  // Tekerlek Daire Sensörleri
+  const drawWheelSensor = (x, y, label, statusColor) => {
+    ctx.strokeStyle = statusColor;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, 25, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.arc(x, y, 18, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.font = 'bold 16px Arial';
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x, y + 6);
+    ctx.textAlign = 'left';
+  };
+  
+  drawWheelSensor(260, 520, 'F1', '#10b981');
+  drawWheelSensor(380, 520, 'F2', '#10b981');
+  drawWheelSensor(640, 520, 'R1', '#f59e0b');
+  drawWheelSensor(760, 520, 'R2', '#10b981');
+
+  // Tablo Başlığı
+  ctx.font = 'bold 36px Montserrat, Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('REALTIME TELEMETRY FEED', 80, 740);
+  
+  // Tablo Çizimi
+  const startX = 80;
+  const startY = 810;
+  const colWidths = [240, 200, 200, 220];
+  const headers = ['POSITION', 'PRESSURE', 'TEMP', 'WEAR LEVEL'];
+  
+  ctx.font = 'bold 24px Montserrat, Arial, sans-serif';
+  ctx.fillStyle = '#d946ef';
+  headers.forEach((h, i) => {
+    let xOffset = startX;
+    for (let j = 0; j < i; j++) xOffset += colWidths[j];
+    ctx.fillText(h, xOffset, startY);
+  });
+  
+  ctx.strokeStyle = '#d946ef';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(80, startY + 20);
+  ctx.lineTo(944, startY + 20);
+  ctx.stroke();
+  
+  const tableData = [
+    { pos: 'Front Left (FL)', press: '120 PSI', temp: '24°C', wear: 0.88, color: '#10b981' },
+    { pos: 'Front Right (FR)', press: '119 PSI', temp: '25°C', wear: 0.87, color: '#10b981' },
+    { pos: 'Rear Left Out (L1)', press: '115 PSI', temp: '32°C', wear: 0.65, color: '#f59e0b' },
+    { pos: 'Rear Right Out (R1)', press: '116 PSI', temp: '28°C', wear: 0.72, color: '#10b981' }
+  ];
+  
+  ctx.font = 'bold 22px monospace';
+  tableData.forEach((row, idx) => {
+    const rowY = startY + 80 + idx * 70;
+    
+    ctx.fillStyle = idx % 2 === 0 ? 'rgba(30, 41, 59, 0.3)' : 'rgba(15, 23, 42, 0.3)';
+    ctx.fillRect(80, rowY - 35, 864, 55);
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(row.pos, startX, rowY);
+    ctx.fillText(row.press, startX + colWidths[0], rowY);
+    
+    ctx.fillStyle = row.color;
+    ctx.fillText(row.temp, startX + colWidths[0] + colWidths[1], rowY);
+    
+    const barWidth = 140;
+    const barHeight = 16;
+    const barX = startX + colWidths[0] + colWidths[1] + colWidths[2];
+    const barY = rowY - 14;
+    
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+    
+    ctx.fillStyle = row.color;
+    ctx.fillRect(barX, barY, barWidth * row.wear, barHeight);
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 16px Arial';
+    ctx.fillText(`${Math.round(row.wear * 100)}%`, barX + barWidth + 15, rowY - 1);
+    ctx.font = 'bold 22px monospace';
+  });
+  
+  return canvas;
+};
+
+const createKioskCanvas = () => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 640;
+  const ctx = canvas.getContext('2d');
+  
+  ctx.fillStyle = '#020205';
+  ctx.fillRect(0, 0, 1024, 640);
+  
+  ctx.strokeStyle = '#6366f1';
+  ctx.lineWidth = 8;
+  ctx.strokeRect(16, 16, 992, 608);
+  
+  ctx.font = 'bold 40px Arial, sans-serif';
+  ctx.fillStyle = '#818cf8';
+  ctx.fillText('INANER.TR TELEMETRI TERMINALI', 50, 90);
+  
+  // Left circle status
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  ctx.arc(200, 330, 120, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = 8;
+  ctx.stroke();
+  
+  ctx.font = 'bold 52px Arial, sans-serif';
+  ctx.fillStyle = '#10b981';
+  ctx.fillText('%98.4', 130, 344);
+  ctx.font = '20px Arial, sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('VERİM', 170, 410);
+  
+  // Right side bars
+  ctx.font = 'bold 24px Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('Lastik Basınç Uyumu: %100', 400, 210);
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(400, 230, 520, 28);
+  ctx.fillStyle = '#10b981';
+  ctx.fillRect(400, 230, 520, 28);
+  
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('Ortalama Diş Derinliği: 14.2 mm', 400, 310);
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(400, 330, 520, 28);
+  ctx.fillStyle = '#10b981';
+  ctx.fillRect(400, 330, 456, 28);
+  
+  // Button
+  ctx.fillStyle = '#4f46e5';
+  ctx.fillRect(400, 450, 520, 72);
+  ctx.font = 'bold 28px Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('TEŞHİSİ BAŞLAT', 540, 496);
+  
+  return canvas;
+};
+
+const createOfficeMonitorCanvas = () => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 320;
+  const ctx = canvas.getContext('2d');
+  
+  ctx.fillStyle = '#020205';
+  ctx.fillRect(0, 0, 512, 320);
+  
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(8, 8, 496, 304);
+  
+  ctx.font = 'bold 22px Arial, sans-serif';
+  ctx.fillStyle = '#10b981';
+  ctx.fillText('FLEET ALERT CENTER', 30, 48);
+  
+  // Alerts
+  ctx.fillStyle = '#ef4444';
+  ctx.fillRect(30, 76, 452, 44);
+  ctx.font = 'bold 18px Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('● 06 FTN 692 (T3) - DÜŞÜK BASINÇ', 44, 104);
+  
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(30, 136, 452, 40);
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('● 34 GBL 129 - Rotasyon Planı', 44, 162);
+  
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(30, 188, 452, 40);
+  ctx.fillText('● 06 BCD 451 - Lastik OK', 44, 214);
+  
+  return canvas;
+};
+
+// Sehpa
+function ShowroomCoffeeTable({ position }) {
+  return (
+    <group position={position}>
+      {/* Sehpa Ayakları */}
+      <mesh position={[-0.4, 0.22, -0.4]} castShadow>
+        <cylinderGeometry args={[0.02, 0.02, 0.44]} />
+        <meshStandardMaterial color="#1c1917" metalness={0.7} roughness={0.2} />
+      </mesh>
+      <mesh position={[0.4, 0.22, -0.4]} castShadow>
+        <cylinderGeometry args={[0.02, 0.02, 0.44]} />
+        <meshStandardMaterial color="#1c1917" metalness={0.7} roughness={0.2} />
+      </mesh>
+      <mesh position={[-0.4, 0.22, 0.4]} castShadow>
+        <cylinderGeometry args={[0.02, 0.02, 0.44]} />
+        <meshStandardMaterial color="#1c1917" metalness={0.7} roughness={0.2} />
+      </mesh>
+      <mesh position={[0.4, 0.22, 0.4]} castShadow>
+        <cylinderGeometry args={[0.02, 0.02, 0.44]} />
+        <meshStandardMaterial color="#1c1917" metalness={0.7} roughness={0.2} />
+      </mesh>
+      {/* Sehpa Cam Tablası */}
+      <mesh position={[0, 0.45, 0]} castShadow>
+        <boxGeometry args={[1.0, 0.02, 1.0]} />
+        <meshStandardMaterial color="#1e293b" transparent opacity={0.65} roughness={0.05} metalness={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
+// Sehpa Üstü Puf
+function ShowroomOttoman({ position }) {
+  return (
+    <mesh position={position} castShadow>
+      <cylinderGeometry args={[0.26, 0.26, 0.38, 16]} />
+      <meshStandardMaterial color="#3f3f46" roughness={0.9} />
+    </mesh>
+  );
+}
+
+// İnteraktif Kiosk Terminali (GPU CanvasTexture)
+function ShowroomKiosk({ position, rotation }) {
+  const canvas = useMemo(() => createKioskCanvas(), []);
+
+  return (
+    <group position={position} rotation={rotation}>
+      {/* Metal Alt Taban */}
+      <mesh position={[0, 0.015, 0]} castShadow>
+        <boxGeometry args={[0.5, 0.03, 0.5]} />
+        <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.2} />
+      </mesh>
+      {/* Eğimli Gövde Kolon */}
+      <mesh position={[0, 0.45, -0.05]} rotation={[-0.15, 0, 0]} castShadow>
+        <boxGeometry args={[0.12, 0.9, 0.16]} />
+        <meshStandardMaterial color="#334155" metalness={0.5} roughness={0.3} />
+      </mesh>
+      {/* Arka Kapak Detay */}
+      <mesh position={[0, 0.45, -0.135]} rotation={[-0.15, 0, 0]}>
+        <boxGeometry args={[0.06, 0.7, 0.01]} />
+        <meshStandardMaterial color="#475569" metalness={0.7} />
+      </mesh>
+      {/* Eğimli Ekran Gövdesi */}
+      <mesh position={[0, 0.9, 0.02]} rotation={[-0.55, 0, 0]} castShadow>
+        <boxGeometry args={[0.66, 0.42, 0.04]} />
+        <meshStandardMaterial color="#0f172a" metalness={0.8} roughness={0.1} />
+      </mesh>
+      {/* Parlayan Dokunmatik Ekran (CanvasTexture) */}
+      <mesh position={[0, 0.915, 0.042]} rotation={[-0.55, 0, 0]}>
+        <planeGeometry args={[0.6, 0.36]} />
+        <meshStandardMaterial 
+          roughness={0.1} 
+          metalness={0.2}
+          emissive="#2a2a35" 
+        >
+          <canvasTexture attach="map" image={canvas} anisotropy={16} />
+          <canvasTexture attach="emissiveMap" image={canvas} anisotropy={16} />
+        </meshStandardMaterial>
+      </mesh>
+    </group>
+  );
+}
+
+// Şematik Motor / Dorse Posteri (Teknik Bilgi Panosu - GPU CanvasTexture)
+function ShowroomPoster({ position }) {
+  const canvas = useMemo(() => createPosterCanvas(), []);
+
+  return (
+    <group position={position}>
+      {/* Dış Metal Çerçeve */}
+      <mesh position={[0, 0, 0]} castShadow>
+        <boxGeometry args={[1.5, 2.1, 0.04]} />
+        <meshStandardMaterial color="#27272a" metalness={0.8} roughness={0.3} />
+      </mesh>
+      {/* İç Şematik Levha (CanvasTexture) */}
+      <mesh position={[0, 0, 0.021]}>
+        <planeGeometry args={[1.42, 2.02]} />
+        <meshStandardMaterial 
+          roughness={0.3} 
+          metalness={0.05}
+          emissive="#111111" 
+        >
+          <canvasTexture attach="map" image={canvas} anisotropy={16} />
+          <canvasTexture attach="emissiveMap" image={canvas} anisotropy={16} />
+        </meshStandardMaterial>
+      </mesh>
+    </group>
+  );
+}
+
+// Mimari Brüt Beton Duvar
+function ConcreteWall({ width, height, position, rotation }) {
+  const panelWidth = 4;
+  const panelHeight = 2.8;
+  const cols = Math.ceil(width / panelWidth);
+  const rows = Math.ceil(height / panelHeight);
+  
+  const panels = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const px = (c - (cols - 1) / 2) * panelWidth;
+      const py = (r - (rows - 1) / 2) * panelHeight;
+      panels.push({ x: px, y: py });
+    }
+  }
+  
+  return (
+    <group position={position} rotation={rotation}>
+      {/* Arka Taşıyıcı Duvar Bloku */}
+      <mesh receiveShadow>
+        <boxGeometry args={[width, height, 0.08]} />
+        <meshStandardMaterial color="#8b8580" roughness={0.65} metalness={0.15} />
       </mesh>
       
-      {/* Siyah üst kauçuk mat */}
-      <mesh castShadow position={[0, 0.79, 0]}>
-        <boxGeometry args={[0.62, 0.02, 0.42]} />
-        <meshStandardMaterial color="#18181b" roughness={0.9} />
-      </mesh>
-
-      {/* Çekmeceler (Drawers) */}
-      {[0.7, 0.59, 0.48, 0.37, 0.26, 0.15].map((yOffset, i) => (
-        <group key={i} position={[0, yOffset, 0.201]}>
-          {/* Çekmece çizgisi */}
-          <mesh>
-            <boxGeometry args={[0.54, 0.01, 0.005]} />
-            <meshStandardMaterial color="#111113" />
+      {/* Beton Plaka Derzleri ve Delikleri */}
+      {panels.map((p, idx) => (
+        <group key={idx} position={[p.x, p.y, 0.042]}>
+          {/* İçe Çökük Plaka */}
+          <mesh receiveShadow>
+            <boxGeometry args={[panelWidth - 0.04, panelHeight - 0.04, 0.005]} />
+            <meshStandardMaterial color="#8b8580" roughness={0.65} metalness={0.15} />
           </mesh>
-          {/* Gümüş Kulp (Handle) */}
-          <mesh position={[0, 0.03, 0.005]}>
-            <boxGeometry args={[0.3, 0.015, 0.015]} />
-            <meshStandardMaterial color="#d1d5db" metalness={0.95} roughness={0.05} />
-          </mesh>
+          
+          {/* 4 Köşedeki Montaj Delikleri (Tie-rod Holes) */}
+          {[-panelWidth / 2 + 0.3, panelWidth / 2 - 0.3].map((hx) => 
+            [-panelHeight / 2 + 0.3, panelHeight / 2 - 0.3].map((hy) => (
+              <mesh key={`${hx}-${hy}`} position={[hx, hy, 0.002]} rotation={[Math.PI / 2, 0, 0]}>
+                <cylinderGeometry args={[0.024, 0.024, 0.004, 8]} />
+                <meshStandardMaterial color="#44403c" roughness={0.8} />
+              </mesh>
+            ))
+          )}
         </group>
       ))}
-
-      {/* Alet Asma Panosu (Pegboard Backing) */}
-      {/* Yan Taşıyıcı Miller */}
-      <mesh position={[-0.28, 1.1, -0.19]} castShadow>
-        <boxGeometry args={[0.02, 0.6, 0.02]} />
-        <meshStandardMaterial color="#4b5563" metalness={0.8} />
-      </mesh>
-      <mesh position={[0.28, 1.1, -0.19]} castShadow>
-        <boxGeometry args={[0.02, 0.6, 0.02]} />
-        <meshStandardMaterial color="#4b5563" metalness={0.8} />
-      </mesh>
-      {/* Pano Levhası */}
-      <mesh position={[0, 1.1, -0.18]} castShadow>
-        <boxGeometry args={[0.54, 0.6, 0.015]} />
-        <meshStandardMaterial color="#374151" roughness={0.7} />
-      </mesh>
-
-      {/* Pano Üzerindeki Asılı Aletler */}
-      {/* İngiliz Anahtarı (Wrench) */}
-      <group position={[-0.12, 1.2, -0.17]} rotation={[0, 0, -Math.PI / 4]}>
-        <mesh castShadow>
-          <boxGeometry args={[0.02, 0.12, 0.008]} />
-          <meshStandardMaterial color="#9ca3af" metalness={0.9} roughness={0.2} />
-        </mesh>
-        <mesh position={[0, 0.06, 0]}>
-          <cylinderGeometry args={[0.02, 0.02, 0.008, 6]} />
-          <meshStandardMaterial color="#9ca3af" metalness={0.9} roughness={0.2} />
-        </mesh>
-      </group>
-      {/* Tornavida (Screwdriver) */}
-      <group position={[0.08, 1.15, -0.17]}>
-        {/* Sap */}
-        <mesh position={[0, 0.04, 0]} castShadow>
-          <cylinderGeometry args={[0.012, 0.012, 0.05, 8]} />
-          <meshStandardMaterial color="#dc2626" roughness={0.4} />
-        </mesh>
-        {/* Metal Mil */}
-        <mesh position={[0, -0.03, 0]} castShadow>
-          <cylinderGeometry args={[0.004, 0.004, 0.08, 8]} />
-          <meshStandardMaterial color="#d1d5db" metalness={0.9} roughness={0.1} />
-        </mesh>
-      </group>
-
-      {/* Diagnostik Laptop (Diagnostic Terminal) */}
-      <group position={[0, 0.8, -0.05]}>
-        {/* Laptop Alt Gövde */}
-        <mesh position={[0, 0.0075, 0]} castShadow>
-          <boxGeometry args={[0.22, 0.015, 0.16]} />
-          <meshStandardMaterial color="#1f2937" roughness={0.5} />
-        </mesh>
-        {/* Laptop Ekran Kapağı */}
-        <group position={[0, 0.015, -0.075]} rotation={[-Math.PI / 3, 0, 0]}>
-          {/* Ekran Dış Çerçevesi */}
-          <mesh position={[0, 0.075, 0]} castShadow>
-            <boxGeometry args={[0.22, 0.15, 0.01]} />
-            <meshStandardMaterial color="#1f2937" roughness={0.5} />
-          </mesh>
-          {/* Işıklı Ekran Paneli */}
-          <mesh position={[0, 0.075, 0.006]}>
-            <boxGeometry args={[0.2, 0.13, 0.002]} />
-            <meshBasicMaterial color="#0284c7" />
-          </mesh>
-        </group>
-      </group>
     </group>
   );
 }
 
-// Yedek Lastik Rafı (Tire Rack)
-function TireRack({ position, rotation }) {
+// Ahşap Dikey Akustik Çıta Paneli
+function WoodSlatPanel({ position, width, height }) {
+  const slatWidth = 0.06;
+  const slatSpacing = 0.14;
+  const slatsCount = Math.floor(width / slatSpacing);
+  
+  const slats = [];
+  for (let i = 0; i < slatsCount; i++) {
+    slats.push((i - (slatsCount - 1) / 2) * slatSpacing);
+  }
+  
+  return (
+    <group position={position}>
+      {/* Siyah Arka Fon */}
+      <mesh castShadow receiveShadow position={[0, height / 2, 0]}>
+        <boxGeometry args={[width, height, 0.02]} />
+        <meshStandardMaterial color="#1c1917" roughness={0.9} />
+      </mesh>
+      
+      {/* Dikey Meşe Çıtalar */}
+      {slats.map((slatX, idx) => (
+        <mesh key={idx} position={[slatX, height / 2, 0.02]} castShadow receiveShadow>
+          <boxGeometry args={[slatWidth, height, 0.03]} />
+          <meshStandardMaterial color="#a16207" roughness={0.5} metalness={0.1} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// Endüstriyel Çelik Çatı Makası / Kirişi
+function SteelTruss({ length, position, rotation }) {
+  const segmentLength = 0.8;
+  const segmentsCount = Math.floor(length / segmentLength);
+  
   return (
     <group position={position} rotation={rotation}>
-      {/* 4 Dikey Demir Direk */}
-      <mesh position={[-0.4, 0.4, -0.2]} castShadow>
-        <boxGeometry args={[0.03, 0.8, 0.03]} />
-        <meshStandardMaterial color="#4b5563" roughness={0.6} metalness={0.8} />
+      {/* Alt Kiriş Profili */}
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[length, 0.08, 0.08]} />
+        <meshStandardMaterial color="#292524" metalness={0.85} roughness={0.25} />
       </mesh>
-      <mesh position={[0.4, 0.4, -0.2]} castShadow>
-        <boxGeometry args={[0.03, 0.8, 0.03]} />
-        <meshStandardMaterial color="#4b5563" roughness={0.6} metalness={0.8} />
+      {/* Üst Kiriş Profili */}
+      <mesh position={[0, 0.16, 0]} castShadow>
+        <boxGeometry args={[length, 0.05, 0.05]} />
+        <meshStandardMaterial color="#292524" metalness={0.85} roughness={0.25} />
       </mesh>
-      <mesh position={[-0.4, 0.4, 0.2]} castShadow>
-        <boxGeometry args={[0.03, 0.8, 0.03]} />
-        <meshStandardMaterial color="#4b5563" roughness={0.6} metalness={0.8} />
+      {/* Çapraz Makas Çubukları */}
+      {Array.from({ length: segmentsCount }).map((_, idx) => {
+        const x = (idx - segmentsCount / 2) * segmentLength + segmentLength / 2;
+        return (
+          <group key={idx} position={[x, 0.08, 0]}>
+            <mesh rotation={[0, 0, Math.PI / 4]}>
+              <boxGeometry args={[0.22, 0.015, 0.015]} />
+              <meshStandardMaterial color="#292524" metalness={0.85} roughness={0.25} />
+            </mesh>
+            <mesh rotation={[0, 0, -Math.PI / 4]}>
+              <boxGeometry args={[0.22, 0.015, 0.015]} />
+              <meshStandardMaterial color="#292524" metalness={0.85} roughness={0.25} />
+            </mesh>
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+// Cam Giriş Cephesi (4. Duvar - Z = 7.5)
+function GlassEntranceFacade() {
+  const mullionsX = [-16, -12, -8, -4, 0, 4, 8, 12, 16];
+  
+  return (
+    <group position={[0, 0, 7.5]}>
+      {/* Şeffaf Cam Levhalar (Sol ve Sağ) */}
+      <mesh position={[-9, 2.8, 0]} castShadow receiveShadow>
+        <boxGeometry args={[14, 5.6, 0.04]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.05} metalness={0.95} transparent opacity={0.15} side={THREE.DoubleSide} />
       </mesh>
-      <mesh position={[0.4, 0.4, 0.2]} castShadow>
-        <boxGeometry args={[0.03, 0.8, 0.03]} />
-        <meshStandardMaterial color="#4b5563" roughness={0.6} metalness={0.8} />
+      <mesh position={[9, 2.8, 0]} castShadow receiveShadow>
+        <boxGeometry args={[14, 5.6, 0.04]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.05} metalness={0.95} transparent opacity={0.15} side={THREE.DoubleSide} />
       </mesh>
 
-      {/* Yatay Raf Rayları */}
-      <mesh position={[0, 0.15, 0.19]} castShadow>
-        <boxGeometry args={[0.8, 0.02, 0.02]} />
-        <meshStandardMaterial color="#374151" roughness={0.5} />
+      {/* Giriş Kapıları (Çift Cam Sürgülü Kapı) */}
+      <mesh position={[-1.0, 2.8, 0.02]} castShadow>
+        <boxGeometry args={[1.96, 5.5, 0.03]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.05} metalness={0.95} transparent opacity={0.22} side={THREE.DoubleSide} />
       </mesh>
-      <mesh position={[0, 0.15, -0.19]} castShadow>
-        <boxGeometry args={[0.8, 0.02, 0.02]} />
-        <meshStandardMaterial color="#374151" roughness={0.5} />
+      <mesh position={[-0.1, 2.0, 0.05]}>
+        <cylinderGeometry args={[0.015, 0.015, 0.8, 8]} />
+        <meshStandardMaterial color="#ffffff" metalness={0.95} roughness={0.05} />
       </mesh>
-      <mesh position={[0, 0.78, 0.19]} castShadow>
-        <boxGeometry args={[0.8, 0.02, 0.02]} />
-        <meshStandardMaterial color="#374151" roughness={0.5} />
+      <mesh position={[1.0, 2.8, 0.02]} castShadow>
+        <boxGeometry args={[1.96, 5.5, 0.03]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.05} metalness={0.95} transparent opacity={0.22} side={THREE.DoubleSide} />
       </mesh>
-      <mesh position={[0, 0.78, -0.19]} castShadow>
-        <boxGeometry args={[0.8, 0.02, 0.02]} />
-        <meshStandardMaterial color="#374151" roughness={0.5} />
-      </mesh>
-      {/* Yan Kirişler */}
-      <mesh position={[-0.4, 0.4, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <boxGeometry args={[0.02, 0.4, 0.02]} />
-        <meshStandardMaterial color="#374151" roughness={0.5} />
-      </mesh>
-      <mesh position={[0.4, 0.4, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <boxGeometry args={[0.02, 0.4, 0.02]} />
-        <meshStandardMaterial color="#374151" roughness={0.5} />
+      <mesh position={[0.1, 2.0, 0.05]}>
+        <cylinderGeometry args={[0.015, 0.015, 0.8, 8]} />
+        <meshStandardMaterial color="#ffffff" metalness={0.95} roughness={0.05} />
       </mesh>
 
-      {/* Raftaki 3 Yedek Lastik */}
-      {[-0.22, 0, 0.22].map((xOffset, i) => (
-        <group key={i} position={[xOffset, 0.36, 0]} rotation={[0, Math.PI / 2, 0]}>
-          {/* Lastik Dış Gövde */}
-          <mesh castShadow>
-            <torusGeometry args={[0.2, 0.07, 12, 24]} />
-            <meshStandardMaterial color="#1e1e20" roughness={0.9} />
-          </mesh>
-          {/* Lastik İç Jant */}
-          <mesh castShadow>
-            <cylinderGeometry args={[0.13, 0.13, 0.1, 12]} />
-            <meshStandardMaterial color="#6b7280" metalness={0.7} roughness={0.4} />
-          </mesh>
-          {/* Jant Göbeği Siyah */}
-          <mesh position={[0, 0, 0.051]}>
-            <cylinderGeometry args={[0.05, 0.05, 0.01, 8]} />
-            <meshStandardMaterial color="#111113" />
-          </mesh>
-        </group>
+      {/* Dikey Metal Çerçeveler */}
+      {mullionsX.map((x, idx) => (
+        <mesh key={idx} position={[x, 2.8, 0]} castShadow>
+          <boxGeometry args={[0.12, 5.6, 0.12]} />
+          <meshStandardMaterial color="#1c1917" metalness={0.8} roughness={0.3} />
+        </mesh>
+      ))}
+
+      {/* Yatay Metal Çerçeveler */}
+      {[0.02, 2.8, 5.58].map((y, idx) => (
+        <mesh key={idx} position={[0, y, 0]} castShadow>
+          <boxGeometry args={[32.12, 0.08, 0.12]} />
+          <meshStandardMaterial color="#1c1917" metalness={0.8} roughness={0.3} />
+        </mesh>
       ))}
     </group>
   );
 }
 
-// Mekanik Tamirhane Zemin ve Lift Bileşeni
-function MechanicGarage() {
+// Cam Bölmeli Modern Ofis Odası (Left Wall - X = 14.8)
+function ShowroomOffice() {
   return (
-    <group position={[0, -0.6, 0]}>
-      {/* Genişletilmiş Koyu Beton Zemin */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
-        <planeGeometry args={[100, 100]} />
+    <group>
+      {/* Cam Bölmeler */}
+      <mesh position={[11.8, 2.2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.04, 4.4, 7.0]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.05} metalness={0.9} transparent opacity={0.18} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[13.35, 2.2, -3.5]} castShadow receiveShadow>
+        <boxGeometry args={[3.1, 4.4, 0.04]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.05} metalness={0.9} transparent opacity={0.18} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[13.35, 2.2, 3.5]} castShadow receiveShadow>
+        <boxGeometry args={[3.1, 4.4, 0.04]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.05} metalness={0.9} transparent opacity={0.18} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* Metal Çerçeveler */}
+      {[-3.5, 0, 3.5].map((z, idx) => (
+        <mesh key={idx} position={[11.8, 2.2, z]} castShadow>
+          <boxGeometry args={[0.1, 4.4, 0.1]} />
+          <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.3} />
+        </mesh>
+      ))}
+      <mesh position={[13.35, 4.38, 0]}>
+        <boxGeometry args={[3.2, 0.04, 7.1]} />
+        <meshStandardMaterial color="#1e293b" />
+      </mesh>
+
+      {/* Ofis İçi Mobilyalar */}
+      {/* Masa */}
+      <mesh position={[13.6, 0.38, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.8, 0.76, 1.8]} />
+        <meshStandardMaterial color="#3f3f46" roughness={0.7} />
+      </mesh>
+      <mesh position={[13.6, 0.77, 0]} castShadow>
+        <boxGeometry args={[0.84, 0.03, 1.84]} />
+        <meshStandardMaterial color="#b45309" roughness={0.5} />
+      </mesh>
+
+      <OfficeMonitorWithCanvas />
+
+      {/* Ofis Sandalyesi */}
+      <group position={[12.6, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <mesh position={[0, 0.45, 0]} castShadow>
+          <boxGeometry args={[0.38, 0.04, 0.38]} />
+          <meshStandardMaterial color="#18181b" roughness={0.9} />
+        </mesh>
+        <mesh position={[0, 0.75, -0.18]} castShadow>
+          <boxGeometry args={[0.38, 0.42, 0.04]} />
+          <meshStandardMaterial color="#18181b" roughness={0.9} />
+        </mesh>
+        <mesh position={[0, 0.22, 0]} castShadow>
+          <cylinderGeometry args={[0.02, 0.02, 0.4]} />
+          <meshStandardMaterial color="#27272a" metalness={0.9} />
+        </mesh>
+      </group>
+
+      {/* Ofis Aydınlatması (Cozy Sıcak Işık) */}
+      <pointLight position={[13.5, 3.8, 0]} intensity={0.8} distance={8} color="#fef08a" decay={1.5} />
+    </group>
+  );
+}
+
+// Ofis Monitör GPU Ekran Bileşeni
+function OfficeMonitorWithCanvas() {
+  const canvas = useMemo(() => createOfficeMonitorCanvas(), []);
+
+  return (
+    <group position={[13.5, 0.95, 0]} rotation={[0, -Math.PI / 2, 0]}>
+      <mesh castShadow>
+        <cylinderGeometry args={[0.01, 0.01, 0.3]} />
+        <meshStandardMaterial color="#18181b" metalness={0.8} />
+      </mesh>
+      <mesh position={[0, -0.15, 0]}>
+        <boxGeometry args={[0.12, 0.01, 0.12]} />
+        <meshStandardMaterial color="#18181b" />
+      </mesh>
+      <mesh position={[0, 0.15, 0]} castShadow>
+        <boxGeometry args={[0.42, 0.28, 0.02]} />
+        <meshStandardMaterial color="#1f2937" roughness={0.3} />
+      </mesh>
+      <mesh position={[0, 0.15, 0.012]}>
+        <planeGeometry args={[0.38, 0.24]} />
         <meshStandardMaterial 
-          color="#121216" 
-          roughness={0.65} 
-          metalness={0.15} 
+          roughness={0.2} 
+          metalness={0.1}
+          emissive="#22222c" 
+        >
+          <canvasTexture attach="map" image={canvas} anisotropy={16} />
+          <canvasTexture attach="emissiveMap" image={canvas} anisotropy={16} />
+        </meshStandardMaterial>
+      </mesh>
+    </group>
+  );
+}
+
+// Çelik Soyunma Dolapları & Alet Rafı (Right Wall - X = -14.8)
+function ShowroomLockers() {
+  const lockersZ = [-2.4, -1.8, -1.2, -0.6];
+  
+  return (
+    <group position={[-14.7, 0, 0]}>
+      {/* Soyunma Dolapları */}
+      {lockersZ.map((z, idx) => (
+        <group key={idx} position={[0, 0.9, z]}>
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={[0.4, 1.8, 0.58]} />
+            <meshStandardMaterial color="#475569" roughness={0.4} metalness={0.5} />
+          </mesh>
+          <mesh position={[0.201, 0, 0]} castShadow>
+            <boxGeometry args={[0.01, 1.76, 0.54]} />
+            <meshStandardMaterial color="#334155" roughness={0.3} metalness={0.4} />
+          </mesh>
+          <mesh position={[0.21, 0.05, 0.2]}>
+            <boxGeometry args={[0.01, 0.15, 0.015]} />
+            <meshStandardMaterial color="#d1d5db" metalness={0.9} roughness={0.1} />
+          </mesh>
+          <mesh position={[0.206, 0.74, 0]}>
+            <boxGeometry args={[0.002, 0.04, 0.38]} />
+            <meshBasicMaterial color="#1e293b" />
+          </mesh>
+          <mesh position={[0.206, -0.74, 0]}>
+            <boxGeometry args={[0.002, 0.04, 0.38]} />
+            <meshBasicMaterial color="#1e293b" />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Endüstriyel Alet Rafı */}
+      <group position={[0, 0.8, -4.2]}>
+        {[-0.2, 0.2].map((x) => 
+          [-0.6, 0.6].map((z) => (
+            <mesh key={`${x}-${z}`} position={[x, 0, z]} castShadow>
+              <boxGeometry args={[0.03, 1.6, 0.03]} />
+              <meshStandardMaterial color="#1e293b" metalness={0.9} />
+            </mesh>
+          ))
+        )}
+        {[-0.75, -0.25, 0.25, 0.75].map((y, idx) => (
+          <mesh key={idx} position={[0, y, 0]} castShadow receiveShadow>
+            <boxGeometry args={[0.42, 0.03, 1.22]} />
+            <meshStandardMaterial color="#44403c" roughness={0.6} />
+          </mesh>
+        ))}
+        {/* Raf Üstündeki Alet Kutuları */}
+        <mesh position={[0, 0.37, -0.2]} castShadow>
+          <boxGeometry args={[0.3, 0.2, 0.35]} />
+          <meshStandardMaterial color="#b45309" roughness={0.8} />
+        </mesh>
+        <mesh position={[0, 0.37, 0.2]} castShadow>
+          <boxGeometry args={[0.3, 0.2, 0.35]} />
+          <meshStandardMaterial color="#1e3a8a" roughness={0.8} />
+        </mesh>
+        <mesh position={[0, -0.13, 0]} castShadow>
+          <boxGeometry args={[0.32, 0.2, 0.6]} />
+          <meshStandardMaterial color="#b91c1c" roughness={0.8} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+// Duvar Marka Logosu ve Tabelası (İnaner TR - GPU CanvasTexture)
+function ShowroomLogoSign() {
+  const logoTexture = useTexture('/yenı logo 111.png');
+  const logoImage = logoTexture ? logoTexture.image : null;
+
+  const canvas = useMemo(() => {
+    return createLogoSignCanvas(logoImage);
+  }, [logoImage]);
+
+  return (
+    <group position={[-2.4, 2.6, -7.4]}>
+      {/* Arka Çerçeve */}
+      <mesh castShadow>
+        <boxGeometry args={[3.8, 1.1, 0.06]} />
+        <meshStandardMaterial color="#1e1b18" roughness={0.5} metalness={0.7} />
+      </mesh>
+      {/* Ön Tabelası (CanvasTexture) */}
+      <mesh position={[0, 0, 0.032]}>
+        <planeGeometry args={[3.7, 1.0]} />
+        <meshStandardMaterial 
+          roughness={0.15} 
+          metalness={0.1}
+          emissive="#1e1e1e" 
+        >
+          <canvasTexture attach="map" image={canvas} anisotropy={16} />
+          <canvasTexture attach="emissiveMap" image={canvas} anisotropy={16} />
+        </meshStandardMaterial>
+      </mesh>
+      
+      {/* Neon Backlight Glow */}
+      <mesh position={[0, 0, -0.01]} scale={[1.05, 1.05, 1.05]}>
+        <planeGeometry args={[3.8, 1.1]} />
+        <meshBasicMaterial color="#f59e0b" transparent opacity={0.15} />
+      </mesh>
+    </group>
+  );
+}
+
+// 3D Showroom Ortamı (Modern Endüstriyel Pavilyon)
+function ShowroomEnvironment() {
+  return (
+    <group position={[0, -0.5, 0]}>
+      {/* Parlak Cilalı Epoksi Zemin (Açık Gri / Showroom Tipi) */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.005, 0]} receiveShadow>
+        <planeGeometry args={[60, 60]} />
+        <meshStandardMaterial 
+          color="#78716c" 
+          roughness={0.28} 
+          metalness={0.25} 
         />
       </mesh>
 
-      {/* Zemin Derz Çizgileri (Gri Karolar oluşturmak için çok ince çizgiler) */}
-      {[-15, -10, -5, 0, 5, 10, 15].map((coord, idx) => (
+      {/* Büyük Showroom Karoları (İnce Derz Çizgileri) */}
+      {[-16, -12, -8, -4, 0, 4, 8, 12, 16].map((coord, idx) => (
         <group key={idx}>
-          {/* X Eksenine paralel derzler */}
           <mesh position={[0, 0.001, coord]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[100, 0.015]} />
-            <meshBasicMaterial color="#0c0c0f" transparent opacity={0.6} />
+            <planeGeometry args={[60, 0.012]} />
+            <meshBasicMaterial color="#44403c" transparent opacity={0.35} />
           </mesh>
-          {/* Z Eksenine paralel derzler */}
           <mesh position={[coord, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[0.015, 100]} />
-            <meshBasicMaterial color="#0c0c0f" transparent opacity={0.6} />
+            <planeGeometry args={[0.012, 60]} />
+            <meshBasicMaterial color="#44403c" transparent opacity={0.35} />
           </mesh>
         </group>
       ))}
 
-      {/* Lift Etrafındaki Sarı-Siyah Güvenlik Sınır Çizgileri */}
-      {/* Ön Sınır */}
-      <mesh position={[-2.7, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[0.04, 2.0]} />
-        <meshBasicMaterial color="#eab308" />
-      </mesh>
-      {/* Arka Sınır */}
-      <mesh position={[3.3, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[0.04, 2.0]} />
-        <meshBasicMaterial color="#eab308" />
-      </mesh>
-      {/* Sol Sınır */}
-      <mesh position={[0.3, 0.002, 1.0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[6.0, 0.04]} />
-        <meshBasicMaterial color="#eab308" />
-      </mesh>
-      {/* Sağ Sınır */}
-      <mesh position={[0.3, 0.002, -1.0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[6.0, 0.04]} />
-        <meshBasicMaterial color="#eab308" />
+      {/* BRÜT BETON DUVARLAR */}
+      {/* Arka Duvar (Z = -7.5) */}
+      <ConcreteWall width={32} height={5.6} position={[0, 2.2, -7.5]} />
+      {/* Sol Yan Duvar (X = 15) */}
+      <ConcreteWall width={15} height={5.6} position={[15, 2.2, 0]} rotation={[0, -Math.PI / 2, 0]} />
+      {/* Sağ Yan Duvar (X = -15) */}
+      <ConcreteWall width={15} height={5.6} position={[-15, 2.2, 0]} rotation={[0, Math.PI / 2, 0]} />
+
+      {/* ÖN CAM CEPHE VE GİRİŞ (4. DUVAR - Z = 7.5) */}
+      <GlassEntranceFacade />
+
+      {/* SOL TARAFTA OFİSLER (X = 14.8) */}
+      <ShowroomOffice />
+
+      {/* SAĞ TARAFTA SOYUNMA DOLAPLARI VE RAFLAR (X = -14.8) */}
+      <ShowroomLockers />
+
+      {/* DİKEY AHŞAP AKUSTİK DEKOR PANELİ (Z = -7.4) */}
+      <WoodSlatPanel position={[3.6, 0, -7.42]} width={6.0} height={4.8} />
+
+      {/* DUVAR SÜSLEMELERİ & IŞIKLI EMBLAMLAR (Z = -7.4) */}
+      <ShowroomLogoSign />
+
+
+
+      {/* TAVAN YAPISI VE ÇELİK KİRİŞLER (Y = 4.2) */}
+      {/* Tavan Plakası */}
+      <mesh position={[0, 4.3, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[32, 16]} />
+        <meshStandardMaterial color="#57534e" roughness={0.8} />
       </mesh>
 
-      {/* Lift Rayları / Platformları (Tekerleklerin tam altına hizalanmış) */}
-      {/* Sol rampa */}
-      <mesh position={[0.3, 0.1, 0.55]} castShadow receiveShadow>
-        <boxGeometry args={[5.6, 0.1, 0.4]} />
-        <meshStandardMaterial color="#2d2d34" roughness={0.5} metalness={0.7} />
-      </mesh>
-      {/* Sağ rampa */}
-      <mesh position={[0.3, 0.1, -0.55]} castShadow receiveShadow>
-        <boxGeometry args={[5.6, 0.1, 0.4]} />
-        <meshStandardMaterial color="#2d2d34" roughness={0.5} metalness={0.7} />
-      </mesh>
+      {/* Endüstriyel Çelik Kirişler */}
+      <SteelTruss length={30} position={[0, 4.0, -3.5]} />
+      <SteelTruss length={30} position={[0, 4.0, 3.5]} />
+      <SteelTruss length={15} position={[-10, 4.1, 0]} rotation={[0, Math.PI / 2, 0]} />
+      <SteelTruss length={15} position={[10, 4.1, 0]} rotation={[0, Math.PI / 2, 0]} />
 
-      {/* Rampaların İniş/Biniş Eğimleri */}
-      {/* Sol Rampa Ön Eğim */}
-      <mesh position={[-2.65, 0.05, 0.55]} rotation={[0, 0, 0.15]} castShadow>
-        <boxGeometry args={[0.3, 0.1, 0.4]} />
-        <meshStandardMaterial color="#2d2d34" roughness={0.5} metalness={0.7} />
-      </mesh>
-      {/* Sol Rampa Arka Eğim */}
-      <mesh position={[3.25, 0.05, 0.55]} rotation={[0, 0, -0.15]} castShadow>
-        <boxGeometry args={[0.3, 0.1, 0.4]} />
-        <meshStandardMaterial color="#2d2d34" roughness={0.5} metalness={0.7} />
-      </mesh>
-      {/* Sağ Rampa Ön Eğim */}
-      <mesh position={[-2.65, 0.05, -0.55]} rotation={[0, 0, 0.15]} castShadow>
-        <boxGeometry args={[0.3, 0.1, 0.4]} />
-        <meshStandardMaterial color="#2d2d34" roughness={0.5} metalness={0.7} />
-      </mesh>
-      {/* Sağ Rampa Arka Eğim */}
-      <mesh position={[3.25, 0.05, -0.55]} rotation={[0, 0, -0.15]} castShadow>
-        <boxGeometry args={[0.3, 0.1, 0.4]} />
-        <meshStandardMaterial color="#2d2d34" roughness={0.5} metalness={0.7} />
-      </mesh>
+      {/* 6 Adet Dikdörtgen Gömme LED Işık Panelleri */}
+      {[
+        { x: -7, z: -3.5 }, { x: 0, z: -3.5 }, { x: 7, z: -3.5 },
+        { x: -7, z: 3.5 }, { x: 0, z: 3.5 }, { x: 7, z: 3.5 }
+      ].map((panel, idx) => (
+        <group key={idx} position={[panel.x, 4.29, panel.z]}>
+          <mesh castShadow>
+            <boxGeometry args={[3.12, 0.04, 1.82]} />
+            <meshStandardMaterial color="#292524" roughness={0.4} metalness={0.6} />
+          </mesh>
+          <mesh position={[0, -0.015, 0]}>
+            <boxGeometry args={[3.0, 0.02, 1.7]} />
+            <meshBasicMaterial color="#ffffff" />
+          </mesh>
+          {/* Aşağı Yönlü Lokal Aydınlatma */}
+          <pointLight 
+            position={[0, -0.2, 0]} 
+            intensity={0.35} 
+            distance={5.0} 
+            decay={2} 
+          />
+        </group>
+      ))}
 
-      {/* Rampa Bağlantı Kirişleri */}
-      <mesh position={[-1.8, 0.1, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.3, 0.06, 1.1]} />
-        <meshStandardMaterial color="#202024" roughness={0.6} metalness={0.7} />
-      </mesh>
-      <mesh position={[1.4, 0.1, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.3, 0.06, 1.1]} />
-        <meshStandardMaterial color="#202024" roughness={0.6} metalness={0.7} />
-      </mesh>
+      {/* BEKLEME / LOBİ ALANI */}
+      <ShowroomArmchair position={[3.6, 0, -4.8]} rotation={[0, -0.6, 0]} />
+      <ShowroomArmchair position={[4.9, 0, -4.2]} rotation={[0, -1.0, 0]} />
+      <ShowroomOttoman position={[3.0, 0, -3.8]} rotation={[0, 0.2, 0]} />
+      <ShowroomCoffeeTable position={[4.1, 0, -3.3]} />
 
-      {/* Düşük Profilli Arka Plan Ekipmanları */}
-      {/* Alet Dolabı - Yolcu Tarafı Arka Köşe */}
-      <WorkshopToolbox position={[3.4, 0, -2.0]} rotation={[0, -Math.PI / 4, 0]} />
+      {/* SÜS BİTKİLERİ */}
+      <ShowroomPlant position={[1.8, 0, -5.2]} />
+      <ShowroomPlant position={[6.0, 0, -4.8]} />
+      <ShowroomPlant position={[-4.5, 0, -5.5]} />
 
-      {/* Lastik Rafı - Yolcu Tarafı Ön Köşe */}
-      <TireRack position={[-3.4, 0, -2.0]} rotation={[0, Math.PI / 4, 0]} />
+      {/* İNTERAKTİF KİOSK */}
+      <ShowroomKiosk position={[-3.6, 0, 2.2]} rotation={[0, 0.4, 0]} />
     </group>
   );
 }
@@ -1046,7 +1814,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
       </div>
 
       {/* 3D Canvas Background Container */}
-      <div className={`h-[45vh] lg:h-full lg:absolute lg:inset-0 lg:z-0 bg-[#070709] transition-transform duration-500 ease-in-out w-full lg:w-[calc(100%+360px)] ${
+      <div className={`h-[45vh] lg:h-full lg:absolute lg:inset-0 lg:z-0 bg-[#09090b] transition-transform duration-500 ease-in-out w-full lg:w-[calc(100%+360px)] ${
         selectedTireId && selectedTireObj 
           ? 'lg:-translate-x-[360px]' 
           : 'lg:-translate-x-[180px]'
@@ -1061,26 +1829,43 @@ export default function Tire3DViewer({ currentKm, onClose }) {
         ) : (
           <div className="w-full h-full relative">
             <ErrorBoundary 
-              fallback={(error) => {
+              onError={(error) => {
                 setHasError(true);
                 setErrorObj(error);
-                return null;
+              }}
+              onReset={() => {
+                setHasError(false);
+                setErrorObj(null);
               }}
             >
-              <Canvas camera={{ position: [5, 3, 6], fov: 50 }}>
-                <color attach="background" args={["#0c0c0f"]} />
-                <fog attach="fog" args={["#0c0c0f", 8, 22]} />
-                <ambientLight intensity={0.5} />
-                <directionalLight position={[10, 10, 5]} intensity={1.2} />
-                <directionalLight position={[-10, 5, -5]} intensity={0.3} />
-                <pointLight position={[0, 4, 0]} intensity={0.5} />
+              <Canvas 
+                shadows 
+                gl={{ 
+                  antialias: true, 
+                  toneMapping: THREE.ACESFilmicToneMapping, 
+                  toneMappingExposure: 1.25 
+                }}
+                camera={{ position: [5, 3, 6], fov: 48 }}
+              >
+                <color attach="background" args={["#09090b"]} />
+                <fog attach="fog" args={["#09090b", 12, 30]} />
+                <ambientLight intensity={0.4} color="#e0f2fe" />
+                <directionalLight 
+                  position={[10, 6, 8]} 
+                  intensity={1.2} 
+                  color="#fef3c7"
+                  castShadow
+                  shadow-mapSize-width={2048}
+                  shadow-mapSize-height={2048}
+                  shadow-bias={-0.0001}
+                />
+                <directionalLight position={[-10, 8, -8]} intensity={0.35} color="#cbd5e1" />
                 <spotLight 
                   position={[0, 8, 0]} 
-                  angle={0.6} 
+                  angle={0.8} 
                   penumbra={1} 
-                  intensity={2.5} 
-                  castShadow 
-                  color="#fef08a" 
+                  intensity={1.0} 
+                  color="#ffffff" 
                 />
 
                 <Suspense fallback={<Loader3D />}>
@@ -1090,22 +1875,22 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                     tiresData={tiresData}
                     calibrationRef={calibrationRef}
                   />
-                  <MechanicGarage />
-                  <Environment preset="city" />
+                  <ShowroomEnvironment />
+                  <Environment preset="warehouse" />
                 </Suspense>
 
                 <ContactShadows 
-                  position={[0, -0.6, 0]} 
-                  opacity={0.8} 
+                  position={[0, -0.49, 0]} 
+                  opacity={0.75} 
                   scale={12} 
-                  blur={2.4} 
+                  blur={2.8} 
                   far={1.2} 
                 />
 
                 {showGrid && (
                   <gridHelper 
-                    args={[20, 20, '#d946ef', '#1e293b']} 
-                    position={[0, -0.61, 0]} 
+                    args={[20, 20, '#d946ef', '#cbd5e1']} 
+                    position={[0, -0.49, 0]} 
                   />
                 )}
 
@@ -1114,8 +1899,9 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                   enableDamping 
                   dampingFactor={0.05}
                   minDistance={3} 
-                  maxDistance={12} 
-                  maxPolarAngle={Math.PI / 2}
+                  maxDistance={7.0} 
+                  minPolarAngle={Math.PI / 3.5}
+                  maxPolarAngle={Math.PI / 2.05}
                   autoRotate={isRotating}
                   autoRotateSpeed={0.8}
                 />
