@@ -3,7 +3,7 @@ import { Circle, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { haversineKm } from '../../utils/mapUtils';
 import { X, Check, Navigation } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion } from 'framer-motion'; // eslint-disable-line no-unused-vars
 
 // Harita üzerinde Daire ve İkonları çizen kısım (MapContainer içinde render edilmeli)
 export function InteractiveGeofenceMapLayer({ draftZone, setDraftZone }) {

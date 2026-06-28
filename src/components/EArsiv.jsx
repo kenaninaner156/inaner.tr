@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { DataContext } from '../context/DataContext';
 import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
@@ -78,6 +79,30 @@ const EArsiv = () => {
     const [syncError, setSyncError] = useState('');
     const [isForceLoggingOut, setIsForceLoggingOut] = useState(false);
     const [forceLogoutStatus, setForceLogoutStatus] = useState(null); // { type: 'success'|'error', message: '' }
+
+    // --- Custom Toast & Confirm Dialog ---
+    const [toast, setToast] = useState(null); // { type: 'success'|'error'|'warning'|'info', message }
+    const [confirmDialog, setConfirmDialog] = useState(null); // { message, onConfirm }
+
+    const showToast = (type, message, duration = 5000) => {
+        setToast({ type, message });
+        setTimeout(() => setToast(null), duration);
+    };
+
+    const showConfirm = (message) => new Promise((resolve) => {
+        setConfirmDialog({ message, onConfirm: resolve });
+    });
+
+    // Lock body scroll when any overlay is open
+    useEffect(() => {
+        const isAnyOverlayOpen = isModalOpen || !!confirmDialog;
+        if (isAnyOverlayOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => { document.body.style.overflow = ''; };
+    }, [isModalOpen, confirmDialog]);
 
     const docId = activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`;
 
@@ -174,7 +199,7 @@ const EArsiv = () => {
 
     const handleNextStep = () => {
         if (!buyerVkn || !buyerTitle || !buyerAddress) {
-            alert("Lütfen Alıcı VKN/TCKN, Unvan ve Adres bilgilerini doldurunuz.");
+            showToast('error', 'Lütfen Alıcı VKN/TCKN, Unvan ve Adres bilgilerini doldurunuz.');
             return;
         }
 
@@ -301,7 +326,8 @@ const EArsiv = () => {
     };
 
     const handleResetGibStatus = async (inv) => {
-        if (!window.confirm("Bu faturanın GİB taslak durumunu sıfırlamak istediğinize emin misiniz? (Taslağı GİB'den sildiyseniz veya faturayı baştan göndermek istiyorsanız bunu kullanabilirsiniz.)")) {
+        const confirmed = await showConfirm("Bu faturanın GİB taslak durumunu sıfırlamak istediğinize emin misiniz?\n\nTaslağı GİB'den sildiyseniz veya faturayı baştan göndermek istiyorsanız bunu kullanabilirsiniz.");
+        if (!confirmed) {
             return;
         }
         try {
@@ -312,10 +338,11 @@ const EArsiv = () => {
                 gibStatusDate: deleteField(),
                 gibTestMode: deleteField()
             });
+            showToast('success', 'GİB taslak durumu başarıyla sıfırlandı.');
             if (addLog) addLog("GİB taslak durumu sıfırlandı: " + (inv.docId || inv.id), "info");
         } catch (err) {
             console.error("Fatura durumu sıfırlanırken hata:", err);
-            alert("Durum sıfırlanırken hata oluştu: " + err.message);
+            showToast('error', 'Durum sıfırlanırken hata oluştu: ' + err.message);
         }
     };
 
@@ -358,7 +385,7 @@ const EArsiv = () => {
 
     const handleOpenSendModal = (invoice) => {
         if (!gibUsername || !gibPassword) {
-            alert("Lütfen önce 'Bağlantı Ayarları' sekmesinden GİB e-Arşiv Kullanıcı Kodu ve Şifrenizi kaydedin.");
+            showToast('warning', "Lütfen önce 'Bağlantı Ayarları' sekmesinden GİB Kullanıcı Kodu ve Şifrenizi kaydedin.");
             setActiveSubTab('settings');
             return;
         }
@@ -481,31 +508,99 @@ const EArsiv = () => {
             }
 
             addLog('GIB_FATURA_GONDERILDI', `${selectedInvoice.docId || selectedInvoice.id} faturası GİB portalına taslak olarak başarıyla aktarıldı.`);
-            alert("Fatura başarıyla GİB e-Arşiv portalında Taslak olarak oluşturuldu!");
+            showToast('success', '✅ Fatura başarıyla GİB e-Arşiv portalında Taslak olarak oluşturuldu! Portalda imzalamayı unutmayın.');
         } catch (err) {
             console.error("GİB gönderim hatası:", err);
             setSyncError(err.message || "Fatura gönderilirken bir hata oluştu.");
         } finally {
             setSendingInvoiceId(null);
-            setSelectedInvoice(null);
         }
     };
+    // Memoized trucks map for O(1) plate lookup
+    const trucksMap = useMemo(() => {
+        const map = new Map();
+        (trucks || []).forEach(t => {
+            map.set(t.id, t);
+        });
+        return map;
+    }, [trucks]);
+
     // Filter local active invoices
-    const activeInvoices = (invoices || []).filter(inv => !inv.deleted && inv.status === 'Sent');
+    const activeInvoices = useMemo(() => {
+        return (invoices || []).filter(inv => !inv.deleted && inv.status === 'Sent');
+    }, [invoices]);
 
     const gibPortalUrl = gibTestMode 
         ? "https://earsivportaltest.efatura.gov.tr/" 
         : "https://earsivportal.efatura.gov.tr/";
 
     // Calculate Step 2 totals dynamically
-    const totalBase = routeLines.reduce((sum, line) => sum + (line.price || 0), 0);
-    const totalVat = routeLines.reduce((sum, line) => sum + (line.vatAmount || 0), 0);
-    const totalVatOfTax = routeLines.reduce((sum, line) => sum + (line.vatAmountOfTax || 0), 0);
-    const totalWithTaxes = totalBase + totalVat;
-    const totalPayment = totalWithTaxes - totalVatOfTax;
+    const totals = useMemo(() => {
+        const base = routeLines.reduce((sum, line) => sum + (line.price || 0), 0);
+        const vat = routeLines.reduce((sum, line) => sum + (line.vatAmount || 0), 0);
+        const vatOfTax = routeLines.reduce((sum, line) => sum + (line.vatAmountOfTax || 0), 0);
+        const withTaxes = base + vat;
+        const payment = withTaxes - vatOfTax;
+        return { base, vat, vatOfTax, withTaxes, payment };
+    }, [routeLines]);
+
+    // Pre-compute portals - rendered at document.body level to escape parent CSS transforms
+    const toastEl = toast ? (
+        <div
+            className={`fixed top-6 right-6 z-[99999] flex items-start gap-3 px-5 py-4 rounded-2xl shadow-2xl border backdrop-blur-xl max-w-sm animate-in slide-in-from-top-3 fade-in duration-300 ${
+                toast.type === 'success' ? 'bg-emerald-950/95 border-emerald-500/30 text-emerald-300' :
+                toast.type === 'error'   ? 'bg-red-950/95 border-red-500/30 text-red-300' :
+                toast.type === 'warning' ? 'bg-orange-950/95 border-orange-500/30 text-orange-300' :
+                                           'bg-slate-900/95 border-slate-600/30 text-slate-300'
+            }`}
+            style={{boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7)'}}
+        >
+            <span className="shrink-0 mt-0.5">
+                {toast.type === 'success' && <CheckCircle size={18} className="text-emerald-400" />}
+                {toast.type === 'error'   && <AlertTriangle size={18} className="text-red-400" />}
+                {toast.type === 'warning' && <AlertTriangle size={18} className="text-orange-400" />}
+                {toast.type === 'info'    && <HelpCircle size={18} className="text-blue-400" />}
+            </span>
+            <p className="text-sm font-medium leading-snug flex-1">{toast.message}</p>
+            <button onClick={() => setToast(null)} className="shrink-0 ml-1 opacity-50 hover:opacity-100 transition mt-0.5">
+                <X size={14} />
+            </button>
+        </div>
+    ) : null;
+    const toastPortal = toastEl ? createPortal(toastEl, document.body) : null;
+
+    const confirmEl = confirmDialog ? (
+        <div className="fixed inset-0 z-[99998] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="glass-panel w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95 duration-200 border border-orange-500/20">
+                <div className="flex items-start gap-4 mb-6">
+                    <div className="p-2.5 rounded-xl bg-orange-500/10 border border-orange-500/20 shrink-0">
+                        <AlertTriangle className="text-orange-400" size={20} />
+                    </div>
+                    <div>
+                        <p className="text-sm font-semibold text-[var(--text-primary)] mb-1">Onay Gerekiyor</p>
+                        <p className="text-sm text-[var(--text-secondary)] leading-relaxed whitespace-pre-line">{confirmDialog.message}</p>
+                    </div>
+                </div>
+                <div className="flex gap-3 justify-end">
+                    <button
+                        onClick={() => { confirmDialog.onConfirm(false); setConfirmDialog(null); }}
+                        className="px-5 py-2 text-sm font-semibold rounded-lg bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition"
+                    >İptal</button>
+                    <button
+                        onClick={() => { confirmDialog.onConfirm(true); setConfirmDialog(null); }}
+                        className="px-5 py-2 text-sm font-semibold rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition shadow-lg shadow-orange-500/20"
+                    >Onayla</button>
+                </div>
+            </div>
+        </div>
+    ) : null;
+    const confirmPortal = confirmEl ? createPortal(confirmEl, document.body) : null;
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500 max-w-5xl mx-auto">
+        <>
+
+            <div className="space-y-6 animate-in fade-in duration-500 max-w-5xl mx-auto">
+
             {/* Header */}
             <div className="glass-panel p-6 border-l-4 border-l-orange-500">
                 <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2 flex items-center">
@@ -594,7 +689,7 @@ const EArsiv = () => {
                                     {activeInvoices.map((inv) => {
                                         const isDraftOnGib = inv.gibStatus === 'Draft';
                                         const isSending = sendingInvoiceId === inv.id;
-                                        const invTruck = trucks.find(t => t.id === inv.truckId);
+                                        const invTruck = trucksMap.get(inv.truckId);
                                         const plate = invTruck?.plate || '—';
 
                                         return (
@@ -1028,11 +1123,11 @@ const EArsiv = () => {
             )}
 
             {/* SENDING MODAL OVERLAY */}
-            {isModalOpen && selectedInvoice && (
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="glass-panel w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            {isModalOpen && selectedInvoice && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
+                    <div className="glass-panel w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl grid grid-rows-[auto_minmax(0,1fr)]">
                         {/* Header */}
-                        <div className="p-6 border-b border-[var(--border-color)] flex items-center justify-between bg-slate-900/40">
+                        <div className="p-5 sm:p-6 border-b border-[var(--border-color)] flex items-center justify-between bg-slate-900/40 shrink-0">
                             <div className="flex items-center gap-2">
                                 <FileText className="text-orange-500" size={20} />
                                 <span className="font-bold text-md text-[var(--text-primary)] font-mono">
@@ -1049,233 +1144,206 @@ const EArsiv = () => {
 
                         {/* Step 1 Form */}
                         {modalStep === 1 && (
-                            <form onSubmit={(e) => { e.preventDefault(); handleNextStep(); }} className="flex-1 p-6 space-y-4 overflow-y-auto">
-                                {/* Invoice Type and Calculation Type */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-900/20 p-4 border border-[var(--border-color)] rounded-xl">
-                                    <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            Fatura Tipi
-                                        </label>
-                                        <select
-                                            value={invoiceType}
-                                            onChange={(e) => setInvoiceType(e.target.value)}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs focus:border-orange-500 outline-none"
-                                        >
-                                            <option value="SATIS">SATIŞ</option>
-                                            <option value="TEVKIFAT">TEVKİFAT</option>
-                                            <option value="ISTISNA">İSTİSNA</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            KDV Oranı
-                                        </label>
-                                        <select
-                                            value={vatRate}
-                                            onChange={(e) => setVatRate(Number(e.target.value))}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs focus:border-orange-500 outline-none"
-                                        >
-                                            <option value={20}>%20</option>
-                                            <option value={10}>%10</option>
-                                            <option value={0}>%0</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            Hesaplama Türü
-                                        </label>
-                                        <div className="flex gap-1 mt-0.5">
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsVatIncluded(false)}
-                                                className={`flex-1 py-1 text-[10px] font-semibold rounded-lg border transition ${
-                                                    !isVatIncluded 
-                                                        ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' 
-                                                        : 'bg-transparent text-slate-400 border-[var(--border-color)]'
-                                                }`}
-                                            >
-                                                KDV Hariç
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsVatIncluded(true)}
-                                                className={`flex-1 py-1 text-[10px] font-semibold rounded-lg border transition ${
-                                                    isVatIncluded 
-                                                        ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' 
-                                                        : 'bg-transparent text-slate-400 border-[var(--border-color)]'
-                                                }`}
-                                            >
-                                                KDV Dahil
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Conditionally render Tevkifat parameters */}
-                                {invoiceType === 'TEVKIFAT' && (
-                                    <div className="p-4 bg-indigo-500/5 border border-indigo-500/20 rounded-xl space-y-2">
-                                        <label className="block text-xs font-semibold text-indigo-400">
-                                            Tevkifat Kodu ve Oranı
-                                        </label>
-                                        <select
-                                            value={tevkifatKodu}
-                                            onChange={(e) => setTevkifatKodu(e.target.value)}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
-                                        >
-                                            {TEVKIFAT_CODES.map(t => (
-                                                <option key={t.code} value={t.code}>{t.label}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
-
-                                {/* Conditionally render Exemption parameters */}
-                                {invoiceType === 'ISTISNA' && (
-                                    <div className="p-4 bg-orange-500/5 border border-orange-500/20 rounded-xl space-y-3">
+                            <form onSubmit={(e) => { e.preventDefault(); handleNextStep(); }} className="grid grid-rows-[minmax(0,1fr)_auto] overflow-hidden h-full">
+                                <div className="overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                                    {/* Invoice Type and Calculation Type */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-900/20 p-4 border border-[var(--border-color)] rounded-xl">
                                         <div>
-                                            <label className="block text-xs font-semibold text-orange-400 mb-1">
-                                                KDV İstisna Kodu
+                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                                Fatura Tipi
                                             </label>
                                             <select
-                                                value={kdvMuafiyetKodu}
-                                                onChange={(e) => setKdvMuafiyetKodu(e.target.value)}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
+                                                value={invoiceType}
+                                                onChange={(e) => setInvoiceType(e.target.value)}
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs focus:border-orange-500 outline-none"
                                             >
-                                                {EXEMPTION_CODES.map(e => (
-                                                    <option key={e.code} value={e.code}>{e.label}</option>
-                                                ))}
+                                                <option value="SATIS">SATIŞ</option>
+                                                <option value="TEVKIFAT">TEVKİFAT</option>
+                                                <option value="ISTISNA">İSTİSNA</option>
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-semibold text-orange-400 mb-1">
-                                                KDV İstisna Nedeni Açıklaması
+                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                                KDV Oranı
                                             </label>
-                                            <input
-                                                type="text"
-                                                required
-                                                value={kdvMuafiyetNedeni}
-                                                onChange={(e) => setKdvMuafiyetNedeni(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
-                                                placeholder="Örn: 306/1-a Maddesi Kapsamında Uluslararası Nakliye..."
-                                            />
+                                            <select
+                                                value={vatRate}
+                                                onChange={(e) => setVatRate(Number(e.target.value))}
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs focus:border-orange-500 outline-none"
+                                            >
+                                                <option value={20}>%20</option>
+                                                <option value={10}>%10</option>
+                                                <option value={0}>%0</option>
+                                            </select>
                                         </div>
                                     </div>
-                                )}
 
-                                {/* Client VKN and Title */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <div className="flex justify-between items-center mb-1">
-                                            <label className="block text-xs font-semibold text-[var(--text-secondary)]">
-                                                Alıcı TCKN / VKN *
+                                    {/* Conditionally render Tevkifat parameters */}
+                                    {invoiceType === 'TEVKIFAT' && (
+                                        <div className="p-4 bg-indigo-500/5 border border-indigo-500/20 rounded-xl space-y-2">
+                                            <label className="block text-xs font-semibold text-indigo-400">
+                                                Tevkifat Kodu ve Oranı
                                             </label>
-                                            {Object.keys(gibClients || {}).length > 0 && (
+                                            <select
+                                                value={tevkifatKodu}
+                                                onChange={(e) => setTevkifatKodu(e.target.value)}
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
+                                            >
+                                                {TEVKIFAT_CODES.map(t => (
+                                                    <option key={t.code} value={t.code}>{t.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+
+                                    {/* Conditionally render Exemption parameters */}
+                                    {invoiceType === 'ISTISNA' && (
+                                        <div className="p-4 bg-orange-500/5 border border-orange-500/20 rounded-xl space-y-3">
+                                            <div>
+                                                <label className="block text-xs font-semibold text-orange-400 mb-1">
+                                                    KDV İstisna Kodu
+                                                </label>
                                                 <select
-                                                    onChange={(e) => {
-                                                        if (e.target.value) {
-                                                            handleVknChange(e.target.value);
-                                                        }
-                                                    }}
-                                                    className="text-[10px] bg-slate-950 border border-[var(--border-color)] text-orange-400 rounded px-1.5 py-0.5 outline-none max-w-[180px] font-medium"
-                                                    defaultValue=""
+                                                    value={kdvMuafiyetKodu}
+                                                    onChange={(e) => setKdvMuafiyetKodu(e.target.value)}
+                                                    className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
                                                 >
-                                                    <option value="" disabled>Kayıtlı Müşteri Seç</option>
-                                                    {Object.values(gibClients).map(c => (
-                                                        <option key={c.vkn} value={c.vkn}>
-                                                            {c.title.length > 20 ? c.title.substring(0, 18) + '...' : c.title}
-                                                        </option>
+                                                    {EXEMPTION_CODES.map(e => (
+                                                        <option key={e.code} value={e.code}>{e.label}</option>
                                                     ))}
                                                 </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-orange-400 mb-1">
+                                                    KDV İstisna Nedeni Açıklaması
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    value={kdvMuafiyetNedeni}
+                                                    onChange={(e) => setKdvMuafiyetNedeni(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                    className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
+                                                    placeholder="Örn: 306/1-a Maddesi Kapsamında Uluslararası Nakliye..."
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Client VKN and Title */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <div className="flex justify-between items-center mb-1">
+                                                <label className="block text-xs font-semibold text-[var(--text-secondary)]">
+                                                    Alıcı TCKN / VKN *
+                                                </label>
+                                                {Object.keys(gibClients || {}).length > 0 && (
+                                                    <select
+                                                        onChange={(e) => {
+                                                            if (e.target.value) {
+                                                                handleVknChange(e.target.value);
+                                                            }
+                                                        }}
+                                                        className="text-[10px] bg-slate-950 border border-[var(--border-color)] text-orange-400 rounded px-1.5 py-0.5 outline-none max-w-[180px] font-medium"
+                                                        defaultValue=""
+                                                    >
+                                                        <option value="" disabled>Kayıtlı Müşteri Seç</option>
+                                                        {Object.values(gibClients).map(c => (
+                                                            <option key={c.vkn} value={c.vkn}>
+                                                                {c.title.length > 20 ? c.title.substring(0, 18) + '...' : c.title}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                            </div>
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    maxLength={11}
+                                                    value={buyerVkn}
+                                                    onChange={(e) => handleVknChange(e.target.value)}
+                                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg pl-9 pr-4 py-2 text-sm focus:border-orange-500 outline-none font-mono"
+                                                    placeholder="11 haneli TCKN veya 10 haneli VKN"
+                                                />
+                                                <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                                            </div>
+                                            {buyerVkn && gibClients[buyerVkn] && (
+                                                <span className="text-[10px] text-emerald-400 mt-1 block">
+                                                    ✓ Kayıtlı müşteri bilgileri otomatik dolduruldu.
+                                                </span>
                                             )}
                                         </div>
-                                        <div className="relative">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                                Alıcı Unvanı / Adı Soyadı
+                                            </label>
                                             <input
                                                 type="text"
                                                 required
-                                                maxLength={11}
-                                                value={buyerVkn}
-                                                onChange={(e) => handleVknChange(e.target.value)}
-                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg pl-9 pr-4 py-2 text-sm focus:border-orange-500 outline-none font-mono"
-                                                placeholder="11 haneli TCKN veya 10 haneli VKN"
+                                                value={buyerTitle}
+                                                onChange={(e) => setBuyerTitle(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
+                                                placeholder="Şirket unvanı veya şahıs adı soyadı"
                                             />
-                                            <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                                         </div>
-                                        {buyerVkn && gibClients[buyerVkn] && (
-                                            <span className="text-[10px] text-emerald-400 mt-1 block">
-                                                ✓ Kayıtlı müşteri bilgileri otomatik dolduruldu.
-                                            </span>
-                                        )}
                                     </div>
+
+                                    {/* Tax Office, City, District */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="md:col-span-1">
+                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                                Vergi Dairesi
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={buyerTaxOffice}
+                                                onChange={(e) => setBuyerTaxOffice(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
+                                                placeholder="Vergi Dairesi adı"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-1">
+                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                                İlçe / Mahalle
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={buyerDistrict}
+                                                onChange={(e) => setBuyerDistrict(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
+                                                placeholder="İlçe veya mahalle"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-1">
+                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                                Şehir (İl)
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={buyerCity}
+                                                onChange={(e) => setBuyerCity(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
+                                                placeholder="Şehir"
+                                            />
+                                        </div>
+                                    </div>
+
                                     <div>
                                         <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            Alıcı Unvanı / Adı Soyadı
+                                            Açık Adres
                                         </label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={buyerTitle}
-                                            onChange={(e) => setBuyerTitle(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
-                                            placeholder="Şirket unvanı veya şahıs adı soyadı"
+                                        <textarea
+                                            value={buyerAddress}
+                                            onChange={(e) => setBuyerAddress(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                            rows={3}
+                                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none resize-none"
+                                            placeholder="Sokak, bulvar, apartman no ve detaylı adres..."
                                         />
                                     </div>
-                                </div>
-
-                                {/* Tax Office, City, District */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div className="md:col-span-1">
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            Vergi Dairesi
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={buyerTaxOffice}
-                                            onChange={(e) => setBuyerTaxOffice(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
-                                            placeholder="Vergi Dairesi adı"
-                                        />
-                                    </div>
-                                    <div className="md:col-span-1">
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            İlçe / Mahalle
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={buyerDistrict}
-                                            onChange={(e) => setBuyerDistrict(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
-                                            placeholder="İlçe veya mahalle"
-                                        />
-                                    </div>
-                                    <div className="md:col-span-1">
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            Şehir (İl)
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={buyerCity}
-                                            onChange={(e) => setBuyerCity(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
-                                            placeholder="Şehir"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                        Açık Adres
-                                    </label>
-                                    <textarea
-                                        value={buyerAddress}
-                                        onChange={(e) => setBuyerAddress(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                        rows={3}
-                                        className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none resize-none"
-                                        placeholder="Sokak, bulvar, apartman no ve detaylı adres..."
-                                    />
                                 </div>
 
                                 {/* Footer Buttons inside Modal - Step 1 */}
-                                <div className="pt-4 border-t border-[var(--border-color)] flex gap-3">
+                                <div className="p-5 sm:p-6 border-t border-[var(--border-color)] flex gap-3 bg-slate-900/20 shrink-0">
                                     <button
                                         type="button"
                                         onClick={() => setIsModalOpen(false)}
@@ -1295,100 +1363,102 @@ const EArsiv = () => {
 
                         {/* Step 2 Form */}
                         {modalStep === 2 && (
-                            <form onSubmit={handleSendInvoiceSubmit} className="flex-1 p-6 space-y-4 overflow-y-auto">
-                                <div className="overflow-x-auto border border-[var(--border-color)] rounded-xl">
-                                    <table className="w-full text-left text-xs border-collapse">
-                                        <thead>
-                                            <tr className="bg-slate-950/20 text-[var(--text-secondary)] uppercase border-b border-[var(--border-color)]">
-                                                <th className="p-3 font-semibold">Hizmet Adı / Açıklama</th>
-                                                <th className="p-3 font-semibold text-right">Miktar (Ton)</th>
-                                                <th className="p-3 font-semibold text-right">Birim Fiyat (TL)</th>
-                                                <th className="p-3 font-semibold text-right">Tutar (Matrah)</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-[var(--border-color)]">
-                                            {routeLines.map((line, idx) => (
-                                                <tr key={idx} className="hover:bg-white/[0.01]">
-                                                    <td className="p-2 min-w-[220px]">
-                                                        <input
-                                                            type="text"
-                                                            required
-                                                            value={line.name}
-                                                            onChange={(e) => handleLineChange(idx, 'name', e.target.value)}
-                                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:border-orange-500 outline-none"
-                                                        />
-                                                    </td>
-                                                    <td className="p-2 text-right">
-                                                        <input
-                                                            type="number"
-                                                            step="0.001"
-                                                            required
-                                                            value={line.quantity || ''}
-                                                            onChange={(e) => handleLineChange(idx, 'quantity', e.target.value)}
-                                                            className="w-24 bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:border-orange-500 outline-none text-right font-mono"
-                                                            placeholder="0.00"
-                                                        />
-                                                    </td>
-                                                    <td className="p-2 text-right">
-                                                        <input
-                                                            type="number"
-                                                            step="0.01"
-                                                            required
-                                                            value={line.unitPrice || ''}
-                                                            onChange={(e) => handleLineChange(idx, 'unitPrice', e.target.value)}
-                                                            className="w-24 bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:border-orange-500 outline-none text-right font-mono"
-                                                            placeholder="0.00"
-                                                        />
-                                                    </td>
-                                                    <td className="p-2 text-right text-emerald-400 font-bold font-mono whitespace-nowrap">
-                                                        {line.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
-                                                    </td>
+                            <form onSubmit={handleSendInvoiceSubmit} className="grid grid-rows-[minmax(0,1fr)_auto] overflow-hidden h-full">
+                                <div className="overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                                    <div className="overflow-x-auto border border-[var(--border-color)] rounded-xl">
+                                        <table className="w-full text-left text-xs border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-950/20 text-[var(--text-secondary)] uppercase border-b border-[var(--border-color)]">
+                                                    <th className="p-3 font-semibold">Hizmet Adı / Açıklama</th>
+                                                    <th className="p-3 font-semibold text-right">Miktar (Ton)</th>
+                                                    <th className="p-3 font-semibold text-right">Birim Fiyat (TL)</th>
+                                                    <th className="p-3 font-semibold text-right">Tutar (Matrah)</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                            </thead>
+                                            <tbody className="divide-y divide-[var(--border-color)]">
+                                                {routeLines.map((line, idx) => (
+                                                    <tr key={idx} className="hover:bg-white/[0.01]">
+                                                        <td className="p-2 min-w-[220px]">
+                                                            <input
+                                                                type="text"
+                                                                required
+                                                                value={line.name}
+                                                                onChange={(e) => handleLineChange(idx, 'name', e.target.value)}
+                                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:border-orange-500 outline-none"
+                                                            />
+                                                        </td>
+                                                        <td className="p-2 text-right">
+                                                            <input
+                                                                type="number"
+                                                                step="0.001"
+                                                                required
+                                                                value={line.quantity || ''}
+                                                                onChange={(e) => handleLineChange(idx, 'quantity', e.target.value)}
+                                                                className="w-24 bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:border-orange-500 outline-none text-right font-mono"
+                                                                placeholder="0.00"
+                                                            />
+                                                        </td>
+                                                        <td className="p-2 text-right">
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                required
+                                                                value={line.unitPrice || ''}
+                                                                onChange={(e) => handleLineChange(idx, 'unitPrice', e.target.value)}
+                                                                className="w-24 bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:border-orange-500 outline-none text-right font-mono"
+                                                                placeholder="0.00"
+                                                            />
+                                                        </td>
+                                                        <td className="p-2 text-right text-emerald-400 font-bold font-mono whitespace-nowrap">
+                                                            {line.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
 
-                                {/* Dynamic calculations summary card */}
-                                <div className="bg-slate-900/30 p-4 border border-[var(--border-color)] rounded-xl space-y-2 text-xs">
-                                    <div className="flex justify-between">
-                                        <span className="text-[var(--text-secondary)]">Mal Hizmet Toplam Tutarı:</span>
-                                        <span className="font-bold text-[var(--text-primary)]">{totalBase.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-[var(--text-secondary)]">Hesaplanan KDV (%{vatRate}):</span>
-                                        <span className="font-bold text-[var(--text-primary)]">{totalVat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-                                    </div>
-                                    
-                                    {invoiceType === 'TEVKIFAT' && (
-                                        <>
-                                            <div className="flex justify-between border-t border-[var(--border-color)]/30 pt-1.5 text-indigo-400">
-                                                <span>Hesaplanan KDV Tevkifatı (%{TEVKIFAT_CODES.find(t => t.code === tevkifatKodu)?.rate}%):</span>
-                                                <span className="font-bold">{totalVatOfTax.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-                                            </div>
-                                            <div className="flex justify-between text-slate-400">
-                                                <span>Tevkifata Tabi İşlem Tutarı:</span>
-                                                <span className="font-semibold">{totalBase.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-                                            </div>
-                                            <div className="flex justify-between text-slate-400">
-                                                <span>Tevkifata Tabi İşlem Üzerinden Hes. KDV:</span>
-                                                <span className="font-semibold">{totalVat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-                                            </div>
-                                        </>
-                                    )}
-                                    
-                                    <div className="flex justify-between border-t border-[var(--border-color)] pt-2">
-                                        <span className="text-[var(--text-secondary)]">Vergiler Dahil Toplam Tutar:</span>
-                                        <span className="font-bold text-[var(--text-primary)]">{totalWithTaxes.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-                                    </div>
-                                    <div className="flex justify-between border-t-2 border-orange-500/30 pt-2 text-sm text-orange-400">
-                                        <span className="font-bold">Ödenecek Tutar:</span>
-                                        <span className="font-black text-md">{totalPayment.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                    {/* Dynamic calculations summary card */}
+                                    <div className="bg-slate-900/30 p-4 border border-[var(--border-color)] rounded-xl space-y-2 text-xs">
+                                        <div className="flex justify-between">
+                                            <span className="text-[var(--text-secondary)]">Mal Hizmet Toplam Tutarı:</span>
+                                            <span className="font-bold text-[var(--text-primary)]">{totals.base.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-[var(--text-secondary)]">Hesaplanan KDV (%{vatRate}):</span>
+                                            <span className="font-bold text-[var(--text-primary)]">{totals.vat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                        </div>
+                                        
+                                        {invoiceType === 'TEVKIFAT' && (
+                                            <>
+                                                <div className="flex justify-between border-t border-[var(--border-color)]/30 pt-1.5 text-indigo-400">
+                                                    <span>Hesaplanan KDV Tevkifatı (%{TEVKIFAT_CODES.find(t => t.code === tevkifatKodu)?.rate}%):</span>
+                                                    <span className="font-bold">{totals.vatOfTax.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                                </div>
+                                                <div className="flex justify-between text-slate-400">
+                                                    <span>Tevkifata Tabi İşlem Tutarı:</span>
+                                                    <span className="font-semibold">{totals.base.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                                </div>
+                                                <div className="flex justify-between text-slate-400">
+                                                    <span>Tevkifata Tabi İşlem Üzerinden Hes. KDV:</span>
+                                                    <span className="font-semibold">{totals.vat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                                </div>
+                                            </>
+                                        )}
+                                        
+                                        <div className="flex justify-between border-t border-[var(--border-color)] pt-2">
+                                            <span className="text-[var(--text-secondary)]">Vergiler Dahil Toplam Tutar:</span>
+                                            <span className="font-bold text-[var(--text-primary)]">{totals.withTaxes.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                        </div>
+                                        <div className="flex justify-between border-t-2 border-orange-500/30 pt-2 text-sm text-orange-400">
+                                            <span className="font-bold">Ödenecek Tutar:</span>
+                                            <span className="font-black text-md">{totals.payment.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                        </div>
                                     </div>
                                 </div>
 
                                 {/* Footer buttons inside Step 2 */}
-                                <div className="pt-4 border-t border-[var(--border-color)] flex gap-3">
+                                <div className="p-6 border-t border-[var(--border-color)] flex gap-3 bg-slate-900/20 shrink-0">
                                     <button
                                         type="button"
                                         onClick={() => setModalStep(1)}
@@ -1416,9 +1486,14 @@ const EArsiv = () => {
                             </form>
                         )}
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
+
+        {toastPortal}
+        {confirmPortal}
+        </>
     );
 };
 

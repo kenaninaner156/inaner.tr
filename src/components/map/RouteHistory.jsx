@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback, useContext } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import { Polyline, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { ChevronLeft, ChevronRight, ChevronDown, Play, Pause, X, Smartphone, BookmarkPlus, Scissors, Edit2, Check, Loader2, Maximize2, Clock } from 'lucide-react';
-import { calcStats, getInterpolatedPoint, getInterpolatedPointLinear, haversineKm, groupIntoSessions, filterSessionPoints } from '../../utils/mapUtils';
+import { ChevronLeft, ChevronRight, ChevronDown, Play, Pause, X, Smartphone, BookmarkPlus, Scissors, Edit2, Check, Loader2, Clock } from 'lucide-react';
+import { calcStats, getInterpolatedPointLinear, haversineKm, groupIntoSessions, filterSessionPoints } from '../../utils/mapUtils';
 import { DataContext } from '../../context/DataContext';
 import { db } from '../../services/firebaseConfig';
-import { collection, query, where, orderBy, getDocs, limit, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
 function getSpeedColor(speedMs) {
   const kmh = (speedMs || 0) * 3.6;
   if (kmh < 5)  return '#ef4444';  // kırmızı
@@ -113,14 +113,12 @@ export default function RouteHistory({
   const [isVehicleDropdownOpen, setIsVehicleDropdownOpen] = useState(false);
   const [cachedDates, setCachedDates] = useState([]); // Hangi günlerin Firebase'de verili cache'i var?
   const [emptyCachedDates, setEmptyCachedDates] = useState([]); // Hangi günlerin "Boş" olduğu Firebase'e işlendi?
-  const [sessionVisitedDates, setSessionVisitedDates] = useState([]); // Bu oturumda PC'ye inen/bakılan günler (Local Cache)
   const [showSidebar, setShowSidebar]         = useState(true);
   const [calendarMode, setCalendarMode]       = useState('closed'); // 'closed', '7', '21', 'month'
   const [calendarViewDate, setCalendarViewDate] = useState(new Date());
   
   const [editingSessionKey, setEditingSessionKey] = useState(null);
   const [editNameValue, setEditNameValue] = useState('');
-  const [openMenuKey, setOpenMenuKey] = useState(null);
   const [userInteracted, setUserInteracted] = useState(false);
 
   // ── On-Demand Caching State ─────────────────────────────────────────
@@ -143,7 +141,7 @@ export default function RouteHistory({
   // Seçili driver veya tarih değiştiğinde veriyi çek (Önbellekten veya Firebase'den)
   // Hangi günlerin cachelendiğini periyodik olarak veya araç değişince çek
   useEffect(() => {
-    if (!selectedDriver || !activeCompanyId) return;
+    if (!isVisible || !selectedDriver || !activeCompanyId) return;
     const q = query(
       collection(db, 'vehicle_daily_stats'),
       where('deviceId', '==', selectedDriver),
@@ -160,7 +158,7 @@ export default function RouteHistory({
       setCachedDates([...new Set(full)]);
       setEmptyCachedDates([...new Set(empty)]);
     }).catch(err => console.error("Cache listesi çekilemedi:", err));
-  }, [selectedDriver, activeCompanyId]);
+  }, [selectedDriver, activeCompanyId, isVisible]);
 
   useEffect(() => {
     if (!isVisible || !selectedDriver || !historyDate) return;
@@ -182,7 +180,6 @@ export default function RouteHistory({
           if (historyFetchRef.current === fetchId) {
             try {
               setSessionsByDriver({ [selectedDriver]: JSON.parse(cached.data().sessionsJson) });
-              setSessionVisitedDates(prev => [...new Set([...prev, historyDate])]);
             } catch (e) {
               console.error('Cache parse error:', e);
               setSessionsByDriver({ [selectedDriver]: [] });
@@ -304,7 +301,6 @@ export default function RouteHistory({
         }
 
         setSessionsByDriver({ [selectedDriver]: lightweightSessions });
-        setSessionVisitedDates(prev => [...new Set([...prev, historyDate])]);
         setSelectedSession(null);
 
         // 4. SONUÇLARI ÖNBELLEĞE KAYDET
@@ -374,9 +370,6 @@ export default function RouteHistory({
 
 
 
-  // Sidebar — click propagation
-  const confirmModalRef = useRef(null);
-  
   // Harita etkileşimini sidebar üzerinde engelle
   const sidebarCallbackRef = useCallback(node => {
     if (node) {
@@ -408,19 +401,19 @@ export default function RouteHistory({
 
 
 
-  // Save modal için native wheel bloklama (Leaflet'in kendi listener'ını bypass etmek için)
+  // Save modal için tıklama ve scroll engelleme (Leaflet sızıntılarını engeller)
   const saveModalRef = useCallback((el) => {
-    if (!el) return;
-    const onWheel = (e) => {
-      e.stopPropagation();
-    };
-    el.addEventListener('wheel', onWheel, { passive: true });
-  }, []);;
+    if (el) {
+      L.DomEvent.disableClickPropagation(el);
+      L.DomEvent.disableScrollPropagation(el);
+    }
+  }, []);
 
 
   // Oynatma
   const [progress, setProgress]               = useState(0);
   const [isPlaying, setIsPlaying]             = useState(false);
+  const [playbackSpeed, setPlaybackSpeed]     = useState(1);
   
   // Play'e basılınca auto-pan tekrar aktif olsun
   useEffect(() => {
@@ -503,20 +496,27 @@ export default function RouteHistory({
     }
   }, [progress, selectedSession, isPlaying, userInteracted, map]);
 
+  // Oynatıcı tamamlanma eylemini ayrı bir useEffect ile takip ediyoruz
+  useEffect(() => {
+    if (progress >= 100 && isPlaying) {
+      setIsPlaying(false);
+    }
+  }, [progress, isPlaying]);
+
   // Oynat / Durdur
   useEffect(() => {
     if (isPlaying) {
       playIntervalRef.current = setInterval(() => {
         setProgress(prev => {
-          if (prev >= 100) { setIsPlaying(false); return 100; }
-          return prev + 0.05;
+          if (prev >= 100) return 100;
+          return prev + 0.005 * playbackSpeed;
         });
       }, 50);
     } else {
       clearInterval(playIntervalRef.current);
     }
     return () => clearInterval(playIntervalRef.current);
-  }, [isPlaying]);
+  }, [isPlaying, playbackSpeed]);
 
   const handleSaveRoute = async () => {
     if (!savingSession) return;
@@ -595,7 +595,7 @@ export default function RouteHistory({
             Rota Geçmişi
           </h2>
           <button
-            onClick={() => setShowSidebar(false)}
+            onClick={onClose}
             className="p-1.5 text-slate-500 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] rounded-xl transition-all"
           >
             <X size={13} />
@@ -929,7 +929,6 @@ export default function RouteHistory({
               {[...sessionsByDriver[selectedDriver]].reverse().map((session, i) => {
                 const totalSessions = sessionsByDriver[selectedDriver].length;
                 const start = new Date(session[0]?.timestamp);
-                const end   = new Date(session[session.length - 1]?.timestamp);
                 const isSelected = selectedSession === session;
                 const { km, durationMin } = calcStats(session);
 
@@ -1111,6 +1110,22 @@ export default function RouteHistory({
               {isPlaying
                 ? <Pause fill="currentColor" size={18} />
                 : <Play fill="currentColor" className="ml-0.5" size={18} />}
+            </button>
+
+            {/* Hız Çarpanı */}
+            <button
+              onClick={() => {
+                setPlaybackSpeed(prev => {
+                  if (prev === 1) return 2;
+                  if (prev === 2) return 5;
+                  if (prev === 5) return 10;
+                  return 1;
+                });
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.06] text-[10px] font-extrabold text-orange-400 transition-all flex-shrink-0 cursor-pointer animate-none"
+              title="Oynatma Hızı"
+            >
+              {playbackSpeed}x
             </button>
 
             {/* Slider */}

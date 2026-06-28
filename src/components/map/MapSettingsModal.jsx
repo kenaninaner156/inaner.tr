@@ -1,13 +1,21 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useCallback } from 'react';
 import { X, Smartphone, MapPin, Trash2, Plus, Check, User, Truck, Settings } from 'lucide-react';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebaseConfig';
 import { useCompany } from '../../context/CompanyContext';
 import { useTruck } from '../../context/TruckContext';
 import { DataContext } from '../../context/DataContext';
+import L from 'leaflet';
 
 export default function MapSettingsModal({ onClose, onStartAddGeofence, unmappedActiveDeviceIds }) {
   const [activeTab, setActiveTab] = useState('devices'); // 'devices' or 'geofences'
+
+  const modalRef = useCallback(node => {
+    if (node) {
+      L.DomEvent.disableClickPropagation(node);
+      L.DomEvent.disableScrollPropagation(node);
+    }
+  }, []);
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
@@ -16,7 +24,7 @@ export default function MapSettingsModal({ onClose, onStartAddGeofence, unmapped
       
       {/* Modal Kartı */}
       <div className="relative w-full max-w-md animate-in zoom-in-95 duration-300">
-        <div className="glass-panel overflow-hidden flex flex-col max-h-[85vh] border border-white/5 shadow-2xl shadow-indigo-500/10">
+        <div ref={modalRef} className="glass-panel overflow-hidden flex flex-col max-h-[85vh] border border-white/5 shadow-2xl shadow-indigo-500/10">
           
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-5 bg-gradient-to-r from-indigo-500/10 to-transparent border-b border-white/5">

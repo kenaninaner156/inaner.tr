@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useMemo, useRef, useContext, useCallback } from 'react';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { collection, onSnapshot, query, orderBy, where, limit, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../../services/firebaseConfig';
-import { MapPin, History, Bookmark, BarChart3, Layers, Settings } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { doc, getDoc } from 'firebase/firestore';
+import { MapPin, History, Bookmark, Layers, Settings } from 'lucide-react';
+import { motion } from 'framer-motion'; // eslint-disable-line no-unused-vars
+import { doc } from 'firebase/firestore';
 import L from 'leaflet';
 
 import { useTruck } from '../../context/TruckContext';
 import { useCompany } from '../../context/CompanyContext';
 import { DataContext } from '../../context/DataContext';
-import { groupIntoSessions, filterSessionPoints } from '../../utils/mapUtils';
+import { groupIntoSessions } from '../../utils/mapUtils';
 
 import LiveTracking from './LiveTracking';
 import RouteHistory from './RouteHistory';
@@ -23,7 +23,14 @@ import { InteractiveGeofenceMapLayer, InteractiveGeofencePanel } from './Interac
 // Map ref setter - MapContainer içinde çalışır
 function MapRefSetter({ mapRef }) {
   const map = useMap();
-  useEffect(() => { mapRef.current = map; }, [map, mapRef]);
+  useEffect(() => { 
+    mapRef.current = map; 
+    // Harita ilk yüklendiğinde ve container scale animasyonu bittiğinde boyutu düzgün hesaplasın
+    const timer = setTimeout(() => {
+      map.invalidateSize({ animate: true });
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [map, mapRef]);
   return null;
 }
 
@@ -46,16 +53,10 @@ function MapCameraSync({ activeTab, sessionsByDriver, deviceMappings }) {
   useEffect(() => {
     if (prevTabRef.current === activeTab) return;
     
-    const flyOptions = { 
-      padding: [80, 80], 
-      duration: 1.5,
-      easeLinearity: 0.25 
-    };
-
     if (activeTab === 'live') {
       const activeLocations = Object.entries(sessionsByDriver)
         .filter(([driverId]) => !!deviceMappings[driverId] && sessionsByDriver[driverId].length > 0)
-        .map(([driverId, sessions]) => {
+        .map(([, sessions]) => {
           const lp = sessions[sessions.length - 1];
           const lastPoint = lp[lp.length - 1];
           return lastPoint ? [lastPoint.lat, lastPoint.lon] : null;
@@ -109,10 +110,10 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
 
   if (!globalUnsubscribe) {
     globalLoading = true;
-    const past24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const past8h = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
     const q = query(
       collection(db, 'truck_routes'),
-      where('timestamp', '>=', past24h),
+      where('timestamp', '>=', past8h),
       orderBy('timestamp', 'asc')
     );
 
@@ -168,7 +169,7 @@ export default function MapLayout({ onReady }) {
   }, [mapStyle]);
   
   const [locations, setLocations] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [deviceMappings, setDeviceMappings] = useState({});
   // Her zaman tek bir günü yükle: kota tasarrufu için en iyi yaklaşım
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -288,7 +289,7 @@ export default function MapLayout({ onReady }) {
         ref={navBarCallbackRef}
         className="absolute top-4 left-1/2 -translate-x-1/2 z-[2000] pointer-events-auto w-11/12 max-w-2xl"
       >
-        <div className="flex bg-[#111113]/80 backdrop-blur-xl p-1.5 rounded-2xl shadow-inner ring-1 ring-black/20 w-full border border-white/5 items-center">
+        <div className="flex bg-[#111113]/80 backdrop-blur-xl p-1.5 rounded-2xl shadow-inner ring-1 ring-black/20 w-full border border-white/5 items-center select-none">
           <div className="flex flex-1 gap-0.5">
             {tabs.map(tab => {
               const Icon = tab.icon;
@@ -385,7 +386,8 @@ export default function MapLayout({ onReady }) {
 
             <TileLayer
               url={mapUrls[mapStyle]}
-              maxZoom={19}
+              maxZoom={20}
+              maxNativeZoom={mapStyle === 'satellite' ? 18 : 19}
               keepBuffer={4}
             />
             <LiveTracking

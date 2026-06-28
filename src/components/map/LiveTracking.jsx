@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import { Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { calcStats } from '../../utils/mapUtils';
@@ -103,7 +103,6 @@ function SpeedPolylines({ session, isFollowed, isOffline, zoom }) {
 function MapController({ 
   sessionsByDriver, 
   followedDriverId, 
-  setFollowedDriverId, 
   isCameraFollowActive, 
   setIsCameraFollowActive, 
   didInitRef, 
@@ -111,6 +110,8 @@ function MapController({
   isVisible 
 }) {
   const map = useMap();
+  const prevCoordsRef = useRef(null);
+  const prevDriverIdRef = useRef(null);
   
   useMapEvents({ 
     dragstart: () => setIsCameraFollowActive(false),
@@ -139,13 +140,30 @@ function MapController({
 
   // 2. TAKİP MODUNDA ARACI ORTALA (YALNIZCA LİVE TAB AKTİFKEN VE CİHAZ TAKİBİ ETKİNKEN)
   useEffect(() => {
-    if (!isVisible || !followedDriverId || !map || !isCameraFollowActive) return;
+    if (!isVisible || !followedDriverId || !map || !isCameraFollowActive) {
+      prevCoordsRef.current = null;
+      prevDriverIdRef.current = null;
+      return;
+    }
     const sessions = sessionsByDriver[followedDriverId];
     if (!sessions?.length) return;
     const last = sessions[sessions.length - 1];
     if (!last.length) return;
     const p = last[last.length - 1];
-    if (!isNaN(p.lat) && !isNaN(p.lon)) {
+    if (isNaN(p.lat) || isNaN(p.lon)) return;
+
+    const coordsKey = `${p.lat},${p.lon}`;
+
+    // Yeni bir araç seçildiyse tıklama olayındaki setView animasyonu çalışsın, panTo yapma
+    if (prevDriverIdRef.current !== followedDriverId) {
+      prevDriverIdRef.current = followedDriverId;
+      prevCoordsRef.current = coordsKey;
+      return;
+    }
+
+    // Araç zaten seçiliyse ve yeni konum geldiyse (canlı takip) pürüzsüz kaydır
+    if (prevCoordsRef.current !== coordsKey) {
+      prevCoordsRef.current = coordsKey;
       map.panTo([p.lat, p.lon], { animate: true, duration: 0.8 });
     }
   }, [sessionsByDriver, followedDriverId, map, isVisible, isCameraFollowActive]);
@@ -161,7 +179,7 @@ function VehicleMarker({ driverId, lastPoint, isOnline, isFollowed, speedKmh, na
     setFollowedDriverId(driverId);
     setIsCameraFollowActive(true);
     setTimeout(() => {
-      map.setView([lastPoint.lat, lastPoint.lon], 12, { animate: true, duration: 1 });
+      map.setView([lastPoint.lat, lastPoint.lon], 15, { animate: true, duration: 1 });
     }, 20);
   };
 
@@ -208,7 +226,7 @@ function SidebarItem({
     if (isFollowed) {
       setFollowedDriverId(null);
     } else {
-      map.setView([lastPoint.lat, lastPoint.lon], 12, { animate: true, duration: 1 });
+      map.setView([lastPoint.lat, lastPoint.lon], 15, { animate: true, duration: 1 });
       setFollowedDriverId(driverId);
       setIsCameraFollowActive(true);
     }
@@ -216,7 +234,7 @@ function SidebarItem({
 
   const handleCenter = (e) => {
     e.stopPropagation();
-    map.setView([lastPoint.lat, lastPoint.lon], 13, { animate: true, duration: 1 });
+    map.setView([lastPoint.lat, lastPoint.lon], 16, { animate: true, duration: 1 });
     setIsCameraFollowActive(true);
   };
 

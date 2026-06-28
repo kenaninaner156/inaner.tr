@@ -27,6 +27,12 @@ export function groupIntoSessions(points, maxGapMinutes = 30, geofences = [], ma
   let activeGeofenceId = null;
   let geofenceEntryTime = null;
   let hasSplitForThisGeofenceVisit = false;
+  
+  // Hareketsiz kalma (stationary) takibi için değişken
+  let stationaryStartTime = null;
+  if ((points[0].speed || 0) * 3.6 < 5) {
+    stationaryStartTime = new Date(points[0].timestamp).getTime();
+  }
 
   for (let i = 1; i < points.length; i++) {
     const pt = points[i];
@@ -35,10 +41,26 @@ export function groupIntoSessions(points, maxGapMinutes = 30, geofences = [], ma
     
     let splitTriggered = false;
 
+    const isStationary = (pt.speed || 0) * 3.6 < 5;
+    if (isStationary) {
+      if (!stationaryStartTime) {
+        stationaryStartTime = curTime;
+      }
+    }
+
     // Kural 1: 30 dk zaman boşluğu
     if (curTime - prevTime > maxGapMinutes * 60 * 1000) {
       splitTriggered = true;
+      stationaryStartTime = isStationary ? curTime : null;
     } 
+    // Kural 1b: Hareketsiz kalma süresi (30 dk boyunca hızın < 5 km/h olması)
+    else if (!isStationary && stationaryStartTime) {
+      const stationaryDuration = curTime - stationaryStartTime;
+      if (stationaryDuration >= maxGapMinutes * 60 * 1000) {
+        splitTriggered = true;
+      }
+      stationaryStartTime = null;
+    }
     // Kural 2: Özel Bölge (Geofence) Kontrolü
     else if (geofences && geofences.length > 0) {
       // Nokta herhangi bir bölgenin içinde mi? (Yarıçap genelde 0.5 km)

@@ -1,5 +1,5 @@
 import React, { useContext, useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import { DataContext } from '../../context/DataContext';
 import { Bookmark, Search, Trash2, Edit2, Check, X } from 'lucide-react';
 import { Marker, Popup, Polyline, useMap } from 'react-leaflet';
@@ -59,10 +59,12 @@ export default function SavedRoutes({ isVisible }) {
     el.addEventListener('wheel', onWheel, { passive: false });
   }, []);
 
-  // Confirm modal scroll izolasyonu
+  // Confirm modal tıklama ve scroll engelleme (Leaflet sızıntılarını engeller)
   const confirmModalRef = useCallback((el) => {
-    if (!el) return;
-    el.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
+    if (el) {
+      L.DomEvent.disableClickPropagation(el);
+      L.DomEvent.disableScrollPropagation(el);
+    }
   }, []);
 
   useEffect(() => {
