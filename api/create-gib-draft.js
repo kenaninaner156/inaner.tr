@@ -186,6 +186,8 @@ export default async function handler(req, res) {
                     productLine.tevkifatKodu = tevkifatKodu;
                     productLine.taxRate = Number(tevkifatRate); // vergiOrani
                     productLine.vatAmountOfTax = lineVatOfTax; // vergininKdvTutari
+                    productLine.V9015Orani = Number(tevkifatRate);
+                    productLine.V9015Tutari = lineVatOfTax;
                 } else if (invoiceType === 'ISTISNA') {
                     productLine.kdvMuafiyetKodu = kdvMuafiyetKodu;
                     productLine.kdvMuafiyetNedeni = kdvMuafiyetNedeni;
@@ -240,6 +242,8 @@ export default async function handler(req, res) {
                 productLine.tevkifatKodu = tevkifatKodu;
                 productLine.taxRate = Number(tRate); // vergiOrani
                 productLine.vatAmountOfTax = vatAmountOfTax; // vergininKdvTutari
+                productLine.V9015Orani = Number(tRate);
+                productLine.V9015Tutari = vatAmountOfTax;
             } else if (invoiceType === 'ISTISNA') {
                 productLine.kdvMuafiyetKodu = kdvMuafiyetKodu;
                 productLine.kdvMuafiyetNedeni = kdvMuafiyetNedeni;
