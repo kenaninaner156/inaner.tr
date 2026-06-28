@@ -77,6 +77,7 @@ const EArsiv = () => {
     const [sendingInvoiceId, setSendingInvoiceId] = useState(null);
     const [syncError, setSyncError] = useState('');
     const [isForceLoggingOut, setIsForceLoggingOut] = useState(false);
+    const [forceLogoutStatus, setForceLogoutStatus] = useState(null); // { type: 'success'|'error', message: '' }
 
     const docId = activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`;
 
@@ -320,14 +321,12 @@ const EArsiv = () => {
 
     const handleForceGibLogout = async () => {
         if (!gibUsername || !gibPassword) {
-            alert("Lütfen önce yukarıdan GİB Kullanıcı Kodu ve Şifrenizi girin.");
-            return;
-        }
-        if (!window.confirm("GİB sunucularındaki aktif oturumunuzu zorla kapatmak istediğinize emin misiniz?")) {
+            setForceLogoutStatus({ type: 'error', message: 'Lütfen önce yukarıdan GİB Kullanıcı Kodu ve Şifrenizi kaydedin.' });
             return;
         }
 
         setIsForceLoggingOut(true);
+        setForceLogoutStatus(null);
         try {
             const user = auth.currentUser;
             if (!user) throw new Error("Kullanıcı oturumu bulunamadı.");
@@ -346,11 +345,11 @@ const EArsiv = () => {
                 throw new Error(data.error || "GİB oturumu sonlandırılamadı.");
             }
 
-            alert("GİB sunucularındaki oturumunuz başarıyla kapatıldı! 1-2 dakika içinde sisteme giriş yapabilirsiniz.");
+            setForceLogoutStatus({ type: 'success', message: 'GİB sunucularındaki oturumunuz başarıyla kapatıldı! Artık sisteme giriş yapabilirsiniz.' });
             if (addLog) addLog("GİB Aktif oturumu zorla sonlandırıldı.", "success");
         } catch (err) {
             console.error("GİB Oturum kapatma hatası:", err);
-            alert("Hata: " + err.message);
+            setForceLogoutStatus({ type: 'error', message: err.message });
             if (addLog) addLog("GİB Oturumu kapatılamadı: " + err.message, "error");
         } finally {
             setIsForceLoggingOut(false);
@@ -989,8 +988,23 @@ const EArsiv = () => {
                                 GİB Oturumu Zorla Kapat
                             </h4>
                             <p className="text-xs text-[var(--text-secondary)] mb-4">
-                                Tarayıcınızda veya muhasebecinizde GİB portalı açık kaldığı için \"Birden fazla giriş yapamazsınız\" hatası alıyorsanız, GİB sunucularındaki oturumunuzu buradan zorla sonlandırabilirsiniz.
+                                Tarayıcınızda veya başka bir cihazda GİB portalı açık kaldığı için &quot;Birden fazla giriş yapamazsınız&quot; hatası alıyorsanız, GİB sunucularındaki oturumunuzu buradan zorla sonlandırabilirsiniz.
                             </p>
+
+                            {forceLogoutStatus && (
+                                <div className={`flex items-start gap-2 text-sm p-3 rounded-lg border mb-4 ${
+                                    forceLogoutStatus.type === 'success'
+                                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                                        : 'bg-red-500/10 border-red-500/20 text-red-400'
+                                }`}>
+                                    {forceLogoutStatus.type === 'success'
+                                        ? <CheckCircle size={16} className="shrink-0 mt-0.5" />
+                                        : <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                                    }
+                                    <span>{forceLogoutStatus.message}</span>
+                                </div>
+                            )}
+
                             <button
                                 type="button"
                                 onClick={handleForceGibLogout}

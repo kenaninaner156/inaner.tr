@@ -131,7 +131,30 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true, message: "GİB portal oturumu başarıyla sonlandırıldı." });
     } catch (err) {
         console.error("GIB Oturum kapatma hatası:", err);
-        return res.status(500).json({ error: err.message || 'GİB oturumu sonlandırılırken hata oluştu.' });
+        
+        let errorMessage = err.message || 'GİB oturumu sonlandırılırken hata oluştu.';
+        
+        if (err.response && err.response.data) {
+            const data = err.response.data;
+            const messages = data.messages || [];
+            
+            // Check for multiple login warning
+            const hasMultipleLoginMsg = messages.some(msg => {
+                const text = typeof msg === 'string' ? msg : (msg && msg.msg) || '';
+                return text.toLowerCase().includes('birden fazla') || 
+                       text.toLowerCase().includes('ayni anda') || 
+                       text.toLowerCase().includes('aynı anda') || 
+                       text.toLowerCase().includes('oturum');
+            });
+            
+            if (hasMultipleLoginMsg || data.error === '1') {
+                errorMessage = "GİB portalında zaten aktif bir oturum açık olduğu için oturum kapatma servisi giriş yapamadı. Lütfen 1-2 dakika bekleyin, GİB sunucusu oturumu otomatik olarak düşürecektir.";
+            } else if (messages.length > 0) {
+                errorMessage = messages.map(m => typeof m === 'string' ? m : m.msg).join(' ');
+            }
+        }
+        
+        return res.status(500).json({ error: errorMessage });
     } finally {
         if (api) {
             try {
