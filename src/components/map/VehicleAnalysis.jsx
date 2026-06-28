@@ -9,8 +9,6 @@ import { useTruck } from '../../context/TruckContext';
 const RANGES = [
   { id: 'today',   label: 'Bugün' },
   { id: 'weekly',  label: '7 Gün' },
-  { id: 'monthly', label: '30 Gün' },
-  { id: 'custom',  label: 'Özel' },
 ];
 
 // Günlük snapshot koleksiyonu: vehicle_daily_stats/{companyId}_{deviceId}_{YYYY-MM-DD}
@@ -145,6 +143,10 @@ export default function VehicleAnalysis() {
 
   // ── Ana Hesaplama ───────────────────────────────────────────────────────
   const handleCalculate = async () => {
+    if (dateRange === 'weekly') {
+      const confirmProceed = window.confirm("⚠️ DİKKAT: 7 günlük analiz veritabanından yüksek miktarda veri okuyacaktır ve günlük Firebase kotanızı etkileyebilir. Devam etmek istiyor musunuz?");
+      if (!confirmProceed) return;
+    }
     setLoading(true);
     setSnapshotInfo(null);
     try {
