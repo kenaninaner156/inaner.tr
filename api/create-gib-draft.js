@@ -118,6 +118,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Gecersiz istek parametreleri. Fatura ID ve Alici bilgileri (VKN, Unvan) zorunludur.' });
     }
 
+    let api = null;
     try {
         // 3. Faturayi Veritabanindan Cek
         const invoiceDoc = await db.collection('invoices').doc(invoiceId).get();
@@ -291,7 +292,7 @@ export default async function handler(req, res) {
         };
 
         // 7. GIB Portal Baglantisi ve Taslak Fatura Olusturma
-        const api = new EInvoiceApi();
+        api = new EInvoiceApi();
         
         // Intercept sendRequest to empty out the faturaUuid due to GİB's May 2026 API changes
         const originalSendRequest = api.sendRequest;
@@ -329,5 +330,14 @@ export default async function handler(req, res) {
     } catch (err) {
         console.error("GIB Entegrasyon hatasi:", err);
         return res.status(500).json({ error: err.message || 'GIB e-Arsiv islemi sirasinda sunucu hatasi olustu.' });
+    } finally {
+        if (api) {
+            try {
+                await api.logout();
+                console.log("GIB oturumu guvenli bir sekilde sonlandirildi.");
+            } catch (logoutErr) {
+                console.warn("GIB oturumu sonlandirilirken hata olustu:", logoutErr.message);
+            }
+        }
     }
 }
