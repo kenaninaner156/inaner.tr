@@ -76,6 +76,7 @@ const EArsiv = () => {
     // Syncing state
     const [sendingInvoiceId, setSendingInvoiceId] = useState(null);
     const [syncError, setSyncError] = useState('');
+    const [isForceLoggingOut, setIsForceLoggingOut] = useState(false);
 
     const docId = activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`;
 
@@ -314,6 +315,45 @@ const EArsiv = () => {
         } catch (err) {
             console.error("Fatura durumu sıfırlanırken hata:", err);
             alert("Durum sıfırlanırken hata oluştu: " + err.message);
+        }
+    };
+
+    const handleForceGibLogout = async () => {
+        if (!gibUsername || !gibPassword) {
+            alert("Lütfen önce yukarıdan GİB Kullanıcı Kodu ve Şifrenizi girin.");
+            return;
+        }
+        if (!window.confirm("GİB sunucularındaki aktif oturumunuzu zorla kapatmak istediğinize emin misiniz?")) {
+            return;
+        }
+
+        setIsForceLoggingOut(true);
+        try {
+            const user = auth.currentUser;
+            if (!user) throw new Error("Kullanıcı oturumu bulunamadı.");
+            const token = await user.getIdToken();
+
+            const res = await fetch('/api/gib-logout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.error || "GİB oturumu sonlandırılamadı.");
+            }
+
+            alert("GİB sunucularındaki oturumunuz başarıyla kapatıldı! 1-2 dakika içinde sisteme giriş yapabilirsiniz.");
+            if (addLog) addLog("GİB Aktif oturumu zorla sonlandırıldı.", "success");
+        } catch (err) {
+            console.error("GİB Oturum kapatma hatası:", err);
+            alert("Hata: " + err.message);
+            if (addLog) addLog("GİB Oturumu kapatılamadı: " + err.message, "error");
+        } finally {
+            setIsForceLoggingOut(false);
         }
     };
 
@@ -941,6 +981,34 @@ const EArsiv = () => {
                                 )}
                             </button>
                         </form>
+
+                        {/* Force Logout Utility */}
+                        <div className="border-t border-[var(--border-color)] pt-6 mt-6 max-w-xl">
+                            <h4 className="text-sm font-bold text-[var(--text-primary)] mb-2 flex items-center">
+                                <AlertTriangle className="mr-2 text-red-500" size={18} />
+                                GİB Oturumu Zorla Kapat
+                            </h4>
+                            <p className="text-xs text-[var(--text-secondary)] mb-4">
+                                Tarayıcınızda veya muhasebecinizde GİB portalı açık kaldığı için \"Birden fazla giriş yapamazsınız\" hatası alıyorsanız, GİB sunucularındaki oturumunuzu buradan zorla sonlandırabilirsiniz.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={handleForceGibLogout}
+                                disabled={isForceLoggingOut}
+                                className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 py-2.5 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {isForceLoggingOut ? (
+                                    <>
+                                        <RefreshCw size={16} className="animate-spin" />
+                                        Oturum Sonlandırılıyor...
+                                    </>
+                                ) : (
+                                    <>
+                                        GİB Aktif Oturumunu Sonlandır
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
