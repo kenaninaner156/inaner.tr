@@ -55,6 +55,8 @@ const EArsiv = () => {
     // Modal state for sending invoice
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedInvoice, setSelectedInvoice] = useState(null);
+    const [modalStep, setModalStep] = useState(1); // 1: Bilgi Kontrol, 2: Güzergah/Fiyat Girişi
+    const [routeLines, setRouteLines] = useState([]); // Çoklu ürün satırları
     
     // Modal Form fields
     const [invoiceType, setInvoiceType] = useState('SATIS');
@@ -168,17 +170,140 @@ const EArsiv = () => {
         }
     };
 
+    const handleNextStep = () => {
+        if (!buyerVkn || !buyerTitle || !buyerAddress) {
+            alert("Lütfen Alıcı VKN/TCKN, Unvan ve Adres bilgilerini doldurunuz.");
+            return;
+        }
+
+        // Group invoice trips by route
+        const trips = selectedInvoice?.trips || [];
+        const routeSummary = Object.values(
+            trips.reduce((acc, trip) => {
+                const key = `${trip.from.trim()}|||${trip.to.trim()}`;
+                if (!acc[key]) {
+                    acc[key] = {
+                        from: trip.from,
+                        to: trip.to,
+                        tonnage: 0
+                    };
+                }
+                acc[key].tonnage += Number(trip.tonnage) || 0;
+                return acc;
+            }, {})
+        ).sort((a, b) => b.tonnage - a.tonnage);
+
+        // Load route history for remembrance (from localStorage)
+        let history = {};
+        try {
+            const stored = localStorage.getItem(`route_history_${activeCompanyId || 'default'}`);
+            if (stored) history = JSON.parse(stored);
+        } catch (e) {
+            console.error("Güzergah hafızası yüklenirken hata:", e);
+        }
+
+        // Map routeSummary to routeLines
+        const initialLines = routeSummary.map(r => {
+            const key = `${r.from.trim()}|||${r.to.trim()}`;
+            const existingLine = routeLines.find(l => l.from === r.from && l.to === r.to);
+            const cached = history[key] || {};
+            
+            const name = existingLine?.name || cached.name || `${r.from} ${r.to} UÇUCU KÜL NAKLİYESİ.`.toUpperCase();
+            const unitPrice = existingLine !== undefined ? existingLine.unitPrice : (cached.unitPrice || 0);
+            
+            const quantity = Number(r.tonnage.toFixed(2));
+            let price = 0;
+            let vatAmount = 0;
+            let vatAmountOfTax = 0;
+            let totalAmount = 0;
+
+            const lineRate = invoiceType === 'ISTISNA' ? 0 : Number(vatRate);
+            const activeTevkifat = TEVKIFAT_CODES.find(t => t.code === tevkifatKodu);
+            const tRate = activeTevkifat ? activeTevkifat.rate : 20;
+
+            if (isVatIncluded) {
+                totalAmount = Number((quantity * unitPrice).toFixed(2));
+                price = Number((totalAmount / (1 + (lineRate / 100))).toFixed(2));
+                vatAmount = Number((totalAmount - price).toFixed(2));
+                vatAmountOfTax = invoiceType === 'TEVKIFAT' ? Number((vatAmount * (tRate / 100)).toFixed(2)) : 0;
+            } else {
+                price = Number((quantity * unitPrice).toFixed(2));
+                vatAmount = Number((price * (lineRate / 100)).toFixed(2));
+                vatAmountOfTax = invoiceType === 'TEVKIFAT' ? Number((vatAmount * (tRate / 100)).toFixed(2)) : 0;
+                totalAmount = Number((price + vatAmount).toFixed(2));
+            }
+
+            return {
+                from: r.from,
+                to: r.to,
+                name,
+                quantity,
+                unitType: 'TNE', // TON
+                unitPrice,
+                price,
+                vatRate: lineRate,
+                vatAmount,
+                vatAmountOfTax,
+                totalAmount
+            };
+        });
+
+        setRouteLines(initialLines);
+        setModalStep(2);
+    };
+
+    const handleLineChange = (index, field, value) => {
+        const updated = [...routeLines];
+        const line = { ...updated[index] };
+
+        if (field === 'name') {
+            line.name = value.toUpperCase();
+        } else {
+            if (field === 'unitPrice') {
+                line.unitPrice = Number(value) || 0;
+            } else if (field === 'quantity') {
+                line.quantity = Number(value) || 0;
+            }
+            
+            const quantity = line.quantity;
+            const uPrice = line.unitPrice;
+            let price = 0;
+            let vatAmount = 0;
+            let vatAmountOfTax = 0;
+            let totalAmount = 0;
+
+            const lineRate = invoiceType === 'ISTISNA' ? 0 : Number(vatRate);
+            const activeTevkifat = TEVKIFAT_CODES.find(t => t.code === tevkifatKodu);
+            const tRate = activeTevkifat ? activeTevkifat.rate : 20;
+
+            if (isVatIncluded) {
+                totalAmount = Number((quantity * uPrice).toFixed(2));
+                price = Number((totalAmount / (1 + (lineRate / 100))).toFixed(2));
+                vatAmount = Number((totalAmount - price).toFixed(2));
+                vatAmountOfTax = invoiceType === 'TEVKIFAT' ? Number((vatAmount * (tRate / 100)).toFixed(2)) : 0;
+            } else {
+                price = Number((quantity * uPrice).toFixed(2));
+                vatAmount = Number((price * (lineRate / 100)).toFixed(2));
+                vatAmountOfTax = invoiceType === 'TEVKIFAT' ? Number((vatAmount * (tRate / 100)).toFixed(2)) : 0;
+                totalAmount = Number((price + vatAmount).toFixed(2));
+            }
+
+            line.price = price;
+            line.vatAmount = vatAmount;
+            line.vatAmountOfTax = vatAmountOfTax;
+            line.totalAmount = totalAmount;
+        }
+
+        updated[index] = line;
+        setRouteLines(updated);
+    };
+
     const handleOpenSendModal = (invoice) => {
         if (!gibUsername || !gibPassword) {
             alert("Lütfen önce 'Bağlantı Ayarları' sekmesinden GİB e-Arşiv Kullanıcı Kodu ve Şifrenizi kaydedin.");
             setActiveSubTab('settings');
             return;
         }
-
-        const invoiceTruck = trucks.find(t => t.id === invoice.truckId);
-        const plate = invoiceTruck?.plate || 'Bilinmiyor';
-
-        const defaultNote = `${plate !== 'Bilinmiyor' ? plate + ' plakalı araç ile ' : ''}${invoice.startDate} - ${invoice.endDate} tarihleri arasında sunulan nakliye hizmet bedelidir.`;
 
         // Pre-fill using saved default preferences
         setInvoiceType(defaultInvoiceType);
@@ -195,11 +320,12 @@ const EArsiv = () => {
         setKdvMuafiyetNedeni(defaultKdvMuafiyetNedeni);
         
         setSelectedInvoice(invoice);
-        setInvoiceNote(defaultNote);
+        setInvoiceNote('');
         setSyncError('');
+        setModalStep(1);
+        setRouteLines([]);
         setIsModalOpen(true);
     };
-
     const handleSendInvoiceSubmit = async (e) => {
         e.preventDefault();
         if (!selectedInvoice) return;
@@ -242,7 +368,8 @@ const EArsiv = () => {
                     tevkifatRate: invoiceType === 'TEVKIFAT' ? tevkifatRate : 0,
                     kdvMuafiyetKodu: invoiceType === 'ISTISNA' ? kdvMuafiyetKodu : null,
                     kdvMuafiyetNedeni: invoiceType === 'ISTISNA' ? kdvMuafiyetNedeni : null,
-                    note: invoiceNote
+                    note: '', // No manual note needed
+                    products: routeLines // Send our multi-line products!
                 })
             });
 
@@ -277,6 +404,24 @@ const EArsiv = () => {
             const docRef = doc(db, 'company_data', docId);
             await setDoc(docRef, { gibClients: updatedClients }, { merge: true });
 
+            // Save route lines to remembrance history (localStorage)
+            try {
+                const stored = localStorage.getItem(`route_history_${activeCompanyId || 'default'}`);
+                const history = stored ? JSON.parse(stored) : {};
+                
+                routeLines.forEach(line => {
+                    const key = `${line.from.trim()}|||${line.to.trim()}`;
+                    history[key] = {
+                        name: line.name,
+                        unitPrice: line.unitPrice
+                    };
+                });
+                
+                localStorage.setItem(`route_history_${activeCompanyId || 'default'}`, JSON.stringify(history));
+            } catch (e) {
+                console.error("Güzergah hafızası kaydedilirken hata:", e);
+            }
+
             addLog('GIB_FATURA_GONDERILDI', `${selectedInvoice.docId || selectedInvoice.id} faturası GİB portalına taslak olarak başarıyla aktarıldı.`);
             alert("Fatura başarıyla GİB e-Arşiv portalında Taslak olarak oluşturuldu!");
         } catch (err) {
@@ -287,13 +432,19 @@ const EArsiv = () => {
             setSelectedInvoice(null);
         }
     };
-
     // Filter local active invoices
     const activeInvoices = (invoices || []).filter(inv => !inv.deleted && inv.status === 'Sent');
 
     const gibPortalUrl = gibTestMode 
         ? "https://earsivportaltest.efatura.gov.tr/" 
         : "https://earsivportal.efatura.gov.tr/";
+
+    // Calculate Step 2 totals dynamically
+    const totalBase = routeLines.reduce((sum, line) => sum + (line.price || 0), 0);
+    const totalVat = routeLines.reduce((sum, line) => sum + (line.vatAmount || 0), 0);
+    const totalVatOfTax = routeLines.reduce((sum, line) => sum + (line.vatAmountOfTax || 0), 0);
+    const totalWithTaxes = totalBase + totalVat;
+    const totalPayment = totalWithTaxes - totalVatOfTax;
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 max-w-5xl mx-auto">
@@ -437,11 +588,11 @@ const EArsiv = () => {
                                                             {isSending ? (
                                                                 <>
                                                                     <RefreshCw size={12} className="animate-spin" />
-                                                                    Gönderiliyor...
+                                                                    Hazırlanıyor...
                                                                 </>
                                                             ) : (
                                                                 <>
-                                                                    GİB'e Taslak Gönder
+                                                                    GİB Taslak Hazırla
                                                                 </>
                                                             )}
                                                         </button>
@@ -768,14 +919,14 @@ const EArsiv = () => {
 
             {/* SENDING MODAL OVERLAY */}
             {isModalOpen && selectedInvoice && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="glass-panel w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
                         {/* Header */}
                         <div className="p-6 border-b border-[var(--border-color)] flex items-center justify-between bg-slate-900/40">
                             <div className="flex items-center gap-2">
                                 <FileText className="text-orange-500" size={20} />
-                                <span className="font-bold text-md text-[var(--text-primary)]">
-                                    GİB Fatura Detayları ({selectedInvoice.docId || selectedInvoice.id})
+                                <span className="font-bold text-md text-[var(--text-primary)] font-mono">
+                                    GİB Taslak Hazırla - {modalStep === 1 ? "1. Adım: Bilgileri Kontrol Et" : "2. Adım: Güzergahlar ve Fiyatlar"} ({selectedInvoice.docId || selectedInvoice.id})
                                 </span>
                             </div>
                             <button 
@@ -786,262 +937,374 @@ const EArsiv = () => {
                             </button>
                         </div>
 
-                        {/* Form */}
-                        <form onSubmit={handleSendInvoiceSubmit} className="flex-1 p-6 space-y-4 overflow-y-auto">
-                            {/* Inovice Type and Calculation Type */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-900/20 p-4 border border-[var(--border-color)] rounded-xl">
-                                <div>
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                        Fatura Tipi
-                                    </label>
-                                    <select
-                                        value={invoiceType}
-                                        onChange={(e) => setInvoiceType(e.target.value)}
-                                        className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs focus:border-orange-500 outline-none"
-                                    >
-                                        <option value="SATIS">SATIŞ</option>
-                                        <option value="TEVKIFAT">TEVKİFAT</option>
-                                        <option value="ISTISNA">İSTİSNA</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                        KDV Oranı
-                                    </label>
-                                    <select
-                                        value={vatRate}
-                                        onChange={(e) => setVatRate(Number(e.target.value))}
-                                        className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs focus:border-orange-500 outline-none"
-                                    >
-                                        <option value={20}>%20</option>
-                                        <option value={10}>%10</option>
-                                        <option value={0}>%0</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                        Hesaplama Türü
-                                    </label>
-                                    <div className="flex gap-1 mt-0.5">
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsVatIncluded(false)}
-                                            className={`flex-1 py-1 text-[10px] font-semibold rounded-lg border transition ${
-                                                !isVatIncluded 
-                                                    ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' 
-                                                    : 'bg-transparent text-slate-400 border-[var(--border-color)]'
-                                            }`}
-                                        >
-                                            KDV Hariç
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsVatIncluded(true)}
-                                            className={`flex-1 py-1 text-[10px] font-semibold rounded-lg border transition ${
-                                                isVatIncluded 
-                                                    ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' 
-                                                    : 'bg-transparent text-slate-400 border-[var(--border-color)]'
-                                            }`}
-                                        >
-                                            KDV Dahil
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Conditionally render Tevkifat parameters */}
-                            {invoiceType === 'TEVKIFAT' && (
-                                <div className="p-4 bg-indigo-500/5 border border-indigo-500/20 rounded-xl space-y-2">
-                                    <label className="block text-xs font-semibold text-indigo-400">
-                                        Tevkifat Kodu ve Oranı
-                                    </label>
-                                    <select
-                                        value={tevkifatKodu}
-                                        onChange={(e) => setTevkifatKodu(e.target.value)}
-                                        className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
-                                    >
-                                        {TEVKIFAT_CODES.map(t => (
-                                            <option key={t.code} value={t.code}>{t.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
-
-                            {/* Conditionally render Exemption parameters */}
-                            {invoiceType === 'ISTISNA' && (
-                                <div className="p-4 bg-orange-500/5 border border-orange-500/20 rounded-xl space-y-3">
+                        {/* Step 1 Form */}
+                        {modalStep === 1 && (
+                            <form onSubmit={(e) => { e.preventDefault(); handleNextStep(); }} className="flex-1 p-6 space-y-4 overflow-y-auto">
+                                {/* Invoice Type and Calculation Type */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-900/20 p-4 border border-[var(--border-color)] rounded-xl">
                                     <div>
-                                        <label className="block text-xs font-semibold text-orange-400 mb-1">
-                                            KDV İstisna Kodu
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                            Fatura Tipi
                                         </label>
                                         <select
-                                            value={kdvMuafiyetKodu}
-                                            onChange={(e) => setKdvMuafiyetKodu(e.target.value)}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
+                                            value={invoiceType}
+                                            onChange={(e) => setInvoiceType(e.target.value)}
+                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs focus:border-orange-500 outline-none"
                                         >
-                                            {EXEMPTION_CODES.map(e => (
-                                                <option key={e.code} value={e.code}>{e.label}</option>
-                                            ))}
+                                            <option value="SATIS">SATIŞ</option>
+                                            <option value="TEVKIFAT">TEVKİFAT</option>
+                                            <option value="ISTISNA">İSTİSNA</option>
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-semibold text-orange-400 mb-1">
-                                            KDV İstisna Nedeni Açıklaması
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                            KDV Oranı
                                         </label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={kdvMuafiyetNedeni}
-                                            onChange={(e) => setKdvMuafiyetNedeni(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
-                                            placeholder="Örn: 306/1-a Maddesi Kapsamında Uluslararası Nakliye..."
-                                        />
+                                        <select
+                                            value={vatRate}
+                                            onChange={(e) => setVatRate(Number(e.target.value))}
+                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs focus:border-orange-500 outline-none"
+                                        >
+                                            <option value={20}>%20</option>
+                                            <option value={10}>%10</option>
+                                            <option value={0}>%0</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                            Hesaplama Türü
+                                        </label>
+                                        <div className="flex gap-1 mt-0.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsVatIncluded(false)}
+                                                className={`flex-1 py-1 text-[10px] font-semibold rounded-lg border transition ${
+                                                    !isVatIncluded 
+                                                        ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' 
+                                                        : 'bg-transparent text-slate-400 border-[var(--border-color)]'
+                                                }`}
+                                            >
+                                                KDV Hariç
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsVatIncluded(true)}
+                                                className={`flex-1 py-1 text-[10px] font-semibold rounded-lg border transition ${
+                                                    isVatIncluded 
+                                                        ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' 
+                                                        : 'bg-transparent text-slate-400 border-[var(--border-color)]'
+                                                }`}
+                                            >
+                                                KDV Dahil
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            )}
 
-                            {/* Client VKN and Title */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <div className="flex justify-between items-center mb-1">
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)]">
-                                            Alıcı TCKN / VKN *
+                                {/* Conditionally render Tevkifat parameters */}
+                                {invoiceType === 'TEVKIFAT' && (
+                                    <div className="p-4 bg-indigo-500/5 border border-indigo-500/20 rounded-xl space-y-2">
+                                        <label className="block text-xs font-semibold text-indigo-400">
+                                            Tevkifat Kodu ve Oranı
                                         </label>
-                                        {Object.keys(gibClients || {}).length > 0 && (
+                                        <select
+                                            value={tevkifatKodu}
+                                            onChange={(e) => setTevkifatKodu(e.target.value)}
+                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
+                                        >
+                                            {TEVKIFAT_CODES.map(t => (
+                                                <option key={t.code} value={t.code}>{t.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* Conditionally render Exemption parameters */}
+                                {invoiceType === 'ISTISNA' && (
+                                    <div className="p-4 bg-orange-500/5 border border-orange-500/20 rounded-xl space-y-3">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-orange-400 mb-1">
+                                                KDV İstisna Kodu
+                                            </label>
                                             <select
-                                                onChange={(e) => {
-                                                    if (e.target.value) {
-                                                        handleVknChange(e.target.value);
-                                                    }
-                                                }}
-                                                className="text-[10px] bg-slate-950 border border-[var(--border-color)] text-orange-400 rounded px-1.5 py-0.5 outline-none max-w-[180px] font-medium"
-                                                defaultValue=""
+                                                value={kdvMuafiyetKodu}
+                                                onChange={(e) => setKdvMuafiyetKodu(e.target.value)}
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
                                             >
-                                                <option value="" disabled>Kayıtlı Müşteri Seç</option>
-                                                {Object.values(gibClients).map(c => (
-                                                    <option key={c.vkn} value={c.vkn}>
-                                                        {c.title.length > 20 ? c.title.substring(0, 18) + '...' : c.title}
-                                                    </option>
+                                                {EXEMPTION_CODES.map(e => (
+                                                    <option key={e.code} value={e.code}>{e.label}</option>
                                                 ))}
                                             </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-orange-400 mb-1">
+                                                KDV İstisna Nedeni Açıklaması
+                                            </label>
+                                            <input
+                                                type="text"
+                                                required
+                                                value={kdvMuafiyetNedeni}
+                                                onChange={(e) => setKdvMuafiyetNedeni(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
+                                                placeholder="Örn: 306/1-a Maddesi Kapsamında Uluslararası Nakliye..."
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Client VKN and Title */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="block text-xs font-semibold text-[var(--text-secondary)]">
+                                                Alıcı TCKN / VKN *
+                                            </label>
+                                            {Object.keys(gibClients || {}).length > 0 && (
+                                                <select
+                                                    onChange={(e) => {
+                                                        if (e.target.value) {
+                                                            handleVknChange(e.target.value);
+                                                        }
+                                                    }}
+                                                    className="text-[10px] bg-slate-950 border border-[var(--border-color)] text-orange-400 rounded px-1.5 py-0.5 outline-none max-w-[180px] font-medium"
+                                                    defaultValue=""
+                                                >
+                                                    <option value="" disabled>Kayıtlı Müşteri Seç</option>
+                                                    {Object.values(gibClients).map(c => (
+                                                        <option key={c.vkn} value={c.vkn}>
+                                                            {c.title.length > 20 ? c.title.substring(0, 18) + '...' : c.title}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            )}
+                                        </div>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                required
+                                                maxLength={11}
+                                                value={buyerVkn}
+                                                onChange={(e) => handleVknChange(e.target.value)}
+                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg pl-9 pr-4 py-2 text-sm focus:border-orange-500 outline-none font-mono"
+                                                placeholder="11 haneli TCKN veya 10 haneli VKN"
+                                            />
+                                            <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                                        </div>
+                                        {buyerVkn && gibClients[buyerVkn] && (
+                                            <span className="text-[10px] text-emerald-400 mt-1 block">
+                                                ✓ Kayıtlı müşteri bilgileri otomatik dolduruldu.
+                                            </span>
                                         )}
                                     </div>
-                                    <div className="relative">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                            Alıcı Unvanı / Adı Soyadı
+                                        </label>
                                         <input
                                             type="text"
                                             required
-                                            maxLength={11}
-                                            value={buyerVkn}
-                                            onChange={(e) => handleVknChange(e.target.value)}
-                                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg pl-9 pr-4 py-2 text-sm focus:border-orange-500 outline-none"
-                                            placeholder="11 haneli TCKN veya 10 haneli VKN"
+                                            value={buyerTitle}
+                                            onChange={(e) => setBuyerTitle(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
+                                            placeholder="Şirket unvanı veya şahıs adı soyadı"
                                         />
-                                        <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                                     </div>
-                                    {buyerVkn && gibClients[buyerVkn] && (
-                                        <span className="text-[10px] text-emerald-400 mt-1 block">
-                                            ✓ Kayıtlı müşteri bilgileri otomatik dolduruldu.
-                                        </span>
-                                    )}
                                 </div>
+
+                                {/* Tax Office, City, District */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="md:col-span-1">
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                            Vergi Dairesi
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={buyerTaxOffice}
+                                            onChange={(e) => setBuyerTaxOffice(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
+                                            placeholder="Vergi Dairesi adı"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-1">
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                            İlçe / Mahalle
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={buyerDistrict}
+                                            onChange={(e) => setBuyerDistrict(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
+                                            placeholder="İlçe veya mahalle"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-1">
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                            Şehir (İl)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={buyerCity}
+                                            onChange={(e) => setBuyerCity(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
+                                            placeholder="Şehir"
+                                        />
+                                    </div>
+                                </div>
+
                                 <div>
                                     <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                        Alıcı Unvanı / Adı Soyadı
+                                        Açık Adres
                                     </label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={buyerTitle}
-                                        onChange={(e) => setBuyerTitle(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                        className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
-                                        placeholder="Şirket unvanı veya şahıs adı soyadı"
+                                    <textarea
+                                        value={buyerAddress}
+                                        onChange={(e) => setBuyerAddress(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                        rows={3}
+                                        className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none resize-none"
+                                        placeholder="Sokak, bulvar, apartman no ve detaylı adres..."
                                     />
                                 </div>
-                            </div>
 
-                            {/* Tax Office, City, District */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="md:col-span-1">
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                        Vergi Dairesi
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={buyerTaxOffice}
-                                        onChange={(e) => setBuyerTaxOffice(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                        className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
-                                        placeholder="Vergi Dairesi adı"
-                                    />
+                                {/* Footer Buttons inside Modal - Step 1 */}
+                                <div className="pt-4 border-t border-[var(--border-color)] flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsModalOpen(false)}
+                                        className="flex-1 bg-[var(--bg-panel-hover)] hover:bg-[var(--bg-panel-hover)]/80 text-[var(--text-secondary)] border border-[var(--border-color)] py-2.5 rounded-lg text-sm font-semibold transition"
+                                    >
+                                        Vazgeç
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2"
+                                    >
+                                        Onayla ve Devam Et
+                                    </button>
                                 </div>
-                                <div className="md:col-span-1">
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                        İlçe / Mahalle
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={buyerDistrict}
-                                        onChange={(e) => setBuyerDistrict(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                        className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
-                                        placeholder="İlçe veya mahalle"
-                                    />
+                            </form>
+                        )}
+
+                        {/* Step 2 Form */}
+                        {modalStep === 2 && (
+                            <form onSubmit={handleSendInvoiceSubmit} className="flex-1 p-6 space-y-4 overflow-y-auto">
+                                <div className="overflow-x-auto border border-[var(--border-color)] rounded-xl">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-950/20 text-[var(--text-secondary)] uppercase border-b border-[var(--border-color)]">
+                                                <th className="p-3 font-semibold">Hizmet Adı / Açıklama</th>
+                                                <th className="p-3 font-semibold text-right">Miktar (Ton)</th>
+                                                <th className="p-3 font-semibold text-right">Birim Fiyat (TL)</th>
+                                                <th className="p-3 font-semibold text-right">Tutar (Matrah)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-[var(--border-color)]">
+                                            {routeLines.map((line, idx) => (
+                                                <tr key={idx} className="hover:bg-white/[0.01]">
+                                                    <td className="p-2 min-w-[220px]">
+                                                        <input
+                                                            type="text"
+                                                            required
+                                                            value={line.name}
+                                                            onChange={(e) => handleLineChange(idx, 'name', e.target.value)}
+                                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:border-orange-500 outline-none"
+                                                        />
+                                                    </td>
+                                                    <td className="p-2 text-right">
+                                                        <input
+                                                            type="number"
+                                                            step="0.001"
+                                                            required
+                                                            value={line.quantity || ''}
+                                                            onChange={(e) => handleLineChange(idx, 'quantity', e.target.value)}
+                                                            className="w-24 bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:border-orange-500 outline-none text-right font-mono"
+                                                            placeholder="0.00"
+                                                        />
+                                                    </td>
+                                                    <td className="p-2 text-right">
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            required
+                                                            value={line.unitPrice || ''}
+                                                            onChange={(e) => handleLineChange(idx, 'unitPrice', e.target.value)}
+                                                            className="w-24 bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:border-orange-500 outline-none text-right font-mono"
+                                                            placeholder="0.00"
+                                                        />
+                                                    </td>
+                                                    <td className="p-2 text-right text-emerald-400 font-bold font-mono whitespace-nowrap">
+                                                        {line.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
-                                <div className="md:col-span-1">
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                        Şehir (İl)
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={buyerCity}
-                                        onChange={(e) => setBuyerCity(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                        className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
-                                        placeholder="Şehir"
-                                    />
+
+                                {/* Dynamic calculations summary card */}
+                                <div className="bg-slate-900/30 p-4 border border-[var(--border-color)] rounded-xl space-y-2 text-xs">
+                                    <div className="flex justify-between">
+                                        <span className="text-[var(--text-secondary)]">Mal Hizmet Toplam Tutarı:</span>
+                                        <span className="font-bold text-[var(--text-primary)]">{totalBase.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-[var(--text-secondary)]">Hesaplanan KDV (%{vatRate}):</span>
+                                        <span className="font-bold text-[var(--text-primary)]">{totalVat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                    </div>
+                                    
+                                    {invoiceType === 'TEVKIFAT' && (
+                                        <>
+                                            <div className="flex justify-between border-t border-[var(--border-color)]/30 pt-1.5 text-indigo-400">
+                                                <span>Hesaplanan KDV Tevkifatı (%{TEVKIFAT_CODES.find(t => t.code === tevkifatKodu)?.rate}%):</span>
+                                                <span className="font-bold">{totalVatOfTax.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                            </div>
+                                            <div className="flex justify-between text-slate-400">
+                                                <span>Tevkifata Tabi İşlem Tutarı:</span>
+                                                <span className="font-semibold">{totalBase.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                            </div>
+                                            <div className="flex justify-between text-slate-400">
+                                                <span>Tevkifata Tabi İşlem Üzerinden Hes. KDV:</span>
+                                                <span className="font-semibold">{totalVat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                            </div>
+                                        </>
+                                    )}
+                                    
+                                    <div className="flex justify-between border-t border-[var(--border-color)] pt-2">
+                                        <span className="text-[var(--text-secondary)]">Vergiler Dahil Toplam Tutar:</span>
+                                        <span className="font-bold text-[var(--text-primary)]">{totalWithTaxes.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                    </div>
+                                    <div className="flex justify-between border-t-2 border-orange-500/30 pt-2 text-sm text-orange-400">
+                                        <span className="font-bold">Ödenecek Tutar:</span>
+                                        <span className="font-black text-md">{totalPayment.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div>
-                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                    Açık Adres
-                                </label>
-                                <textarea
-                                    value={buyerAddress}
-                                    onChange={(e) => setBuyerAddress(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                    rows={2}
-                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none resize-none"
-                                    placeholder="Sokak, bulvar, apartman no ve detaylı adres..."
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                    Fatura Açıklaması (GİB Notu)
-                                </label>
-                                <textarea
-                                    value={invoiceNote}
-                                    onChange={(e) => setInvoiceNote(e.target.value)}
-                                    rows={2}
-                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none resize-none"
-                                    placeholder="Faturada görünecek açıklama notu..."
-                                />
-                            </div>
-
-                            {/* Footer Buttons inside Modal */}
-                            <div className="pt-4 border-t border-[var(--border-color)] flex gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="flex-1 bg-[var(--bg-panel-hover)] hover:bg-[var(--bg-panel-hover)]/80 text-[var(--text-secondary)] border border-[var(--border-color)] py-2.5 rounded-lg text-sm font-semibold transition"
-                                >
-                                    Vazgeç
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2"
-                                >
-                                    <Send size={14} /> GİB Portalına Aktar
-                                </button>
-                            </div>
-                        </form>
+                                {/* Footer buttons inside Step 2 */}
+                                <div className="pt-4 border-t border-[var(--border-color)] flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setModalStep(1)}
+                                        className="flex-1 bg-[var(--bg-panel-hover)] hover:bg-[var(--bg-panel-hover)]/80 text-[var(--text-secondary)] border border-[var(--border-color)] py-2.5 rounded-lg text-sm font-semibold transition"
+                                    >
+                                        Geri Dön
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={sendingInvoiceId === selectedInvoice.id}
+                                        className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2"
+                                    >
+                                        {sendingInvoiceId === selectedInvoice.id ? (
+                                            <>
+                                                <RefreshCw size={14} className="animate-spin" />
+                                                Gönderiliyor...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Send size={14} /> GİB Taslak Hazırla
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
                     </div>
                 </div>
             )}

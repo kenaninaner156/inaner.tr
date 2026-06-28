@@ -156,29 +156,95 @@ export default async function handler(req, res) {
         let vatAmountOfTax = 0;
         let includedTaxesTotalPrice = 0;
         let paymentPrice = 0;
+        let products = [];
 
-        if (invoiceType === 'ISTISNA') {
-            basePrice = grandTotal;
-            vatAmount = 0;
-            vatAmountOfTax = 0;
-            includedTaxesTotalPrice = grandTotal;
-            paymentPrice = grandTotal;
+        if (req.body.products && Array.isArray(req.body.products) && req.body.products.length > 0) {
+            products = req.body.products.map(p => {
+                const lineBase = Number(p.price) || 0;
+                const lineVat = Number(p.vatAmount) || 0;
+                const lineVatOfTax = invoiceType === 'TEVKIFAT' ? (Number(p.vatAmountOfTax) || 0) : 0;
+                const lineTotal = Number(p.totalAmount) || 0;
+
+                basePrice += lineBase;
+                vatAmount += lineVat;
+                vatAmountOfTax += lineVatOfTax;
+                includedTaxesTotalPrice += lineTotal;
+
+                const productLine = {
+                    name: p.name.trim(),
+                    quantity: Number(p.quantity) || 1,
+                    unitType: p.unitType || EInvoiceUnitType.TON, // TON -> TNE
+                    unitPrice: Number(p.unitPrice) || 0,
+                    price: lineBase,
+                    vatRate: Number(p.vatRate) ?? rate,
+                    vatAmount: lineVat,
+                    totalAmount: lineTotal
+                };
+
+                if (invoiceType === 'TEVKIFAT') {
+                    productLine.tevkifatKodu = tevkifatKodu;
+                    productLine.taxRate = Number(tevkifatRate); // vergiOrani
+                    productLine.vatAmountOfTax = lineVatOfTax; // vergininKdvTutari
+                } else if (invoiceType === 'ISTISNA') {
+                    productLine.kdvMuafiyetKodu = kdvMuafiyetKodu;
+                    productLine.kdvMuafiyetNedeni = kdvMuafiyetNedeni;
+                }
+
+                return productLine;
+            });
+
+            // Round values to 2 decimal places to prevent float precision issues
+            basePrice = Number(basePrice.toFixed(2));
+            vatAmount = Number(vatAmount.toFixed(2));
+            vatAmountOfTax = Number(vatAmountOfTax.toFixed(2));
+            includedTaxesTotalPrice = Number(includedTaxesTotalPrice.toFixed(2));
+            paymentPrice = Number((includedTaxesTotalPrice - vatAmountOfTax).toFixed(2));
         } else {
-            if (isVatIncluded) {
-                paymentPrice = grandTotal;
-                basePrice = Number((paymentPrice / (1 + (rate / 100) * (1 - tRate / 100))).toFixed(2));
-                vatAmount = Number((basePrice * (rate / 100)).toFixed(2));
-                vatAmountOfTax = invoiceType === 'TEVKIFAT' ? Number((vatAmount * (tRate / 100)).toFixed(2)) : 0;
-                includedTaxesTotalPrice = Number((basePrice + vatAmount).toFixed(2));
-                // Adjust paymentPrice to match exact totals
-                paymentPrice = Number((basePrice + vatAmount - vatAmountOfTax).toFixed(2));
-            } else {
+            if (invoiceType === 'ISTISNA') {
                 basePrice = grandTotal;
-                vatAmount = Number((basePrice * (rate / 100)).toFixed(2));
-                vatAmountOfTax = invoiceType === 'TEVKIFAT' ? Number((vatAmount * (tRate / 100)).toFixed(2)) : 0;
-                includedTaxesTotalPrice = Number((basePrice + vatAmount).toFixed(2));
-                paymentPrice = Number((basePrice + vatAmount - vatAmountOfTax).toFixed(2));
+                vatAmount = 0;
+                vatAmountOfTax = 0;
+                includedTaxesTotalPrice = grandTotal;
+                paymentPrice = grandTotal;
+            } else {
+                if (isVatIncluded) {
+                    paymentPrice = grandTotal;
+                    basePrice = Number((paymentPrice / (1 + (rate / 100) * (1 - tRate / 100))).toFixed(2));
+                    vatAmount = Number((basePrice * (rate / 100)).toFixed(2));
+                    vatAmountOfTax = invoiceType === 'TEVKIFAT' ? Number((vatAmount * (tRate / 100)).toFixed(2)) : 0;
+                    includedTaxesTotalPrice = Number((basePrice + vatAmount).toFixed(2));
+                    // Adjust paymentPrice to match exact totals
+                    paymentPrice = Number((basePrice + vatAmount - vatAmountOfTax).toFixed(2));
+                } else {
+                    basePrice = grandTotal;
+                    vatAmount = Number((basePrice * (rate / 100)).toFixed(2));
+                    vatAmountOfTax = invoiceType === 'TEVKIFAT' ? Number((vatAmount * (tRate / 100)).toFixed(2)) : 0;
+                    includedTaxesTotalPrice = Number((basePrice + vatAmount).toFixed(2));
+                    paymentPrice = Number((basePrice + vatAmount - vatAmountOfTax).toFixed(2));
+                }
             }
+
+            const productLine = {
+                name: 'NAKLIYE HIZMET BEDELI',
+                quantity: 1,
+                unitType: EInvoiceUnitType.ADET,
+                unitPrice: basePrice,
+                price: basePrice,
+                vatRate: rate,
+                vatAmount: vatAmount,
+                totalAmount: includedTaxesTotalPrice
+            };
+
+            if (invoiceType === 'TEVKIFAT') {
+                productLine.tevkifatKodu = tevkifatKodu;
+                productLine.taxRate = Number(tRate); // vergiOrani
+                productLine.vatAmountOfTax = vatAmountOfTax; // vergininKdvTutari
+            } else if (invoiceType === 'ISTISNA') {
+                productLine.kdvMuafiyetKodu = kdvMuafiyetKodu;
+                productLine.kdvMuafiyetNedeni = kdvMuafiyetNedeni;
+            }
+
+            products = [productLine];
         }
 
         // 6. GIB e-Arsiv Fatura Payload Hazirlama
@@ -202,26 +268,6 @@ export default async function handler(req, res) {
             invoiceTypeEnum = InvoiceType.ISTISNA;
         }
 
-        const productLine = {
-            name: 'NAKLIYE HIZMET BEDELI',
-            quantity: 1,
-            unitType: EInvoiceUnitType.ADET,
-            unitPrice: basePrice,
-            price: basePrice,
-            vatRate: rate,
-            vatAmount: vatAmount,
-            totalAmount: includedTaxesTotalPrice
-        };
-
-        if (invoiceType === 'TEVKIFAT') {
-            productLine.tevkifatKodu = tevkifatKodu;
-            productLine.taxRate = Number(tRate); // vergiOrani
-            productLine.vatAmountOfTax = vatAmountOfTax; // vergininKdvTutari
-        } else if (invoiceType === 'ISTISNA') {
-            productLine.kdvMuafiyetKodu = kdvMuafiyetKodu;
-            productLine.kdvMuafiyetNedeni = kdvMuafiyetNedeni;
-        }
-
         const gibPayload = {
             currency: EInvoiceCurrencyType.TURK_LIRASI,
             invoiceType: invoiceTypeEnum,
@@ -235,7 +281,7 @@ export default async function handler(req, res) {
             city: buyer.city ? buyer.city.trim() : ' ',
             district: buyer.district ? buyer.district.trim() : ' ',
             country: EInvoiceCountry.TURKIYE,
-            products: [productLine],
+            products: products,
             base: basePrice,
             productsTotalPrice: basePrice,
             calculatedVAT: vatAmount,
