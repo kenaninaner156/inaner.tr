@@ -329,10 +329,28 @@ export default async function handler(req, res) {
             gibTestMode: gibTestMode
         });
 
-        // 9. Sonuc Don
+        // 9. GIB Oturumunu Kapat - res.json()'dan ONCE yapilmali!
+        try {
+            await api.logout();
+            console.log("GIB oturumu guvenli bir sekilde sonlandirildi.");
+        } catch (logoutErr) {
+            console.warn("GIB oturumu sonlandirilirken hata olustu:", logoutErr.message);
+        }
+
+        // 10. Sonuc Don
         return res.status(200).json({ success: true, gibUuid });
     } catch (err) {
         console.error("GIB Entegrasyon hatasi:", err);
+        
+        // Hata durumunda da oturumu kapatmaya calis
+        if (api) {
+            try {
+                await api.logout();
+                console.log("GIB oturumu hata sonrasi kapatildi.");
+            } catch (logoutErr) {
+                console.warn("GIB oturumu hata sonrasi kapatilirken sorun:", logoutErr.message);
+            }
+        }
         
         let errorMessage = err.message || 'GIB e-Arsiv islemi sirasinda sunucu hatasi olustu.';
         
@@ -357,14 +375,5 @@ export default async function handler(req, res) {
         }
         
         return res.status(500).json({ error: errorMessage });
-    } finally {
-        if (api) {
-            try {
-                await api.logout();
-                console.log("GIB oturumu guvenli bir sekilde sonlandirildi.");
-            } catch (logoutErr) {
-                console.warn("GIB oturumu sonlandirilirken hata olustu:", logoutErr.message);
-            }
-        }
     }
 }
