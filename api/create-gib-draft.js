@@ -292,6 +292,23 @@ export default async function handler(req, res) {
 
         // 7. GIB Portal Baglantisi ve Taslak Fatura Olusturma
         const api = new EInvoiceApi();
+        
+        // Intercept sendRequest to empty out the faturaUuid due to GİB's May 2026 API changes
+        const originalSendRequest = api.sendRequest;
+        api.sendRequest = async function(url, params, config) {
+            const isCreateInvoice = params && params.cmd === 'EARSIV_PORTAL_FATURA_OLUSTUR';
+            if (isCreateInvoice && params.jp) {
+                try {
+                    const jpObj = JSON.parse(params.jp);
+                    jpObj.faturaUuid = ""; // MUST BE EMPTY STRING for GİB's latest May 2026 API update!
+                    params.jp = JSON.stringify(jpObj);
+                } catch (err) {
+                    console.error("[Hook] Hata:", err);
+                }
+            }
+            return originalSendRequest.call(this, url, params, config);
+        };
+
         api.setCredentials({ username: gibUsername, password: gibPassword });
         api.setTestMode(gibTestMode);
         
