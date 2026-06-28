@@ -3,7 +3,7 @@ import { DataContext } from '../context/DataContext';
 import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
 import { auth } from '../services/firebaseConfig';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { FileText, Save, Key, RefreshCw, CheckCircle, AlertTriangle, ExternalLink, HelpCircle, X, Send, BookOpen, Settings } from 'lucide-react';
 
@@ -298,6 +298,25 @@ const EArsiv = () => {
         setRouteLines(updated);
     };
 
+    const handleResetGibStatus = async (inv) => {
+        if (!window.confirm("Bu faturanın GİB taslak durumunu sıfırlamak istediğinize emin misiniz? (Taslağı GİB'den sildiyseniz veya faturayı baştan göndermek istiyorsanız bunu kullanabilirsiniz.)")) {
+            return;
+        }
+        try {
+            const invoiceRef = doc(db, 'invoices', inv.id);
+            await updateDoc(invoiceRef, {
+                gibStatus: deleteField(),
+                gibUuid: deleteField(),
+                gibStatusDate: deleteField(),
+                gibTestMode: deleteField()
+            });
+            if (addLog) addLog("GİB taslak durumu sıfırlandı: " + (inv.docId || inv.id), "info");
+        } catch (err) {
+            console.error("Fatura durumu sıfırlanırken hata:", err);
+            alert("Durum sıfırlanırken hata oluştu: " + err.message);
+        }
+    };
+
     const handleOpenSendModal = (invoice) => {
         if (!gibUsername || !gibPassword) {
             alert("Lütfen önce 'Bağlantı Ayarları' sekmesinden GİB e-Arşiv Kullanıcı Kodu ve Şifrenizi kaydedin.");
@@ -571,14 +590,23 @@ const EArsiv = () => {
                                                 </td>
                                                 <td className="p-4 text-right">
                                                     {isDraftOnGib ? (
-                                                        <a
-                                                            href={gibPortalUrl}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="inline-flex items-center gap-1 text-xs font-semibold bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/30 px-3 py-1.5 rounded-lg transition"
-                                                        >
-                                                            Portalda İmzala <ExternalLink size={12} />
-                                                        </a>
+                                                        <div className="flex justify-end items-center gap-2">
+                                                            <a
+                                                                href={gibPortalUrl}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex items-center gap-1 text-xs font-semibold bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/30 px-3 py-1.5 rounded-lg transition"
+                                                            >
+                                                                Portalda İmzala <ExternalLink size={12} />
+                                                            </a>
+                                                            <button
+                                                                onClick={() => handleResetGibStatus(inv)}
+                                                                title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
+                                                                className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-500/30 rounded-lg transition"
+                                                            >
+                                                                <RefreshCw size={12} />
+                                                            </button>
+                                                        </div>
                                                     ) : (
                                                         <button
                                                             onClick={() => handleOpenSendModal(inv)}
