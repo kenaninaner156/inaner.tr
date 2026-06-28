@@ -333,7 +333,30 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true, gibUuid });
     } catch (err) {
         console.error("GIB Entegrasyon hatasi:", err);
-        return res.status(500).json({ error: err.message || 'GIB e-Arsiv islemi sirasinda sunucu hatasi olustu.' });
+        
+        let errorMessage = err.message || 'GIB e-Arsiv islemi sirasinda sunucu hatasi olustu.';
+        
+        if (err.response && err.response.data) {
+            const data = err.response.data;
+            const messages = data.messages || [];
+            
+            // Check for multiple login warning
+            const hasMultipleLoginMsg = messages.some(msg => {
+                const text = typeof msg === 'string' ? msg : (msg && msg.msg) || '';
+                return text.toLowerCase().includes('birden fazla') || 
+                       text.toLowerCase().includes('ayni anda') || 
+                       text.toLowerCase().includes('aynı anda') || 
+                       text.toLowerCase().includes('oturum');
+            });
+            
+            if (hasMultipleLoginMsg || data.error === '1') {
+                errorMessage = "GİB e-Arşiv sisteminde aktif bir oturumunuz açık bulunuyor (örneğin tarayıcınızda veya başka bir cihazda). Lütfen diğer oturumu kapatıp 1-2 dakika bekledikten sonra tekrar deneyin.";
+            } else if (messages.length > 0) {
+                errorMessage = messages.map(m => typeof m === 'string' ? m : m.msg).join(' ');
+            }
+        }
+        
+        return res.status(500).json({ error: errorMessage });
     } finally {
         if (api) {
             try {
