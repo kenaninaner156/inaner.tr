@@ -1204,8 +1204,16 @@ const EArsiv = () => {
                                                     KDV Dahil
                                                 </button>
                                             </div>
-                                        </div>
                                     </div>
+                                    
+                                    {isVatIncluded && (
+                                        <div className="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5 flex items-start gap-2">
+                                            <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                                            <span>
+                                                <strong>Dikkat:</strong> Asıl kullanılması gereken yöntem <strong>KDV Hariç</strong> hesaplamadır. KDV Dahil seçildiğinde girdiğiniz birim fiyatların KDV eklenmiş son tutarlar olduğunu onaylamış olursunuz.
+                                            </span>
+                                        </div>
+                                    )}
 
                                     {/* Conditionally render Tevkifat parameters */}
                                     {invoiceType === 'TEVKIFAT' && (
