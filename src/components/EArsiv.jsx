@@ -1204,6 +1204,7 @@ const EArsiv = () => {
                                                     KDV Dahil
                                                 </button>
                                             </div>
+                                        </div>
                                     </div>
                                     
                                     {isVatIncluded && (
