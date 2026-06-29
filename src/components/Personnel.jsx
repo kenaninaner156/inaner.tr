@@ -572,7 +572,10 @@ const Personnel = () => {
                                         if (activePayoutState?.id === noteModalPayout.id) setNetPrice(newPrice);
                                         addLog('FATURA_NOT', `${noteModalPayout.docId} personel kaydı güncellendi`);
                                         setNoteModalPayout(null);
-                                    } catch { /* empty */ }
+                                    } catch (err) {
+                                        console.error("Personel kaydı güncellenirken hata oluştu:", err);
+                                        alert("Kaydedilemedi: " + (err.message || err));
+                                    }
                                     setIsSavingNote(false);
                                 }}
                                 disabled={isSavingNote}
