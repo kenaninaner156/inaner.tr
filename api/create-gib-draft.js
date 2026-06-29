@@ -171,11 +171,16 @@ export default async function handler(req, res) {
                 vatAmountOfTax += lineVatOfTax;
                 includedTaxesTotalPrice += lineTotal;
 
+                const qty = Number(p.quantity) || 1;
+                const calculatedUnitPrice = isVatIncluded 
+                    ? Number((lineBase / qty).toFixed(6)) 
+                    : (Number(p.unitPrice) || 0);
+
                 const productLine = {
                     name: p.name.trim(),
-                    quantity: Number(p.quantity) || 1,
+                    quantity: qty,
                     unitType: p.unitType || EInvoiceUnitType.TON, // TON -> TNE
-                    unitPrice: Number(p.unitPrice) || 0,
+                    unitPrice: calculatedUnitPrice,
                     price: lineBase,
                     vatRate: Number(p.vatRate) ?? rate,
                     vatAmount: lineVat,
