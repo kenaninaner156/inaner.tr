@@ -194,14 +194,10 @@ export default function RouteHistory({
         const isToday = historyDate === todayStr;
         let points = [];
 
-        // Eğer bugün seçiliyse ve MapLayout'tan liveLocations geldiyse:
-        const currentLive = liveLocationsRef.current;
-        if (isToday && currentLive && currentLive.length > 0) {
-          points = currentLive.filter(loc => 
-            (loc.driverId === selectedDriver || loc.deviceId === selectedDriver) &&
-            loc.timestamp && loc.timestamp.startsWith(todayStr)
-          );
-        }
+        // GÜNCELLEME: Canlı konumlar kota tasarrufu için son 8 saatle sınırlı olduğundan,
+        // bugün seçili olsa bile günün tüm rotalarını göstermek için doğrudan Firestore'dan çekiyoruz.
+        // (Eski optimizasyon devredışı bırakıldı, çünkü 8 saatten eski bugünkü rotaları göstermiyordu)
+
 
         // Eğer MapLayout'ta veri yoksa veya bugün değilse mecburen Firebase'den çekeceğiz
         if (points.length === 0) {

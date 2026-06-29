@@ -346,6 +346,26 @@ const EArsiv = () => {
         }
     };
 
+    const handleMarkAsSigned = async (inv) => {
+        const confirmed = await showConfirm(`Bu faturayı (${inv.docId || inv.id}) sistemde "GİB'de İmzalandı" olarak işaretlemek istediğinize emin misiniz?`);
+        if (!confirmed) {
+            return;
+        }
+        try {
+            const invoiceRef = doc(db, 'invoices', inv.id);
+            await updateDoc(invoiceRef, {
+                gibStatus: 'Signed',
+                gibStatusDate: new Date().toISOString()
+            });
+            showToast('success', 'Fatura durumu "GİB\'de İmzalandı" olarak güncellendi.');
+            if (addLog) addLog("Fatura manuel olarak GİB'de İmzalandı işaretlendi: " + (inv.docId || inv.id), "success");
+        } catch (err) {
+            console.error("Fatura imzalandı işaretlenirken hata:", err);
+            showToast('error', 'Durum güncellenirken hata oluştu: ' + err.message);
+        }
+    };
+
+
     const handleForceGibLogout = async () => {
         if (!gibUsername || !gibPassword) {
             setForceLogoutStatus({ type: 'error', message: 'Lütfen önce yukarıdan GİB Kullanıcı Kodu ve Şifrenizi kaydedin.' });
@@ -688,6 +708,7 @@ const EArsiv = () => {
                                 <tbody className="divide-y divide-[var(--border-color)]">
                                     {activeInvoices.map((inv) => {
                                         const isDraftOnGib = inv.gibStatus === 'Draft';
+                                        const isSignedOnGib = inv.gibStatus === 'Signed' || inv.gibStatus === 'Approved';
                                         const isSending = sendingInvoiceId === inv.id;
                                         const invTruck = trucksMap.get(inv.truckId);
                                         const plate = invTruck?.plate || '—';
@@ -716,6 +737,17 @@ const EArsiv = () => {
                                                                 UUID: {inv.gibUuid}
                                                             </span>
                                                         </div>
+                                                    ) : isSignedOnGib ? (
+                                                        <div className="flex flex-col gap-0.5">
+                                                            <span className="inline-flex items-center gap-1 text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium w-fit">
+                                                                <CheckCircle size={12} /> GİB'de İmzalandı {inv.gibTestMode && "(TEST)"}
+                                                            </span>
+                                                            {inv.gibUuid && (
+                                                                <span className="text-[10px] text-slate-500 font-mono select-all">
+                                                                    UUID: {inv.gibUuid}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     ) : (
                                                         <span className="inline-flex items-center text-xs bg-slate-800 border border-slate-700 text-slate-400 px-2 py-0.5 rounded-full font-medium">
                                                             GİB'e Gönderilmedi
@@ -723,42 +755,68 @@ const EArsiv = () => {
                                                     )}
                                                 </td>
                                                 <td className="p-4 text-right">
-                                                    {isDraftOnGib ? (
-                                                        <div className="flex justify-end items-center gap-2">
-                                                            <a
-                                                                href={gibPortalUrl}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="inline-flex items-center gap-1 text-xs font-semibold bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/30 px-3 py-1.5 rounded-lg transition"
-                                                            >
-                                                                Portalda İmzala <ExternalLink size={12} />
-                                                            </a>
-                                                            <button
-                                                                onClick={() => handleResetGibStatus(inv)}
-                                                                title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
-                                                                className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-500/30 rounded-lg transition"
-                                                            >
-                                                                <RefreshCw size={12} />
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => handleOpenSendModal(inv)}
-                                                            disabled={isSending}
-                                                            className="inline-flex items-center gap-1.5 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-50"
-                                                        >
-                                                            {isSending ? (
-                                                                <>
-                                                                    <RefreshCw size={12} className="animate-spin" />
-                                                                    Hazırlanıyor...
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    GİB Taslak Hazırla
-                                                                </>
-                                                            )}
-                                                        </button>
-                                                    )}
+                                                     {isDraftOnGib ? (
+                                                         <div className="flex justify-end items-center gap-2">
+                                                             <a
+                                                                 href={gibPortalUrl}
+                                                                 target="_blank"
+                                                                 rel="noopener noreferrer"
+                                                                 className="inline-flex items-center gap-1 text-xs font-semibold bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/30 px-3 py-1.5 rounded-lg transition"
+                                                             >
+                                                                 Portalda İmzala <ExternalLink size={12} />
+                                                             </a>
+                                                             <button
+                                                                 onClick={() => handleMarkAsSigned(inv)}
+                                                                 title="İmzalandı Olarak İşaretle"
+                                                                 className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-emerald-400 border border-slate-700 hover:border-emerald-500/30 rounded-lg transition"
+                                                             >
+                                                                 <CheckCircle size={12} />
+                                                             </button>
+                                                             <button
+                                                                 onClick={() => handleResetGibStatus(inv)}
+                                                                 title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
+                                                                 className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-500/30 rounded-lg transition"
+                                                             >
+                                                                 <RefreshCw size={12} />
+                                                             </button>
+                                                         </div>
+                                                     ) : isSignedOnGib ? (
+                                                         <div className="flex justify-end items-center gap-2">
+                                                             <button
+                                                                 onClick={() => handleResetGibStatus(inv)}
+                                                                 title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
+                                                                 className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-500/30 rounded-lg transition"
+                                                             >
+                                                                 <RefreshCw size={12} />
+                                                             </button>
+                                                         </div>
+                                                     ) : (
+                                                         <div className="flex justify-end items-center gap-2">
+                                                             <button
+                                                                 onClick={() => handleOpenSendModal(inv)}
+                                                                 disabled={isSending}
+                                                                 className="inline-flex items-center gap-1.5 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                                                             >
+                                                                 {isSending ? (
+                                                                     <>
+                                                                         <RefreshCw size={12} className="animate-spin" />
+                                                                         Hazırlanıyor...
+                                                                     </>
+                                                                 ) : (
+                                                                     <>
+                                                                         GİB Taslak Hazırla
+                                                                     </>
+                                                                 )}
+                                                             </button>
+                                                             <button
+                                                                 onClick={() => handleMarkAsSigned(inv)}
+                                                                 title="İmzalandı Olarak İşaretle"
+                                                                 className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-emerald-400 border border-slate-700 hover:border-emerald-500/30 rounded-lg transition"
+                                                             >
+                                                                 <CheckCircle size={12} />
+                                                             </button>
+                                                         </div>
+                                                     )}
                                                 </td>
                                             </tr>
                                         );

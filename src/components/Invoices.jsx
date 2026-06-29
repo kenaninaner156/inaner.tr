@@ -557,10 +557,7 @@ const Invoices = () => {
                                           description: 'Fatura bilgileri değiştirildi.',
                                         });
                                         setNoteModalInvoice(null);
-                                    } catch (err) {
-                                        console.error("Fatura güncellenirken hata oluştu:", err);
-                                        alert("Kaydedilemedi: " + (err.message || err));
-                                    }
+                                    } catch { /* empty */ }
                                     setIsSavingNote(false);
                                 }}
                                 disabled={isSavingNote}
