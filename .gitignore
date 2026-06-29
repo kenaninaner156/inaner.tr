@@ -28,6 +28,23 @@ dist-ssr
 .env.local
 .env.*
 seed_route.js
+test-gib-portal.js
+test-gib-production.js
+test-real-invoice-draft.js
+test_obj.js
+test.cjs
+test.js
+History_temp
+backup.js
+migrate_users.js
+push_envs.js
+checkCache.mjs
+eslint-report.json
+lint_output.txt
+lint_compact.txt
+lint_results.json
+git_log.txt
+firebase_backup.json
 
 .vercel
 .env*.local

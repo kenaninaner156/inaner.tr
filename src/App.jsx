@@ -35,6 +35,9 @@ function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(window.innerWidth >= 768)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
   const [theme, setTheme] = useState('dark')
+  const [bomPhase, setBomPhase] = useState(null); // null | 'fall' | 'recover'
+  const bomSequence = useRef([]);
+  const BOM_KEYS = ['b', 'o', 'm'];
   
   // Swipe Handlers
   const touchStartX = useRef(null);
@@ -125,6 +128,46 @@ function App() {
       window.removeEventListener('resize', handleResize)
     }
   }, [])
+
+  // BOM Easter Egg: B → O → M sırasıyla basılınca her şey yerçekimiyle düşer
+  useEffect(() => {
+    const handleBomKey = (e) => {
+      const key = e.key.toLowerCase();
+      const expected = BOM_KEYS[bomSequence.current.length];
+      if (key === expected) {
+        bomSequence.current = [...bomSequence.current, key];
+        if (bomSequence.current.length === BOM_KEYS.length) {
+          bomSequence.current = [];
+          setBomPhase('fall');
+          // Emoji patlamaları oluştur
+          const emojis = ['💥', '🔥', '💣', '⚡', '🌪️', '☄️'];
+          for (let i = 0; i < 18; i++) {
+            const el = document.createElement('div');
+            el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+            el.style.cssText = `
+              position: fixed;
+              font-size: ${Math.random() * 40 + 20}px;
+              left: ${Math.random() * 100}vw;
+              top: ${Math.random() * 40 + 10}vh;
+              z-index: 99999;
+              pointer-events: none;
+              animation: bomEmoji ${Math.random() * 1 + 1.5}s ease-in forwards;
+              animation-delay: ${Math.random() * 0.5}s;
+            `;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 3000);
+          }
+          // 1.5s sonra geri dön
+          setTimeout(() => setBomPhase('recover'), 1500);
+          setTimeout(() => setBomPhase(null), 2500);
+        }
+      } else {
+        bomSequence.current = key === BOM_KEYS[0] ? [key] : [];
+      }
+    };
+    window.addEventListener('keydown', handleBomKey);
+    return () => window.removeEventListener('keydown', handleBomKey);
+  }, []);
 
   // Mobilde sidebar açıkken tıklanabilir sayfa alanında kapansın
   const handleOverlayClick = () => {
@@ -325,13 +368,16 @@ function App() {
 
   return (
     <div 
-      className={`min-h-screen font-sans relative overflow-x-clip ${theme === 'light' ? 'light' : ''}`} 
+      className={`min-h-screen font-sans relative overflow-x-clip ${theme === 'light' ? 'light' : ''} ${bomPhase === 'fall' ? 'bom-active' : ''} ${bomPhase === 'recover' ? 'bom-recover' : ''}`} 
       style={{ backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
 
-      {/* Mobil overlay */}
+      {/* 💣 BOM Easter Egg Bildirimi */}
+      {bomPhase === 'fall' && (
+        <div className="bom-notification">💣 B O M !</div>
+      )}
       {isMenuOpen && isMobile && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40" onClick={handleOverlayClick} />
       )}
