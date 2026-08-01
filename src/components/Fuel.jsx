@@ -36,7 +36,8 @@ const Fuel = () => {
         price: '',
         odometer: '',
         notes: '',
-        files: []
+        files: [],
+        isPartial: false
     });
 
     const formatKM = (val) => {
@@ -134,7 +135,8 @@ const Fuel = () => {
             price: '',
             odometer: formatKM(lastOdometerValue),
             notes: '',
-            files: []
+            files: [],
+            isPartial: false
         });
         setIsModalOpen(true);
     };
@@ -148,7 +150,8 @@ const Fuel = () => {
             price: formatDecimal(record.price),
             odometer: formatKM(record.odometer) || '',
             notes: record.notes || '',
-            files: record.files || []
+            files: record.files || [],
+            isPartial: record.isPartial || false
         });
     };
 
@@ -161,7 +164,8 @@ const Fuel = () => {
             price: parseDecimal(formData.price),
             odometer: formData.odometer ? parseFloat(formData.odometer.toString().replace(/\./g, '')) : null,
             notes: formData.notes,
-            files: formData.files
+            files: formData.files,
+            isPartial: formData.isPartial
         });
         // Y1: Yeni yakıt fişi bildirimi
         sendDiscordAlert({
@@ -177,7 +181,7 @@ const Fuel = () => {
         });
         setIsModalOpen(false);
         setShowExtra(false);
-        setFormData({ date: new Date().toISOString().split('T')[0], station: '', liters: '', price: '', odometer: '', notes: '', files: [] });
+        setFormData({ date: new Date().toISOString().split('T')[0], station: '', liters: '', price: '', odometer: '', notes: '', files: [], isPartial: false });
     };
 
     const handleEdit = async () => {
@@ -188,7 +192,8 @@ const Fuel = () => {
             price: parseDecimal(editForm.price),
             odometer: editForm.odometer ? parseFloat(editForm.odometer.toString().replace(/\./g, '')) : null,
             notes: editForm.notes,
-            files: editForm.files
+            files: editForm.files,
+            isPartial: editForm.isPartial
         });
         setEditingFuel(null);
     };
@@ -225,7 +230,7 @@ const Fuel = () => {
         const enriched = chronological.map((record) => {
             const enrichedRecord = { ...record };
             
-            if (record.odometer && record.odometer > 0) {
+            if (record.odometer && record.odometer > 0 && !record.isPartial) {
                 if (lastOdometer && record.odometer > lastOdometer) {
                     const distance = record.odometer - lastOdometer;
                     const totalLitersForDistance = accumulatedLiters + record.liters;
@@ -243,7 +248,7 @@ const Fuel = () => {
                 accumulatedLiters = 0;
                 accumulatedPrice = 0;
             } else {
-                // KM girilmediyse biriktirmeye devam et
+                // KM girilmediyse veya Kısmi Dolum (isPartial) işaretliyse biriktirmeye devam et
                 if (lastOdometer) {
                     accumulatedLiters += record.liters;
                     accumulatedPrice += record.price;
@@ -445,6 +450,11 @@ const Fuel = () => {
                                     </td>
                                     <td className="p-3 text-center">
                                         <div className="text-[var(--text-primary)] font-medium text-sm">{record.liters} Lt</div>
+                                        {record.isPartial && (
+                                            <div className="text-[10px] text-cyan-500 bg-cyan-500/10 inline-block px-1.5 py-0.5 rounded font-bold mt-1 border border-cyan-500/20">
+                                                Kısmi Dolum
+                                            </div>
+                                        )}
                                         {record.consumptionStats && (
                                             <div className="text-[10px] text-emerald-400 bg-emerald-400/10 inline-block px-1.5 py-0.5 rounded font-medium mt-1">
                                                 {record.consumptionStats.ltPer100km.toFixed(1)} L/100km
@@ -533,7 +543,10 @@ const Fuel = () => {
                                     <div className="grid grid-cols-3 gap-2 bg-white/5 rounded-xl p-2.5 items-center mt-3">
                                         <div className="flex flex-col">
                                             <div className="text-[9px] text-slate-500 uppercase font-semibold mb-0.5">LİTRE</div>
-                                            <div className="text-[var(--text-primary)] font-medium text-xs">{record.liters} Lt</div>
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-[var(--text-primary)] font-medium text-xs">{record.liters} Lt</span>
+                                                {record.isPartial && <span className="text-[8px] bg-cyan-500/10 text-cyan-500 px-1 py-0.5 rounded font-bold border border-cyan-500/20">KISMİ</span>}
+                                            </div>
                                         </div>
                                         <div className="flex flex-col border-l border-white/10 pl-2">
                                             <div className="text-[9px] text-slate-500 uppercase font-semibold mb-0.5">BİRİM</div>
@@ -691,6 +704,25 @@ const Fuel = () => {
                             </div>
                             {editShowExtra && (
                                 <div className="space-y-4 pt-2 border-t border-white/5 animate-in slide-in-from-top-4 duration-300">
+                                    <div className="mb-4">
+                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Dolum Durumu</label>
+                                        <div className="grid grid-cols-2 gap-2 p-1 bg-black/40 rounded-xl border border-white/5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditForm({ ...editForm, isPartial: false })}
+                                                className={`py-2 rounded-lg text-xs font-bold transition-all ${!editForm.isPartial ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/30' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                                            >
+                                                Depo Fullendi
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditForm({ ...editForm, isPartial: true })}
+                                                className={`py-2 rounded-lg text-xs font-bold transition-all ${editForm.isPartial ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                                            >
+                                                Kısmi Dolum
+                                            </button>
+                                        </div>
+                                    </div>
                                     <div>
                                         <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">📝 Not (İsteğe Bağlı)</label>
                                         <textarea
@@ -843,6 +875,25 @@ const Fuel = () => {
 
                             {showExtra && (
                                 <div className="space-y-4 pt-4 border-t border-white/5 animate-in slide-in-from-top-4 duration-500">
+                                    <div className="mb-4">
+                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Dolum Durumu</label>
+                                        <div className="grid grid-cols-2 gap-2 p-1 bg-black/40 rounded-xl border border-white/5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, isPartial: false })}
+                                                className={`py-2 rounded-lg text-xs font-bold transition-all ${!formData.isPartial ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/30' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                                            >
+                                                Depo Fullendi
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, isPartial: true })}
+                                                className={`py-2 rounded-lg text-xs font-bold transition-all ${formData.isPartial ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                                            >
+                                                Kısmi Dolum
+                                            </button>
+                                        </div>
+                                    </div>
                                     <div>
                                         <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">📝 Not (İsteğe Bağlı)</label>
                                         <textarea

@@ -197,7 +197,7 @@ const Login = () => {
                 });
             }
 
-            await loginSession({ username: uname, role: userRole, companyId: companyId, ip, device, location, rawDevice, ...advancedMeta });
+            await loginSession({ uid, username: uname, role: userRole, companyId: companyId, ip, device, location, rawDevice, ...advancedMeta });
             window.location.href = '/';
             return;
 
@@ -263,6 +263,7 @@ const Login = () => {
                 localStorage.setItem('tir_active_tab', 'dashboard');
 
                 await loginSession({
+                    uid,
                     username: uname,
                     role: userData.role || 'user',
                     companyId: userData.companyId,

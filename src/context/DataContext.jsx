@@ -56,6 +56,7 @@ export const DataProvider = ({ children }) => {
     const [currentSession, setCurrentSession] = useState(() => {
         const token = localStorage.getItem('tir_auth_kenan_v1');
         const user = localStorage.getItem('tir_current_user');
+        const uid = localStorage.getItem('tir_current_uid');
         const role = localStorage.getItem('tir_current_role') || 'user';
         const ip = localStorage.getItem('tir_current_ip') || 'Bilinmiyor';
         const device = localStorage.getItem('tir_current_device') || 'PC';
@@ -77,12 +78,13 @@ export const DataProvider = ({ children }) => {
             if (!sessionStart) localStorage.setItem('tir_session_start', new Date().toISOString());
         }
 
-        if (token && user) return { username: user, role, ip, device, location, rawDevice, screen, cores, tz, lang, isKnownDevice, vpnRisk, incognitoRisk, presenceId, sessionStart: sessionStart || new Date().toISOString() };
+        if (token && user) return { username: user, uid, role, ip, device, location, rawDevice, screen, cores, tz, lang, isKnownDevice, vpnRisk, incognitoRisk, presenceId, sessionStart: sessionStart || new Date().toISOString() };
         return null;
     });
 
     const loginSession = async (user) => {
         localStorage.setItem('tir_current_user', user.username);
+        if (user.uid) localStorage.setItem('tir_current_uid', user.uid);
         localStorage.setItem('tir_current_role', user.role || 'user');
         if (user.ip) localStorage.setItem('tir_current_ip', user.ip);
         if (user.device) localStorage.setItem('tir_current_device', user.device);
@@ -106,7 +108,7 @@ export const DataProvider = ({ children }) => {
         const newSessionStart = new Date().toISOString();
         localStorage.setItem('tir_presence_id', newPresenceId);
         localStorage.setItem('tir_session_start', newSessionStart);
-        setCurrentSession({ username: user.username, role: user.role || 'user', ip: user.ip, device: user.device, location: user.location, rawDevice: user.rawDevice, screen: user.screen, cores: user.cores, tz: user.tz, lang: user.lang, isKnownDevice: user.isKnownDevice, vpnRisk: user.vpnRisk, incognitoRisk: user.incognitoRisk, presenceId: newPresenceId, sessionStart: newSessionStart });
+        setCurrentSession({ username: user.username, uid: user.uid, role: user.role || 'user', ip: user.ip, device: user.device, location: user.location, rawDevice: user.rawDevice, screen: user.screen, cores: user.cores, tz: user.tz, lang: user.lang, isKnownDevice: user.isKnownDevice, vpnRisk: user.vpnRisk, incognitoRisk: user.incognitoRisk, presenceId: newPresenceId, sessionStart: newSessionStart });
 
         const userKey = user.username === 'kenan' ? 'admin' : user.username;
         await addLog('KULLANICI_GIRIS', `${userKey} sisteme giriş yaptı`, { ip: user.ip || 'Bilinmiyor', device: user.device || 'Bilinmiyor', location: user.location || 'Bilinmiyor', rawDevice: user.rawDevice || 'Bilinmiyor' }, userKey);
@@ -122,6 +124,7 @@ export const DataProvider = ({ children }) => {
         // Hemen state ve localStorage temizliği yaparak anında UI geçişini sağla (bekleme/animasyon sarkmasını önler)
         localStorage.removeItem('tir_auth_kenan_v1');
         localStorage.removeItem('tir_current_user');
+        localStorage.removeItem('tir_current_uid');
         localStorage.removeItem('tir_current_role');
         localStorage.removeItem('tir_current_ip');
         localStorage.removeItem('tir_current_device');
@@ -1166,7 +1169,7 @@ export const DataProvider = ({ children }) => {
             routes, addRoute, deleteRoute, updateRoutePrice,
             savedTrackingRoutes, addSavedTrackingRoute, deleteSavedTrackingRoute, updateSavedTrackingRoute,
             adminLog, addLog, clearLog, restoreData,
-            currentSession, loginSession, logoutSession,
+            currentSession, loginSession, logoutSession, callAdminApi,
             pendingUsers, approvedUsers, registerUser, approveUser, rejectUser, editUser, refreshUsers, addApprovedUser, deleteUser,
             drivers, allDrivers, updateDrivers,
             docs, updateDocs, deleteDocField,

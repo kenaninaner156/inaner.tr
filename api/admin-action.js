@@ -268,6 +268,123 @@ export default async function handler(req, res) {
                 return res.status(200).json({ success: true });
             }
 
+            case 'sendPushNotification': {
+                // Bildirim Gönderme Eylemi (Yalnızca Super Admin veya ilgili Şirketin Yöneticisi)
+                const { targetUid, allCompany, title, body } = payload;
+                
+                if (!title || !body) {
+                    return res.status(400).json({ error: 'Eksik parametreler: title ve body zorunludur.' });
+                }
+
+                let tokens = [];
+
+                if (allCompany) {
+                    // Şirketteki tüm onaylı kullanıcıların FCM tokenlarını çek
+                    const targetCompanyId = callerCompanyId || payload.companyId;
+                    if (!targetCompanyId) {
+                        return res.status(400).json({ error: 'Hata: Şirket kimliği bulunamadı.' });
+                    }
+
+                    const usersSnapshot = await db.collection('approved_users')
+                        .where('companyId', '==', targetCompanyId)
+                        .get();
+                    
+                    usersSnapshot.forEach(doc => {
+                        const userData = doc.data();
+                        if (userData.fcmTokens && Array.isArray(userData.fcmTokens)) {
+                            tokens.push(...userData.fcmTokens);
+                        }
+                    });
+                } else if (targetUid) {
+                    // Belirli bir kullanıcının tokenlarını çek
+                    const userDoc = await db.collection('approved_users').doc(targetUid).get();
+                    if (userDoc.exists) {
+                        const userData = userDoc.data();
+                        
+                        // Yetki Denetimi: Şirket yöneticisi sadece kendi şirketindeki birine gönderebilir
+                        if (callerRole !== 'super_admin' && userData.companyId !== callerCompanyId) {
+                            return res.status(403).json({ error: 'Bu kullanıcıya bildirim göndermek için yetkiniz yok.' });
+                        }
+
+                        if (userData.fcmTokens && Array.isArray(userData.fcmTokens)) {
+                            tokens.push(...userData.fcmTokens);
+                        }
+                    } else {
+                        return res.status(404).json({ error: 'Hedef kullanıcı bulunamadı.' });
+                    }
+                } else {
+                    return res.status(400).json({ error: 'Hatalı parametreler: targetUid veya allCompany belirtilmelidir.' });
+                }
+
+                // Benzersiz tokenlar
+                tokens = [...new Set(tokens)].filter(t => !!t);
+
+                if (tokens.length === 0) {
+                    return res.status(200).json({ success: true, message: 'Gönderilecek aktif cihaz tokenı bulunamadı.', sentCount: 0 });
+                }
+
+                // Firebase Cloud Messaging üzerinden multicast gönderim
+                try {
+                    const message = {
+                        notification: {
+                            title,
+                            body
+                        },
+                        webpush: {
+                            headers: {
+                                Urgency: "high"
+                            },
+                            notification: {
+                                title,
+                                body,
+                                icon: '/tir-clear.png',
+                                badge: '/tir-clear.png'
+                            }
+                        },
+                        tokens: tokens
+                    };
+
+                    const response = await admin.messaging().sendEachForMulticast(message);
+                    
+                    // Geçersiz/hatalı tokenları temizleme
+                    const invalidTokens = [];
+                    response.responses.forEach((resp, idx) => {
+                        if (!resp.success) {
+                            const errorCode = resp.error?.code;
+                            if (errorCode === 'messaging/invalid-registration-token' || errorCode === 'messaging/registration-token-not-registered') {
+                                invalidTokens.push(tokens[idx]);
+                            }
+                        }
+                    });
+
+                    if (invalidTokens.length > 0) {
+                        // Veritabanından eski/geçersiz tokenları sil
+                        const batch = db.batch();
+                        const usersSnapshot = await db.collection('approved_users').get();
+                        usersSnapshot.forEach(doc => {
+                            const data = doc.data();
+                            if (data.fcmTokens && Array.isArray(data.fcmTokens)) {
+                                const newTokens = data.fcmTokens.filter(t => !invalidTokens.includes(t));
+                                if (newTokens.length !== data.fcmTokens.length) {
+                                    batch.update(doc.ref, { fcmTokens: newTokens });
+                                }
+                            }
+                        });
+                        await batch.commit();
+                    }
+
+                    return res.status(200).json({ 
+                        success: true, 
+                        successCount: response.successCount, 
+                        failureCount: response.failureCount,
+                        sentCount: tokens.length
+                    });
+                } catch (messagingError) {
+                    console.error('FCM Multicast gönderim hatası:', messagingError);
+                    return res.status(500).json({ error: 'Bildirim gönderilirken bir hata oluştu.', details: messagingError.message });
+                }
+            }
+
             default:
                 return res.status(400).json({ error: `Geçersiz eylem: ${action}` });
         }

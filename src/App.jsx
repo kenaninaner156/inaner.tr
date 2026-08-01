@@ -25,6 +25,9 @@ import MapPage from './components/MapPage'
 import Personnel from './components/Personnel'
 import EArsiv from './components/EArsiv'
 import { sendDiscordAlert } from './services/discordWebhook'
+import { db, messaging } from './services/firebaseConfig'
+import { getToken, onMessage } from 'firebase/messaging'
+import { doc, updateDoc, arrayUnion } from 'firebase/firestore'
 
 function App() {
   const [activeTab, setActiveTab] = useState(() => {
@@ -128,6 +131,52 @@ function App() {
       window.removeEventListener('resize', handleResize)
     }
   }, [])
+
+  // PWA Bildirim Kaydı ve İzin Yönetimi
+  useEffect(() => {
+    if (!currentUser || !currentUser.uid || !messaging) return;
+
+    const registerNotification = async () => {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          const token = await getToken(messaging, {
+            vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY
+          });
+          if (token) {
+            console.log('FCM Token alındı:', token);
+            // Kullanıcının approved_users belgesine fcmTokens dizisi olarak ekle
+            const userRef = doc(db, 'approved_users', currentUser.uid);
+            await updateDoc(userRef, {
+              fcmTokens: arrayUnion(token)
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Bildirim izin/token kaydı sırasında hata:', err);
+      }
+    };
+
+    if (Notification.permission === 'granted') {
+      registerNotification();
+    } else if (Notification.permission === 'default') {
+      // Girişten 5 saniye sonra izin isteyelim
+      const timer = setTimeout(() => {
+        registerNotification();
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentUser]);
+
+  // Ön Plan Bildirim Dinleyicisi
+  useEffect(() => {
+    if (!messaging) return;
+    const unsubscribe = onMessage(messaging, (payload) => {
+      console.log('Ön planda yeni bildirim alındı:', payload);
+      alert(`${payload.notification?.title || 'Yeni Bildirim'}\n\n${payload.notification?.body || ''}`);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // BOM Easter Egg: B → O → M sırasıyla basılınca her şey yerçekimiyle düşer
   useEffect(() => {

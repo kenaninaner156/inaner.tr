@@ -10,7 +10,8 @@ import {
     CartesianGrid,
     Tooltip,
     ResponsiveContainer,
-    Cell
+    Cell,
+    Rectangle
 } from 'recharts';
 
 // Haftanın numarası ve yılı hesaplayan yardımcı fonksiyon
@@ -188,17 +189,19 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
     };
 
     const CustomActiveBar = (props) => {
-        const { x, y, width, height, fill } = props;
+        const { x, y, width, height, payload } = props;
+        const isPositive = payload && payload.Kar >= 0;
+        const fill = isPositive ? 'url(#karGrad)' : 'url(#zararGrad)';
+        
         return (
-            <rect 
+            <Rectangle 
                 x={x} 
                 y={y} 
                 width={width} 
                 height={height} 
                 fill={fill}
-                rx={4} 
-                ry={4} 
-                style={{ filter: 'brightness(1.2) contrast(1.1)' }}
+                fillOpacity={0.7}
+                radius={[4, 4, 4, 4]} 
             />
         );
     };

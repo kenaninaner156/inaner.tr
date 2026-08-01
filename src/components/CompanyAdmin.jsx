@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
 import { DataContext } from '../context/DataContext';
-import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key, BarChart3, Award, User } from 'lucide-react';
+import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key, BarChart3, Award, User, Bell, Send } from 'lucide-react';
 import { db } from '../services/firebaseConfig';
 import { collection, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import VehicleAnalysis from './map/VehicleAnalysis';
@@ -10,9 +10,16 @@ import VehicleAnalysis from './map/VehicleAnalysis';
 const CompanyAdmin = () => {
     const { activeCompanyId, companyData } = useCompany();
     const { trucks, activeTruckId, setActiveTruckId } = useTruck();
-    const { approvedUsers, pendingUsers, approveUser, rejectUser, premiums, updatePremiums, editUser, deleteUser, drivers, updateDrivers } = useContext(DataContext);
+    const { approvedUsers, pendingUsers, approveUser, rejectUser, premiums, updatePremiums, editUser, deleteUser, drivers, updateDrivers, callAdminApi } = useContext(DataContext);
 
     const [activeTab, setActiveTab] = useState('trucks');
+
+    // Bildirim sekmesi durumları
+    const [notifTitle, setNotifTitle] = useState('İnaner Lojistik Duyuru');
+    const [notifBody, setNotifBody] = useState('');
+    const [notifRecipient, setNotifRecipient] = useState('all'); // 'all' veya kullanıcı id'si
+    const [notifSending, setNotifSending] = useState(false);
+    const [notifResult, setNotifResult] = useState(null);
 
     // Yeni: Kullanıcı Silme Onay Modalı
     const [userToDelete, setUserToDelete] = useState(null);
@@ -227,6 +234,12 @@ const CompanyAdmin = () => {
                         <div className="flex items-center"><Award size={16} className="mr-2" /> Prim Ayarları</div>
                     </button>
                 )}
+                <button
+                    onClick={() => setActiveTab('notifications')}
+                    className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'notifications' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                >
+                    <div className="flex items-center"><Bell size={16} className="mr-2" /> Bildirim Gönder</div>
+                </button>
             </div>
 
             {/* Trucks Tab */}
@@ -559,6 +572,123 @@ const CompanyAdmin = () => {
                             </div>
                         )}
                     </div>
+                </div>
+            )}
+
+            {/* Notifications Tab */}
+            {activeTab === 'notifications' && (
+                <div className="glass-panel p-6 border border-[var(--border-color)] space-y-6 animate-in fade-in duration-300">
+                    <div className="flex items-center space-x-3 border-b border-[var(--border-color)] pb-3">
+                        <Bell className="text-indigo-400 animate-pulse" size={22} />
+                        <h4 className="text-lg font-bold text-[var(--text-primary)]">Manuel Anlık Bildirim Gönder</h4>
+                    </div>
+
+                    <p className="text-[var(--text-secondary)] text-sm leading-relaxed">
+                        Şirketinizdeki şoförlerin veya diğer personellerin telefonlarına anlık bildirim gönderebilirsiniz. Bildirimin ulaşabilmesi için ilgili kullanıcının uygulamanın bildirim iznini onaylamış olması ve uygulamanın cihazına yüklü (ana ekrana eklenmiş) olması gerekir.
+                    </p>
+
+                    <form onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!notifBody.trim()) return;
+                        setNotifSending(true);
+                        setNotifResult(null);
+
+                        try {
+                            const isAll = notifRecipient === 'all';
+                            const res = await callAdminApi('sendPushNotification', {
+                                allCompany: isAll,
+                                targetUid: isAll ? null : notifRecipient,
+                                title: notifTitle.trim(),
+                                body: notifBody.trim(),
+                                companyId: activeCompanyId
+                            });
+
+                            if (res.success) {
+                                setNotifResult({
+                                    success: true,
+                                    message: `Bildirim başarıyla gönderildi! Toplam ${res.sentCount || 0} cihaza ulaştırıldı.`
+                                });
+                                setNotifBody(''); // Başarılı gönderimden sonra mesajı temizle
+                            } else {
+                                setNotifResult({
+                                    error: res.message || 'Bildirim gönderildi fakat alıcı cihaz bulunamadı.'
+                                });
+                            }
+                        } catch (err) {
+                            setNotifResult({ error: err.message || 'Bildirim gönderilirken sunucu hatası oluştu.' });
+                        } finally {
+                            setNotifSending(false);
+                        }
+                    }} className="space-y-4 max-w-xl">
+                        {notifResult && (
+                            <div className={`p-4 rounded-xl border text-sm ${notifResult.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                                {notifResult.success ? notifResult.message : notifResult.error}
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Alıcı Seçimi</label>
+                            <select
+                                value={notifRecipient}
+                                onChange={(e) => setNotifRecipient(e.target.value)}
+                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none"
+                            >
+                                <option value="all">Tüm Şirket Çalışanları & Şoförler</option>
+                                {approvedUsers
+                                    .filter(u => u.companyId === activeCompanyId)
+                                    .map(u => (
+                                        <option key={u.id} value={u.id}>
+                                            {u.username} ({u.role})
+                                        </option>
+                                    ))
+                                }
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Bildirim Başlığı</label>
+                            <input
+                                type="text"
+                                required
+                                value={notifTitle}
+                                onChange={(e) => setNotifTitle(e.target.value)}
+                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none"
+                                placeholder="Örn: İnaner Lojistik Duyuru"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Bildirim Mesajı</label>
+                            <textarea
+                                required
+                                rows={4}
+                                value={notifBody}
+                                onChange={(e) => setNotifBody(e.target.value)}
+                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none resize-none"
+                                placeholder="İletmek istediğiniz mesajı buraya yazın..."
+                            />
+                        </div>
+
+                        <div className="pt-2">
+                            <button
+                                type="submit"
+                                disabled={notifSending || !notifBody.trim()}
+                                className="bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 disabled:cursor-not-allowed text-[var(--text-primary)] px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center transition-colors shadow-lg shadow-indigo-500/20"
+                            >
+                                {notifSending ? (
+                                    <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-[var(--text-primary)] border-t-transparent mr-2" />
+                                        Gönderiliyor...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Send size={16} className="mr-2" />
+                                        Bildirimi Gönder
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </form>
                 </div>
             )}
 
