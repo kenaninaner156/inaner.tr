@@ -149,7 +149,7 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
     return (
         <div className="relative w-full">
             <div className={`relative flex items-center ${className} p-0 overflow-hidden cursor-text`}>
-                <div className="flex-1 flex items-center gap-1 px-3 py-2">
+                <div className="flex-1 flex items-center justify-center gap-1 px-1 sm:px-2 py-2">
                     <input
                         ref={dayRef}
                         type="text"
@@ -157,7 +157,7 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                         onChange={handleDayChange}
                         onBlur={handleDayBlur}
                         placeholder="GG"
-                        className="w-7 text-center bg-transparent outline-none text-[var(--text-primary)] placeholder:text-slate-500 font-medium"
+                        className="w-6 text-center bg-transparent outline-none text-[var(--text-primary)] placeholder:text-slate-500 font-medium"
                     />
                     <span className="text-slate-500">/</span>
                     <input
@@ -168,7 +168,7 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                         onKeyDown={handleMonthKeyDown}
                         onBlur={handleMonthBlur}
                         placeholder="AA"
-                        className="w-7 text-center bg-transparent outline-none text-[var(--text-primary)] placeholder:text-slate-500 font-medium"
+                        className="w-6 text-center bg-transparent outline-none text-[var(--text-primary)] placeholder:text-slate-500 font-medium"
                     />
                     <span className="text-slate-500">/</span>
                     <input
@@ -178,13 +178,13 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                         onChange={handleYearChange}
                         onKeyDown={handleYearKeyDown}
                         placeholder="YYYY"
-                        className="w-12 text-center bg-transparent outline-none text-[var(--text-primary)] placeholder:text-slate-500 font-medium"
+                        className="w-10 text-center bg-transparent outline-none text-[var(--text-primary)] placeholder:text-slate-500 font-medium"
                     />
                 </div>
                 <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); toggleOpen(); }}
-                    className="px-3 py-2 hover:bg-white/10 transition-colors border-l border-white/5"
+                    className="shrink-0 px-2 py-2 hover:bg-white/10 transition-colors border-l border-white/5 flex items-center justify-center"
                 >
                     <Calendar size={16} className="text-slate-400" />
                 </button>
