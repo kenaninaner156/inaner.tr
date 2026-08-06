@@ -8,6 +8,8 @@ import { doc, getDoc, setDoc, onSnapshot, updateDoc, deleteField } from 'firebas
 import { db } from '../services/firebaseConfig';
 import { FileText, Save, Key, RefreshCw, CheckCircle, AlertTriangle, ExternalLink, HelpCircle, X, Send, BookOpen, Settings } from 'lucide-react';
 
+import CustomDatePicker from './CustomDatePicker';
+
 const TEVKIFAT_CODES = [
     { code: '624', rate: 20, label: '624 - Yük Taşımacılığı Hizmeti (2/10 - %20)' },
     { code: '620', rate: 50, label: '620 - Servis Taşımacılığı Hizmeti (5/10 - %50)' },
@@ -1291,13 +1293,11 @@ const EArsiv = () => {
                                             <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
                                                 Fatura Tarihi
                                             </label>
-                                            <input
-                                                type="date"
-                                                required
+                                            <CustomDatePicker
                                                 value={invoiceDate}
-                                                onChange={(e) => setInvoiceDate(e.target.value)}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs focus:border-orange-500 outline-none uppercase"
-                                                style={{ colorScheme: 'dark' }}
+                                                onChange={setInvoiceDate}
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg text-xs focus:border-orange-500 outline-none uppercase"
+                                                placeholder="Tarih Seçin"
                                             />
                                         </div>
                                         <div>
