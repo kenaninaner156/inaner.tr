@@ -958,14 +958,14 @@ const EArsiv = () => {
                                                                  <button
                                                                      onClick={() => handleDownloadPdf(inv)}
                                                                      disabled={isDownloadingPdf === inv.id}
-                                                                     className="inline-flex items-center gap-1.5 text-xs font-semibold bg-sky-500 hover:bg-sky-600 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                                                                     title="Faturayı Görüntüle / Yazdır"
+                                                                     className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-sky-400 border border-slate-700 hover:border-sky-500/30 rounded-lg transition disabled:opacity-50"
                                                                  >
                                                                      {isDownloadingPdf === inv.id ? (
                                                                          <RefreshCw size={12} className="animate-spin" />
                                                                      ) : (
                                                                          <Download size={12} />
                                                                      )}
-                                                                     Görüntüle / Yazdır
                                                                  </button>
                                                              )}
                                                              <button
