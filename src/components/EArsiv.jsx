@@ -6,7 +6,7 @@ import { useTruck } from '../context/TruckContext';
 import { auth } from '../services/firebaseConfig';
 import { doc, getDoc, setDoc, onSnapshot, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
-import { FileText, Save, Key, RefreshCw, CheckCircle, AlertTriangle, ExternalLink, HelpCircle, X, Send, BookOpen, Settings } from 'lucide-react';
+import { FileText, Save, Key, RefreshCw, CheckCircle, AlertTriangle, ExternalLink, HelpCircle, X, Send, BookOpen, Settings, Smartphone, Download } from 'lucide-react';
 
 import CustomDatePicker from './CustomDatePicker';
 
@@ -88,6 +88,15 @@ const EArsiv = () => {
     // --- Custom Toast & Confirm Dialog ---
     const [toast, setToast] = useState(null); // { type: 'success'|'error'|'warning'|'info', message }
     const [confirmDialog, setConfirmDialog] = useState(null); // { message, onConfirm }
+
+    // SMS Onay ve PDF İndirme State'leri
+    const [smsModalOpen, setSmsModalOpen] = useState(false);
+    const [smsCode, setSmsCode] = useState('');
+    const [smsOid, setSmsOid] = useState('');
+    const [smsPhone, setSmsPhone] = useState('');
+    const [smsTargetInvoice, setSmsTargetInvoice] = useState(null);
+    const [isApprovingSms, setIsApprovingSms] = useState(false);
+    const [isDownloadingPdf, setIsDownloadingPdf] = useState(null); // invoiceId tutar
 
     const showToast = (type, message, duration = 5000) => {
         setToast({ type, message });
@@ -425,6 +434,113 @@ const EArsiv = () => {
             if (addLog) addLog("GİB Oturumu kapatılamadı: " + err.message, "error");
         } finally {
             setIsForceLoggingOut(false);
+        }
+    };
+
+    // --- GİB SMS ONAY VE PDF İNDİRME İŞLEMLERİ ---
+    const handleApproveSmsInit = async (invoice) => {
+        setIsApprovingSms(invoice.id);
+        setSmsTargetInvoice(invoice);
+        
+        try {
+            const token = await auth.currentUser.getIdToken();
+            const res = await fetch('/api/send-gib-sms', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            const data = await res.json();
+            
+            if (!res.ok) {
+                throw new Error(data.error || 'SMS gönderilemedi.');
+            }
+            
+            if (data.success && data.smsResult) {
+                setSmsOid(data.smsResult.oid || '');
+                setSmsPhone(data.smsResult.phone || ''); 
+                setSmsCode('');
+                setSmsModalOpen(true);
+            }
+        } catch (err) {
+            showToast('error', err.message);
+        } finally {
+            setIsApprovingSms(false);
+        }
+    };
+
+    const handleApproveSmsSubmit = async (e) => {
+        e.preventDefault();
+        if (!smsCode || smsCode.length < 6) {
+            showToast('error', 'Lütfen 6 haneli kodu eksiksiz girin.');
+            return;
+        }
+
+        setIsApprovingSms('submitting');
+        
+        try {
+            const token = await auth.currentUser.getIdToken();
+            const res = await fetch('/api/sign-gib-invoice', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    invoiceId: smsTargetInvoice.id,
+                    code: smsCode,
+                    oid: smsOid
+                })
+            });
+            
+            const data = await res.json();
+            
+            if (!res.ok) {
+                throw new Error(data.error || 'Fatura imzalanamadı.');
+            }
+            
+            showToast('success', 'Fatura başarıyla imzalandı!');
+            setSmsModalOpen(false);
+            setSmsCode('');
+        } catch (err) {
+            showToast('error', err.message);
+        } finally {
+            setIsApprovingSms(false);
+        }
+    };
+
+    const handleDownloadPdf = async (invoice) => {
+        setIsDownloadingPdf(invoice.id);
+        
+        try {
+            const token = await auth.currentUser.getIdToken();
+            const res = await fetch(`/api/download-gib-pdf?invoiceId=${invoice.id}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || 'PDF indirilemedi.');
+            }
+            
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Fatura_${invoice.gibUuid || invoice.id}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+            
+            showToast('success', 'PDF başarıyla indirildi!');
+        } catch (err) {
+            showToast('error', err.message);
+        } finally {
+            setIsDownloadingPdf(null);
         }
     };
 
@@ -801,13 +917,25 @@ const EArsiv = () => {
                                                 <td className="p-4 text-right">
                                                      {isDraftOnGib ? (
                                                          <div className="flex justify-end items-center gap-2">
+                                                             <button
+                                                                 onClick={() => handleApproveSmsInit(inv)}
+                                                                 disabled={isApprovingSms === inv.id}
+                                                                 className="inline-flex items-center gap-1.5 text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                                                             >
+                                                                 {isApprovingSms === inv.id ? (
+                                                                     <RefreshCw size={12} className="animate-spin" />
+                                                                 ) : (
+                                                                     <Smartphone size={12} />
+                                                                 )}
+                                                                 Sistemde Onayla
+                                                             </button>
                                                              <a
                                                                  href={gibPortalUrl}
                                                                  target="_blank"
                                                                  rel="noopener noreferrer"
                                                                  className="inline-flex items-center gap-1 text-xs font-semibold bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/30 px-3 py-1.5 rounded-lg transition"
                                                              >
-                                                                 Portalda İmzala <ExternalLink size={12} />
+                                                                 Portalda Onayla <ExternalLink size={12} />
                                                              </a>
                                                              <button
                                                                  onClick={() => handleMarkAsSigned(inv)}
@@ -826,6 +954,18 @@ const EArsiv = () => {
                                                          </div>
                                                      ) : isSignedOnGib ? (
                                                          <div className="flex justify-end items-center gap-2">
+                                                             <button
+                                                                 onClick={() => handleDownloadPdf(inv)}
+                                                                 disabled={isDownloadingPdf === inv.id}
+                                                                 className="inline-flex items-center gap-1.5 text-xs font-semibold bg-sky-500 hover:bg-sky-600 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                                                             >
+                                                                 {isDownloadingPdf === inv.id ? (
+                                                                     <RefreshCw size={12} className="animate-spin" />
+                                                                 ) : (
+                                                                     <Download size={12} />
+                                                                 )}
+                                                                 PDF İndir
+                                                             </button>
                                                              <button
                                                                  onClick={() => handleResetGibStatus(inv)}
                                                                  title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
@@ -1261,6 +1401,52 @@ const EArsiv = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {smsModalOpen && smsTargetInvoice && createPortal(
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#0b1120] border border-emerald-500/30 rounded-2xl shadow-2xl p-6 w-full max-w-md animate-in zoom-in-95 duration-200">
+                        <h3 className="text-lg font-bold text-emerald-400 mb-2 flex items-center gap-2">
+                            <Smartphone size={20} />
+                            SMS Onayı
+                        </h3>
+                        <p className="text-sm text-[var(--text-secondary)] mb-6">
+                            GİB sistemine kayıtlı {smsPhone ? <strong>{smsPhone}</strong> : "ilgili"} numaralı telefona gönderilen 6 haneli doğrulama kodunu giriniz.
+                        </p>
+                        
+                        <form onSubmit={handleApproveSmsSubmit}>
+                            <div className="mb-6">
+                                <input
+                                    type="text"
+                                    maxLength={6}
+                                    value={smsCode}
+                                    onChange={(e) => setSmsCode(e.target.value.replace(/\D/g, ''))}
+                                    placeholder="000000"
+                                    className="w-full text-center tracking-[0.5em] font-mono text-2xl bg-slate-900 border border-slate-700 text-white rounded-xl px-4 py-3 focus:border-emerald-500 outline-none"
+                                />
+                            </div>
+                            
+                            <div className="flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => { setSmsModalOpen(false); setSmsCode(''); }}
+                                    className="flex-1 px-4 py-2 text-sm font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition"
+                                >
+                                    İptal
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isApprovingSms === 'submitting' || smsCode.length < 6}
+                                    className="flex-1 px-4 py-2 text-sm font-semibold text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
+                                >
+                                    {isApprovingSms === 'submitting' && <RefreshCw size={14} className="animate-spin" />}
+                                    Onayla
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>,
+                document.body
             )}
 
             {/* SENDING MODAL OVERLAY */}

@@ -1,0 +1,104 @@
+import { db, adminAuth } from '../src/services/firebaseAdmin.js';
+import eFatura from 'e-fatura';
+
+export default async function handler(req, res) {
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const token = authHeader.split('Bearer ')[1];
+
+    let decodedToken;
+    try {
+        decodedToken = await adminAuth.verifyIdToken(token);
+    } catch (err) {
+        return res.status(401).json({ error: 'Gecersiz veya suresi dolmus ID Token.', details: err.message });
+    }
+
+    const callerUid = decodedToken.uid;
+
+    let callerCompanyId = null;
+    try {
+        const callerDoc = await db.collection('approved_users').doc(callerUid).get();
+        if (callerDoc.exists) {
+            const data = callerDoc.data();
+            callerCompanyId = data.companyId || null;
+        } else {
+            return res.status(403).json({ error: 'Kullanici kaydiniz onayli kullanicilar arasinda bulunamadi.' });
+        }
+    } catch (err) {
+        return res.status(500).json({ error: 'Kullanici yetkisi kontrol edilirken hata olustu.', details: err.message });
+    }
+
+    if (!callerCompanyId) {
+        return res.status(403).json({ error: 'Bagli oldugunuz bir sirket bulunamadi. Islem yapilamaz.' });
+    }
+
+    let api = null;
+    try {
+        const companyDoc = await db.collection('companies').doc(callerCompanyId).get();
+        if (!companyDoc.exists) {
+            return res.status(404).json({ error: 'Sirket bilgileri bulunamadi.' });
+        }
+
+        const companyData = companyDoc.data();
+        const gibUsername = companyData.gibUsername;
+        const gibPassword = companyData.gibPassword;
+        const gibTestMode = companyData.gibTestMode || false;
+
+        if (!gibUsername || !gibPassword) {
+            return res.status(400).json({ error: 'Sirketinizin GIB portal bilgileri (Kullanici Adi / Sifre) eksik.' });
+        }
+
+        api = new eFatura.EInvoiceApi();
+        
+        // Patch fetch for Node 18+ to IPv4
+        const originalSendRequest = api.sendRequest;
+        api.sendRequest = async function(url, params, config) {
+            if (!config) config = {};
+            if (!config.dispatcher) {
+                config.dispatcher = new (require('undici').Agent)({ connect: { family: 4 } });
+            }
+            return originalSendRequest.call(this, url, params, config);
+        };
+
+        api.setCredentials({ username: gibUsername, password: gibPassword });
+        api.setTestMode(gibTestMode);
+        
+        await api.initAccessToken();
+
+        const smsResult = await api.sendSMSCode();
+
+        try {
+            await api.logout();
+        } catch (logoutErr) {}
+
+        return res.status(200).json({ success: true, smsResult });
+    } catch (err) {
+        console.error("GIB SMS hatasi:", err);
+        if (api) {
+            try { await api.logout(); } catch (e) {}
+        }
+        
+        let errorMessage = err.message || 'GIB SMS gonderimi sirasinda hata olustu.';
+        if (err.response && err.response.data) {
+            const data = err.response.data;
+            const messages = data.messages || [];
+            const hasMultipleLoginMsg = messages.some(msg => {
+                const text = typeof msg === 'string' ? msg : (msg && msg.msg) || '';
+                return text.includes('Farklı bir bilgisayardan veya tarayıcıdan sisteme giriş') || 
+                       text.includes('oturumu kapatilacaktir');
+            });
+            if (hasMultipleLoginMsg) {
+                errorMessage = "GIB Portal'a baska bir cihazdan veya tarayicidan giris yapilmis durumda. GIB guvenlik geregi ayni anda sadece 1 aktif oturuma izin veriyor.";
+            } else if (messages.length > 0) {
+                errorMessage = messages.map(m => typeof m === 'string' ? m : m.msg).join('\n');
+            }
+        }
+        return res.status(500).json({ error: errorMessage });
+    }
+}
