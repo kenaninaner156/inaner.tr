@@ -111,7 +111,8 @@ export default async function handler(req, res) {
         tevkifatRate = 0,
         kdvMuafiyetKodu = null,
         kdvMuafiyetNedeni = null,
-        note = '' 
+        note = '',
+        date = null
     } = req.body;
 
     if (!invoiceId || !buyer || !buyer.taxOrIdentityNumber || !buyer.buyerTitle) {
@@ -280,6 +281,7 @@ export default async function handler(req, res) {
 
         const gibPayload = {
             currency: EInvoiceCurrencyType.TURK_LIRASI,
+            ...(date && { date }), // Add date if provided
             invoiceType: invoiceTypeEnum,
             whichType: '5000/30000',
             taxOrIdentityNumber: buyer.taxOrIdentityNumber.trim(),

@@ -75,6 +75,7 @@ const EArsiv = () => {
     const [kdvMuafiyetKodu, setKdvMuafiyetKodu] = useState('350');
     const [kdvMuafiyetNedeni, setKdvMuafiyetNedeni] = useState('');
     const [invoiceNote, setInvoiceNote] = useState('');
+    const [invoiceDate, setInvoiceDate] = useState('');
 
     // Syncing state
     const [sendingInvoiceId, setSendingInvoiceId] = useState(null);
@@ -460,6 +461,12 @@ const EArsiv = () => {
         }
         
         setInvoiceNote(initialNote);
+        
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        setInvoiceDate(`${yyyy}-${mm}-${dd}`);
         setSyncError('');
         setModalStep(1);
         setRouteLines([]);
@@ -508,6 +515,7 @@ const EArsiv = () => {
                     kdvMuafiyetKodu: invoiceType === 'ISTISNA' ? kdvMuafiyetKodu : null,
                     kdvMuafiyetNedeni: invoiceType === 'ISTISNA' ? kdvMuafiyetNedeni : null,
                     note: invoiceNote, // User edited note from modal
+                    date: invoiceDate, // Added date field
                     products: routeLines.map(r => ({ ...r, name: r.name.toUpperCase() })) // Send our multi-line products!
                 })
             });
@@ -1278,7 +1286,19 @@ const EArsiv = () => {
                             <form onSubmit={(e) => { e.preventDefault(); handleNextStep(); }} className="grid grid-rows-[minmax(0,1fr)_auto] overflow-hidden h-full">
                                 <div className="overflow-y-auto p-6 space-y-4 custom-scrollbar">
                                     {/* Invoice Type and Calculation Type */}
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-900/20 p-4 border border-[var(--border-color)] rounded-xl">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-900/20 p-4 border border-[var(--border-color)] rounded-xl">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                                Fatura Tarihi
+                                            </label>
+                                            <input
+                                                type="date"
+                                                required
+                                                value={invoiceDate}
+                                                onChange={(e) => setInvoiceDate(e.target.value)}
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs focus:border-orange-500 outline-none uppercase"
+                                            />
+                                        </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
                                                 Fatura Tipi
