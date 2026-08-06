@@ -954,12 +954,11 @@ const EArsiv = () => {
                                                          </div>
                                                      ) : isSignedOnGib ? (
                                                          <div className="flex justify-end items-center gap-2">
-                                                             {inv.gibUuid && (
                                                                  <button
                                                                      onClick={() => handleDownloadPdf(inv)}
-                                                                     disabled={isDownloadingPdf === inv.id}
-                                                                     title="Faturayı Görüntüle / Yazdır"
-                                                                     className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-sky-400 border border-slate-700 hover:border-sky-500/30 rounded-lg transition disabled:opacity-50"
+                                                                     disabled={!inv.gibUuid || isDownloadingPdf === inv.id}
+                                                                     title={inv.gibUuid ? "Faturayı Görüntüle / Yazdır" : "Sistem dışı onaylandığı için görüntülenemez"}
+                                                                     className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-sky-400 border border-slate-700 hover:border-sky-500/30 rounded-lg transition disabled:opacity-30 disabled:hover:bg-slate-800 disabled:hover:text-slate-400 disabled:hover:border-slate-700 disabled:cursor-not-allowed"
                                                                  >
                                                                      {isDownloadingPdf === inv.id ? (
                                                                          <RefreshCw size={12} className="animate-spin" />
@@ -967,7 +966,6 @@ const EArsiv = () => {
                                                                          <Download size={12} />
                                                                      )}
                                                                  </button>
-                                                             )}
                                                              <button
                                                                  onClick={() => handleResetGibStatus(inv)}
                                                                  title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
