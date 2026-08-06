@@ -1256,7 +1256,7 @@ const EArsiv = () => {
             {/* SENDING MODAL OVERLAY */}
             {isModalOpen && selectedInvoice && createPortal(
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
-                    <div className="glass-panel w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl grid grid-rows-[auto_minmax(0,1fr)]">
+                    <div className="glass-panel w-full max-w-3xl max-h-[90vh] overflow-hidden shadow-2xl grid grid-rows-[auto_minmax(0,1fr)]">
                         {/* Header */}
                         <div className="p-5 sm:p-6 border-b border-[var(--border-color)] flex items-center justify-between bg-slate-900/40 shrink-0">
                             <div className="flex items-center gap-2">
@@ -1560,7 +1560,7 @@ const EArsiv = () => {
                                             <tbody className="divide-y divide-[var(--border-color)]">
                                                 {routeLines.map((line, idx) => (
                                                     <tr key={idx} className="hover:bg-white/[0.01]">
-                                                        <td className="p-2 min-w-[400px]">
+                                                        <td className="p-2 min-w-[320px]">
                                                             <input
                                                                 type="text"
                                                                 required
