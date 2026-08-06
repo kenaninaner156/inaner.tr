@@ -88,17 +88,16 @@ export default async function handler(req, res) {
         
         await api.initAccessToken();
 
-        // Check if signed. If gibStatus === 'Signed', we pass true.
-        const isSigned = invoiceData.gibStatus === 'Signed';
+        // Check if signed. If gibStatus is Signed or Approved, we pass true.
+        const isSigned = invoiceData.gibStatus === 'Signed' || invoiceData.gibStatus === 'Approved';
 
-        // 3. Get PDF Buffer
-        const pdfBuffer = await api.getInvoicePdf(invoiceData.gibUuid, isSigned);
+        // 3. Get HTML with Print Script injected (so it acts like a PDF download)
+        const htmlString = await api.getInvoiceHtml(invoiceData.gibUuid, isSigned, true);
         
         try { await api.logout(); } catch (e) {}
 
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="fatura_${invoiceData.gibUuid}.pdf"`);
-        return res.send(pdfBuffer);
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        return res.send(htmlString);
     } catch (err) {
         console.error("GIB PDF indirme hatasi:", err);
         if (api) {

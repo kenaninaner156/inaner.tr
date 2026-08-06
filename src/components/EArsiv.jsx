@@ -522,21 +522,21 @@ const EArsiv = () => {
             });
             
             if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.error || 'PDF indirilemedi.');
+                let errorMsg = 'Fatura indirilemedi. Sunucu hatası oluştu.';
+                const contentType = res.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                    const data = await res.json();
+                    if (data.error) errorMsg = data.error;
+                }
+                throw new Error(errorMsg);
             }
             
             const blob = await res.blob();
             const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `Fatura_${invoice.gibUuid || invoice.id}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
+            window.open(url, '_blank');
+            setTimeout(() => window.URL.revokeObjectURL(url), 10000);
             
-            showToast('success', 'PDF başarıyla indirildi!');
+            showToast('success', 'Fatura yeni sekmede açıldı. (Yazdırma ekranı otomatik gelecektir)');
         } catch (err) {
             showToast('error', err.message);
         } finally {
@@ -954,18 +954,20 @@ const EArsiv = () => {
                                                          </div>
                                                      ) : isSignedOnGib ? (
                                                          <div className="flex justify-end items-center gap-2">
-                                                             <button
-                                                                 onClick={() => handleDownloadPdf(inv)}
-                                                                 disabled={isDownloadingPdf === inv.id}
-                                                                 className="inline-flex items-center gap-1.5 text-xs font-semibold bg-sky-500 hover:bg-sky-600 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-50"
-                                                             >
-                                                                 {isDownloadingPdf === inv.id ? (
-                                                                     <RefreshCw size={12} className="animate-spin" />
-                                                                 ) : (
-                                                                     <Download size={12} />
-                                                                 )}
-                                                                 PDF İndir
-                                                             </button>
+                                                             {inv.gibUuid && (
+                                                                 <button
+                                                                     onClick={() => handleDownloadPdf(inv)}
+                                                                     disabled={isDownloadingPdf === inv.id}
+                                                                     className="inline-flex items-center gap-1.5 text-xs font-semibold bg-sky-500 hover:bg-sky-600 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                                                                 >
+                                                                     {isDownloadingPdf === inv.id ? (
+                                                                         <RefreshCw size={12} className="animate-spin" />
+                                                                     ) : (
+                                                                         <Download size={12} />
+                                                                     )}
+                                                                     Görüntüle / Yazdır
+                                                                 </button>
+                                                             )}
                                                              <button
                                                                  onClick={() => handleResetGibStatus(inv)}
                                                                  title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
