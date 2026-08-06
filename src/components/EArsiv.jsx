@@ -1288,7 +1288,7 @@ const EArsiv = () => {
                             <form onSubmit={(e) => { e.preventDefault(); handleNextStep(); }} className="grid grid-rows-[minmax(0,1fr)_auto] overflow-hidden h-full">
                                 <div className="overflow-y-auto p-6 space-y-4 custom-scrollbar">
                                     {/* Invoice Type and Calculation Type */}
-                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-900/20 p-4 border border-[var(--border-color)] rounded-xl">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-900/20 p-4 border border-[var(--border-color)] rounded-xl">
                                         <div>
                                             <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
                                                 Fatura Tarihi

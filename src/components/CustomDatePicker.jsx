@@ -157,7 +157,7 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                         onChange={handleDayChange}
                         onBlur={handleDayBlur}
                         placeholder="GG"
-                        className="w-6 text-center bg-transparent outline-none text-[var(--text-primary)] placeholder:text-slate-500 font-medium"
+                        className="w-7 text-center bg-transparent outline-none text-[var(--text-primary)] placeholder:text-slate-500 font-medium"
                     />
                     <span className="text-slate-500">/</span>
                     <input
@@ -168,7 +168,7 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                         onKeyDown={handleMonthKeyDown}
                         onBlur={handleMonthBlur}
                         placeholder="AA"
-                        className="w-6 text-center bg-transparent outline-none text-[var(--text-primary)] placeholder:text-slate-500 font-medium"
+                        className="w-7 text-center bg-transparent outline-none text-[var(--text-primary)] placeholder:text-slate-500 font-medium"
                     />
                     <span className="text-slate-500">/</span>
                     <input
@@ -178,7 +178,7 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                         onChange={handleYearChange}
                         onKeyDown={handleYearKeyDown}
                         placeholder="YYYY"
-                        className="w-10 text-center bg-transparent outline-none text-[var(--text-primary)] placeholder:text-slate-500 font-medium"
+                        className="w-12 text-center bg-transparent outline-none text-[var(--text-primary)] placeholder:text-slate-500 font-medium"
                     />
                 </div>
                 <button
@@ -192,7 +192,7 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
 
             {isOpen && createPortal(
                 <div 
-                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" 
+                    className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" 
                     onClick={() => setIsOpen(false)}
                 >
                     <div 
