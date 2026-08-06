@@ -329,6 +329,22 @@ const EArsiv = () => {
 
         updated[index] = line;
         setRouteLines(updated);
+
+        // Save route line to remembrance history immediately (localStorage)
+        try {
+            const stored = localStorage.getItem(`route_history_${activeCompanyId || 'default'}`);
+            const history = stored ? JSON.parse(stored) : {};
+            
+            const key = `${line.from.trim()}|||${line.to.trim()}`;
+            history[key] = {
+                name: line.name,
+                unitPrice: line.unitPrice
+            };
+            
+            localStorage.setItem(`route_history_${activeCompanyId || 'default'}`, JSON.stringify(history));
+        } catch (e) {
+            console.error("Güzergah hafızası anlık kaydedilirken hata:", e);
+        }
     };
 
     const handleResetGibStatus = async (inv) => {
