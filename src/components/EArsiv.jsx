@@ -1297,6 +1297,7 @@ const EArsiv = () => {
                                                 value={invoiceDate}
                                                 onChange={(e) => setInvoiceDate(e.target.value)}
                                                 className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs focus:border-orange-500 outline-none uppercase"
+                                                style={{ colorScheme: 'dark' }}
                                             />
                                         </div>
                                         <div>
