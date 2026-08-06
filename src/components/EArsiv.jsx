@@ -290,7 +290,7 @@ const EArsiv = () => {
         const line = { ...updated[index] };
 
         if (field === 'name') {
-            line.name = value.toUpperCase();
+            line.name = value;
         } else {
             if (field === 'unitPrice') {
                 line.unitPrice = Number(value) || 0;
@@ -337,7 +337,7 @@ const EArsiv = () => {
             
             const key = `${line.from.trim()}|||${line.to.trim()}`;
             history[key] = {
-                name: line.name,
+                name: line.name.toUpperCase(),
                 unitPrice: line.unitPrice
             };
             
@@ -508,7 +508,7 @@ const EArsiv = () => {
                     kdvMuafiyetKodu: invoiceType === 'ISTISNA' ? kdvMuafiyetKodu : null,
                     kdvMuafiyetNedeni: invoiceType === 'ISTISNA' ? kdvMuafiyetNedeni : null,
                     note: invoiceNote, // User edited note from modal
-                    products: routeLines // Send our multi-line products!
+                    products: routeLines.map(r => ({ ...r, name: r.name.toUpperCase() })) // Send our multi-line products!
                 })
             });
 
@@ -1256,7 +1256,7 @@ const EArsiv = () => {
             {/* SENDING MODAL OVERLAY */}
             {isModalOpen && selectedInvoice && createPortal(
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
-                    <div className="glass-panel w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl grid grid-rows-[auto_minmax(0,1fr)]">
+                    <div className="glass-panel w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl grid grid-rows-[auto_minmax(0,1fr)]">
                         {/* Header */}
                         <div className="p-5 sm:p-6 border-b border-[var(--border-color)] flex items-center justify-between bg-slate-900/40 shrink-0">
                             <div className="flex items-center gap-2">
@@ -1560,13 +1560,13 @@ const EArsiv = () => {
                                             <tbody className="divide-y divide-[var(--border-color)]">
                                                 {routeLines.map((line, idx) => (
                                                     <tr key={idx} className="hover:bg-white/[0.01]">
-                                                        <td className="p-2 min-w-[220px]">
+                                                        <td className="p-2 min-w-[400px]">
                                                             <input
                                                                 type="text"
                                                                 required
                                                                 value={line.name}
                                                                 onChange={(e) => handleLineChange(idx, 'name', e.target.value)}
-                                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:border-orange-500 outline-none"
+                                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:border-orange-500 outline-none uppercase"
                                                             />
                                                         </td>
                                                         <td className="p-2 text-right">
