@@ -268,7 +268,7 @@ export default async function handler(req, res) {
         }
 
         const defaultNote = `${plateText ? plateText + ' plakali arac ile ' : ''}${invoiceData.startDate} - ${invoiceData.endDate} tarihleri arasinda sunulan nakliye hizmet bedelidir.`;
-        const finalNote = note ? note.trim() : defaultNote;
+        const finalNote = (note !== undefined && note !== null && note.trim() !== '') ? note.trim() : defaultNote;
 
         // Map invoiceType to e-fatura InvoiceType Enum
         let invoiceTypeEnum = InvoiceType.SATIS;

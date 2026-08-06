@@ -38,7 +38,7 @@ const EArsiv = () => {
     // Default preferences state
     const [defaultInvoiceType, setDefaultInvoiceType] = useState('SATIS');
     const [defaultVatRate, setDefaultVatRate] = useState(20);
-    const [defaultIsVatIncluded, setDefaultIsVatIncluded] = useState(false);
+    const [defaultIsVatIncluded, setDefaultIsVatIncluded] = useState(true);
     const [defaultTevkifatKodu, setDefaultTevkifatKodu] = useState('624');
     const [defaultKdvMuafiyetKodu, setDefaultKdvMuafiyetKodu] = useState('350');
     const [defaultKdvMuafiyetNedeni, setDefaultKdvMuafiyetNedeni] = useState('');
@@ -48,6 +48,8 @@ const EArsiv = () => {
     const [defaultBuyerAddress, setDefaultBuyerAddress] = useState('');
     const [defaultBuyerCity, setDefaultBuyerCity] = useState('');
     const [defaultBuyerDistrict, setDefaultBuyerDistrict] = useState('');
+    const [defaultIban, setDefaultIban] = useState('');
+    const [defaultIbanName, setDefaultIbanName] = useState('');
 
     const [isSavingSettings, setIsSavingSettings] = useState(false);
     const [settingsStatus, setSettingsStatus] = useState({ type: '', message: '' });
@@ -121,9 +123,11 @@ const EArsiv = () => {
                 setGibClients(data.gibClients || {});
                 
                 // Load default preferences
+                setDefaultIban(data.defaultIban || '');
+                setDefaultIbanName(data.defaultIbanName || '');
                 setDefaultInvoiceType(data.defaultInvoiceType || 'SATIS');
                 setDefaultVatRate(data.defaultVatRate ?? 20);
-                setDefaultIsVatIncluded(data.defaultIsVatIncluded ?? false);
+                setDefaultIsVatIncluded(data.defaultIsVatIncluded ?? true);
                 setDefaultTevkifatKodu(data.defaultTevkifatKodu || '624');
                 setDefaultKdvMuafiyetKodu(data.defaultKdvMuafiyetKodu || '350');
                 setDefaultKdvMuafiyetNedeni(data.defaultKdvMuafiyetNedeni || '');
@@ -157,6 +161,8 @@ const EArsiv = () => {
                 gibPassword: gibPassword.trim(),
                 gibTestMode: gibTestMode,
                 // Save default preferences
+                defaultIban: defaultIban.trim(),
+                defaultIbanName: defaultIbanName.trim(),
                 defaultInvoiceType,
                 defaultVatRate: Number(defaultVatRate),
                 defaultIsVatIncluded,
@@ -425,7 +431,19 @@ const EArsiv = () => {
         setKdvMuafiyetNedeni(defaultKdvMuafiyetNedeni);
         
         setSelectedInvoice(invoice);
-        setInvoiceNote('');
+        
+        const invTruck = trucksMap.get(invoice.truckId);
+        const plateText = invTruck?.plate || '';
+        let initialNote = `${plateText ? plateText + ' plakali arac ile ' : ''}${invoice.startDate} - ${invoice.endDate} tarihleri arasinda sunulan nakliye hizmet bedelidir.`;
+        
+        if (defaultIban || defaultIbanName) {
+            let ibanText = '';
+            if (defaultIban) ibanText += `İBAN :${defaultIban}`;
+            if (defaultIbanName) ibanText += ` ${defaultIbanName}`;
+            initialNote += `\n${ibanText.trim()}`;
+        }
+        
+        setInvoiceNote(initialNote);
         setSyncError('');
         setModalStep(1);
         setRouteLines([]);
@@ -473,7 +491,7 @@ const EArsiv = () => {
                     tevkifatRate: invoiceType === 'TEVKIFAT' ? tevkifatRate : 0,
                     kdvMuafiyetKodu: invoiceType === 'ISTISNA' ? kdvMuafiyetKodu : null,
                     kdvMuafiyetNedeni: invoiceType === 'ISTISNA' ? kdvMuafiyetNedeni : null,
-                    note: '', // No manual note needed
+                    note: invoiceNote, // User edited note from modal
                     products: routeLines // Send our multi-line products!
                 })
             });
@@ -1017,6 +1035,45 @@ const EArsiv = () => {
                                 </div>
                             </div>
 
+                            {/* DEFAULT IBAN INFORMATION SECTION */}
+                            <div className="border-t border-[var(--border-color)] pt-6 mt-6">
+                                <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 flex items-center">
+                                    <FileText className="mr-2 text-orange-500" size={18} />
+                                    Fatura Notuna Eklenecek Bilgiler (İBAN & İsim)
+                                </h4>
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                                Banka İBAN Numarası
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={defaultIban}
+                                                onChange={(e) => setDefaultIban(e.target.value)}
+                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2.5 text-sm focus:border-orange-500 outline-none"
+                                                placeholder="Örn: TR86 0004 ..."
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                                İBAN Adı Soyadı / Unvan
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={defaultIbanName}
+                                                onChange={(e) => setDefaultIbanName(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2.5 text-sm focus:border-orange-500 outline-none"
+                                                placeholder="Örn: AHMET YILMAZ veya ŞİRKET UNVANI"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-[11px] text-[var(--text-secondary)]">
+                                        Bu alanları doldurursanız, fatura oluşturulurken açıklama (not) kısmının en altına otomatik olarak İBAN bilginiz eklenecektir.
+                                    </p>
+                                </div>
+                            </div>
+
                             {/* DEFAULT BUYER INFORMATION SECTION */}
                             <div className="border-t border-[var(--border-color)] pt-6 mt-6">
                                 <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 flex items-center">
@@ -1431,9 +1488,22 @@ const EArsiv = () => {
                                         <textarea
                                             value={buyerAddress}
                                             onChange={(e) => setBuyerAddress(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                            rows={3}
+                                            rows={2}
                                             className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none resize-none"
                                             placeholder="Sokak, bulvar, apartman no ve detaylı adres..."
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                            Fatura Notu
+                                        </label>
+                                        <textarea
+                                            value={invoiceNote}
+                                            onChange={(e) => setInvoiceNote(e.target.value)}
+                                            rows={3}
+                                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none resize-none font-mono"
+                                            placeholder="Faturaya eklenecek notlar..."
                                         />
                                     </div>
                                 </div>
