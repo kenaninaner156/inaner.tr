@@ -94,7 +94,17 @@ export default async function handler(req, res) {
             let errorMessage = 'PDF olusturulurken hata olustu. Hata detayi: ' + (err.message || 'Bilinmiyor');
             const gibResponseData = err.data || (err.response && err.response.data);
             if (gibResponseData) {
-                errorMessage = typeof gibResponseData === 'object' ? JSON.stringify(gibResponseData) : gibResponseData;
+                const messages = gibResponseData.messages || [];
+                if (messages.length > 0) {
+                    const rawMsg = messages.map(m => typeof m === 'string' ? m : (m.text || m.mesaj || m.msg)).join('\n');
+                    if (rawMsg.includes('Sisteme ayni anda birden fazla giris yapamazsiniz') || rawMsg.includes('Sisteme aynı anda birden fazla giriş yapamazsınız')) {
+                        errorMessage = "GİB portalında şu an açık bir oturumunuz bulunuyor (veya önceki işleminizden henüz çıkış yapılmadı). Lütfen arka planda açık GİB sekmeleri varsa kapatıp 1-2 dakika bekledikten sonra tekrar deneyin.";
+                    } else {
+                        errorMessage = rawMsg;
+                    }
+                } else {
+                    errorMessage = typeof gibResponseData === 'object' ? JSON.stringify(gibResponseData) : gibResponseData;
+                }
             }
             return res.status(500).json({ error: errorMessage });
         }
