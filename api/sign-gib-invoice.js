@@ -81,10 +81,17 @@ export default async function handler(req, res) {
 
         // 3. Find BasicInvoice
         // e-fatura library defaults to today's date if no filter is provided.
-        // We must pass the invoiceDate to ensure it finds past invoices.
-        let startDate = invoiceData.invoiceDate ? new Date(invoiceData.invoiceDate) : new Date();
-        // Go back 1 extra day just to be safe with timezones
-        startDate.setDate(startDate.getDate() - 2);
+        // We must pass a robust startDate to find invoices created in the past.
+        let startDate;
+        if (invoiceData.invoiceDate) {
+            startDate = new Date(invoiceData.invoiceDate);
+        } else if (invoiceData.createdAt) {
+            startDate = new Date(invoiceData.createdAt);
+        } else {
+            startDate = new Date();
+        }
+        // Go back 30 extra days just to be absolutely sure we catch the invoice!
+        startDate.setDate(startDate.getDate() - 30);
         
         const basicInvoice = await api.findBasicInvoice(invoiceData.gibUuid, {
             startDate: startDate,
