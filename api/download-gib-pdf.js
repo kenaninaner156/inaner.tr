@@ -94,6 +94,16 @@ export default async function handler(req, res) {
         if (api) {
             try { await api.logout(); } catch (e) {}
         }
-        return res.status(500).json({ error: 'PDF olusturulurken hata olustu.' });
+        let errorMessage = 'PDF olusturulurken hata olustu.';
+        const gibResponseData = err.data || (err.response && err.response.data);
+        if (gibResponseData) {
+            const messages = gibResponseData.messages || [];
+            if (messages.length > 0) {
+                errorMessage = messages.map(m => typeof m === 'string' ? m : m.msg).join('\n');
+            }
+        } else if (err.message) {
+            errorMessage = err.message;
+        }
+        return res.status(500).json({ error: errorMessage });
     }
 }
