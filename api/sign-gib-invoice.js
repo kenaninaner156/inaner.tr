@@ -80,7 +80,16 @@ export default async function handler(req, res) {
         await api.initAccessToken();
 
         // 3. Find BasicInvoice
-        const basicInvoice = await api.findBasicInvoice(invoiceData.gibUuid);
+        // e-fatura library defaults to today's date if no filter is provided.
+        // We must pass the invoiceDate to ensure it finds past invoices.
+        let startDate = invoiceData.invoiceDate ? new Date(invoiceData.invoiceDate) : new Date();
+        // Go back 1 extra day just to be safe with timezones
+        startDate.setDate(startDate.getDate() - 2);
+        
+        const basicInvoice = await api.findBasicInvoice(invoiceData.gibUuid, {
+            startDate: startDate,
+            endDate: new Date()
+        });
         if (!basicInvoice) {
             throw new Error("GIB portalinda fatura bulunamadi.");
         }
