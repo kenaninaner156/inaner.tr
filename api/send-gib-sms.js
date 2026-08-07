@@ -1,5 +1,5 @@
 import { db, adminAuth } from '../src/services/firebaseAdmin.js';
-import eFatura from 'e-fatura';
+import { EInvoiceApi } from 'e-fatura';
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -53,9 +53,7 @@ export default async function handler(req, res) {
         if (!gibUsername || !gibPassword) {
             return res.status(400).json({ error: 'Sirketinizin GIB portal bilgileri (Kullanici Adi / Sifre) eksik.' });
         }
-
-        api = new eFatura.EInvoiceApi();
-        
+        api = new EInvoiceApi();
         // No need for undici patch if it's not installed, native fetch works.
 
         api.setCredentials({ username: gibUsername, password: gibPassword });
