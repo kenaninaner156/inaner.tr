@@ -94,10 +94,7 @@ export default async function handler(req, res) {
             let errorMessage = 'PDF olusturulurken hata olustu. Hata detayi: ' + (err.message || 'Bilinmiyor');
             const gibResponseData = err.data || (err.response && err.response.data);
             if (gibResponseData) {
-                const messages = gibResponseData.messages || [];
-                if (messages.length > 0) {
-                    errorMessage = messages.map(m => typeof m === 'string' ? m : m.msg).join('\n');
-                }
+                errorMessage = typeof gibResponseData === 'object' ? JSON.stringify(gibResponseData) : gibResponseData;
             }
             return res.status(500).json({ error: errorMessage });
         }
