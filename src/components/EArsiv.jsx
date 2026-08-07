@@ -1420,8 +1420,8 @@ const EArsiv = () => {
                                     type="text"
                                     maxLength={6}
                                     value={smsCode}
-                                    onChange={(e) => setSmsCode(e.target.value.replace(/\D/g, ''))}
-                                    placeholder="000000"
+                                    onChange={(e) => setSmsCode(e.target.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase())}
+                                    placeholder="XXXXXX"
                                     className="w-full text-center tracking-[0.5em] font-mono text-2xl bg-slate-900 border border-slate-700 text-white rounded-xl px-4 py-3 focus:border-emerald-500 outline-none"
                                 />
                             </div>
