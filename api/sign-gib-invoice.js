@@ -77,6 +77,10 @@ export default async function handler(req, res) {
         
         const originalSendRequest = api.sendRequest;
         api.sendRequest = async function(url, params, config) {
+            // If the e-fatura library tries to use 'anologin' (IVD Login) but the username is an 8-digit code
+            if (params && params.assoscmd === 'anologin' && this.username && this.username.length < 10) {
+                params.assoscmd = 'login'; // Fallback to classic e-Arşiv login for legacy User Codes
+            }
             if (!config) config = {};
             if (!config.dispatcher) {
                 config.dispatcher = new (require('undici').Agent)({ connect: { family: 4 } });
