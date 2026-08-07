@@ -40,7 +40,8 @@ export default async function handler(req, res) {
 
     let api = null;
     try {
-        const settingsDoc = await db.collection('companies').doc(callerCompanyId).collection('settings').doc('gib').get();
+        const companySettingsDocId = callerCompanyId === 'inaner_logistics' ? 'info' : `${callerCompanyId}_info`;
+        const settingsDoc = await db.collection('company_data').doc(companySettingsDocId).get();
         if (!settingsDoc.exists) {
             return res.status(404).json({ error: 'Sirket GIB ayarlari bulunamadi.' });
         }
