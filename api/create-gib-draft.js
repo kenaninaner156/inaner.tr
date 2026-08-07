@@ -374,7 +374,7 @@ export default async function handler(req, res) {
                        text.toLowerCase().includes('oturum');
             });
             
-            if (hasMultipleLoginMsg || data.error === '1') {
+            if (hasMultipleLoginMsg) {
                 errorMessage = "GİB e-Arşiv sisteminde aktif bir oturumunuz açık bulunuyor (örneğin tarayıcınızda veya başka bir cihazda). Lütfen diğer oturumu kapatıp 1-2 dakika bekledikten sonra tekrar deneyin.";
             } else if (messages.length > 0) {
                 errorMessage = messages.map(m => typeof m === 'string' ? m : m.msg).join(' ');

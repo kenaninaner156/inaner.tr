@@ -147,8 +147,8 @@ export default async function handler(req, res) {
                        text.toLowerCase().includes('oturum');
             });
             
-            if (hasMultipleLoginMsg || data.error === '1') {
-                errorMessage = "GİB portalında zaten aktif bir oturum açık olduğu için oturum kapatma servisi giriş yapamadı. Lütfen 1-2 dakika bekleyin, GİB sunucusu oturumu otomatik olarak düşürecektir.";
+            if (hasMultipleLoginMsg) {
+                errorMessage = "GİB e-Arşiv sisteminde aktif bir oturumunuz açık bulunuyor (örneğin tarayıcınızda veya başka bir cihazda). Lütfen diğer oturumu kapatıp 1-2 dakika bekledikten sonra tekrar deneyin.";
             } else if (messages.length > 0) {
                 errorMessage = messages.map(m => typeof m === 'string' ? m : m.msg).join(' ');
             }
