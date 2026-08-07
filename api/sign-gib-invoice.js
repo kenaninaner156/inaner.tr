@@ -59,15 +59,15 @@ export default async function handler(req, res) {
         }
 
         // 2. Get Company GIB Credentials
-        const companyDoc = await db.collection('companies').doc(callerCompanyId).get();
-        if (!companyDoc.exists) {
-            return res.status(404).json({ error: 'Sirket bilgileri bulunamadi.' });
+        const settingsDoc = await db.collection('companies').doc(callerCompanyId).collection('settings').doc('gib').get();
+        if (!settingsDoc.exists) {
+            return res.status(404).json({ error: 'Sirket GIB ayarlari bulunamadi.' });
         }
 
-        const companyData = companyDoc.data();
-        const gibUsername = companyData.gibUsername;
-        const gibPassword = companyData.gibPassword;
-        const gibTestMode = companyData.gibTestMode || false;
+        const settingsData = settingsDoc.data();
+        const gibUsername = settingsData.gibUsername;
+        const gibPassword = settingsData.gibPassword;
+        const gibTestMode = settingsData.gibTestMode || false;
 
         if (!gibUsername || !gibPassword) {
             return res.status(400).json({ error: 'GIB portal bilgileri eksik.' });
