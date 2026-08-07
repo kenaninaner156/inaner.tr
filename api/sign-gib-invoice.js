@@ -92,11 +92,13 @@ export default async function handler(req, res) {
             targetDate = new Date();
         }
         
+        // GIB portal REJECTS queries larger than 1 month, returning an empty list!
+        // So we query a safe 30-day window ending a few days after targetDate.
         let startDate = new Date(targetDate);
-        startDate.setDate(startDate.getDate() - 3); // 3 days before
+        startDate.setDate(startDate.getDate() - 25); // 25 days before
         
         let endDate = new Date(targetDate);
-        endDate.setDate(endDate.getDate() + 3); // 3 days after
+        endDate.setDate(endDate.getDate() + 5); // 5 days after
         
         const basicInvoice = await api.findBasicInvoice(invoiceData.gibUuid, {
             startDate: startDate,
