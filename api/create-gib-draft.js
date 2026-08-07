@@ -328,9 +328,40 @@ export default async function handler(req, res) {
 
         const gibUuid = await api.createDraftInvoice(gibPayload);
 
+        // Because GİB May 2026 API ignores our UUID and generates a new one,
+        // we must fetch the real UUID immediately after creation.
+        let realGibUuid = gibUuid; // Fallback
+        
+        try {
+            const targetDate = date ? new Date(date) : new Date();
+            const sDate = new Date(targetDate);
+            sDate.setDate(sDate.getDate() - 2);
+            const eDate = new Date(targetDate);
+            eDate.setDate(eDate.getDate() + 2);
+            
+            // Search the recent drafts around the invoice date
+            const recentDrafts = await api.getBasicInvoices({ startDate: sDate, endDate: eDate });
+            
+            // Match the newly created draft by VKN, amount and Status (Onaylanmadı)
+            const matchedDraft = recentDrafts.find(draft => 
+                draft.aliciVknTckn === buyer.taxOrIdentityNumber.trim() &&
+                Number(draft.odenecekTutar) === paymentPrice &&
+                draft.onayDurumu === 'Onaylanmadı'
+            );
+            
+            if (matchedDraft && matchedDraft.ettn) {
+                realGibUuid = matchedDraft.ettn;
+                console.log("[GIB] Real UUID found for newly created draft:", realGibUuid);
+            } else {
+                console.warn("[GIB] Could not match newly created draft to get real UUID. Using fallback.");
+            }
+        } catch (fetchErr) {
+            console.error("[GIB] Error fetching real UUID after creation:", fetchErr);
+        }
+
         // 8. Fatura Belgesini Firestore'da Guncelle
         await db.collection('invoices').doc(invoiceId).update({
-            gibUuid: gibUuid,
+            gibUuid: realGibUuid,
             gibStatus: 'Draft',
             gibStatusDate: new Date().toISOString(),
             gibTestMode: gibTestMode
@@ -345,7 +376,7 @@ export default async function handler(req, res) {
         }
 
         // 10. Sonuc Don
-        return res.status(200).json({ success: true, gibUuid });
+        return res.status(200).json({ success: true, gibUuid: realGibUuid });
     } catch (err) {
         console.error("GIB Entegrasyon hatasi:", err);
         
