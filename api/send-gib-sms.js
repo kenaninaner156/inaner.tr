@@ -68,7 +68,13 @@ export default async function handler(req, res) {
             await api.logout();
         } catch (logoutErr) {}
 
-        return res.status(200).json({ success: true, smsResult });
+        const formattedResult = {
+            oid: smsResult.oid || '',
+            phone: smsResult.phoneNumber || smsResult.phone || '',
+            phoneNumber: smsResult.phoneNumber || smsResult.phone || ''
+        };
+
+        return res.status(200).json({ success: true, smsResult: formattedResult });
     } catch (err) {
         console.error("GIB SMS hatasi:", err);
         if (api) {
@@ -76,9 +82,23 @@ export default async function handler(req, res) {
         }
         
         let errorMessage = err.message || 'GIB SMS gonderimi sirasinda hata olustu.';
-        if (err.response && err.response.data) {
-            const data = err.response.data;
-            const messages = data.messages || [];
+        
+        // e-fatura library attaches raw GIB payload to err.data or err.response.data
+        const gibResponseData = err.data || (err.response && err.response.data);
+        if (gibResponseData) {
+            // If GIB returned an OID despite throwing an error, recover and return success!
+            if (gibResponseData.data && gibResponseData.data.oid) {
+                return res.status(200).json({
+                    success: true,
+                    smsResult: {
+                        oid: gibResponseData.data.oid,
+                        phone: '',
+                        phoneNumber: ''
+                    }
+                });
+            }
+
+            const messages = gibResponseData.messages || [];
             const hasMultipleLoginMsg = messages.some(msg => {
                 const text = typeof msg === 'string' ? msg : (msg && msg.msg) || '';
                 return text.includes('Farklı bir bilgisayardan veya tarayıcıdan sisteme giriş') || 

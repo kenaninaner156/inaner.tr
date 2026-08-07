@@ -458,7 +458,7 @@ const EArsiv = () => {
             
             if (data.success && data.smsResult) {
                 setSmsOid(data.smsResult.oid || '');
-                setSmsPhone(data.smsResult.phone || ''); 
+                setSmsPhone(data.smsResult.phone || data.smsResult.phoneNumber || ''); 
                 setSmsCode('');
                 setSmsModalOpen(true);
             }
