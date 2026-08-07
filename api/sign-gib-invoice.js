@@ -81,21 +81,26 @@ export default async function handler(req, res) {
 
         // 3. Find BasicInvoice
         // e-fatura library defaults to today's date if no filter is provided.
-        // We must pass a robust startDate to find invoices created in the past.
-        let startDate;
+        // GIB portal REJECTS queries larger than 1 month, returning an empty list!
+        // We must query a narrow window around the invoice's actual date.
+        let targetDate;
         if (invoiceData.invoiceDate) {
-            startDate = new Date(invoiceData.invoiceDate);
+            targetDate = new Date(invoiceData.invoiceDate);
         } else if (invoiceData.createdAt) {
-            startDate = new Date(invoiceData.createdAt);
+            targetDate = new Date(invoiceData.createdAt);
         } else {
-            startDate = new Date();
+            targetDate = new Date();
         }
-        // Go back 30 extra days just to be absolutely sure we catch the invoice!
-        startDate.setDate(startDate.getDate() - 30);
+        
+        let startDate = new Date(targetDate);
+        startDate.setDate(startDate.getDate() - 3); // 3 days before
+        
+        let endDate = new Date(targetDate);
+        endDate.setDate(endDate.getDate() + 3); // 3 days after
         
         const basicInvoice = await api.findBasicInvoice(invoiceData.gibUuid, {
             startDate: startDate,
-            endDate: new Date()
+            endDate: endDate
         });
         if (!basicInvoice) {
             throw new Error("GIB portalinda fatura bulunamadi.");
