@@ -74,14 +74,7 @@ export default async function handler(req, res) {
 
         api = new eFatura.EInvoiceApi();
         
-        const originalSendRequest = api.sendRequest;
-        api.sendRequest = async function(url, params, config) {
-            if (!config) config = {};
-            if (!config.dispatcher) {
-                config.dispatcher = new (require('undici').Agent)({ connect: { family: 4 } });
-            }
-            return originalSendRequest.call(this, url, params, config);
-        };
+        // No need for undici patch if it's not installed, native fetch works.
 
         api.setCredentials({ username: gibUsername, password: gibPassword });
         api.setTestMode(gibTestMode);
