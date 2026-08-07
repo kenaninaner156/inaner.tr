@@ -140,17 +140,17 @@ export default async function handler(req, res) {
             
             // Check for multiple login warning
             const hasMultipleLoginMsg = messages.some(msg => {
-                const text = typeof msg === 'string' ? msg : (msg && msg.msg) || '';
-                return text.toLowerCase().includes('birden fazla') || 
-                       text.toLowerCase().includes('ayni anda') || 
-                       text.toLowerCase().includes('aynı anda') || 
-                       text.toLowerCase().includes('oturum');
+                const textStr = typeof msg === 'string' ? msg : (msg && (msg.msg || msg.text)) || '';
+                return textStr.toLowerCase().includes('birden fazla') || 
+                       textStr.toLowerCase().includes('ayni anda') || 
+                       textStr.toLowerCase().includes('aynı anda') || 
+                       textStr.toLowerCase().includes('oturum');
             });
             
             if (hasMultipleLoginMsg) {
                 errorMessage = "GİB e-Arşiv sisteminde aktif bir oturumunuz açık bulunuyor (örneğin tarayıcınızda veya başka bir cihazda). Lütfen diğer oturumu kapatıp 1-2 dakika bekledikten sonra tekrar deneyin.";
             } else if (messages.length > 0) {
-                errorMessage = messages.map(m => typeof m === 'string' ? m : m.msg).join(' ');
+                errorMessage = messages.map(m => typeof m === 'string' ? m : (m.msg || m.text)).join(' ');
             }
         }
         
