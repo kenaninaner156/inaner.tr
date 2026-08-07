@@ -360,12 +360,21 @@ export default async function handler(req, res) {
         }
 
         // 8. Fatura Belgesini Firestore'da Guncelle
-        await db.collection('invoices').doc(invoiceId).update({
+        const updateData = {
             gibUuid: realGibUuid,
             gibStatus: 'Draft',
             gibStatusDate: new Date().toISOString(),
             gibTestMode: gibTestMode
-        });
+        };
+        // Save the invoiceDate so sign-gib-invoice knows exactly what date to search around!
+        if (date) {
+            updateData.invoiceDate = new Date(date).toISOString();
+        } else {
+            // If no date was provided, it defaulted to today
+            updateData.invoiceDate = new Date().toISOString();
+        }
+
+        await db.collection('invoices').doc(invoiceId).update(updateData);
 
         // 9. GIB Oturumunu Kapat - res.json()'dan ONCE yapilmali!
         try {
