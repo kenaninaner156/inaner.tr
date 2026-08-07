@@ -342,10 +342,11 @@ export default async function handler(req, res) {
             // Search the recent drafts around the invoice date
             const recentDrafts = await api.getBasicInvoices({ startDate: sDate, endDate: eDate });
             
-            // Match the newly created draft by VKN, amount and Status (Onaylanmadı)
-            const matchedDraft = recentDrafts.find(draft => 
+            // Match the newly created draft by VKN and Status (Onaylanmadı).
+            // NOTE: GIB's basic list API does NOT return odenecekTutar!
+            // We use .reverse().find() to get the MOST RECENTLY CREATED draft in case there are multiple unsigned drafts.
+            const matchedDraft = [...recentDrafts].reverse().find(draft => 
                 draft.aliciVknTckn === buyer.taxOrIdentityNumber.trim() &&
-                Number(draft.odenecekTutar) === paymentPrice &&
                 draft.onayDurumu === 'Onaylanmadı'
             );
             
