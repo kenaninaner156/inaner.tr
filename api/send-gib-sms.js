@@ -1,4 +1,4 @@
-import { db, adminAuth } from '../src/services/firebaseAdmin.js';
+import { db, adminAuth } from './firebaseAdmin.js';
 import { EInvoiceApi } from 'e-fatura';
 
 export default async function handler(req, res) {
