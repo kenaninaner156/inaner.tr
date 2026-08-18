@@ -98,7 +98,7 @@ service cloud.firestore {
           'invoices', 'payouts', 'spare_parts', 'mechanics', 'shopping_list', 
           'geofences', 'manual_splits', 'manual_merges', 'manual_deletes', 
           'custom_route_names', 'maintenance_folders', 'company_data',
-          'trucks', 'vehicle_daily_stats'
+          'trucks', 'vehicle_daily_stats', 'company_notifications'
         ];
       }
       

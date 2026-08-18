@@ -30,6 +30,7 @@ export const DataProvider = ({ children }) => {
     const [customRouteNames, setCustomRouteNames] = useState({});
     const [payouts, setPayouts] = useState([]);
     const [premiums, setPremiums] = useState([]);
+    const [companyNotifications, setCompanyNotifications] = useState([]);
 
     const [vehicleInfo, setVehicleInfo] = useState({
         plate: '06 FTN 692', trailerPlate: '06 ABC 123', driverName: 'Ahmet Şoför',
@@ -361,6 +362,15 @@ export const DataProvider = ({ children }) => {
                 map[doc.data().timestamp] = doc.data().name;
             });
             setCustomRouteNames(map);
+        }));
+
+        // 11.9 Company Notifications config
+        unsubs.push(onSnapshot(query(collection(db, 'company_notifications'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const list = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+            setCompanyNotifications(list);
+        }, (err) => {
+            console.warn('company_notifications subscription error:', err);
         }));
 
         // 12. Docs config
@@ -1146,6 +1156,14 @@ export const DataProvider = ({ children }) => {
         }
     };
 
+    const acknowledgeNotification = useCallback(async (notificationId, status, note = '') => {
+        return callAdminApi('acknowledgeNotification', { notificationId, status, note });
+    }, [callAdminApi]);
+
+    const markNotificationAsRead = useCallback(async (notificationId) => {
+        return callAdminApi('markNotificationRead', { notificationId });
+    }, [callAdminApi]);
+
     const refreshUsers = useCallback(() => { }, []);
 
     // Unified drivers list: merge manual drivers + approved şöför users
@@ -1192,7 +1210,8 @@ export const DataProvider = ({ children }) => {
             manualSplits, addManualSplit,
             manualMerges, addManualMerge,
             manualDeletes, addManualDelete,
-            customRouteNames, setCustomRouteName
+            customRouteNames, setCustomRouteName,
+            companyNotifications, acknowledgeNotification, markNotificationAsRead
         }}>
             {children}
         </DataContext.Provider>

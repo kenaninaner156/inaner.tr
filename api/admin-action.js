@@ -274,7 +274,7 @@ export default async function handler(req, res) {
                     return res.status(403).json({ error: 'Bildirim göndermek için yönetici yetkiniz bulunmamaktadır.' });
                 }
 
-                const { targetUid, allCompany, title, body } = payload;
+                const { targetUid, allCompany, title, body, imageUrl, targetTab, vibrationPattern, requireAck } = payload;
                 
                 if (!title || !body) {
                     return res.status(400).json({ error: 'Eksik parametreler: Başlık ve mesaj metni zorunludur.' });
@@ -323,12 +323,65 @@ export default async function handler(req, res) {
                 // Benzersiz tokenlar
                 tokens = [...new Set(tokens)].filter(t => !!t);
 
+                // Bildirimi Firestore company_notifications koleksiyonuna arşivle
+                const notifRecord = {
+                    companyId: targetCompanyId,
+                    senderUid: callerUid,
+                    senderEmail: callerEmail,
+                    targetType: allCompany ? 'all' : 'user',
+                    targetUid: targetUid || null,
+                    title: title.trim(),
+                    body: body.trim(),
+                    imageUrl: imageUrl ? imageUrl.trim() : null,
+                    targetTab: targetTab || 'dashboard',
+                    vibrationPattern: vibrationPattern || 'general',
+                    requireAck: !!requireAck,
+                    acknowledgements: {},
+                    readBy: [],
+                    createdAt: new Date().toISOString()
+                };
+
+                const savedNotifDoc = await db.collection('company_notifications').add(notifRecord);
+
                 if (tokens.length === 0) {
                     return res.status(200).json({ 
-                        success: false, 
-                        message: 'Bildirim gönderilemedi: Seçilen hedefte bildirim iznini açmış veya cihazı kayıtlı aktif kullanıcı bulunamadı. Kullanıcıların uygulamayı telefonuna yükleyip bildirim iznini onaylaması gerekir.', 
-                        sentCount: 0 
+                        success: true, 
+                        message: 'Bildirim arşive kaydedildi fakat şu anda bu şirkette bildirim iznini açmış aktif cihaz bulunamadı.', 
+                        sentCount: 0,
+                        notificationId: savedNotifDoc.id
                     });
+                }
+
+                // Titreşim paterni
+                let vibratePatternArr = [200, 100, 200];
+                if (vibrationPattern === 'sos') {
+                    vibratePatternArr = [300, 100, 300, 100, 300, 200, 600, 100, 600, 100, 600, 200, 300, 100, 300];
+                } else if (vibrationPattern === 'general') {
+                    vibratePatternArr = [200];
+                } else if (vibrationPattern === 'silent') {
+                    vibratePatternArr = [];
+                }
+
+                // Kilit ekranı aksiyon butonları
+                const tabTitles = {
+                    dashboard: '📊 Özeti Aç',
+                    trips: '🚚 Seferleri Gör',
+                    fuel: '⛽ Mazot Fişleri',
+                    maintenance: '🔧 Araç Bakım',
+                    detaylar: '⚠️ Cezalar & Belgeler',
+                    invoices: '📑 Faturalar',
+                    earsiv: '🧾 E-Arşiv',
+                    payments: '💳 Ödemeler',
+                    map: '📍 Canlı Harita',
+                    chat: '💬 Sohbete Git'
+                };
+
+                const pushActions = [];
+                if (requireAck) {
+                    pushActions.push({ action: 'ack_approved', title: '👍 Onayladım' });
+                    pushActions.push({ action: 'ack_rejected', title: '❌ Sorun Var' });
+                } else if (targetTab && tabTitles[targetTab]) {
+                    pushActions.push({ action: `nav_${targetTab}`, title: tabTitles[targetTab] });
                 }
 
                 // Firebase Cloud Messaging üzerinden multicast gönderim
@@ -336,25 +389,42 @@ export default async function handler(req, res) {
                     const message = {
                         notification: {
                             title,
-                            body
+                            body,
+                            ...(imageUrl ? { image: imageUrl } : {})
                         },
                         data: {
+                            notificationId: savedNotifDoc.id,
                             title,
                             body,
-                            click_action: '/'
+                            imageUrl: imageUrl || '',
+                            targetTab: targetTab || 'dashboard',
+                            vibrationPattern: vibrationPattern || 'general',
+                            requireAck: requireAck ? 'true' : 'false',
+                            click_action: targetTab ? `/#tab=${targetTab}` : '/'
                         },
                         webpush: {
                             headers: {
-                                Urgency: "high"
+                                Urgency: vibrationPattern === 'sos' ? 'high' : 'normal'
                             },
                             notification: {
                                 title,
                                 body,
                                 icon: '/tir-clear.png',
-                                badge: '/tir-clear.png'
+                                badge: '/tir-clear.png',
+                                ...(imageUrl ? { image: imageUrl } : {}),
+                                vibrate: vibratePatternArr,
+                                tag: `inaner-${savedNotifDoc.id}`,
+                                renotify: true,
+                                actions: pushActions,
+                                data: {
+                                    notificationId: savedNotifDoc.id,
+                                    targetTab: targetTab || 'dashboard',
+                                    url: targetTab ? `/#tab=${targetTab}` : '/'
+                                }
                             },
                             fcmOptions: {
-                                link: '/'
+                                link: targetTab ? `/#tab=${targetTab}` : '/',
+                                ...(imageUrl ? { image: imageUrl } : {})
                             }
                         },
                         tokens: tokens
@@ -374,7 +444,6 @@ export default async function handler(req, res) {
                     });
 
                     if (invalidTokens.length > 0) {
-                        // Veritabanından eski/geçersiz tokenları sil
                         const batch = db.batch();
                         const usersSnapshot = await db.collection('approved_users').get();
                         usersSnapshot.forEach(doc => {
@@ -393,12 +462,56 @@ export default async function handler(req, res) {
                         success: true, 
                         successCount: response.successCount, 
                         failureCount: response.failureCount,
-                        sentCount: response.successCount
+                        sentCount: response.successCount,
+                        notificationId: savedNotifDoc.id
                     });
                 } catch (messagingError) {
                     console.error('FCM Multicast gönderim hatası:', messagingError);
                     return res.status(500).json({ error: 'Bildirim gönderilirken bir hata oluştu.', details: messagingError.message });
                 }
+            }
+
+            case 'acknowledgeNotification': {
+                // Şoförün / Personelin bildirimi onaylama veya sorun bildirme eylemi
+                const { notificationId, status, note } = payload;
+                if (!notificationId || !status) {
+                    return res.status(400).json({ error: 'notificationId ve status parametreleri zorunludur.' });
+                }
+
+                const notifRef = db.collection('company_notifications').doc(notificationId);
+                const notifDoc = await notifRef.get();
+                if (!notifDoc.exists) {
+                    return res.status(404).json({ error: 'Bildirim kaydı bulunamadı.' });
+                }
+
+                const callerDoc = await db.collection('approved_users').doc(callerUid).get();
+                const driverName = callerDoc.exists ? (callerDoc.data().username || callerDoc.data().displayName || callerEmail) : callerEmail;
+
+                await notifRef.update({
+                    [`acknowledgements.${callerUid}`]: {
+                        status: status === 'approved' ? 'approved' : 'rejected',
+                        respondedAt: new Date().toISOString(),
+                        driverName,
+                        note: note || ''
+                    },
+                    readBy: admin.firestore.FieldValue.arrayUnion(callerUid)
+                });
+
+                return res.status(200).json({ success: true, status });
+            }
+
+            case 'markNotificationRead': {
+                const { notificationId } = payload;
+                if (!notificationId) {
+                    return res.status(400).json({ error: 'notificationId parametresi zorunludur.' });
+                }
+
+                const notifRef = db.collection('company_notifications').doc(notificationId);
+                await notifRef.update({
+                    readBy: admin.firestore.FieldValue.arrayUnion(callerUid)
+                });
+
+                return res.status(200).json({ success: true });
             }
 
             default:

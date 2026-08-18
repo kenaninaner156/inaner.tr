@@ -112,7 +112,7 @@ function App() {
     if (meta) meta.setAttribute('content', next === 'light' ? '#f8f9fa' : '#0B0E14');
   }
 
-  const { currentSession, logoutSession, isDataLoading, dataError, docs, penalties } = useContext(DataContext)
+  const { currentSession, logoutSession, isDataLoading, dataError, docs, penalties, companyNotifications, acknowledgeNotification, markNotificationAsRead } = useContext(DataContext)
   const { activeCompanyId, setActiveCompanyId, companyData, companies } = useCompany()
   const { activeTruckId, setActiveTruckId, activeTruckData, trucks } = useTruck()
   const currentUser = currentSession;
@@ -130,8 +130,34 @@ function App() {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener('resize', handleResize)
 
+    // Sekme yönlendirme olaylarını dinle
+    const handleSwitchTab = (e) => {
+      if (e.detail) setActiveTab(e.detail);
+    };
+    window.addEventListener('tir_switch_tab', handleSwitchTab);
+
+    // Service worker bildirim tıklama mesajlarını dinle
+    const handleSwMessage = (event) => {
+      if (event.data?.type === 'SWITCH_TAB' && event.data.tab) {
+        setActiveTab(event.data.tab);
+      }
+    };
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSwMessage);
+    }
+
+    // URL Hash kontrolü (#tab=trips gibi)
+    if (window.location.hash.startsWith('#tab=')) {
+      const hashTab = window.location.hash.replace('#tab=', '');
+      if (hashTab) setActiveTab(hashTab);
+    }
+
     return () => {
       window.removeEventListener('resize', handleResize)
+      window.removeEventListener('tir_switch_tab', handleSwitchTab)
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSwMessage)
+      }
     }
   }, [])
 
@@ -719,9 +745,16 @@ function App() {
       <PushNotificationToast
         notification={activeNotification}
         onClose={() => setActiveNotification(null)}
-        onAction={() => {
-          if (activeNotification?.data?.tab) {
-            setActiveTab(activeNotification.data.tab);
+        onAction={(tab) => {
+          if (tab) {
+            setActiveTab(tab);
+          } else if (activeNotification?.data?.targetTab) {
+            setActiveTab(activeNotification.data.targetTab);
+          }
+        }}
+        onAcknowledge={async (notifId, status) => {
+          if (acknowledgeNotification && notifId) {
+            await acknowledgeNotification(notifId, status);
           }
         }}
       />

@@ -2,16 +2,44 @@ import React, { useState, useContext } from 'react';
 import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
 import { DataContext } from '../context/DataContext';
-import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key, BarChart3, Award, User, Bell, Send } from 'lucide-react';
+import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key, BarChart3, Award, User, Bell, Send, Image, FileText, Navigation, MapPin, Activity, CheckCircle, XCircle, Clock, Sparkles, Radio, Volume2, VolumeX, Smartphone, Fuel, Wrench, Receipt, CreditCard, Shield, ExternalLink, RefreshCw, Eye, UploadCloud } from 'lucide-react';
 import { db, auth } from '../services/firebaseConfig';
 import { collection, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { requestAndSaveNotificationToken } from '../services/notificationService';
+import { uploadToCloudinary } from '../services/cloudinaryService';
 import VehicleAnalysis from './map/VehicleAnalysis';
+
+const NOTIF_DESTINATIONS = [
+    { id: 'dashboard', label: 'Özet', icon: BarChart3, color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' },
+    { id: 'trips', label: 'Seferler', icon: Truck, color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' },
+    { id: 'fuel', label: 'Mazot Fişleri', icon: Fuel, color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' },
+    { id: 'maintenance', label: 'Araç Bakım', icon: Wrench, color: 'text-orange-400 bg-orange-500/10 border-orange-500/30' },
+    { id: 'detaylar', label: 'Ceza & Belgeler', icon: AlertTriangle, color: 'text-red-400 bg-red-500/10 border-red-500/30' },
+    { id: 'invoices', label: 'Fatura Durumu', icon: FileText, color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' },
+    { id: 'earsiv', label: 'E-Arşiv Fatura', icon: Receipt, color: 'text-pink-400 bg-pink-500/10 border-pink-500/30' },
+    { id: 'payments', label: 'Ödeme Takibi', icon: CreditCard, color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30' },
+    { id: 'map', label: 'Canlı Harita', icon: MapPin, color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30' },
+];
+
+const VIBRATION_PROFILES = [
+    { id: 'sos', label: 'Acil SOS', desc: 'Güçlü kesintili titreşim', icon: Radio, color: 'border-red-500/40 text-red-400 bg-red-500/10' },
+    { id: 'task', label: 'Görev / Operasyon', desc: 'Çift titreşim darbesi', icon: Activity, color: 'border-amber-500/40 text-amber-400 bg-amber-500/10' },
+    { id: 'general', label: 'Genel Duyuru', desc: 'Standart tek titreşim', icon: Volume2, color: 'border-indigo-500/40 text-indigo-400 bg-indigo-500/10' },
+    { id: 'silent', label: 'Sessiz', desc: 'Titreşimsiz (Yalnızca ekran)', icon: VolumeX, color: 'border-slate-500/40 text-slate-400 bg-slate-500/10' }
+];
+
+const QUICK_TEMPLATES = [
+    { title: 'İnaner Lojistik - Görev', body: 'Araç fabrikaya ulaştı, yükleme/boşaltma sırasına giriniz.', tab: 'trips', vib: 'task', ack: true, label: '🏭 Fabrikaya Ulaşıldı' },
+    { title: 'İnaner Lojistik - Mazot', body: 'Lütfen aldığınız son yakıt fişinin fotoğrafını sisteme yükleyiniz.', tab: 'fuel', vib: 'general', ack: false, label: '⛽ Mazot Fişi Girişi' },
+    { title: 'İnaner Lojistik - Evrak', body: 'Sefer irsaliyesini ve kantar fişini sisteme yükleyiniz.', tab: 'detaylar', vib: 'general', ack: true, label: '📄 Evrak & İrsaliye' },
+    { title: 'İnaner Lojistik - Bakım', body: 'Aracınızın periyodik bakım veya muayene zamanı yaklaşmıştır.', tab: 'maintenance', vib: 'sos', ack: true, label: '🛑 Bakım Zamanı' },
+    { title: 'İnaner Lojistik - Konum', body: 'Lütfen canlı takip uygulamanızın açık olduğunu teyit ediniz.', tab: 'map', vib: 'task', ack: true, label: '📍 Konum Kontrolü' }
+];
 
 const CompanyAdmin = () => {
     const { activeCompanyId, companyData } = useCompany();
     const { trucks, activeTruckId, setActiveTruckId } = useTruck();
-    const { approvedUsers, pendingUsers, approveUser, rejectUser, premiums, updatePremiums, editUser, deleteUser, drivers, updateDrivers, callAdminApi } = useContext(DataContext);
+    const { approvedUsers, pendingUsers, approveUser, rejectUser, premiums, updatePremiums, editUser, deleteUser, drivers, updateDrivers, callAdminApi, companyNotifications } = useContext(DataContext);
 
     const [activeTab, setActiveTab] = useState('trucks');
 
@@ -19,6 +47,11 @@ const CompanyAdmin = () => {
     const [notifTitle, setNotifTitle] = useState('İnaner Lojistik Duyuru');
     const [notifBody, setNotifBody] = useState('');
     const [notifRecipient, setNotifRecipient] = useState('all'); // 'all' veya kullanıcı id'si
+    const [notifTargetTab, setNotifTargetTab] = useState('trips');
+    const [notifImageUrl, setNotifImageUrl] = useState('');
+    const [notifUploadingImage, setNotifUploadingImage] = useState(false);
+    const [notifVibration, setNotifVibration] = useState('general');
+    const [notifRequireAck, setNotifRequireAck] = useState(true);
     const [notifSending, setNotifSending] = useState(false);
     const [notifResult, setNotifResult] = useState(null);
     const [registeringDevice, setRegisteringDevice] = useState(false);
@@ -579,191 +612,479 @@ const CompanyAdmin = () => {
 
             {/* Notifications Tab */}
             {activeTab === 'notifications' && (
-                <div className="glass-panel p-6 border border-[var(--border-color)] space-y-6 animate-in fade-in duration-300">
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-color)] pb-3">
-                        <div className="flex items-center space-x-3">
-                            <Bell className="text-indigo-400 animate-pulse" size={22} />
-                            <h4 className="text-lg font-bold text-[var(--text-primary)]">Manuel Anlık Bildirim Gönder</h4>
-                        </div>
-                        <button
-                            type="button"
-                            disabled={registeringDevice}
-                            onClick={async () => {
-                                setRegisteringDevice(true);
-                                setNotifResult(null);
-                                try {
-                                    const currentUid = auth.currentUser?.uid;
-                                    if (!currentUid) {
-                                        setNotifResult({ error: 'Oturum açık değil. Lütfen tekrar giriş yapın.' });
-                                        return;
-                                    }
-                                    const res = await requestAndSaveNotificationToken(currentUid);
-                                    if (res.success) {
-                                        setNotifResult({
-                                            success: true,
-                                            message: '✅ Bu cihaz başarıyla bildirim sistemine kaydedildi! Artık bu telefondan/tarayıcıdan anlık bildirim alabilirsiniz.'
-                                        });
-                                    } else {
-                                        setNotifResult({
-                                            error: res.error || 'Cihaz kaydedilemedi.'
-                                        });
-                                    }
-                                } catch (err) {
-                                    setNotifResult({ error: err.message || 'Cihaz kaydedilirken bir hata oluştu.' });
-                                } finally {
-                                    setRegisteringDevice(false);
-                                }
-                            }}
-                            className="text-xs bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 px-3.5 py-2 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                        >
-                            {registeringDevice ? (
-                                <>
-                                    <div className="animate-spin rounded-full h-3 w-3 border-2 border-indigo-300 border-t-transparent" />
-                                    Cihaz Kaydediliyor...
-                                </>
-                            ) : (
-                                <>
-                                    <Bell size={13} />
-                                    Bu Cihazı Bildirime Kaydet
-                                </>
-                            )}
-                        </button>
-                    </div>
-
-                    {/* Şirket Cihaz Durumu Özeti */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
-                            <div>
-                                <div className="text-xs text-[var(--text-secondary)] font-medium">Kayıtlı Aktif Cihazlar</div>
-                                <div className="text-xl font-bold text-white mt-0.5">
-                                    {approvedUsers.filter(u => u.companyId === activeCompanyId).reduce((sum, u) => sum + (u.fcmTokens?.length || 0), 0)} Cihaz
+                <div className="space-y-8 animate-in fade-in duration-300">
+                    {/* Üst Kart / Panel */}
+                    <div className="glass-panel p-6 border border-[var(--border-color)] space-y-6">
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-color)] pb-4">
+                            <div className="flex items-center space-x-3">
+                                <div className="p-2.5 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400">
+                                    <Bell size={22} className="animate-pulse" />
+                                </div>
+                                <div>
+                                    <h4 className="text-lg font-bold text-[var(--text-primary)]">Zengin Anlık Bildirim Stüdyosu</h4>
+                                    <p className="text-xs text-[var(--text-secondary)]">Personel ve şoförlerin telefonlarına zengin aksiyonlu push bildirimleri gönderin</p>
                                 </div>
                             </div>
-                            <div className="p-2.5 bg-indigo-500/10 rounded-xl text-indigo-400">
-                                <Users size={20} />
-                            </div>
-                        </div>
-                        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
-                            <div>
-                                <div className="text-xs text-[var(--text-secondary)] font-medium">Bildirim Alabilecek Personel</div>
-                                <div className="text-xl font-bold text-emerald-400 mt-0.5">
-                                    {approvedUsers.filter(u => u.companyId === activeCompanyId && u.fcmTokens && u.fcmTokens.length > 0).length} / {approvedUsers.filter(u => u.companyId === activeCompanyId).length} Kişi
-                                </div>
-                            </div>
-                            <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400">
-                                <Bell size={20} />
-                            </div>
-                        </div>
-                    </div>
-
-                    <p className="text-[var(--text-secondary)] text-sm leading-relaxed">
-                        Şirketinizdeki şoförlerin veya personellerin telefonlarına anlık push bildirimi gönderebilirsiniz. Bildirimin cihaza ulaşabilmesi için personelin web sitesini / uygulamasını açıp bildirim iznini onaylamış olması gerekmektedir.
-                    </p>
-
-                    <form onSubmit={async (e) => {
-                        e.preventDefault();
-                        if (!notifBody.trim()) return;
-                        setNotifSending(true);
-                        setNotifResult(null);
-
-                        try {
-                            const isAll = notifRecipient === 'all';
-                            const res = await callAdminApi('sendPushNotification', {
-                                allCompany: isAll,
-                                targetUid: isAll ? null : notifRecipient,
-                                title: notifTitle.trim(),
-                                body: notifBody.trim(),
-                                companyId: activeCompanyId
-                            });
-
-                            if (res.success && res.sentCount > 0) {
-                                setNotifResult({
-                                    success: true,
-                                    message: `Bildirim başarıyla gönderildi! Toplam ${res.sentCount} cihaza ulaştırıldı.`
-                                });
-                                setNotifBody(''); // Başarılı gönderimden sonra mesajı temizle
-                            } else {
-                                setNotifResult({
-                                    error: res.message || 'Bildirim gönderilemedi: Şirkette aktif bildirim alıcısı bulunamadı.'
-                                });
-                            }
-                        } catch (err) {
-                            setNotifResult({ error: err.message || 'Bildirim gönderilirken sunucu hatası oluştu.' });
-                        } finally {
-                            setNotifSending(false);
-                        }
-                    }} className="space-y-4 max-w-xl">
-                        {notifResult && (
-                            <div className={`p-4 rounded-xl border text-sm ${notifResult.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'}`}>
-                                {notifResult.success ? notifResult.message : notifResult.error}
-                            </div>
-                        )}
-
-                        <div>
-                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Alıcı Seçimi</label>
-                            <select
-                                value={notifRecipient}
-                                onChange={(e) => setNotifRecipient(e.target.value)}
-                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none"
-                            >
-                                <option value="all">
-                                    Tüm Şirket Çalışanları & Şoförler ({approvedUsers.filter(u => u.companyId === activeCompanyId).reduce((sum, u) => sum + (u.fcmTokens?.length || 0), 0)} Cihaz)
-                                </option>
-                                {approvedUsers
-                                    .filter(u => u.companyId === activeCompanyId)
-                                    .map(u => (
-                                        <option key={u.id} value={u.id}>
-                                            {u.username} ({u.role}) {u.fcmTokens?.length ? `— ${u.fcmTokens.length} Cihaz Aktif` : '— Cihaz Kaydı Yok'}
-                                        </option>
-                                    ))
-                                }
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Bildirim Başlığı</label>
-                            <input
-                                type="text"
-                                required
-                                value={notifTitle}
-                                onChange={(e) => setNotifTitle(e.target.value)}
-                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none"
-                                placeholder="Örn: İnaner Lojistik Duyuru"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Bildirim Mesajı</label>
-                            <textarea
-                                required
-                                rows={4}
-                                value={notifBody}
-                                onChange={(e) => setNotifBody(e.target.value)}
-                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none resize-none"
-                                placeholder="İletmek istediğiniz mesajı buraya yazın..."
-                            />
-                        </div>
-
-                        <div className="pt-2">
                             <button
-                                type="submit"
-                                disabled={notifSending || !notifBody.trim()}
-                                className="bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-500/50 disabled:cursor-not-allowed text-[var(--text-primary)] px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center transition-colors shadow-lg shadow-indigo-500/20"
+                                type="button"
+                                disabled={registeringDevice}
+                                onClick={async () => {
+                                    setRegisteringDevice(true);
+                                    setNotifResult(null);
+                                    try {
+                                        const currentUid = auth.currentUser?.uid;
+                                        if (!currentUid) {
+                                            setNotifResult({ error: 'Oturum açık değil. Lütfen tekrar giriş yapın.' });
+                                            return;
+                                        }
+                                        const res = await requestAndSaveNotificationToken(currentUid);
+                                        if (res.success) {
+                                            setNotifResult({
+                                                success: true,
+                                                message: '✅ Bu cihaz başarıyla bildirim sistemine kaydedildi! Artık bu telefondan/tarayıcıdan anlık bildirim alabilirsiniz.'
+                                            });
+                                        } else {
+                                            setNotifResult({
+                                                error: res.error || 'Cihaz kaydedilemedi.'
+                                            });
+                                        }
+                                    } catch (err) {
+                                        setNotifResult({ error: err.message || 'Cihaz kaydedilirken bir hata oluştu.' });
+                                    } finally {
+                                        setRegisteringDevice(false);
+                                    }
+                                }}
+                                className="text-xs bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 px-3.5 py-2 rounded-xl font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
                             >
-                                {notifSending ? (
+                                {registeringDevice ? (
                                     <>
-                                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-[var(--text-primary)] border-t-transparent mr-2" />
-                                        Gönderiliyor...
+                                        <div className="animate-spin rounded-full h-3 w-3 border-2 border-indigo-300 border-t-transparent" />
+                                        Cihaz Kaydediliyor...
                                     </>
                                 ) : (
                                     <>
-                                        <Send size={16} className="mr-2" />
-                                        Bildirimi Gönder
+                                        <Smartphone size={14} />
+                                        Bu Cihazı Bildirime Kaydet
                                     </>
                                 )}
                             </button>
                         </div>
-                    </form>
+
+                        {/* Canlı İstatistik Sayaçları */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+                                <div>
+                                    <div className="text-xs text-[var(--text-secondary)] font-medium">Kayıtlı Aktif Cihazlar</div>
+                                    <div className="text-xl font-bold text-white mt-0.5">
+                                        {approvedUsers.filter(u => u.companyId === activeCompanyId).reduce((sum, u) => sum + (u.fcmTokens?.length || 0), 0)} Cihaz
+                                    </div>
+                                </div>
+                                <div className="p-2.5 bg-indigo-500/10 rounded-xl text-indigo-400">
+                                    <Users size={20} />
+                                </div>
+                            </div>
+                            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+                                <div>
+                                    <div className="text-xs text-[var(--text-secondary)] font-medium">Bildirim Alabilecek Personel</div>
+                                    <div className="text-xl font-bold text-emerald-400 mt-0.5">
+                                        {approvedUsers.filter(u => u.companyId === activeCompanyId && u.fcmTokens && u.fcmTokens.length > 0).length} / {approvedUsers.filter(u => u.companyId === activeCompanyId).length} Kişi
+                                    </div>
+                                </div>
+                                <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400">
+                                    <Bell size={20} />
+                                </div>
+                            </div>
+                            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+                                <div>
+                                    <div className="text-xs text-[var(--text-secondary)] font-medium">Gönderilen Bildirim Arşivi</div>
+                                    <div className="text-xl font-bold text-amber-400 mt-0.5">
+                                        {(companyNotifications || []).length} Adet
+                                    </div>
+                                </div>
+                                <div className="p-2.5 bg-amber-500/10 rounded-xl text-amber-400">
+                                    <Activity size={20} />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Hızlı Şablonlar */}
+                        <div>
+                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-2 flex items-center gap-1.5">
+                                <Sparkles size={14} className="text-amber-400" />
+                                1 Tıkla Hazır Şablonlar
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                                {QUICK_TEMPLATES.map((tmpl, idx) => (
+                                    <button
+                                        key={idx}
+                                        type="button"
+                                        onClick={() => {
+                                            setNotifTitle(tmpl.title);
+                                            setNotifBody(tmpl.body);
+                                            setNotifTargetTab(tmpl.tab);
+                                            setNotifVibration(tmpl.vib);
+                                            setNotifRequireAck(tmpl.ack);
+                                        }}
+                                        className="text-xs bg-white/[0.03] hover:bg-white/[0.08] text-slate-300 border border-white/10 hover:border-indigo-500/40 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1"
+                                    >
+                                        {tmpl.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Bildirim Formu */}
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            if (!notifBody.trim()) return;
+                            setNotifSending(true);
+                            setNotifResult(null);
+
+                            try {
+                                const isAll = notifRecipient === 'all';
+                                const res = await callAdminApi('sendPushNotification', {
+                                    allCompany: isAll,
+                                    targetUid: isAll ? null : notifRecipient,
+                                    title: notifTitle.trim(),
+                                    body: notifBody.trim(),
+                                    imageUrl: notifImageUrl ? notifImageUrl.trim() : null,
+                                    targetTab: notifTargetTab,
+                                    vibrationPattern: notifVibration,
+                                    requireAck: notifRequireAck,
+                                    companyId: activeCompanyId
+                                });
+
+                                if (res.success && res.sentCount > 0) {
+                                    setNotifResult({
+                                        success: true,
+                                        message: `🚀 Bildirim başarıyla gönderildi! Toplam ${res.sentCount} cihaza ulaştırıldı ve arşive kaydedildi.`
+                                    });
+                                    setNotifBody('');
+                                    setNotifImageUrl('');
+                                } else if (res.success && res.sentCount === 0) {
+                                    setNotifResult({
+                                        success: true,
+                                        message: '✅ Bildirim arşive ve sisteme kaydedildi. (Şu anda bildirim izni açık cihaz bulunamadı).'
+                                    });
+                                } else {
+                                    setNotifResult({
+                                        error: res.message || 'Bildirim gönderilemedi.'
+                                    });
+                                }
+                            } catch (err) {
+                                setNotifResult({ error: err.message || 'Bildirim gönderilirken sunucu hatası oluştu.' });
+                            } finally {
+                                setNotifSending(false);
+                            }
+                        }} className="space-y-5">
+                            {notifResult && (
+                                <div className={`p-4 rounded-xl border text-sm flex items-start gap-2.5 ${notifResult.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'}`}>
+                                    {notifResult.success ? <CheckCircle size={18} className="mt-0.5 flex-shrink-0" /> : <AlertTriangle size={18} className="mt-0.5 flex-shrink-0" />}
+                                    <div>{notifResult.success ? notifResult.message : notifResult.error}</div>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Alıcı Seçimi</label>
+                                    <select
+                                        value={notifRecipient}
+                                        onChange={(e) => setNotifRecipient(e.target.value)}
+                                        className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3.5 py-2.5 text-sm focus:border-indigo-500 outline-none"
+                                    >
+                                        <option value="all">
+                                            👥 Tüm Şirket Çalışanları & Şoförler ({approvedUsers.filter(u => u.companyId === activeCompanyId).reduce((sum, u) => sum + (u.fcmTokens?.length || 0), 0)} Cihaz)
+                                        </option>
+                                        {approvedUsers
+                                            .filter(u => u.companyId === activeCompanyId)
+                                            .map(u => (
+                                                <option key={u.id} value={u.id}>
+                                                    👤 {u.username} ({u.role}) {u.fcmTokens?.length ? `— ${u.fcmTokens.length} Cihaz Aktif` : '— Cihaz Kaydı Yok'}
+                                                </option>
+                                            ))
+                                        }
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Bildirim Başlığı</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={notifTitle}
+                                        onChange={(e) => setNotifTitle(e.target.value)}
+                                        className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3.5 py-2.5 text-sm focus:border-indigo-500 outline-none"
+                                        placeholder="Örn: İnaner Lojistik Görev"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Bildirim Mesajı</label>
+                                <textarea
+                                    required
+                                    rows={3}
+                                    value={notifBody}
+                                    onChange={(e) => setNotifBody(e.target.value)}
+                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3.5 py-2.5 text-sm focus:border-indigo-500 outline-none resize-none"
+                                    placeholder="İletmek istediğiniz mesajı buraya yazın..."
+                                />
+                            </div>
+
+                            {/* 1. Hedef Sayfa / Aksiyon Butonu Seçici */}
+                            <div>
+                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-2 flex items-center gap-1.5">
+                                    <Navigation size={14} className="text-indigo-400" />
+                                    Tıklanınca Açılacak Sayfa (Kilit Ekranı & Toast Butonu)
+                                </label>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                                    {NOTIF_DESTINATIONS.map((dest) => {
+                                        const IconComponent = dest.icon;
+                                        const isSelected = notifTargetTab === dest.id;
+                                        return (
+                                            <button
+                                                key={dest.id}
+                                                type="button"
+                                                onClick={() => setNotifTargetTab(dest.id)}
+                                                className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-2 transition-all text-left ${
+                                                    isSelected
+                                                        ? 'bg-indigo-600/25 border-indigo-500 text-white shadow-md shadow-indigo-600/20'
+                                                        : 'bg-white/[0.02] border-white/10 text-slate-400 hover:text-slate-200 hover:bg-white/[0.05]'
+                                                }`}
+                                            >
+                                                <div className={`p-1.5 rounded-lg ${dest.color}`}>
+                                                    <IconComponent size={14} />
+                                                </div>
+                                                <span className="truncate">{dest.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* 2. Titreşim ve Görsel Yükleyici */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                                {/* Titreşim Profili */}
+                                <div>
+                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-2 flex items-center gap-1.5">
+                                        <Activity size={14} className="text-amber-400" />
+                                        Titreşim ve Öncelik Profili
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {VIBRATION_PROFILES.map((vib) => {
+                                            const VibIcon = vib.icon;
+                                            const isSelected = notifVibration === vib.id;
+                                            return (
+                                                <button
+                                                    key={vib.id}
+                                                    type="button"
+                                                    onClick={() => setNotifVibration(vib.id)}
+                                                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                                                        isSelected
+                                                            ? 'bg-indigo-600/25 border-indigo-500 text-white shadow-md'
+                                                            : 'bg-white/[0.02] border-white/10 text-slate-400 hover:text-slate-200'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <VibIcon size={14} className={vib.color} />
+                                                        <span className="text-xs font-bold text-slate-200">{vib.label}</span>
+                                                    </div>
+                                                    <p className="text-[10px] text-slate-400 mt-1 leading-tight">{vib.desc}</p>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Görsel / Fotoğraf Yükleyici */}
+                                <div>
+                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-2 flex items-center gap-1.5">
+                                        <Image size={14} className="text-sky-400" />
+                                        Fotoğraf / İrsaliye Görseli (Opsiyonel)
+                                    </label>
+                                    
+                                    {notifImageUrl ? (
+                                        <div className="relative rounded-xl overflow-hidden border border-white/15 bg-black/40 p-2 flex items-center gap-3">
+                                            <img src={notifImageUrl} alt="Bildirim Görseli" className="w-16 h-16 object-cover rounded-lg flex-shrink-0" />
+                                            <div className="min-w-0 flex-1">
+                                                <div className="text-xs font-medium text-slate-200 truncate">Görsel Eklendi</div>
+                                                <div className="text-[10px] text-emerald-400 mt-0.5">Kilit ekranında önizlenecek</div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setNotifImageUrl('')}
+                                                className="p-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 text-xs transition-colors"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <label className="border border-dashed border-white/20 hover:border-indigo-500/50 rounded-xl p-3.5 flex flex-col items-center justify-center cursor-pointer bg-white/[0.02] hover:bg-white/[0.04] transition-all">
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                disabled={notifUploadingImage}
+                                                onChange={async (e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (!file) return;
+                                                    setNotifUploadingImage(true);
+                                                    try {
+                                                        const uploadRes = await uploadToCloudinary(file);
+                                                        if (uploadRes?.url) {
+                                                            setNotifImageUrl(uploadRes.url);
+                                                        }
+                                                    } catch (upErr) {
+                                                        alert('Fotoğraf yüklenemedi: ' + (upErr.message || upErr));
+                                                    } finally {
+                                                        setNotifUploadingImage(false);
+                                                    }
+                                                }}
+                                            />
+                                            {notifUploadingImage ? (
+                                                <div className="flex items-center gap-2 text-xs text-indigo-400">
+                                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-400 border-t-transparent" />
+                                                    Fotoğraf Yükleniyor...
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-2 text-xs text-slate-300">
+                                                    <UploadCloud size={16} className="text-indigo-400" />
+                                                    Fotoğraf veya İrsaliye Seç
+                                                </div>
+                                            )}
+                                        </label>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* 3. İki Yönlü Onay Mekanizması Toggle'ı */}
+                            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 via-sky-500/5 to-transparent border border-emerald-500/20 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+                                        <CheckCircle size={20} />
+                                    </div>
+                                    <div>
+                                        <h5 className="text-xs font-bold text-white">İki Yönlü Şoför Onayı İste (Aksiyon Butonları)</h5>
+                                        <p className="text-[11px] text-slate-400 mt-0.5">Şoförün kilit ekranında `[👍 Onayladım]` ve `[❌ Sorun Var]` butonları çıkar, panelinize anlık düşer.</p>
+                                    </div>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={notifRequireAck}
+                                        onChange={(e) => setNotifRequireAck(e.target.checked)}
+                                        className="sr-only peer"
+                                    />
+                                    <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                                </label>
+                            </div>
+
+                            <div className="pt-2">
+                                <button
+                                    type="submit"
+                                    disabled={notifSending || !notifBody.trim()}
+                                    className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-600/40 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl text-sm font-bold flex items-center transition-all shadow-lg shadow-indigo-600/30 cursor-pointer"
+                                >
+                                    {notifSending ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
+                                            Gönderiliyor...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Send size={16} className="mr-2" />
+                                            Zengin Bildirimi Gönder
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    {/* Son Gönderilen Bildirimler & Canlı Onay Takip Paneli */}
+                    <div className="glass-panel p-6 border border-[var(--border-color)] space-y-4">
+                        <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
+                            <div className="flex items-center space-x-2.5">
+                                <Clock size={18} className="text-amber-400" />
+                                <h4 className="text-base font-bold text-[var(--text-primary)]">Gönderilen Bildirimler & Canlı Onay Takibi</h4>
+                            </div>
+                            <span className="text-xs text-[var(--text-secondary)]">{(companyNotifications || []).length} Kayıt</span>
+                        </div>
+
+                        {(!companyNotifications || companyNotifications.length === 0) ? (
+                            <div className="py-8 text-center text-slate-500 text-xs">
+                                Henüz gönderilmiş bir bildirim bulunmuyor.
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {companyNotifications.slice(0, 10).map((notif) => {
+                                    const acks = notif.acknowledgements || {};
+                                    const approvedList = Object.values(acks).filter(a => a.status === 'approved');
+                                    const rejectedList = Object.values(acks).filter(a => a.status === 'rejected');
+                                    const readCount = (notif.readBy || []).length;
+
+                                    return (
+                                        <div key={notif.id} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-indigo-500/30 transition-all space-y-3">
+                                            <div className="flex flex-wrap items-start justify-between gap-2">
+                                                <div className="flex items-start gap-3 min-w-0">
+                                                    {notif.imageUrl && (
+                                                        <img src={notif.imageUrl} alt="Ek" className="w-12 h-12 object-cover rounded-lg border border-white/10 flex-shrink-0" />
+                                                    )}
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="text-xs font-bold text-white">{notif.title}</span>
+                                                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
+                                                                Hedef: {notif.targetType === 'all' ? 'Tüm Şirket' : 'Özel Alıcı'}
+                                                            </span>
+                                                            {notif.targetTab && (
+                                                                <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/5 text-slate-300 border border-white/10">
+                                                                    Sayfa: {NOTIF_DESTINATIONS.find(d => d.id === notif.targetTab)?.label || notif.targetTab}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-xs text-slate-300 mt-1 whitespace-pre-wrap leading-relaxed">{notif.body}</p>
+                                                    </div>
+                                                </div>
+                                                <span className="text-[11px] text-slate-500 font-medium whitespace-nowrap">
+                                                    {notif.createdAt ? new Date(notif.createdAt).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+                                                </span>
+                                            </div>
+
+                                            {/* Şoför Yanıt ve Onay Durumu */}
+                                            {notif.requireAck && (
+                                                <div className="pt-2 border-t border-white/5 flex flex-wrap items-center gap-3 text-xs">
+                                                    <div className="flex items-center gap-1.5 text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 font-semibold">
+                                                        <CheckCircle size={13} />
+                                                        <span>{approvedList.length} Onay</span>
+                                                        {approvedList.length > 0 && (
+                                                            <span className="text-[10px] text-emerald-300 font-normal">
+                                                                ({approvedList.map(a => a.driverName).join(', ')})
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {rejectedList.length > 0 && (
+                                                        <div className="flex items-center gap-1.5 text-red-400 bg-red-500/10 px-2.5 py-1 rounded-lg border border-red-500/20 font-semibold">
+                                                            <XCircle size={13} />
+                                                            <span>{rejectedList.length} Sorun Bildirimi</span>
+                                                            <span className="text-[10px] text-red-300 font-normal">
+                                                                ({rejectedList.map(a => `${a.driverName}${a.note ? `: ${a.note}` : ''}`).join(', ')})
+                                                            </span>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="flex items-center gap-1 text-slate-400 text-[11px] ml-auto">
+                                                        <Eye size={12} />
+                                                        <span>{readCount} Kişi Gördü</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 

@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     AlertTriangle, FileText, Shield, Car, Calendar, Plus, Trash2,
     Bell, CheckCircle, Clock, X, ChevronDown, Paperclip, User,
-    AlertCircle, BookOpen, Banknote, Pencil
+    AlertCircle, BookOpen, Banknote, Pencil, ExternalLink, Image, Sparkles, Navigation, XCircle, Eye
 } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
+import { auth } from '../services/firebaseConfig';
 import FileUpload from './FileUpload';
 
 // ── Sabitler ──────────────────────────────────────────────────────────────────
@@ -52,10 +53,13 @@ const Detaylar = () => {
     const {
         docs, updateDocs, deleteDocField,
         penalties, addPenalty, deletePenalty, togglePenaltyPaid,
-        allDrivers
+        allDrivers, companyNotifications, acknowledgeNotification, markNotificationAsRead
     } = React.useContext(DataContext);
 
     const [activeTab, setActiveTab] = useState('belgeler');
+    const [notifFilter, setNotifFilter] = useState('all'); // 'all' | 'company' | 'penalties' | 'docs'
+    const [selectedImage, setSelectedImage] = useState(null);
+    const [ackLoadingId, setAckLoadingId] = useState(null);
 
     // Bildirimlerin okundu bilgisini tutan stateler
     const [readDocsNotif, setReadDocsNotif] = useState(() => load('tir_read_docs_notif', {}));
@@ -501,49 +505,239 @@ const Detaylar = () => {
 
             {/* ─── BİLDİRİMLER ─── */}
             {activeTab === 'bildirimler' && (
-                <div className="space-y-4">
-                    {totalNotifications > 0 && (
-                        <div className="flex justify-end">
-                            <button onClick={clearNotifications}
-                                className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg bg-slate-700/50 hover:bg-slate-600/50 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all border border-[var(--border-color)]">
-                                <X size={12} /> Bildirimleri Okundu İşaretle
+                <div className="space-y-5">
+                    {/* Filtreleme ve Aksiyon Başlığı */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-color)] pb-3">
+                        <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+                            {[
+                                { id: 'all', label: 'Tüm Bildirimler' },
+                                { id: 'company', label: '📢 Şirket Duyuruları & Görevler' },
+                                { id: 'docs', label: '📄 Belgeler' },
+                                { id: 'penalties', label: '🚨 Cezalar' }
+                            ].map(f => (
+                                <button
+                                    key={f.id}
+                                    type="button"
+                                    onClick={() => setNotifFilter(f.id)}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                                        notifFilter === f.id
+                                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25'
+                                            : 'bg-white/[0.03] text-slate-400 hover:text-white hover:bg-white/5'
+                                    }`}
+                                >
+                                    {f.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {totalNotifications > 0 && (
+                            <button
+                                onClick={clearNotifications}
+                                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-[var(--text-secondary)] hover:text-white transition-all border border-white/10"
+                            >
+                                <CheckCircle size={13} className="text-emerald-400" />
+                                <span>Tümünü Okundu İşaretle</span>
                             </button>
-                        </div>
-                    )}
-                    {totalNotifications === 0 ? (
-                        <div className="glass-panel p-10 text-center">
-                            <CheckCircle size={36} className="mx-auto mb-3 text-emerald-500/50" />
-                            <p className="text-[var(--text-primary)] font-semibold">Her şey yolunda!</p>
-                            <p className="text-slate-500 text-sm mt-1">Yaklaşan belge yenileme veya ödenmemiş ceza yok.</p>
-                        </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {urgentDocs.map(dt => {
-                                const days = daysUntil(docs[dt.key]?.date);
-                                const status = statusBadge(days);
-                                return (
-                                    <div key={dt.key} className={`glass-panel p-4 flex items-center gap-3 border ${status.bg}`}>
-                                        <span className="text-2xl">{dt.icon}</span>
-                                        <div className="flex-1">
-                                            <p className="text-[var(--text-primary)] font-medium text-sm">{dt.label}</p>
-                                            <p className="text-xs text-[var(--text-secondary)]">{new Date(docs[dt.key]?.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                        )}
+                    </div>
+
+                    {/* Bildirim Kartları Listesi */}
+                    <div className="space-y-3">
+                        {/* 1. Şirket Duyuruları ve Görev Bildirimleri */}
+                        {(notifFilter === 'all' || notifFilter === 'company') && (companyNotifications || []).map(notif => {
+                            const currentUid = auth.currentUser?.uid;
+                            const myAck = currentUid && notif.acknowledgements ? notif.acknowledgements[currentUid] : null;
+                            const isRead = currentUid && notif.readBy && notif.readBy.includes(currentUid);
+
+                            return (
+                                <div
+                                    key={notif.id}
+                                    className={`glass-panel p-5 rounded-2xl border transition-all ${
+                                        isRead ? 'border-white/5 bg-white/[0.01]' : 'border-indigo-500/30 bg-indigo-950/15 shadow-lg shadow-indigo-950/20'
+                                    }`}
+                                >
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
+                                        <div className="flex items-start gap-3.5 min-w-0">
+                                            <div className="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex-shrink-0 mt-0.5">
+                                                <Bell size={18} className="animate-pulse" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <h4 className="text-sm font-bold text-white leading-snug">{notif.title}</h4>
+                                                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-bold border border-indigo-500/30">
+                                                        Şirket Bildirimi
+                                                    </span>
+                                                    {!isRead && (
+                                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold animate-pulse">
+                                                            Yeni
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-slate-300 mt-1.5 whitespace-pre-wrap leading-relaxed">
+                                                    {notif.body}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <span className={`text-xs px-2.5 py-1 rounded-full border font-semibold flex-shrink-0 ${status.bg} ${status.color}`}>
-                                            {status.label}
+
+                                        <span className="text-[11px] text-slate-500 font-medium whitespace-nowrap">
+                                            {notif.createdAt ? new Date(notif.createdAt).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
                                         </span>
                                     </div>
-                                );
-                            })}
-                            {unpaidPenalties.map(p => (
-                                <div key={p.id} className="glass-panel p-4 flex items-center gap-3 border border-red-500/20">
-                                    <AlertTriangle size={20} className="text-red-400 flex-shrink-0" />
-                                    <div className="flex-1">
-                                        <p className="text-[var(--text-primary)] font-medium text-sm">Ödenmemiş Ceza: {p.type}</p>
-                                        <p className="text-xs text-[var(--text-secondary)]">{p.driver && `${p.driver} · `}{new Date(p.date).toLocaleDateString('tr-TR')}</p>
+
+                                    {/* Ekli Görsel */}
+                                    {notif.imageUrl && (
+                                        <div className="mt-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedImage(notif.imageUrl)}
+                                                className="relative group rounded-xl overflow-hidden border border-white/10 max-w-xs block cursor-pointer"
+                                            >
+                                                <img src={notif.imageUrl} alt="Bildirim Eki" className="w-full max-h-48 object-cover group-hover:scale-105 transition-transform duration-300" />
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold gap-1.5">
+                                                    <Eye size={14} /> Tam Boy Gör
+                                                </div>
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Alt Bar: Hedef Sayfa Butonu ve İki Yönlü Onay */}
+                                    <div className="mt-4 pt-3 border-t border-white/5 flex flex-wrap items-center justify-between gap-3">
+                                        {/* Hedef Sayfaya Git Butonu */}
+                                        {notif.targetTab && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (markNotificationAsRead && notif.id) markNotificationAsRead(notif.id);
+                                                    window.dispatchEvent(new CustomEvent('tir_switch_tab', { detail: notif.targetTab }));
+                                                }}
+                                                className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-indigo-300 border border-indigo-500/20 hover:border-indigo-500/40 transition-all flex items-center gap-1.5 cursor-pointer"
+                                            >
+                                                <Navigation size={13} />
+                                                <span>İlgili Sayfayı Aç</span>
+                                                <ExternalLink size={11} className="opacity-60" />
+                                            </button>
+                                        )}
+
+                                        {/* İki Yönlü Şoför Onayı Butonları */}
+                                        {notif.requireAck && (
+                                            <div className="flex items-center gap-2 ml-auto">
+                                                {myAck ? (
+                                                    <div className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border ${
+                                                        myAck.status === 'approved'
+                                                            ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                                                            : 'bg-red-500/15 border-red-500/30 text-red-400'
+                                                    }`}>
+                                                        {myAck.status === 'approved' ? <CheckCircle size={14} /> : <XCircle size={14} />}
+                                                        <span>{myAck.status === 'approved' ? 'Onayladınız' : 'Sorun Bildirdiniz'}</span>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            disabled={ackLoadingId === notif.id}
+                                                            onClick={async () => {
+                                                                setAckLoadingId(notif.id);
+                                                                try {
+                                                                    await acknowledgeNotification(notif.id, 'approved');
+                                                                } catch (e) {
+                                                                    alert('Onay iletilemedi: ' + e.message);
+                                                                } finally {
+                                                                    setAckLoadingId(null);
+                                                                }
+                                                            }}
+                                                            className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer"
+                                                        >
+                                                            <CheckCircle size={13} />
+                                                            <span>Onayladım / Yola Çıktım</span>
+                                                        </button>
+
+                                                        <button
+                                                            type="button"
+                                                            disabled={ackLoadingId === notif.id}
+                                                            onClick={async () => {
+                                                                const note = prompt('Lütfen karşılaştığınız sorunu kısaca yazın:');
+                                                                if (note === null) return;
+                                                                setAckLoadingId(notif.id);
+                                                                try {
+                                                                    await acknowledgeNotification(notif.id, 'rejected', note);
+                                                                } catch (e) {
+                                                                    alert('Sorun bildirimi iletilemedi: ' + e.message);
+                                                                } finally {
+                                                                    setAckLoadingId(null);
+                                                                }
+                                                            }}
+                                                            className="px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                                                        >
+                                                            <XCircle size={13} />
+                                                            <span>Sorun Var</span>
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
-                                    <span className="text-red-400 font-bold text-sm flex-shrink-0">₺{p.amount.toLocaleString('tr-TR')}</span>
                                 </div>
-                            ))}
+                            );
+                        })}
+
+                        {/* 2. Belge ve Muayene Hatırlatıcıları */}
+                        {(notifFilter === 'all' || notifFilter === 'docs') && urgentDocs.map(dt => {
+                            const days = daysUntil(docs[dt.key]?.date);
+                            const status = statusBadge(days);
+                            return (
+                                <div key={dt.key} className={`glass-panel p-4 flex items-center gap-3 border rounded-2xl ${status.bg}`}>
+                                    <span className="text-2xl">{dt.icon}</span>
+                                    <div className="flex-1">
+                                        <p className="text-[var(--text-primary)] font-medium text-sm">{dt.label}</p>
+                                        <p className="text-xs text-[var(--text-secondary)]">{new Date(docs[dt.key]?.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                    </div>
+                                    <span className={`text-xs px-2.5 py-1 rounded-full border font-semibold flex-shrink-0 ${status.bg} ${status.color}`}>
+                                        {status.label}
+                                    </span>
+                                </div>
+                            );
+                        })}
+
+                        {/* 3. Ödenmemiş Cezalar */}
+                        {(notifFilter === 'all' || notifFilter === 'penalties') && unpaidPenalties.map(p => (
+                            <div key={p.id} className="glass-panel p-4 flex items-center gap-3 border border-red-500/20 rounded-2xl">
+                                <AlertTriangle size={20} className="text-red-400 flex-shrink-0" />
+                                <div className="flex-1">
+                                    <p className="text-[var(--text-primary)] font-medium text-sm">Ödenmemiş Ceza: {p.type}</p>
+                                    <p className="text-xs text-[var(--text-secondary)]">{p.driver && `${p.driver} · `}{new Date(p.date).toLocaleDateString('tr-TR')}</p>
+                                </div>
+                                <span className="text-red-400 font-bold text-sm flex-shrink-0">₺{p.amount.toLocaleString('tr-TR')}</span>
+                            </div>
+                        ))}
+
+                        {/* Eğer hiç kayıt yoksa */}
+                        {((notifFilter === 'all' && totalNotifications === 0 && (!companyNotifications || companyNotifications.length === 0)) ||
+                          (notifFilter === 'company' && (!companyNotifications || companyNotifications.length === 0)) ||
+                          (notifFilter === 'docs' && urgentDocs.length === 0) ||
+                          (notifFilter === 'penalties' && unpaidPenalties.length === 0)) && (
+                            <div className="glass-panel p-10 text-center rounded-2xl">
+                                <CheckCircle size={36} className="mx-auto mb-3 text-emerald-500/50" />
+                                <p className="text-[var(--text-primary)] font-semibold">Bu kategoride bildirim bulunmuyor</p>
+                                <p className="text-slate-500 text-sm mt-1">Tüm işlemleriniz güncel ve kontrol altında.</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Fotoğraf Büyütme Modal Lightbox */}
+                    {selectedImage && (
+                        <div
+                            className="fixed inset-0 z-[99999] bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+                            onClick={() => setSelectedImage(null)}
+                        >
+                            <div className="relative max-w-3xl max-h-[90vh] overflow-hidden rounded-2xl border border-white/20">
+                                <img src={selectedImage} alt="Büyük Görsel" className="max-w-full max-h-[85vh] object-contain rounded-2xl" />
+                                <button
+                                    onClick={() => setSelectedImage(null)}
+                                    className="absolute top-3 right-3 p-2 bg-black/60 hover:bg-black/90 text-white rounded-full transition-all"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
