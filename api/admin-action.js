@@ -394,6 +394,10 @@ export default async function handler(req, res) {
                 // Firebase Cloud Messaging üzerinden multicast gönderim
                 try {
                     const message = {
+                        notification: {
+                            title: title.trim(),
+                            body: body.trim()
+                        },
                         data: {
                             notificationId: savedNotifDoc.id,
                             title: title.trim(),
@@ -405,8 +409,7 @@ export default async function handler(req, res) {
                         },
                         webpush: {
                             headers: {
-                                Urgency: 'normal',
-                                Topic: `inaner-${savedNotifDoc.id}`
+                                Urgency: 'high'
                             },
                             notification: {
                                 title: title.trim(),
@@ -432,7 +435,6 @@ export default async function handler(req, res) {
                             payload: {
                                 aps: {
                                     'alert': { title: title.trim(), body: body.trim() },
-                                    'sound': '', // iOS ICIN SESSIZ
                                     'badge': 1,
                                     'content-available': 1
                                 }
