@@ -516,39 +516,6 @@ const Detaylar = () => {
             {/* ─── BİLDİRİMLER ─── */}
             {activeTab === 'bildirimler' && (
                 <div className="space-y-5">
-                    {/* Üst İstatistik Sayaçları */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                        <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-between">
-                            <div>
-                                <span className="text-xs font-semibold text-indigo-300">Şirket Görev & Duyuruları</span>
-                                <div className="text-2xl font-black text-white mt-1">{(companyNotifications || []).length}</div>
-                            </div>
-                            <div className="p-3 bg-indigo-500/20 text-indigo-300 rounded-xl">
-                                <Bell size={22} />
-                            </div>
-                        </div>
-
-                        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
-                            <div>
-                                <span className="text-xs font-semibold text-amber-300">Yaklaşan / Dolan Belgeler</span>
-                                <div className="text-2xl font-black text-amber-400 mt-1">{urgentDocs.length}</div>
-                            </div>
-                            <div className="p-3 bg-amber-500/20 text-amber-300 rounded-xl">
-                                <FileText size={22} />
-                            </div>
-                        </div>
-
-                        <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-between">
-                            <div>
-                                <span className="text-xs font-semibold text-red-300">Ödenmemiş Cezalar</span>
-                                <div className="text-2xl font-black text-red-400 mt-1">{unpaidPenalties.length}</div>
-                            </div>
-                            <div className="p-3 bg-red-500/20 text-red-300 rounded-xl">
-                                <AlertTriangle size={22} />
-                            </div>
-                        </div>
-                    </div>
-
                     {/* Filtreleme ve Aksiyon Başlığı */}
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-color)] pb-3">
                         <div className="flex items-center gap-1.5 overflow-x-auto py-1">

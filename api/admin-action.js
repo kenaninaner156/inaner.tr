@@ -394,64 +394,48 @@ export default async function handler(req, res) {
                 // Firebase Cloud Messaging üzerinden multicast gönderim
                 try {
                     const message = {
-                        notification: {
-                            title,
-                            body,
-                            ...(imageUrl ? { image: imageUrl } : {})
-                        },
                         data: {
                             notificationId: savedNotifDoc.id,
-                            title,
-                            body,
-                            imageUrl: imageUrl || '',
-                            targetTab: targetTab || 'dashboard',
+                            title: title.trim(),
+                            body: body.trim(),
+                            targetTab: targetTab || 'detaylar',
                             buttons: JSON.stringify(finalButtons),
-                            vibrationPattern: vibrationPattern || 'general',
                             requireAck: isAckNeeded ? 'true' : 'false',
                             click_action: targetTab ? `/#tab=${targetTab}` : '/'
                         },
                         webpush: {
                             headers: {
-                                Urgency: vibrationPattern === 'sos' ? 'high' : 'normal'
+                                Urgency: 'normal',
+                                Topic: `inaner-${savedNotifDoc.id}`
                             },
                             notification: {
-                                title,
-                                body,
+                                title: title.trim(),
+                                body: body.trim(),
                                 icon: '/tir-clear.png',
                                 badge: '/tir-clear.png',
-                                ...(imageUrl ? { image: imageUrl } : {}),
-                                vibrate: vibratePatternArr,
-                                silent: true, // Kullanıcı isteği: tarayıcıda bildirim sesi kapalı
-                                tag: `inaner-${savedNotifDoc.id}`,
-                                renotify: true,
+                                silent: true, // TAMAMEN SESSIZ - TARAYICI VE SISTEM SESI KAPALI
+                                tag: `inaner-${savedNotifDoc.id}`, // Tekrarlanan bildirimleri engeller
+                                renotify: false,
                                 actions: pushActions,
                                 data: {
                                     notificationId: savedNotifDoc.id,
-                                    targetTab: targetTab || 'dashboard',
+                                    targetTab: targetTab || 'detaylar',
                                     buttons: JSON.stringify(finalButtons),
                                     url: targetTab ? `/#tab=${targetTab}` : '/'
                                 }
                             },
                             fcmOptions: {
-                                link: targetTab ? `/#tab=${targetTab}` : '/',
-                                ...(imageUrl ? { image: imageUrl } : {})
+                                link: targetTab ? `/#tab=${targetTab}` : '/'
                             }
                         },
                         apns: {
                             payload: {
                                 aps: {
-                                    'mutable-content': 1,
-                                    'alert': { title, body }
+                                    'alert': { title: title.trim(), body: body.trim() },
+                                    'sound': '', // iOS ICIN SESSIZ
+                                    'badge': 1,
+                                    'content-available': 1
                                 }
-                            },
-                            fcmOptions: {
-                                ...(imageUrl ? { image: imageUrl } : {})
-                            }
-                        },
-                        android: {
-                            priority: 'high',
-                            notification: {
-                                ...(imageUrl ? { imageUrl: imageUrl } : {})
                             }
                         },
                         tokens: tokens

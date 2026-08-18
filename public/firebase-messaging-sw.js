@@ -28,53 +28,44 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Arka planda bildirim alındı:', payload);
 
-  const title = payload.notification?.title || payload.data?.title || "İnaner Lojistik";
-  const body = payload.notification?.body || payload.data?.body || "";
-  const imageUrl = payload.notification?.image || payload.data?.imageUrl || payload.fcmOptions?.image || null;
-  const targetTab = payload.data?.targetTab || 'dashboard';
-  const buttonMode = payload.data?.buttonMode || 'nav'; // 'none' | 'nav' | 'ack' | 'both'
-  const customNavLabel = payload.data?.customNavLabel || null;
-
-  // Titreşim paterni
-  let vibratePattern = [200, 100, 200];
-  if (payload.data?.vibrationPattern === 'sos') {
-    vibratePattern = [300, 100, 300, 100, 300, 200, 600, 100, 600, 100, 600, 200, 300, 100, 300];
-  } else if (payload.data?.vibrationPattern === 'general') {
-    vibratePattern = [200];
-  } else if (payload.data?.vibrationPattern === 'silent') {
-    vibratePattern = [];
+  // If the browser already handled the notification via WebPush standard payload,
+  // do not duplicate it!
+  if (payload.notification && Object.keys(payload.notification).length > 0) {
+    console.log('[firebase-messaging-sw.js] Bildirim tarayıcı tarafından otomatik gösterildi, tekrar gösterilmiyor.');
+    return;
   }
 
-  const tabTitles = {
-    dashboard: '📊 Özeti Aç',
-    trips: '📋 Sefer Detayları',
-    fuel: '⛽ Mazot Fişi Yükle',
-    maintenance: '🔧 Araç Bakım',
-    detaylar: '⚠️ Cezalar & Belgeler',
-    invoices: '📑 Fatura Durumu',
-    earsiv: '🧾 E-Arşiv Fatura',
-    payments: '💳 Ödeme Takibi',
-    map: '📍 Canlı Harita',
-    chat: '💬 Sohbete Git'
-  };
-
-  const actions = [];
-  if (buttonMode === 'ack' || buttonMode === 'both') {
-    actions.push({ action: 'ack_approved', title: '👍 Onayladım' });
-    actions.push({ action: 'ack_rejected', title: '❌ Sorun Var' });
-  }
-  if ((buttonMode === 'nav' || buttonMode === 'both') && targetTab) {
-    actions.push({ action: `nav_${targetTab}`, title: customNavLabel || tabTitles[targetTab] || '🚀 Sayfayı Aç' });
-  }
+  const title = payload.data?.title || payload.notification?.title || "İnaner Lojistik";
+  const body = payload.data?.body || payload.notification?.body || "";
+  const targetTab = payload.data?.targetTab || 'detaylar';
   
+  let actions = [];
+  if (payload.data?.buttons) {
+    try {
+      const parsedBtns = JSON.parse(payload.data.buttons);
+      if (Array.isArray(parsedBtns)) {
+        parsedBtns.slice(0, 3).forEach(b => {
+          if (b.actionType === 'ack_approved') {
+            actions.push({ action: 'ack_approved', title: b.label || '👍 Onayladım' });
+          } else if (b.actionType === 'ack_rejected') {
+            actions.push({ action: 'ack_rejected', title: b.label || '❌ Sorun Var' });
+          } else if (b.actionType === 'navigate' || b.targetTab) {
+            actions.push({ action: `nav_${b.targetTab || 'detaylar'}`, title: b.label || '🚀 Sayfayı Aç' });
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('[sw] Buton parse hatası:', e);
+    }
+  }
+
   const notificationOptions = {
     body: body,
     icon: '/tir-clear.png',
     badge: '/tir-clear.png',
-    ...(imageUrl ? { image: imageUrl } : {}),
     tag: payload.data?.notificationId ? `inaner-${payload.data.notificationId}` : 'inaner-alert',
-    renotify: true,
-    vibrate: vibratePattern,
+    renotify: false,
+    silent: true, // Tamamen sessiz, OS sesi kapalı
     data: {
       url: targetTab ? `/#tab=${targetTab}` : '/',
       notificationId: payload.data?.notificationId || null,

@@ -366,12 +366,26 @@ export const DataProvider = ({ children }) => {
 
         // 11.9 Company Notifications config
         const targetNotifCompany = activeCompanyId || currentSession?.companyId || 'inaner_logistics';
-        unsubs.push(onSnapshot(query(collection(db, 'company_notifications'), where('companyId', '==', targetNotifCompany)), (snapshot) => {
+        unsubs.push(onSnapshot(query(collection(db, 'company_notifications'), where('companyId', 'in', [targetNotifCompany, 'inaner_logistics', 'all'])), (snapshot) => {
             const list = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-            list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-            setCompanyNotifications(list);
+            const seen = new Set();
+            const unique = [];
+            list.forEach(item => {
+                if (!seen.has(item.id)) {
+                    seen.add(item.id);
+                    unique.push(item);
+                }
+            });
+            unique.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+            setCompanyNotifications(unique);
         }, (err) => {
-            console.warn('company_notifications subscription error:', err);
+            console.warn('company_notifications in-query subscription error:', err);
+            unsubs.push(onSnapshot(collection(db, 'company_notifications'), (snap) => {
+                const list = snap.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                    .filter(d => !d.companyId || d.companyId === targetNotifCompany || d.companyId === 'inaner_logistics' || d.companyId === 'all');
+                list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+                setCompanyNotifications(list);
+            }, (e2) => console.warn('fallback company_notifications error:', e2)));
         }));
 
         // 12. Docs config
