@@ -50,9 +50,9 @@ const createVehicleIcon = (isOnline, isMapped) => {
   });
 };
 
-// ── Hıza göre renk ─────────────────────────────────────────────────────────
-function getSpeedColor(speedMs) {
-  const kmh = (speedMs || 0) * 3.6;
+// ── Hıza göre renk (Traccar GPS hız verisi knot cinsindedir: 1 knot = 1.852 km/h) ───
+function getSpeedColor(speedKnots) {
+  const kmh = (speedKnots || 0) * 1.852;
   if (kmh < 5)  return '#ef4444';
   if (kmh < 30) return '#f97316';
   if (kmh < 70) return '#6366f1';
@@ -416,7 +416,7 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
       if (!lastPoint || isNaN(lastPoint.lat)) return null;
       
       const isOnline  = (Date.now() - new Date(lastPoint.timestamp).getTime()) < 15 * 60 * 1000;
-      const speedKmh  = isOnline ? Math.round((lastPoint.speed || 0) * 3.6) : 0;
+      const speedKmh  = isOnline ? Math.round((lastPoint.speed || 0) * 1.852) : 0;
       const { km, durationMin } = calcStats(latestSession);
       const isMapped  = !!deviceMappings[driverId];
       

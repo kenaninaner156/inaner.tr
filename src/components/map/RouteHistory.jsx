@@ -7,8 +7,8 @@ import { calcStats, getInterpolatedPointLinear, haversineKm, groupIntoSessions, 
 import { DataContext } from '../../context/DataContext';
 import { db } from '../../services/firebaseConfig';
 import { collection, query, where, orderBy, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
-function getSpeedColor(speedMs) {
-  const kmh = (speedMs || 0) * 3.6;
+function getSpeedColor(speedKnots) {
+  const kmh = (speedKnots || 0) * 1.852;
   if (kmh < 5)  return '#ef4444';  // kırmızı
   if (kmh < 30) return '#f97316';  // turuncu
   if (kmh < 70) return '#6366f1';  // orange
@@ -558,7 +558,7 @@ export default function RouteHistory({
             <Marker position={[interpolatedData.lat, interpolatedData.lon]} icon={truckPlayIcon} zIndexOffset={1000}>
               <Tooltip permanent direction="top" className="play-tooltip" offset={[0, -35]}>
                 <div className="text-center">
-                  <div className="text-sm font-bold text-sky-400">{Math.round((interpolatedData.speed || 0) * 3.6)} km/h</div>
+                  <div className="text-sm font-bold text-sky-400">{Math.round((interpolatedData.speed || 0) * 1.852)} km/h</div>
                   <div className="text-[10px] text-slate-400 font-medium">{new Date(interpolatedData.timestamp).toLocaleTimeString('tr-TR')}</div>
                 </div>
               </Tooltip>
@@ -1130,7 +1130,7 @@ export default function RouteHistory({
                 <span>{new Date(selectedSession[0].timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
                 {interpolatedData && (
                   <span className="text-orange-400 px-2 py-0.5 bg-orange-500/10 rounded-full border border-orange-500/15">
-                    {Math.round((interpolatedData.speed || 0) * 3.6)} km/h
+                    {Math.round((interpolatedData.speed || 0) * 1.852)} km/h
                   </span>
                 )}
                 <span>{new Date(selectedSession[selectedSession.length - 1].timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>

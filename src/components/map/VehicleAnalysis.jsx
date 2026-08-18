@@ -106,7 +106,7 @@ export default function VehicleAnalysis() {
 
     for (let i = 0; i < data.length; i++) {
       const pt = data[i];
-      const speedKmh = (pt.speed || 0) * 3.6;
+      const speedKmh = (pt.speed || 0) * 1.852;
       if (speedKmh > topSpeed) topSpeed = speedKmh;
       if (speedKmh > 5) { speedSum += speedKmh; speedPoints++; }
 

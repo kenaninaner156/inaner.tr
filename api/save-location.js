@@ -53,7 +53,8 @@ export default async function handler(req, res) {
         else if (data.location && data.location.coords) {
             lat = parseFloat(data.location.coords.latitude);
             lon = parseFloat(data.location.coords.longitude);
-            speed = parseFloat(data.location.coords.speed) || 0;
+            const rawSpeed = parseFloat(data.location.coords.speed);
+            speed = (!isNaN(rawSpeed) && rawSpeed > 0) ? rawSpeed * 1.943844 : 0;
             altitude = parseFloat(data.location.coords.altitude) || 0;
             timestampStr = data.location.timestamp;
             // params içindeki device_id'yi de alalım
@@ -63,7 +64,8 @@ export default async function handler(req, res) {
         else if (data.coords) {
             lat = parseFloat(data.coords.latitude);
             lon = parseFloat(data.coords.longitude);
-            speed = parseFloat(data.coords.speed) || 0;
+            const rawSpeed = parseFloat(data.coords.speed);
+            speed = (!isNaN(rawSpeed) && rawSpeed > 0) ? rawSpeed * 1.943844 : 0;
             altitude = parseFloat(data.coords.altitude) || 0;
             timestampStr = data.timestamp;
             deviceId = data.device_id || data.id || 'Bilinmeyen_Cihaz';

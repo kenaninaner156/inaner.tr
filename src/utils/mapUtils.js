@@ -28,9 +28,9 @@ export function groupIntoSessions(points, maxGapMinutes = 30, geofences = [], ma
   let geofenceEntryTime = null;
   let hasSplitForThisGeofenceVisit = false;
   
-  // Hareketsiz kalma (stationary) takibi için değişken
+  // Hareketsiz kalma (stationary) takibi için değişken (Traccar knot -> km/h: 1 knot = 1.852 km/h)
   let stationaryStartTime = null;
-  if ((points[0].speed || 0) * 3.6 < 5) {
+  if ((points[0].speed || 0) * 1.852 < 5) {
     stationaryStartTime = new Date(points[0].timestamp).getTime();
   }
 
@@ -41,7 +41,7 @@ export function groupIntoSessions(points, maxGapMinutes = 30, geofences = [], ma
     
     let splitTriggered = false;
 
-    const isStationary = (pt.speed || 0) * 3.6 < 5;
+    const isStationary = (pt.speed || 0) * 1.852 < 5;
     if (isStationary) {
       if (!stationaryStartTime) {
         stationaryStartTime = curTime;
@@ -169,8 +169,8 @@ export function calcStats(session) {
   for (let i = 1; i < session.length; i++) {
     km += haversineKm(session[i - 1].lat, session[i - 1].lon, session[i].lat, session[i].lon);
     
-    // Hız hesaplaması (Eğer veride speed varsa m/s cinsinden, km/h'ye çeviriyoruz)
-    const currentSpeed = (session[i].speed || 0) * 3.6;
+    // Hız hesaplaması (Traccar GPS hız verisi knot cinsindedir, km/h'ye çeviriyoruz: 1 knot = 1.852 km/h)
+    const currentSpeed = (session[i].speed || 0) * 1.852;
     if (currentSpeed > topSpeed) topSpeed = currentSpeed;
     totalSpeed += currentSpeed;
   }
