@@ -274,7 +274,7 @@ export default async function handler(req, res) {
                     return res.status(403).json({ error: 'Bildirim göndermek için yönetici yetkiniz bulunmamaktadır.' });
                 }
 
-                const { targetUid, allCompany, title, body, imageUrl, targetTab, vibrationPattern, buttonMode, customNavLabel, requireAck } = payload;
+                const { targetUid, allCompany, title, body, imageUrl, targetTab, vibrationPattern, buttonMode, customNavLabel, buttons, requireAck } = payload;
                 
                 if (!title || !body) {
                     return res.status(400).json({ error: 'Eksik parametreler: Başlık ve mesaj metni zorunludur.' });
@@ -323,8 +323,19 @@ export default async function handler(req, res) {
                 // Benzersiz tokenlar
                 tokens = [...new Set(tokens)].filter(t => !!t);
 
-                const finalButtonMode = buttonMode || (requireAck ? 'ack' : 'nav');
-                const isAckNeeded = finalButtonMode === 'ack' || finalButtonMode === 'both';
+                // Dinamik butonlar listesi
+                let finalButtons = Array.isArray(buttons) ? buttons : [];
+                if (finalButtons.length === 0) {
+                    if (buttonMode === 'ack' || buttonMode === 'both' || requireAck) {
+                        finalButtons.push({ id: 'btn_ack_app', label: 'Onayladım', icon: 'check', actionType: 'ack_approved', style: 'emerald' });
+                        finalButtons.push({ id: 'btn_ack_rej', label: 'Sorun Var', icon: 'x', actionType: 'ack_rejected', style: 'red' });
+                    }
+                    if ((buttonMode === 'nav' || buttonMode === 'both') && targetTab) {
+                        finalButtons.unshift({ id: `btn_nav_${targetTab}`, label: customNavLabel || 'Sayfayı Aç', icon: 'map_pin', actionType: 'navigate', targetTab: targetTab, style: 'indigo' });
+                    }
+                }
+
+                const isAckNeeded = finalButtons.some(b => b.actionType === 'ack_approved' || b.actionType === 'ack_rejected');
 
                 // Bildirimi Firestore company_notifications koleksiyonuna arşivle
                 const notifRecord = {
@@ -338,7 +349,8 @@ export default async function handler(req, res) {
                     imageUrl: imageUrl ? imageUrl.trim() : null,
                     targetTab: targetTab || 'dashboard',
                     vibrationPattern: vibrationPattern || 'general',
-                    buttonMode: finalButtonMode,
+                    buttons: finalButtons,
+                    buttonMode: buttonMode || 'custom',
                     customNavLabel: customNavLabel ? customNavLabel.trim() : null,
                     requireAck: isAckNeeded,
                     acknowledgements: {},
@@ -367,28 +379,17 @@ export default async function handler(req, res) {
                     vibratePatternArr = [];
                 }
 
-                // Kilit ekranı aksiyon butonları
-                const tabTitles = {
-                    dashboard: '📊 Özeti Aç',
-                    trips: '📋 Sefer Detayları',
-                    fuel: '⛽ Mazot Fişi Yükle',
-                    maintenance: '🔧 Araç Bakım',
-                    detaylar: '⚠️ Cezalar & Belgeler',
-                    invoices: '📑 Fatura Durumu',
-                    earsiv: '🧾 E-Arşiv Fatura',
-                    payments: '💳 Ödeme Takibi',
-                    map: '📍 Canlı Harita',
-                    chat: '💬 Sohbete Git'
-                };
-
+                // Push bildirim aksiyon butonları
                 const pushActions = [];
-                if (finalButtonMode === 'ack' || finalButtonMode === 'both') {
-                    pushActions.push({ action: 'ack_approved', title: '👍 Onayladım' });
-                    pushActions.push({ action: 'ack_rejected', title: '❌ Sorun Var' });
-                }
-                if ((finalButtonMode === 'nav' || finalButtonMode === 'both') && targetTab) {
-                    pushActions.push({ action: `nav_${targetTab}`, title: customNavLabel || tabTitles[targetTab] || '🚀 Sayfayı Aç' });
-                }
+                finalButtons.slice(0, 3).forEach(b => {
+                    if (b.actionType === 'ack_approved') {
+                        pushActions.push({ action: 'ack_approved', title: b.label || '👍 Onayladım' });
+                    } else if (b.actionType === 'ack_rejected') {
+                        pushActions.push({ action: 'ack_rejected', title: b.label || '❌ Sorun Var' });
+                    } else if (b.actionType === 'navigate' || b.targetTab) {
+                        pushActions.push({ action: `nav_${b.targetTab || 'dashboard'}`, title: b.label || '🚀 Sayfayı Aç' });
+                    }
+                });
 
                 // Firebase Cloud Messaging üzerinden multicast gönderim
                 try {
@@ -404,9 +405,8 @@ export default async function handler(req, res) {
                             body,
                             imageUrl: imageUrl || '',
                             targetTab: targetTab || 'dashboard',
+                            buttons: JSON.stringify(finalButtons),
                             vibrationPattern: vibrationPattern || 'general',
-                            buttonMode: finalButtonMode,
-                            customNavLabel: customNavLabel || '',
                             requireAck: isAckNeeded ? 'true' : 'false',
                             click_action: targetTab ? `/#tab=${targetTab}` : '/'
                         },
@@ -421,13 +421,14 @@ export default async function handler(req, res) {
                                 badge: '/tir-clear.png',
                                 ...(imageUrl ? { image: imageUrl } : {}),
                                 vibrate: vibratePatternArr,
+                                silent: true, // Kullanıcı isteği: tarayıcıda bildirim sesi kapalı
                                 tag: `inaner-${savedNotifDoc.id}`,
                                 renotify: true,
                                 actions: pushActions,
                                 data: {
                                     notificationId: savedNotifDoc.id,
                                     targetTab: targetTab || 'dashboard',
-                                    buttonMode: finalButtonMode,
+                                    buttons: JSON.stringify(finalButtons),
                                     url: targetTab ? `/#tab=${targetTab}` : '/'
                                 }
                             },
@@ -440,8 +441,7 @@ export default async function handler(req, res) {
                             payload: {
                                 aps: {
                                     'mutable-content': 1,
-                                    'alert': { title, body },
-                                    'sound': 'default'
+                                    'alert': { title, body }
                                 }
                             },
                             fcmOptions: {
@@ -451,7 +451,6 @@ export default async function handler(req, res) {
                         android: {
                             priority: 'high',
                             notification: {
-                                sound: 'default',
                                 ...(imageUrl ? { imageUrl: imageUrl } : {})
                             }
                         },

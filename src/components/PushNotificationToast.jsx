@@ -1,65 +1,47 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, X, ExternalLink, CheckCircle, XCircle, Navigation, Radio, Activity, Sparkles, MapPin, Truck, Fuel, FileText, Wrench, AlertTriangle, Receipt, CreditCard } from 'lucide-react';
+import {
+  X, CheckCircle, XCircle, Navigation, ExternalLink,
+  MapPin, Truck, Fuel, FileText, Wrench, AlertTriangle,
+  Receipt, CreditCard, MessageSquare, Flame, Check, HelpCircle
+} from 'lucide-react';
 
-const TAB_ICONS = {
-  dashboard: Navigation,
-  trips: Truck,
+const ICON_MAP = {
+  check: CheckCircle,
+  thumbs_up: Check,
+  x: XCircle,
+  alert: AlertTriangle,
+  map_pin: MapPin,
+  truck: Truck,
   fuel: Fuel,
-  maintenance: Wrench,
-  detaylar: AlertTriangle,
-  invoices: FileText,
-  earsiv: Receipt,
-  payments: CreditCard,
-  map: MapPin,
-  chat: Sparkles
-};
-
-const TAB_NAMES = {
-  dashboard: 'Özeti Aç',
-  trips: 'Sefer Detayları',
-  fuel: 'Mazot Fişi Yükle',
-  maintenance: 'Araç Bakım',
-  detaylar: 'Cezalar & Belgeler',
-  invoices: 'Fatura Durumu',
-  earsiv: 'E-Arşiv Fatura',
-  payments: 'Ödeme Takibi',
-  map: 'Canlı Harita',
-  chat: 'Sohbete Git'
+  file: FileText,
+  wrench: Wrench,
+  message: MessageSquare,
+  credit_card: CreditCard,
+  sos: Flame,
+  default: Navigation
 };
 
 export default function PushNotificationToast({ notification, onClose, onAction, onAcknowledge }) {
-  const [progress, setProgress] = useState(100);
   const [isPaused, setIsPaused] = useState(false);
-  const [ackState, setAckState] = useState(null); // 'approved' | 'rejected'
+  const [ackFeedback, setAckFeedback] = useState(null);
 
   useEffect(() => {
     if (!notification) {
-      setAckState(null);
+      setAckFeedback(null);
       return;
     }
-    // Sesi kapattık (kullanıcı talebi doğrultusunda sessiz bildirim)
-    setProgress(100);
-    setAckState(null);
+    setAckFeedback(null);
 
-    const DURATION = 9000; // 9 saniye
-    const INTERVAL = 50;
-    const step = (INTERVAL / DURATION) * 100;
-
-    const timer = setInterval(() => {
+    // Otomatik kapanma: 10 saniye (Kullanıcı üzerine geldiğinde duraklar)
+    const DURATION = 10000;
+    const timer = setTimeout(() => {
       if (!isPaused) {
-        setProgress(prev => {
-          if (prev <= 0) {
-            clearInterval(timer);
-            onClose();
-            return 0;
-          }
-          return prev - step;
-        });
+        onClose();
       }
-    }, INTERVAL);
+    }, DURATION);
 
-    return () => clearInterval(timer);
+    return () => clearTimeout(timer);
   }, [notification, isPaused]);
 
   if (!notification) return null;
@@ -67,140 +49,178 @@ export default function PushNotificationToast({ notification, onClose, onAction,
   const title = notification.title || 'İnaner Lojistik Duyuru';
   const body = notification.body || '';
   const imageUrl = notification.imageUrl || notification.data?.imageUrl || null;
-  const targetTab = notification.data?.targetTab || null;
-  const buttonMode = notification.data?.buttonMode || (notification.data?.requireAck === 'true' ? 'ack' : 'nav');
-  const customNavLabel = notification.data?.customNavLabel || null;
   const notificationId = notification.data?.notificationId || null;
-  const isSos = notification.data?.vibrationPattern === 'sos';
 
-  const ActionIcon = (targetTab && TAB_ICONS[targetTab]) ? TAB_ICONS[targetTab] : Navigation;
-  const actionLabel = customNavLabel || (targetTab && TAB_NAMES[targetTab]) || 'Sayfayı Aç';
+  // Özel dinamik butonları parse et
+  let customButtons = [];
+  try {
+    if (notification.data?.buttons) {
+      customButtons = typeof notification.data.buttons === 'string' 
+        ? JSON.parse(notification.data.buttons) 
+        : notification.data.buttons;
+    } else if (notification.buttons) {
+      customButtons = notification.buttons;
+    }
+  } catch {
+    customButtons = [];
+  }
+
+  // Eğer legacy format varsa geriye dönük uyumluluk
+  if (!customButtons || customButtons.length === 0) {
+    const buttonMode = notification.data?.buttonMode;
+    const targetTab = notification.data?.targetTab;
+    const customNavLabel = notification.data?.customNavLabel;
+
+    if (buttonMode === 'ack' || buttonMode === 'both' || notification.data?.requireAck === 'true') {
+      customButtons.push({
+        id: 'btn_ack_approved',
+        label: 'Onayladım',
+        icon: 'check',
+        actionType: 'ack_approved',
+        style: 'emerald'
+      });
+      customButtons.push({
+        id: 'btn_ack_rejected',
+        label: 'Sorun Var',
+        icon: 'x',
+        actionType: 'ack_rejected',
+        style: 'red'
+      });
+    }
+
+    if ((buttonMode === 'nav' || buttonMode === 'both') && targetTab) {
+      customButtons.unshift({
+        id: `btn_nav_${targetTab}`,
+        label: customNavLabel || 'Sayfayı Aç',
+        icon: 'map_pin',
+        actionType: 'navigate',
+        targetTab: targetTab,
+        style: 'indigo'
+      });
+    }
+  }
+
+  const handleButtonClick = async (btn) => {
+    if (btn.actionType === 'ack_approved' || btn.actionType === 'ack:approved') {
+      setAckFeedback('Onayınız İletildi');
+      if (onAcknowledge && notificationId) {
+        await onAcknowledge(notificationId, 'approved');
+      }
+      setTimeout(() => onClose(), 1500);
+    } else if (btn.actionType === 'ack_rejected' || btn.actionType === 'ack:rejected') {
+      setAckFeedback('Sorun Bildirimi İletildi');
+      if (onAcknowledge && notificationId) {
+        const note = prompt('Karşılaştığınız sorunu kısaca yazın (Opsiyonel):') || '';
+        await onAcknowledge(notificationId, 'rejected', note);
+      }
+      setTimeout(() => onClose(), 1500);
+    } else if (btn.actionType === 'navigate' || btn.targetTab) {
+      const tab = btn.targetTab || notification.data?.targetTab;
+      if (onAction && tab) {
+        onAction(tab);
+      }
+      onClose();
+    } else if (btn.actionType === 'link' && btn.url) {
+      window.open(btn.url, '_blank');
+      onClose();
+    } else {
+      onClose();
+    }
+  };
+
+  const getButtonStyle = (style) => {
+    switch (style) {
+      case 'emerald':
+        return 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/30 text-emerald-300';
+      case 'red':
+        return 'bg-rose-500/15 hover:bg-rose-500/25 border-rose-500/30 text-rose-300';
+      case 'indigo':
+        return 'bg-indigo-500/20 hover:bg-indigo-500/35 border-indigo-500/35 text-indigo-200';
+      case 'amber':
+        return 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/30 text-amber-300';
+      default:
+        return 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300';
+    }
+  };
 
   return (
     <AnimatePresence>
-      <div className="fixed top-4 right-4 left-4 sm:left-auto sm:right-5 z-[99999] pointer-events-none flex justify-center sm:justify-end">
+      <div className="fixed top-4 right-4 left-4 sm:left-auto sm:right-6 z-[99999] pointer-events-none flex justify-center sm:justify-end">
         <motion.div
-          initial={{ y: -60, opacity: 0, scale: 0.94, filter: 'blur(10px)' }}
-          animate={{ y: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
-          exit={{ y: -30, opacity: 0, scale: 0.96, filter: 'blur(8px)' }}
-          transition={{ type: 'spring', damping: 26, stiffness: 280 }}
+          initial={{ y: -40, opacity: 0, scale: 0.95 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          exit={{ y: -20, opacity: 0, scale: 0.96 }}
+          transition={{ type: 'spring', damping: 28, stiffness: 320 }}
           onMouseEnter={() => setIsPaused(true)}
           onMouseLeave={() => setIsPaused(false)}
-          className={`pointer-events-auto w-full max-w-[360px] rounded-2xl overflow-hidden bg-[#0a0e17]/95 border shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl transition-all ${
-            isSos ? 'border-red-500/40 shadow-red-950/40' : 'border-white/10 shadow-black/80'
-          }`}
+          className="pointer-events-auto w-full max-w-[340px] rounded-2xl bg-[#090d16]/95 border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] backdrop-blur-2xl p-3.5 space-y-2.5 transition-all select-none"
         >
-          {/* Üst Zarif Neon Çizgi */}
-          <div className={`h-1 bg-gradient-to-r ${
-            isSos ? 'from-red-500 via-amber-400 to-red-500 animate-pulse' : 'from-indigo-500 via-sky-400 to-emerald-400'
-          }`} />
-
-          <div className="p-4 space-y-3">
-            {/* Üst Başlık & İkon & Kapat */}
-            <div className="flex items-start justify-between gap-2.5">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className={`w-7 h-7 rounded-lg border flex items-center justify-center flex-shrink-0 ${
-                  isSos ? 'bg-red-500/20 border-red-500/30 text-red-400' : 'bg-indigo-500/15 border-indigo-500/25 text-indigo-400'
-                }`}>
-                  {isSos ? <Radio size={14} className="animate-ping" /> : <Bell size={14} />}
-                </div>
-                <div className="flex items-center gap-1.5 min-w-0 truncate">
-                  <span className="text-[11px] font-bold tracking-wide uppercase text-indigo-300">
-                    İnaner Lojistik
-                  </span>
-                  <span className="text-[10px] text-slate-500">·</span>
-                  <span className="text-[10px] text-slate-400 font-medium">Şimdi</span>
-                </div>
+          {/* Üst Başlık Satırı */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <img src="/tir-clear.png" alt="İnaner Logo" className="w-5 h-5 object-contain flex-shrink-0" />
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-[11px] font-bold tracking-tight text-white/90 truncate">
+                  İnaner Lojistik
+                </span>
+                <span className="text-[10px] text-slate-500">·</span>
+                <span className="text-[10px] text-slate-400">Şimdi</span>
               </div>
-
-              <button
-                onClick={onClose}
-                className="p-1 -mr-1 -mt-1 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 cursor-pointer"
-              >
-                <X size={14} />
-              </button>
             </div>
 
-            {/* İçerik */}
-            <div>
-              <h5 className="text-sm font-bold text-white leading-snug tracking-tight">
-                {title}
-              </h5>
-              <p className="text-xs text-slate-300 mt-1 leading-relaxed whitespace-pre-wrap break-words">
-                {body}
-              </p>
+            <button
+              onClick={onClose}
+              className="p-1 -mr-1 -mt-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 cursor-pointer"
+            >
+              <X size={14} />
+            </button>
+          </div>
+
+          {/* İçerik */}
+          <div className="space-y-1">
+            <h5 className="text-[13px] font-bold text-white leading-snug">
+              {title}
+            </h5>
+            <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap break-words">
+              {body}
+            </p>
+          </div>
+
+          {/* Ekli Görsel */}
+          {imageUrl && (
+            <div className="rounded-xl overflow-hidden border border-white/10 max-h-32 bg-black/40">
+              <img src={imageUrl} alt="Görsel" className="w-full h-32 object-cover" />
             </div>
+          )}
 
-            {/* Ekli Görsel */}
-            {imageUrl && (
-              <div className="rounded-xl overflow-hidden border border-white/10 max-h-32 bg-black/40">
-                <img src={imageUrl} alt="Bildirim Görseli" className="w-full h-32 object-cover" />
-              </div>
-            )}
-
-            {/* Butonlar */}
-            {ackState ? (
-              <div className="py-2 px-3 rounded-xl bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-xs font-semibold flex items-center justify-center gap-1.5 animate-in fade-in">
-                <CheckCircle size={14} />
-                <span>Yanıtınız İletildi!</span>
-              </div>
-            ) : (
-              <div className="space-y-2 pt-1 border-t border-white/5">
-                {/* 1. Hedef Sayfaya Gitme Butonu (Eğer seçilmişse) */}
-                {(buttonMode === 'nav' || buttonMode === 'both') && targetTab && (
+          {/* Geri Bildirim veya Özel Butonlar */}
+          {ackFeedback ? (
+            <div className="py-2 px-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-semibold flex items-center justify-center gap-1.5 animate-in fade-in">
+              <CheckCircle size={14} />
+              <span>{ackFeedback}</span>
+            </div>
+          ) : customButtons.length > 0 ? (
+            <div className={`pt-1.5 border-t border-white/5 grid gap-1.5 ${
+              customButtons.length === 1 ? 'grid-cols-1' :
+              customButtons.length === 2 ? 'grid-cols-2' :
+              'grid-cols-2'
+            }`}>
+              {customButtons.map((btn, idx) => {
+                const IconComponent = ICON_MAP[btn.icon] || ICON_MAP.default;
+                return (
                   <button
+                    key={btn.id || idx}
                     type="button"
-                    onClick={() => {
-                      if (onAction) onAction(targetTab);
-                      onClose();
-                    }}
-                    className="w-full py-2 px-3 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                    onClick={() => handleButtonClick(btn)}
+                    className={`py-1.5 px-2.5 rounded-xl border text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer ${getButtonStyle(btn.style)}`}
                   >
-                    <ActionIcon size={13} className="text-indigo-300" />
-                    <span>{actionLabel}</span>
-                    <ExternalLink size={11} className="opacity-60 ml-0.5" />
+                    <IconComponent size={13} className="flex-shrink-0" />
+                    <span className="truncate">{btn.label}</span>
                   </button>
-                )}
-
-                {/* 2. İki Yönlü Onay Butonları (Eğer seçilmişse) */}
-                {(buttonMode === 'ack' || buttonMode === 'both') && notificationId && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setAckState('approved');
-                        if (onAcknowledge) await onAcknowledge(notificationId, 'approved');
-                      }}
-                      className="flex-1 py-2 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/35 text-emerald-300 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-                    >
-                      <CheckCircle size={13} />
-                      <span>Onayladım</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setAckState('rejected');
-                        if (onAcknowledge) await onAcknowledge(notificationId, 'rejected');
-                      }}
-                      className="py-2 px-3 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-300 text-xs font-semibold transition-all flex items-center justify-center gap-1 cursor-pointer"
-                    >
-                      <XCircle size={13} />
-                      <span>Sorun Var</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* İlerleme Çubuğu */}
-          <div className="h-0.5 w-full bg-white/5">
-            <motion.div
-              className={`h-full ${isSos ? 'bg-red-500/80' : 'bg-indigo-500/60'}`}
-              style={{ width: `${progress}%` }}
-              transition={{ ease: 'linear' }}
-            />
-          </div>
+                );
+              })}
+            </div>
+          ) : null}
         </motion.div>
       </div>
     </AnimatePresence>

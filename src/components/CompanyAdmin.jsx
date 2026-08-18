@@ -28,12 +28,121 @@ const VIBRATION_PROFILES = [
     { id: 'silent', label: 'Sessiz', desc: 'Titreşimsiz (Yalnızca ekran)', icon: VolumeX, color: 'border-slate-500/40 text-slate-400 bg-slate-500/10' }
 ];
 
+const AVAILABLE_ICONS = [
+    { id: 'thumbs_up', label: '👍 Onay' },
+    { id: 'check', label: '✅ Tik' },
+    { id: 'x', label: '❌ İptal' },
+    { id: 'alert', label: '⚠️ Sorun' },
+    { id: 'map_pin', label: '📍 Harita' },
+    { id: 'truck', label: '🚚 Tır' },
+    { id: 'fuel', label: '⛽ Mazot' },
+    { id: 'file', label: '📄 Evrak' },
+    { id: 'wrench', label: '🔧 Bakım' },
+    { id: 'message', label: '💬 Sohbet' },
+    { id: 'credit_card', label: '💳 Ödeme' },
+    { id: 'sos', label: '🚨 Acil' }
+];
+
+const BUTTON_PRESETS = [
+    {
+        label: '🤝 Standart Onay (2 Buton)',
+        buttons: [
+            { id: '1', label: 'Onayladım', icon: 'thumbs_up', actionType: 'ack_approved', style: 'emerald' },
+            { id: '2', label: 'Sorun Var', icon: 'x', actionType: 'ack_rejected', style: 'red' }
+        ]
+    },
+    {
+        label: '📍 Canlı Harita + Onay (2 Buton)',
+        buttons: [
+            { id: '1', label: 'Canlı Harita', icon: 'map_pin', actionType: 'navigate', targetTab: 'map', style: 'indigo' },
+            { id: '2', label: 'Anladım', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
+        ]
+    },
+    {
+        label: '⛽ Mazot Fişi + Onay (2 Buton)',
+        buttons: [
+            { id: '1', label: 'Mazot Fişi Yükle', icon: 'fuel', actionType: 'navigate', targetTab: 'fuel', style: 'indigo' },
+            { id: '2', label: 'Tamamdır', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
+        ]
+    },
+    {
+        label: '📋 Sefer + İrsaliye (2 Buton)',
+        buttons: [
+            { id: '1', label: 'Sefer Detayları', icon: 'truck', actionType: 'navigate', targetTab: 'trips', style: 'indigo' },
+            { id: '2', label: 'İrsaliyeyi Gör', icon: 'file', actionType: 'navigate', targetTab: 'detaylar', style: 'amber' }
+        ]
+    },
+    {
+        label: '🌟 3 Butonlu Süper Set (3 Buton)',
+        buttons: [
+            { id: '1', label: 'Canlı Harita', icon: 'map_pin', actionType: 'navigate', targetTab: 'map', style: 'indigo' },
+            { id: '2', label: 'Onayladım', icon: 'thumbs_up', actionType: 'ack_approved', style: 'emerald' },
+            { id: '3', label: 'Sorun Var', icon: 'x', actionType: 'ack_rejected', style: 'red' }
+        ]
+    },
+    {
+        label: '💬 Butonsuz (Sade)',
+        buttons: []
+    }
+];
+
 const QUICK_TEMPLATES = [
-    { title: 'İnaner Lojistik - Görev', body: 'Araç fabrikaya ulaştı, yükleme/boşaltma sırasına giriniz.', tab: 'trips', vib: 'task', buttonMode: 'both', label: '🏭 Fabrikaya Ulaşıldı' },
-    { title: 'İnaner Lojistik - Mazot', body: 'Lütfen aldığınız son yakıt fişinin fotoğrafını sisteme yükleyiniz.', tab: 'fuel', vib: 'general', buttonMode: 'nav', customNavLabel: '⛽ Mazot Fişi Yükle', label: '⛽ Mazot Fişi Girişi' },
-    { title: 'İnaner Lojistik - Evrak', body: 'Sefer irsaliyesini ve kantar fişini sisteme yükleyiniz.', tab: 'detaylar', vib: 'general', buttonMode: 'both', customNavLabel: '📄 Evrakları Aç', label: '📄 Evrak & İrsaliye' },
-    { title: 'İnaner Lojistik - Bakım', body: 'Aracınızın periyodik bakım veya muayene zamanı yaklaşmıştır.', tab: 'maintenance', vib: 'sos', buttonMode: 'both', customNavLabel: '🔧 Bakım Detayı', label: '🛑 Bakım Zamanı' },
-    { title: 'İnaner Lojistik - Konum', body: 'Lütfen canlı takip uygulamanızın açık olduğunu teyit ediniz.', tab: 'map', vib: 'task', buttonMode: 'nav', customNavLabel: '📍 Canlı Harita', label: '📍 Konum Kontrolü' }
+    {
+        title: 'İnaner Lojistik - Görev',
+        body: 'Araç fabrikaya ulaştı, yükleme/boşaltma sırasına giriniz.',
+        tab: 'trips',
+        vib: 'task',
+        buttons: [
+            { id: '1', label: 'Fabrika Konumu', icon: 'map_pin', actionType: 'navigate', targetTab: 'map', style: 'indigo' },
+            { id: '2', label: 'Yola Çıktım', icon: 'thumbs_up', actionType: 'ack_approved', style: 'emerald' },
+            { id: '3', label: 'Sorun Var', icon: 'x', actionType: 'ack_rejected', style: 'red' }
+        ],
+        label: '🏭 Fabrikaya Ulaşıldı'
+    },
+    {
+        title: 'İnaner Lojistik - Mazot',
+        body: 'Lütfen aldığınız son yakıt fişinin fotoğrafını sisteme yükleyiniz.',
+        tab: 'fuel',
+        vib: 'general',
+        buttons: [
+            { id: '1', label: 'Mazot Fişi Yükle', icon: 'fuel', actionType: 'navigate', targetTab: 'fuel', style: 'indigo' },
+            { id: '2', label: 'Yükledim', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
+        ],
+        label: '⛽ Mazot Fişi Girişi'
+    },
+    {
+        title: 'İnaner Lojistik - Evrak',
+        body: 'Sefer irsaliyesini ve kantar fişini sisteme yükleyiniz.',
+        tab: 'detaylar',
+        vib: 'general',
+        buttons: [
+            { id: '1', label: 'Evrakları Aç', icon: 'file', actionType: 'navigate', targetTab: 'detaylar', style: 'amber' },
+            { id: '2', label: 'Tamamdır', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
+        ],
+        label: '📄 Evrak & İrsaliye'
+    },
+    {
+        title: 'İnaner Lojistik - Bakım',
+        body: 'Aracınızın periyodik bakım veya muayene zamanı yaklaşmıştır.',
+        tab: 'maintenance',
+        vib: 'sos',
+        buttons: [
+            { id: '1', label: 'Bakım Detayı', icon: 'wrench', actionType: 'navigate', targetTab: 'maintenance', style: 'indigo' },
+            { id: '2', label: 'Onayladım', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
+        ],
+        label: '🛑 Bakım Zamanı'
+    },
+    {
+        title: 'İnaner Lojistik - Konum',
+        body: 'Lütfen canlı takip uygulamanızın açık olduğunu teyit ediniz.',
+        tab: 'map',
+        vib: 'task',
+        buttons: [
+            { id: '1', label: 'Canlı Harita', icon: 'map_pin', actionType: 'navigate', targetTab: 'map', style: 'indigo' },
+            { id: '2', label: 'Açık / Aktif', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
+        ],
+        label: '📍 Konum Kontrolü'
+    }
 ];
 
 const CompanyAdmin = () => {
@@ -51,8 +160,10 @@ const CompanyAdmin = () => {
     const [notifImageUrl, setNotifImageUrl] = useState('');
     const [notifUploadingImage, setNotifUploadingImage] = useState(false);
     const [notifVibration, setNotifVibration] = useState('general');
-    const [notifButtonMode, setNotifButtonMode] = useState('nav'); // 'nav' | 'ack' | 'both' | 'none'
-    const [notifCustomNavLabel, setNotifCustomNavLabel] = useState('');
+    const [notifButtons, setNotifButtons] = useState([
+        { id: '1', label: 'Onayladım', icon: 'thumbs_up', actionType: 'ack_approved', style: 'emerald' },
+        { id: '2', label: 'Sorun Var', icon: 'x', actionType: 'ack_rejected', style: 'red' }
+    ]);
     const [notifSending, setNotifSending] = useState(false);
     const [notifResult, setNotifResult] = useState(null);
     const [registeringDevice, setRegisteringDevice] = useState(false);
@@ -724,8 +835,7 @@ const CompanyAdmin = () => {
                                             setNotifBody(tmpl.body);
                                             setNotifTargetTab(tmpl.tab);
                                             setNotifVibration(tmpl.vib);
-                                            setNotifButtonMode(tmpl.buttonMode || 'nav');
-                                            setNotifCustomNavLabel(tmpl.customNavLabel || '');
+                                            setNotifButtons(tmpl.buttons || []);
                                         }}
                                         className="text-xs bg-white/[0.03] hover:bg-white/[0.08] text-slate-300 border border-white/10 hover:border-indigo-500/40 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
                                     >
@@ -752,9 +862,7 @@ const CompanyAdmin = () => {
                                     imageUrl: notifImageUrl ? notifImageUrl.trim() : null,
                                     targetTab: notifTargetTab,
                                     vibrationPattern: notifVibration,
-                                    buttonMode: notifButtonMode,
-                                    customNavLabel: notifCustomNavLabel.trim() || null,
-                                    requireAck: notifButtonMode === 'ack' || notifButtonMode === 'both',
+                                    buttons: notifButtons,
                                     companyId: activeCompanyId
                                 });
 
@@ -961,51 +1069,169 @@ const CompanyAdmin = () => {
                                 </div>
                             </div>
 
-                            {/* 3. Buton Seçenekleri ve Yapılandırması */}
-                            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-4">
+                            {/* 3. Özel Buton Tasarımcısı (Custom Buttons Studio) */}
+                            <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/10 space-y-4">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                        <label className="text-sm font-bold text-white flex items-center gap-1.5">
+                                            <Sparkles size={16} className="text-indigo-400" />
+                                            Özel Buton Tasarımcısı (Bildirim Aksiyonları)
+                                        </label>
+                                        <p className="text-xs text-slate-400 mt-0.5">
+                                            Kilit ekranı ve bildirim kartında görünecek butonları istediğiniz gibi oluşturun (En fazla 6 buton).
+                                        </p>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        disabled={notifButtons.length >= 6}
+                                        onClick={() => {
+                                            const newId = Date.now().toString();
+                                            setNotifButtons(prev => [
+                                                ...prev,
+                                                { id: newId, label: 'Yeni Buton', icon: 'thumbs_up', actionType: 'ack_approved', style: 'emerald' }
+                                            ]);
+                                        }}
+                                        className="text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 cursor-pointer shadow-sm"
+                                    >
+                                        <Plus size={13} />
+                                        <span>+ Yeni Buton Ekle</span>
+                                    </button>
+                                </div>
+
+                                {/* Hızlı Buton Seti Şablonları */}
                                 <div>
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-2 flex items-center gap-1.5">
-                                        <Sparkles size={14} className="text-indigo-400" />
-                                        Bildirim Buton Yapısı (Kilit Ekranı ve Toast Üzerinde)
-                                    </label>
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                        {[
-                                            { id: 'nav', label: '🚀 Sayfaya Yönlendir', desc: '1 Buton: Doğrudan seçilen sekmeye götürür' },
-                                            { id: 'ack', label: '🤝 İki Yönlü Onay', desc: '2 Buton: [Onayladım] ve [Sorun Var]' },
-                                            { id: 'both', label: '🌟 Sayfa + Onay', desc: '3 Buton: Hem yönlendirme hem onay' },
-                                            { id: 'none', label: '💬 Butonsuz', desc: 'Yalnızca bilgilendirme metni' }
-                                        ].map(bm => (
+                                    <span className="text-[11px] font-semibold text-slate-400 block mb-1.5">Hızlı Buton Seti Seç:</span>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {BUTTON_PRESETS.map((preset, pIdx) => (
                                             <button
-                                                key={bm.id}
+                                                key={pIdx}
                                                 type="button"
-                                                onClick={() => setNotifButtonMode(bm.id)}
-                                                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                                                    notifButtonMode === bm.id
-                                                        ? 'bg-indigo-600/25 border-indigo-500 text-white shadow-md shadow-indigo-600/20'
-                                                        : 'bg-white/[0.02] border-white/10 text-slate-400 hover:text-slate-200'
-                                                }`}
+                                                onClick={() => setNotifButtons(preset.buttons)}
+                                                className="text-[11px] bg-white/[0.03] hover:bg-white/[0.08] text-slate-300 border border-white/10 px-2.5 py-1 rounded-lg transition-all cursor-pointer"
                                             >
-                                                <div className="text-xs font-bold text-slate-200">{bm.label}</div>
-                                                <p className="text-[10px] text-slate-400 mt-1 leading-tight">{bm.desc}</p>
+                                                {preset.label}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
 
-                                {(notifButtonMode === 'nav' || notifButtonMode === 'both') && (
-                                    <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            Özel Buton Başlığı (Opsiyonel — Boş bırakılırsa sekme adı kullanılır)
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={notifCustomNavLabel}
-                                            onChange={(e) => setNotifCustomNavLabel(e.target.value)}
-                                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3.5 py-2 text-xs focus:border-indigo-500 outline-none"
-                                            placeholder="Örn: 📍 Fabrika Konumunu Gör veya ⛽ Mazot Fişini Yükle"
-                                        />
-                                    </div>
-                                )}
+                                {/* Dinamik Buton Listesi & Düzenleyici */}
+                                <div className="space-y-3 pt-2">
+                                    {notifButtons.map((btn, idx) => (
+                                        <div
+                                            key={btn.id || idx}
+                                            className="p-3.5 rounded-xl bg-black/40 border border-white/10 flex flex-wrap items-center gap-3 animate-in fade-in"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold text-slate-500 w-5">#{idx + 1}</span>
+
+                                                {/* İkon Seçici */}
+                                                <select
+                                                    value={btn.icon}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        setNotifButtons(prev => prev.map(b => b.id === btn.id ? { ...b, icon: val } : b));
+                                                    }}
+                                                    className="bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-white text-xs rounded-lg px-2.5 py-1.5 outline-none"
+                                                >
+                                                    {AVAILABLE_ICONS.map(ic => (
+                                                        <option key={ic.id} value={ic.id}>{ic.label}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            {/* Buton Metni */}
+                                            <div className="flex-1 min-w-[140px]">
+                                                <input
+                                                    type="text"
+                                                    value={btn.label}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        setNotifButtons(prev => prev.map(b => b.id === btn.id ? { ...b, label: val } : b));
+                                                    }}
+                                                    placeholder="Buton Üzerindeki Yazı..."
+                                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-white text-xs rounded-lg px-3 py-1.5 outline-none focus:border-indigo-500 font-semibold"
+                                                />
+                                            </div>
+
+                                            {/* Aksiyon Türü */}
+                                            <div className="min-w-[130px]">
+                                                <select
+                                                    value={btn.actionType}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        setNotifButtons(prev => prev.map(b => b.id === btn.id ? {
+                                                            ...b,
+                                                            actionType: val,
+                                                            targetTab: val === 'navigate' ? (b.targetTab || 'trips') : undefined,
+                                                            style: val === 'ack_approved' ? 'emerald' : val === 'ack_rejected' ? 'red' : 'indigo'
+                                                        } : b));
+                                                    }}
+                                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-white text-xs rounded-lg px-2.5 py-1.5 outline-none"
+                                                >
+                                                    <option value="ack_approved">🤝 Şoför Onayı</option>
+                                                    <option value="ack_rejected">❌ Sorun Bildirimi</option>
+                                                    <option value="navigate">🚀 Sayfaya Yönlendir</option>
+                                                </select>
+                                            </div>
+
+                                            {/* Hedef Sayfa (Eğer Sayfaya Git ise) */}
+                                            {btn.actionType === 'navigate' && (
+                                                <div className="min-w-[120px]">
+                                                    <select
+                                                        value={btn.targetTab || 'trips'}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setNotifButtons(prev => prev.map(b => b.id === btn.id ? { ...b, targetTab: val } : b));
+                                                        }}
+                                                        className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-indigo-300 text-xs rounded-lg px-2.5 py-1.5 outline-none font-semibold"
+                                                    >
+                                                        {NOTIF_DESTINATIONS.map(d => (
+                                                            <option key={d.id} value={d.id}>{d.label}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )}
+
+                                            {/* Renk Teması */}
+                                            <div className="min-w-[100px]">
+                                                <select
+                                                    value={btn.style || 'indigo'}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        setNotifButtons(prev => prev.map(b => b.id === btn.id ? { ...b, style: val } : b));
+                                                    }}
+                                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-xs rounded-lg px-2 py-1.5 outline-none"
+                                                >
+                                                    <option value="emerald">🟢 Yeşil</option>
+                                                    <option value="red">🔴 Kırmızı</option>
+                                                    <option value="indigo">🔵 İndigo</option>
+                                                    <option value="amber">🟡 Sarı</option>
+                                                    <option value="glass">⚪ Sade Cam</option>
+                                                </select>
+                                            </div>
+
+                                            {/* Sil */}
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setNotifButtons(prev => prev.filter(b => b.id !== btn.id));
+                                                }}
+                                                className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/25 transition-colors cursor-pointer"
+                                                title="Butonu Sil"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    ))}
+
+                                    {notifButtons.length === 0 && (
+                                        <div className="text-center py-4 text-xs text-slate-500 bg-white/[0.01] rounded-xl border border-dashed border-white/10">
+                                            Tanımlı buton yok. Bildirim yalnızca bilgilendirme metni olarak iletilecektir.
+                                        </div>
+                                    )}
+                                </div>
 
                                 {/* iPhone Haptic Touch İpucu */}
                                 <div className="p-2.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-[11px] text-indigo-300 flex items-start gap-2">
