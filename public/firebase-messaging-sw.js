@@ -3,7 +3,16 @@
 importScripts('https://www.gstatic.com/firebasejs/10.10.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.10.0/firebase-messaging-compat.js');
 
-// Firebase credentials (public credentials matching config)
+// Instant auto-update lifecycle
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+// Firebase credentials
 firebase.initializeApp({
   apiKey: "AIzaSyDZBOiVMPCQEiGxvJ1SIbFIxpfr1xIHoYo",
   authDomain: "v2-tir.firebaseapp.com",
@@ -23,7 +32,8 @@ messaging.onBackgroundMessage((payload) => {
   const body = payload.notification?.body || payload.data?.body || "";
   const imageUrl = payload.notification?.image || payload.data?.imageUrl || payload.fcmOptions?.image || null;
   const targetTab = payload.data?.targetTab || 'dashboard';
-  const requireAck = payload.data?.requireAck === 'true';
+  const buttonMode = payload.data?.buttonMode || 'nav'; // 'none' | 'nav' | 'ack' | 'both'
+  const customNavLabel = payload.data?.customNavLabel || null;
 
   // Titreşim paterni
   let vibratePattern = [200, 100, 200];
@@ -35,24 +45,26 @@ messaging.onBackgroundMessage((payload) => {
     vibratePattern = [];
   }
 
+  const tabTitles = {
+    dashboard: '📊 Özeti Aç',
+    trips: '📋 Sefer Detayları',
+    fuel: '⛽ Mazot Fişi Yükle',
+    maintenance: '🔧 Araç Bakım',
+    detaylar: '⚠️ Cezalar & Belgeler',
+    invoices: '📑 Fatura Durumu',
+    earsiv: '🧾 E-Arşiv Fatura',
+    payments: '💳 Ödeme Takibi',
+    map: '📍 Canlı Harita',
+    chat: '💬 Sohbete Git'
+  };
+
   const actions = [];
-  if (requireAck) {
+  if (buttonMode === 'ack' || buttonMode === 'both') {
     actions.push({ action: 'ack_approved', title: '👍 Onayladım' });
     actions.push({ action: 'ack_rejected', title: '❌ Sorun Var' });
-  } else if (targetTab) {
-    const tabTitles = {
-      dashboard: '📊 Özeti Aç',
-      trips: '🚚 Seferleri Gör',
-      fuel: '⛽ Mazot Fişleri',
-      maintenance: '🔧 Araç Bakım',
-      detaylar: '⚠️ Cezalar & Belgeler',
-      invoices: '📑 Faturalar',
-      earsiv: '🧾 E-Arşiv',
-      payments: '💳 Ödemeler',
-      map: '📍 Canlı Harita',
-      chat: '💬 Sohbete Git'
-    };
-    actions.push({ action: `nav_${targetTab}`, title: tabTitles[targetTab] || '🚀 Aç' });
+  }
+  if ((buttonMode === 'nav' || buttonMode === 'both') && targetTab) {
+    actions.push({ action: `nav_${targetTab}`, title: customNavLabel || tabTitles[targetTab] || '🚀 Sayfayı Aç' });
   }
   
   const notificationOptions = {
@@ -92,7 +104,6 @@ self.addEventListener('notificationclick', (event) => {
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       for (let client of windowClients) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
-          // İstemci penceresine sekme değiştirme mesajı gönder
           if (notifData.targetTab) {
             client.postMessage({ type: 'SWITCH_TAB', tab: notifData.targetTab });
           }

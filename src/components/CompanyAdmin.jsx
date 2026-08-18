@@ -29,11 +29,11 @@ const VIBRATION_PROFILES = [
 ];
 
 const QUICK_TEMPLATES = [
-    { title: 'İnaner Lojistik - Görev', body: 'Araç fabrikaya ulaştı, yükleme/boşaltma sırasına giriniz.', tab: 'trips', vib: 'task', ack: true, label: '🏭 Fabrikaya Ulaşıldı' },
-    { title: 'İnaner Lojistik - Mazot', body: 'Lütfen aldığınız son yakıt fişinin fotoğrafını sisteme yükleyiniz.', tab: 'fuel', vib: 'general', ack: false, label: '⛽ Mazot Fişi Girişi' },
-    { title: 'İnaner Lojistik - Evrak', body: 'Sefer irsaliyesini ve kantar fişini sisteme yükleyiniz.', tab: 'detaylar', vib: 'general', ack: true, label: '📄 Evrak & İrsaliye' },
-    { title: 'İnaner Lojistik - Bakım', body: 'Aracınızın periyodik bakım veya muayene zamanı yaklaşmıştır.', tab: 'maintenance', vib: 'sos', ack: true, label: '🛑 Bakım Zamanı' },
-    { title: 'İnaner Lojistik - Konum', body: 'Lütfen canlı takip uygulamanızın açık olduğunu teyit ediniz.', tab: 'map', vib: 'task', ack: true, label: '📍 Konum Kontrolü' }
+    { title: 'İnaner Lojistik - Görev', body: 'Araç fabrikaya ulaştı, yükleme/boşaltma sırasına giriniz.', tab: 'trips', vib: 'task', buttonMode: 'both', label: '🏭 Fabrikaya Ulaşıldı' },
+    { title: 'İnaner Lojistik - Mazot', body: 'Lütfen aldığınız son yakıt fişinin fotoğrafını sisteme yükleyiniz.', tab: 'fuel', vib: 'general', buttonMode: 'nav', customNavLabel: '⛽ Mazot Fişi Yükle', label: '⛽ Mazot Fişi Girişi' },
+    { title: 'İnaner Lojistik - Evrak', body: 'Sefer irsaliyesini ve kantar fişini sisteme yükleyiniz.', tab: 'detaylar', vib: 'general', buttonMode: 'both', customNavLabel: '📄 Evrakları Aç', label: '📄 Evrak & İrsaliye' },
+    { title: 'İnaner Lojistik - Bakım', body: 'Aracınızın periyodik bakım veya muayene zamanı yaklaşmıştır.', tab: 'maintenance', vib: 'sos', buttonMode: 'both', customNavLabel: '🔧 Bakım Detayı', label: '🛑 Bakım Zamanı' },
+    { title: 'İnaner Lojistik - Konum', body: 'Lütfen canlı takip uygulamanızın açık olduğunu teyit ediniz.', tab: 'map', vib: 'task', buttonMode: 'nav', customNavLabel: '📍 Canlı Harita', label: '📍 Konum Kontrolü' }
 ];
 
 const CompanyAdmin = () => {
@@ -51,7 +51,8 @@ const CompanyAdmin = () => {
     const [notifImageUrl, setNotifImageUrl] = useState('');
     const [notifUploadingImage, setNotifUploadingImage] = useState(false);
     const [notifVibration, setNotifVibration] = useState('general');
-    const [notifRequireAck, setNotifRequireAck] = useState(true);
+    const [notifButtonMode, setNotifButtonMode] = useState('nav'); // 'nav' | 'ack' | 'both' | 'none'
+    const [notifCustomNavLabel, setNotifCustomNavLabel] = useState('');
     const [notifSending, setNotifSending] = useState(false);
     const [notifResult, setNotifResult] = useState(null);
     const [registeringDevice, setRegisteringDevice] = useState(false);
@@ -723,9 +724,10 @@ const CompanyAdmin = () => {
                                             setNotifBody(tmpl.body);
                                             setNotifTargetTab(tmpl.tab);
                                             setNotifVibration(tmpl.vib);
-                                            setNotifRequireAck(tmpl.ack);
+                                            setNotifButtonMode(tmpl.buttonMode || 'nav');
+                                            setNotifCustomNavLabel(tmpl.customNavLabel || '');
                                         }}
-                                        className="text-xs bg-white/[0.03] hover:bg-white/[0.08] text-slate-300 border border-white/10 hover:border-indigo-500/40 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1"
+                                        className="text-xs bg-white/[0.03] hover:bg-white/[0.08] text-slate-300 border border-white/10 hover:border-indigo-500/40 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
                                     >
                                         {tmpl.label}
                                     </button>
@@ -750,7 +752,9 @@ const CompanyAdmin = () => {
                                     imageUrl: notifImageUrl ? notifImageUrl.trim() : null,
                                     targetTab: notifTargetTab,
                                     vibrationPattern: notifVibration,
-                                    requireAck: notifRequireAck,
+                                    buttonMode: notifButtonMode,
+                                    customNavLabel: notifCustomNavLabel.trim() || null,
+                                    requireAck: notifButtonMode === 'ack' || notifButtonMode === 'both',
                                     companyId: activeCompanyId
                                 });
 
@@ -957,26 +961,59 @@ const CompanyAdmin = () => {
                                 </div>
                             </div>
 
-                            {/* 3. İki Yönlü Onay Mekanizması Toggle'ı */}
-                            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 via-sky-500/5 to-transparent border border-emerald-500/20 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
-                                        <CheckCircle size={20} />
-                                    </div>
-                                    <div>
-                                        <h5 className="text-xs font-bold text-white">İki Yönlü Şoför Onayı İste (Aksiyon Butonları)</h5>
-                                        <p className="text-[11px] text-slate-400 mt-0.5">Şoförün kilit ekranında `[👍 Onayladım]` ve `[❌ Sorun Var]` butonları çıkar, panelinize anlık düşer.</p>
+                            {/* 3. Buton Seçenekleri ve Yapılandırması */}
+                            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-4">
+                                <div>
+                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-2 flex items-center gap-1.5">
+                                        <Sparkles size={14} className="text-indigo-400" />
+                                        Bildirim Buton Yapısı (Kilit Ekranı ve Toast Üzerinde)
+                                    </label>
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                        {[
+                                            { id: 'nav', label: '🚀 Sayfaya Yönlendir', desc: '1 Buton: Doğrudan seçilen sekmeye götürür' },
+                                            { id: 'ack', label: '🤝 İki Yönlü Onay', desc: '2 Buton: [Onayladım] ve [Sorun Var]' },
+                                            { id: 'both', label: '🌟 Sayfa + Onay', desc: '3 Buton: Hem yönlendirme hem onay' },
+                                            { id: 'none', label: '💬 Butonsuz', desc: 'Yalnızca bilgilendirme metni' }
+                                        ].map(bm => (
+                                            <button
+                                                key={bm.id}
+                                                type="button"
+                                                onClick={() => setNotifButtonMode(bm.id)}
+                                                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                                                    notifButtonMode === bm.id
+                                                        ? 'bg-indigo-600/25 border-indigo-500 text-white shadow-md shadow-indigo-600/20'
+                                                        : 'bg-white/[0.02] border-white/10 text-slate-400 hover:text-slate-200'
+                                                }`}
+                                            >
+                                                <div className="text-xs font-bold text-slate-200">{bm.label}</div>
+                                                <p className="text-[10px] text-slate-400 mt-1 leading-tight">{bm.desc}</p>
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={notifRequireAck}
-                                        onChange={(e) => setNotifRequireAck(e.target.checked)}
-                                        className="sr-only peer"
-                                    />
-                                    <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                                </label>
+
+                                {(notifButtonMode === 'nav' || notifButtonMode === 'both') && (
+                                    <div>
+                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                            Özel Buton Başlığı (Opsiyonel — Boş bırakılırsa sekme adı kullanılır)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={notifCustomNavLabel}
+                                            onChange={(e) => setNotifCustomNavLabel(e.target.value)}
+                                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3.5 py-2 text-xs focus:border-indigo-500 outline-none"
+                                            placeholder="Örn: 📍 Fabrika Konumunu Gör veya ⛽ Mazot Fişini Yükle"
+                                        />
+                                    </div>
+                                )}
+
+                                {/* iPhone Haptic Touch İpucu */}
+                                <div className="p-2.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-[11px] text-indigo-300 flex items-start gap-2">
+                                    <Smartphone size={15} className="mt-0.5 flex-shrink-0 text-indigo-400" />
+                                    <span>
+                                        <strong>iPhone Kilit Ekranı Bilgisi:</strong> Apple iOS kuralı gereği kilit ekranında bildirim butonlarını görebilmek için gelen bildirimin üzerine <strong>1 saniye basılı tutulmalıdır (Haptic Touch)</strong>.
+                                    </span>
+                                </div>
                             </div>
 
                             <div className="pt-2">

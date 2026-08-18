@@ -274,7 +274,7 @@ export default async function handler(req, res) {
                     return res.status(403).json({ error: 'Bildirim göndermek için yönetici yetkiniz bulunmamaktadır.' });
                 }
 
-                const { targetUid, allCompany, title, body, imageUrl, targetTab, vibrationPattern, requireAck } = payload;
+                const { targetUid, allCompany, title, body, imageUrl, targetTab, vibrationPattern, buttonMode, customNavLabel, requireAck } = payload;
                 
                 if (!title || !body) {
                     return res.status(400).json({ error: 'Eksik parametreler: Başlık ve mesaj metni zorunludur.' });
@@ -323,6 +323,9 @@ export default async function handler(req, res) {
                 // Benzersiz tokenlar
                 tokens = [...new Set(tokens)].filter(t => !!t);
 
+                const finalButtonMode = buttonMode || (requireAck ? 'ack' : 'nav');
+                const isAckNeeded = finalButtonMode === 'ack' || finalButtonMode === 'both';
+
                 // Bildirimi Firestore company_notifications koleksiyonuna arşivle
                 const notifRecord = {
                     companyId: targetCompanyId,
@@ -335,7 +338,9 @@ export default async function handler(req, res) {
                     imageUrl: imageUrl ? imageUrl.trim() : null,
                     targetTab: targetTab || 'dashboard',
                     vibrationPattern: vibrationPattern || 'general',
-                    requireAck: !!requireAck,
+                    buttonMode: finalButtonMode,
+                    customNavLabel: customNavLabel ? customNavLabel.trim() : null,
+                    requireAck: isAckNeeded,
                     acknowledgements: {},
                     readBy: [],
                     createdAt: new Date().toISOString()
@@ -365,23 +370,24 @@ export default async function handler(req, res) {
                 // Kilit ekranı aksiyon butonları
                 const tabTitles = {
                     dashboard: '📊 Özeti Aç',
-                    trips: '🚚 Seferleri Gör',
-                    fuel: '⛽ Mazot Fişleri',
+                    trips: '📋 Sefer Detayları',
+                    fuel: '⛽ Mazot Fişi Yükle',
                     maintenance: '🔧 Araç Bakım',
                     detaylar: '⚠️ Cezalar & Belgeler',
-                    invoices: '📑 Faturalar',
-                    earsiv: '🧾 E-Arşiv',
-                    payments: '💳 Ödemeler',
+                    invoices: '📑 Fatura Durumu',
+                    earsiv: '🧾 E-Arşiv Fatura',
+                    payments: '💳 Ödeme Takibi',
                     map: '📍 Canlı Harita',
                     chat: '💬 Sohbete Git'
                 };
 
                 const pushActions = [];
-                if (requireAck) {
+                if (finalButtonMode === 'ack' || finalButtonMode === 'both') {
                     pushActions.push({ action: 'ack_approved', title: '👍 Onayladım' });
                     pushActions.push({ action: 'ack_rejected', title: '❌ Sorun Var' });
-                } else if (targetTab && tabTitles[targetTab]) {
-                    pushActions.push({ action: `nav_${targetTab}`, title: tabTitles[targetTab] });
+                }
+                if ((finalButtonMode === 'nav' || finalButtonMode === 'both') && targetTab) {
+                    pushActions.push({ action: `nav_${targetTab}`, title: customNavLabel || tabTitles[targetTab] || '🚀 Sayfayı Aç' });
                 }
 
                 // Firebase Cloud Messaging üzerinden multicast gönderim
@@ -399,7 +405,9 @@ export default async function handler(req, res) {
                             imageUrl: imageUrl || '',
                             targetTab: targetTab || 'dashboard',
                             vibrationPattern: vibrationPattern || 'general',
-                            requireAck: requireAck ? 'true' : 'false',
+                            buttonMode: finalButtonMode,
+                            customNavLabel: customNavLabel || '',
+                            requireAck: isAckNeeded ? 'true' : 'false',
                             click_action: targetTab ? `/#tab=${targetTab}` : '/'
                         },
                         webpush: {
@@ -419,12 +427,32 @@ export default async function handler(req, res) {
                                 data: {
                                     notificationId: savedNotifDoc.id,
                                     targetTab: targetTab || 'dashboard',
+                                    buttonMode: finalButtonMode,
                                     url: targetTab ? `/#tab=${targetTab}` : '/'
                                 }
                             },
                             fcmOptions: {
                                 link: targetTab ? `/#tab=${targetTab}` : '/',
                                 ...(imageUrl ? { image: imageUrl } : {})
+                            }
+                        },
+                        apns: {
+                            payload: {
+                                aps: {
+                                    'mutable-content': 1,
+                                    'alert': { title, body },
+                                    'sound': 'default'
+                                }
+                            },
+                            fcmOptions: {
+                                ...(imageUrl ? { image: imageUrl } : {})
+                            }
+                        },
+                        android: {
+                            priority: 'high',
+                            notification: {
+                                sound: 'default',
+                                ...(imageUrl ? { imageUrl: imageUrl } : {})
                             }
                         },
                         tokens: tokens

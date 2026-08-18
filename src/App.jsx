@@ -161,6 +161,43 @@ function App() {
     }
   }, [])
 
+  // iPhone & Tarayıcı Otomatik Canlı Sürüm Denetleyicisi
+  useEffect(() => {
+    let lastVersion = sessionStorage.getItem('app_loaded_version');
+
+    const checkVersion = async () => {
+      try {
+        const res = await fetch(`/api/version?t=${Date.now()}`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.version) {
+            if (lastVersion && lastVersion !== data.version) {
+              console.log('[AutoUpdate] Yeni sürüm yayında, otomatik tazeleniyor:', data.version);
+              sessionStorage.setItem('app_loaded_version', data.version);
+              window.location.reload();
+            } else if (!lastVersion) {
+              sessionStorage.setItem('app_loaded_version', data.version);
+            }
+          }
+        }
+      } catch {
+        // Ağ hatası durumunda sessizce geç
+      }
+    };
+
+    checkVersion();
+    const interval = setInterval(checkVersion, 60000);
+    const handleVis = () => {
+      if (document.visibilityState === 'visible') checkVersion();
+    };
+    document.addEventListener('visibilitychange', handleVis);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVis);
+    };
+  }, []);
+
   // PWA Bildirim Kaydı ve İzin Yönetimi
   useEffect(() => {
     if (!currentUser || !currentUser.uid) return;

@@ -6,33 +6,50 @@ import { CompanyProvider } from './context/CompanyContext.jsx'
 import { TruckProvider } from './context/TruckContext.jsx'
 import { DataProvider } from './context/DataContext.jsx'
 
-// Kalıcı Cache Temizleyici: firebase-messaging-sw dışındaki Service Worker'ları Yok Et
+// Otomatik PWA Güncelleme ve Service Worker Yönetimi (iOS & Android & PC)
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(function (registrations) {
-    for (let registration of registrations) {
-      const scriptURL = registration.active?.scriptURL || registration.installing?.scriptURL || registration.waiting?.scriptURL || '';
-      if (!scriptURL.includes('firebase-messaging-sw.js')) {
-        registration.unregister().then(() => {
-          console.log('Eski/Farklı Service Worker kaldırıldı:', scriptURL);
-        });
-      }
-    }
-  });
-
-  // Firebase Messaging Service Worker'ını kaydet
+  // 1. Service Worker'ı kaydet
   navigator.serviceWorker.register('/firebase-messaging-sw.js')
     .then((reg) => {
-      console.log('Firebase Service Worker başarıyla kaydedildi:', reg.scope);
+      console.log('[SW] Service Worker kayıtlı:', reg.scope);
+
+      // Uygulama her açıldığında / ön plana geldiğinde sunucudaki güncellemeyi sorgula
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          reg.update().catch(() => {});
+        }
+      });
+
+      // Her 45 saniyede bir sessizce güncelleme sorgula
+      setInterval(() => {
+        reg.update().catch(() => {});
+      }, 45000);
+
+      // Yeni bir sürüm tespit edildiğinde ve yüklendiğinde
+      reg.onupdatefound = () => {
+        const installingWorker = reg.installing;
+        if (installingWorker) {
+          installingWorker.onstatechange = () => {
+            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('[SW] Yeni sürüm yüklendi! Otomatik yenileniyor...');
+              window.location.reload();
+            }
+          };
+        }
+      };
     })
     .catch((err) => {
-      console.error('Firebase Service Worker kaydı başarısız:', err);
+      console.error('[SW] Kayıt hatası:', err);
     });
-}
-if ('caches' in window) {
-  caches.keys().then((names) => {
-    names.forEach(name => {
-      caches.delete(name);
-    });
+
+  // Yeni servis işçisi aktifleştiğinde sayfayı otomatik tazele
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+      refreshing = true;
+      console.log('[SW] Yeni Service Worker devraldı, sayfa yenileniyor.');
+      window.location.reload();
+    }
   });
 }
 
