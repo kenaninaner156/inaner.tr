@@ -167,7 +167,7 @@ function App() {
 
     const checkVersion = async () => {
       try {
-        const res = await fetch(`/api/version?t=${Date.now()}`, { cache: 'no-store' });
+        const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           if (data.version) {
