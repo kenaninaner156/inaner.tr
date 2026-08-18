@@ -270,21 +270,25 @@ export default async function handler(req, res) {
 
             case 'sendPushNotification': {
                 // Bildirim Gönderme Eylemi (Yalnızca Super Admin veya ilgili Şirketin Yöneticisi)
+                if (callerRole !== 'super_admin' && callerRole !== 'company_admin' && callerRole !== 'admin') {
+                    return res.status(403).json({ error: 'Bildirim göndermek için yönetici yetkiniz bulunmamaktadır.' });
+                }
+
                 const { targetUid, allCompany, title, body } = payload;
                 
                 if (!title || !body) {
-                    return res.status(400).json({ error: 'Eksik parametreler: title ve body zorunludur.' });
+                    return res.status(400).json({ error: 'Eksik parametreler: Başlık ve mesaj metni zorunludur.' });
+                }
+
+                const targetCompanyId = (callerRole === 'super_admin' && payload.companyId) ? payload.companyId : (callerCompanyId || payload.companyId);
+                if (!targetCompanyId) {
+                    return res.status(400).json({ error: 'Hata: Şirket kimliği bulunamadı.' });
                 }
 
                 let tokens = [];
 
                 if (allCompany) {
                     // Şirketteki tüm onaylı kullanıcıların FCM tokenlarını çek
-                    const targetCompanyId = callerCompanyId || payload.companyId;
-                    if (!targetCompanyId) {
-                        return res.status(400).json({ error: 'Hata: Şirket kimliği bulunamadı.' });
-                    }
-
                     const usersSnapshot = await db.collection('approved_users')
                         .where('companyId', '==', targetCompanyId)
                         .get();
@@ -302,7 +306,7 @@ export default async function handler(req, res) {
                         const userData = userDoc.data();
                         
                         // Yetki Denetimi: Şirket yöneticisi sadece kendi şirketindeki birine gönderebilir
-                        if (callerRole !== 'super_admin' && userData.companyId !== callerCompanyId) {
+                        if (callerRole !== 'super_admin' && userData.companyId !== targetCompanyId) {
                             return res.status(403).json({ error: 'Bu kullanıcıya bildirim göndermek için yetkiniz yok.' });
                         }
 
@@ -320,7 +324,11 @@ export default async function handler(req, res) {
                 tokens = [...new Set(tokens)].filter(t => !!t);
 
                 if (tokens.length === 0) {
-                    return res.status(200).json({ success: true, message: 'Gönderilecek aktif cihaz tokenı bulunamadı.', sentCount: 0 });
+                    return res.status(200).json({ 
+                        success: false, 
+                        message: 'Bildirim gönderilemedi: Seçilen hedefte bildirim iznini açmış veya cihazı kayıtlı aktif kullanıcı bulunamadı. Kullanıcıların uygulamayı telefonuna yükleyip bildirim iznini onaylaması gerekir.', 
+                        sentCount: 0 
+                    });
                 }
 
                 // Firebase Cloud Messaging üzerinden multicast gönderim
@@ -329,6 +337,11 @@ export default async function handler(req, res) {
                         notification: {
                             title,
                             body
+                        },
+                        data: {
+                            title,
+                            body,
+                            click_action: '/'
                         },
                         webpush: {
                             headers: {
@@ -339,6 +352,9 @@ export default async function handler(req, res) {
                                 body,
                                 icon: '/tir-clear.png',
                                 badge: '/tir-clear.png'
+                            },
+                            fcmOptions: {
+                                link: '/'
                             }
                         },
                         tokens: tokens
@@ -377,7 +393,7 @@ export default async function handler(req, res) {
                         success: true, 
                         successCount: response.successCount, 
                         failureCount: response.failureCount,
-                        sentCount: tokens.length
+                        sentCount: response.successCount
                     });
                 } catch (messagingError) {
                     console.error('FCM Multicast gönderim hatası:', messagingError);

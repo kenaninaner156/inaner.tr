@@ -578,13 +578,57 @@ const CompanyAdmin = () => {
             {/* Notifications Tab */}
             {activeTab === 'notifications' && (
                 <div className="glass-panel p-6 border border-[var(--border-color)] space-y-6 animate-in fade-in duration-300">
-                    <div className="flex items-center space-x-3 border-b border-[var(--border-color)] pb-3">
-                        <Bell className="text-indigo-400 animate-pulse" size={22} />
-                        <h4 className="text-lg font-bold text-[var(--text-primary)]">Manuel Anlık Bildirim Gönder</h4>
+                    <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
+                        <div className="flex items-center space-x-3">
+                            <Bell className="text-indigo-400 animate-pulse" size={22} />
+                            <h4 className="text-lg font-bold text-[var(--text-primary)]">Manuel Anlık Bildirim Gönder</h4>
+                        </div>
+                        {typeof Notification !== 'undefined' && Notification.permission !== 'granted' && (
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    if (typeof Notification !== 'undefined') {
+                                        const p = await Notification.requestPermission();
+                                        if (p === 'granted') {
+                                            window.location.reload();
+                                        }
+                                    }
+                                }}
+                                className="text-xs bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 px-3 py-1.5 rounded-lg font-medium transition-all"
+                            >
+                                Bu Cihazda Bildirim İzni Ver
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Şirket Cihaz Durumu Özeti */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+                            <div>
+                                <div className="text-xs text-[var(--text-secondary)] font-medium">Kayıtlı Aktif Cihazlar</div>
+                                <div className="text-xl font-bold text-white mt-0.5">
+                                    {approvedUsers.filter(u => u.companyId === activeCompanyId).reduce((sum, u) => sum + (u.fcmTokens?.length || 0), 0)} Cihaz
+                                </div>
+                            </div>
+                            <div className="p-2.5 bg-indigo-500/10 rounded-xl text-indigo-400">
+                                <Users size={20} />
+                            </div>
+                        </div>
+                        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
+                            <div>
+                                <div className="text-xs text-[var(--text-secondary)] font-medium">Bildirim Alabilecek Personel</div>
+                                <div className="text-xl font-bold text-emerald-400 mt-0.5">
+                                    {approvedUsers.filter(u => u.companyId === activeCompanyId && u.fcmTokens && u.fcmTokens.length > 0).length} / {approvedUsers.filter(u => u.companyId === activeCompanyId).length} Kişi
+                                </div>
+                            </div>
+                            <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400">
+                                <Bell size={20} />
+                            </div>
+                        </div>
                     </div>
 
                     <p className="text-[var(--text-secondary)] text-sm leading-relaxed">
-                        Şirketinizdeki şoförlerin veya diğer personellerin telefonlarına anlık bildirim gönderebilirsiniz. Bildirimin ulaşabilmesi için ilgili kullanıcının uygulamanın bildirim iznini onaylamış olması ve uygulamanın cihazına yüklü (ana ekrana eklenmiş) olması gerekir.
+                        Şirketinizdeki şoförlerin veya personellerin telefonlarına anlık push bildirimi gönderebilirsiniz. Bildirimin cihaza ulaşabilmesi için personelin web sitesini / uygulamasını açıp bildirim iznini onaylamış olması gerekmektedir.
                     </p>
 
                     <form onSubmit={async (e) => {
@@ -603,15 +647,15 @@ const CompanyAdmin = () => {
                                 companyId: activeCompanyId
                             });
 
-                            if (res.success) {
+                            if (res.success && res.sentCount > 0) {
                                 setNotifResult({
                                     success: true,
-                                    message: `Bildirim başarıyla gönderildi! Toplam ${res.sentCount || 0} cihaza ulaştırıldı.`
+                                    message: `Bildirim başarıyla gönderildi! Toplam ${res.sentCount} cihaza ulaştırıldı.`
                                 });
                                 setNotifBody(''); // Başarılı gönderimden sonra mesajı temizle
                             } else {
                                 setNotifResult({
-                                    error: res.message || 'Bildirim gönderildi fakat alıcı cihaz bulunamadı.'
+                                    error: res.message || 'Bildirim gönderilemedi: Şirkette aktif bildirim alıcısı bulunamadı.'
                                 });
                             }
                         } catch (err) {
@@ -621,7 +665,7 @@ const CompanyAdmin = () => {
                         }
                     }} className="space-y-4 max-w-xl">
                         {notifResult && (
-                            <div className={`p-4 rounded-xl border text-sm ${notifResult.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                            <div className={`p-4 rounded-xl border text-sm ${notifResult.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'}`}>
                                 {notifResult.success ? notifResult.message : notifResult.error}
                             </div>
                         )}
@@ -633,12 +677,14 @@ const CompanyAdmin = () => {
                                 onChange={(e) => setNotifRecipient(e.target.value)}
                                 className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none"
                             >
-                                <option value="all">Tüm Şirket Çalışanları & Şoförler</option>
+                                <option value="all">
+                                    Tüm Şirket Çalışanları & Şoförler ({approvedUsers.filter(u => u.companyId === activeCompanyId).reduce((sum, u) => sum + (u.fcmTokens?.length || 0), 0)} Cihaz)
+                                </option>
                                 {approvedUsers
                                     .filter(u => u.companyId === activeCompanyId)
                                     .map(u => (
                                         <option key={u.id} value={u.id}>
-                                            {u.username} ({u.role})
+                                            {u.username} ({u.role}) {u.fcmTokens?.length ? `— ${u.fcmTokens.length} Cihaz Aktif` : '— Cihaz Kaydı Yok'}
                                         </option>
                                     ))
                                 }

@@ -81,6 +81,10 @@ service cloud.firestore {
                     && (resource == null || resource.data.companyId == getCompanyId()) 
                     && (request.resource == null || request.resource.data.companyId == getCompanyId())
                     && (request.resource == null || (request.resource.data.role != 'company_admin' && request.resource.data.role != 'super_admin'));
+      // Her kullanıcı kendi cihaz bildirim tokenlarını (fcmTokens) ve son görülme bilgilerini güncelleyebilir
+      allow update: if isAuthenticated() && request.auth.uid == userId
+                    && (resource == null || request.resource.data.role == resource.data.role)
+                    && (resource == null || request.resource.data.companyId == resource.data.companyId);
     }
 
     // 4. Şirket Verileri (Tüm Şirket Alt Koleksiyonları: trips, fuel, maintenance, payments, penalties, vb.)
