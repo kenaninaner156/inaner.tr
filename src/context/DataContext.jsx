@@ -365,7 +365,8 @@ export const DataProvider = ({ children }) => {
         }));
 
         // 11.9 Company Notifications config
-        unsubs.push(onSnapshot(query(collection(db, 'company_notifications'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+        const targetNotifCompany = activeCompanyId || currentSession?.companyId || 'inaner_logistics';
+        unsubs.push(onSnapshot(query(collection(db, 'company_notifications'), where('companyId', '==', targetNotifCompany)), (snapshot) => {
             const list = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
             list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
             setCompanyNotifications(list);

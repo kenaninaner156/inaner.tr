@@ -86,6 +86,16 @@ const Detaylar = () => {
 
 
     // ── Bildirim Hesaplama ──────────────────────────────────────────────────────
+    React.useEffect(() => {
+        const handleSwitch = (e) => {
+            if (e.detail === 'detaylar_notifications' || e.detail === 'bildirimler') {
+                setActiveTab('bildirimler');
+            }
+        };
+        window.addEventListener('tir_switch_tab', handleSwitch);
+        return () => window.removeEventListener('tir_switch_tab', handleSwitch);
+    }, []);
+
     const urgentDocs = DOC_TYPES.filter(dt => {
         const d = docs[dt.key];
         if (d?.isNone) return false;
@@ -506,20 +516,53 @@ const Detaylar = () => {
             {/* ─── BİLDİRİMLER ─── */}
             {activeTab === 'bildirimler' && (
                 <div className="space-y-5">
+                    {/* Üst İstatistik Sayaçları */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                        <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-between">
+                            <div>
+                                <span className="text-xs font-semibold text-indigo-300">Şirket Görev & Duyuruları</span>
+                                <div className="text-2xl font-black text-white mt-1">{(companyNotifications || []).length}</div>
+                            </div>
+                            <div className="p-3 bg-indigo-500/20 text-indigo-300 rounded-xl">
+                                <Bell size={22} />
+                            </div>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
+                            <div>
+                                <span className="text-xs font-semibold text-amber-300">Yaklaşan / Dolan Belgeler</span>
+                                <div className="text-2xl font-black text-amber-400 mt-1">{urgentDocs.length}</div>
+                            </div>
+                            <div className="p-3 bg-amber-500/20 text-amber-300 rounded-xl">
+                                <FileText size={22} />
+                            </div>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-between">
+                            <div>
+                                <span className="text-xs font-semibold text-red-300">Ödenmemiş Cezalar</span>
+                                <div className="text-2xl font-black text-red-400 mt-1">{unpaidPenalties.length}</div>
+                            </div>
+                            <div className="p-3 bg-red-500/20 text-red-300 rounded-xl">
+                                <AlertTriangle size={22} />
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Filtreleme ve Aksiyon Başlığı */}
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-color)] pb-3">
                         <div className="flex items-center gap-1.5 overflow-x-auto py-1">
                             {[
-                                { id: 'all', label: 'Tüm Bildirimler' },
-                                { id: 'company', label: '📢 Şirket Duyuruları & Görevler' },
-                                { id: 'docs', label: '📄 Belgeler' },
-                                { id: 'penalties', label: '🚨 Cezalar' }
+                                { id: 'all', label: `Tüm Bildirimler (${(companyNotifications || []).length + urgentDocs.length + unpaidPenalties.length})` },
+                                { id: 'company', label: `📢 Şirket Bildirimleri (${(companyNotifications || []).length})` },
+                                { id: 'docs', label: `📄 Belgeler (${urgentDocs.length})` },
+                                { id: 'penalties', label: `🚨 Cezalar (${unpaidPenalties.length})` }
                             ].map(f => (
                                 <button
                                     key={f.id}
                                     type="button"
                                     onClick={() => setNotifFilter(f.id)}
-                                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                                    className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                                         notifFilter === f.id
                                             ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25'
                                             : 'bg-white/[0.03] text-slate-400 hover:text-white hover:bg-white/5'
@@ -533,7 +576,7 @@ const Detaylar = () => {
                         {totalNotifications > 0 && (
                             <button
                                 onClick={clearNotifications}
-                                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-[var(--text-secondary)] hover:text-white transition-all border border-white/10"
+                                className="flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-[var(--text-secondary)] hover:text-white transition-all border border-white/10 cursor-pointer"
                             >
                                 <CheckCircle size={13} className="text-emerald-400" />
                                 <span>Tümünü Okundu İşaretle</span>
@@ -548,18 +591,19 @@ const Detaylar = () => {
                             const currentUid = auth.currentUser?.uid;
                             const myAck = currentUid && notif.acknowledgements ? notif.acknowledgements[currentUid] : null;
                             const isRead = currentUid && notif.readBy && notif.readBy.includes(currentUid);
+                            const buttons = notif.buttons && Array.isArray(notif.buttons) ? notif.buttons : [];
 
                             return (
                                 <div
                                     key={notif.id}
                                     className={`glass-panel p-5 rounded-2xl border transition-all ${
-                                        isRead ? 'border-white/5 bg-white/[0.01]' : 'border-indigo-500/30 bg-indigo-950/15 shadow-lg shadow-indigo-950/20'
+                                        isRead ? 'border-white/5 bg-white/[0.01]' : 'border-indigo-500/30 bg-indigo-950/20 shadow-lg shadow-indigo-950/20'
                                     }`}
                                 >
                                     <div className="flex flex-wrap items-start justify-between gap-2">
                                         <div className="flex items-start gap-3.5 min-w-0">
                                             <div className="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex-shrink-0 mt-0.5">
-                                                <Bell size={18} className="animate-pulse" />
+                                                <Bell size={18} />
                                             </div>
                                             <div className="min-w-0">
                                                 <div className="flex items-center gap-2 flex-wrap">
@@ -573,7 +617,7 @@ const Detaylar = () => {
                                                         </span>
                                                     )}
                                                 </div>
-                                                <p className="text-xs text-slate-300 mt-1.5 whitespace-pre-wrap leading-relaxed">
+                                                <p className="text-xs text-slate-300 mt-2 whitespace-pre-wrap leading-relaxed">
                                                     {notif.body}
                                                 </p>
                                             </div>
@@ -584,26 +628,10 @@ const Detaylar = () => {
                                         </span>
                                     </div>
 
-                                    {/* Ekli Görsel */}
-                                    {notif.imageUrl && (
-                                        <div className="mt-3">
-                                            <button
-                                                type="button"
-                                                onClick={() => setSelectedImage(notif.imageUrl)}
-                                                className="relative group rounded-xl overflow-hidden border border-white/10 max-w-xs block cursor-pointer"
-                                            >
-                                                <img src={notif.imageUrl} alt="Bildirim Eki" className="w-full max-h-48 object-cover group-hover:scale-105 transition-transform duration-300" />
-                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold gap-1.5">
-                                                    <Eye size={14} /> Tam Boy Gör
-                                                </div>
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {/* Alt Bar: Hedef Sayfa Butonu ve İki Yönlü Onay */}
+                                    {/* Alt Bar: Butonlar ve Onay Durumu */}
                                     <div className="mt-4 pt-3 border-t border-white/5 flex flex-wrap items-center justify-between gap-3">
-                                        {/* Hedef Sayfaya Git Butonu */}
-                                        {notif.targetTab && (
+                                        {/* Hedef Sayfa Yönlendirme (Eğer varsa ve butonlarda yoksa) */}
+                                        {notif.targetTab && buttons.length === 0 && (
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -618,61 +646,72 @@ const Detaylar = () => {
                                             </button>
                                         )}
 
-                                        {/* İki Yönlü Şoför Onayı Butonları */}
-                                        {notif.requireAck && (
-                                            <div className="flex items-center gap-2 ml-auto">
-                                                {myAck ? (
-                                                    <div className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border ${
-                                                        myAck.status === 'approved'
-                                                            ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                                                            : 'bg-red-500/15 border-red-500/30 text-red-400'
-                                                    }`}>
-                                                        {myAck.status === 'approved' ? <CheckCircle size={14} /> : <XCircle size={14} />}
-                                                        <span>{myAck.status === 'approved' ? 'Onayladınız' : 'Sorun Bildirdiniz'}</span>
-                                                    </div>
-                                                ) : (
-                                                    <>
+                                        {/* Özel Butonlar (Custom Buttons) Listesi */}
+                                        {buttons.length > 0 && (
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                {buttons.map((btn, bIdx) => {
+                                                    const isAck = btn.actionType === 'ack_approved' || btn.actionType === 'ack_rejected';
+                                                    return (
                                                         <button
+                                                            key={btn.id || bIdx}
                                                             type="button"
                                                             disabled={ackLoadingId === notif.id}
                                                             onClick={async () => {
-                                                                setAckLoadingId(notif.id);
-                                                                try {
-                                                                    await acknowledgeNotification(notif.id, 'approved');
-                                                                } catch (e) {
-                                                                    alert('Onay iletilemedi: ' + e.message);
-                                                                } finally {
-                                                                    setAckLoadingId(null);
+                                                                if (btn.actionType === 'navigate' && btn.targetTab) {
+                                                                    if (markNotificationAsRead && notif.id) markNotificationAsRead(notif.id);
+                                                                    window.dispatchEvent(new CustomEvent('tir_switch_tab', { detail: btn.targetTab }));
+                                                                } else if (btn.actionType === 'ack_approved') {
+                                                                    setAckLoadingId(notif.id);
+                                                                    try {
+                                                                        await acknowledgeNotification(notif.id, 'approved', btn.label);
+                                                                    } catch (e) {
+                                                                        alert('Onay iletilemedi: ' + e.message);
+                                                                    } finally {
+                                                                        setAckLoadingId(null);
+                                                                    }
+                                                                } else if (btn.actionType === 'ack_rejected') {
+                                                                    const note = prompt('Lütfen karşılaştığınız sorunu kısaca yazın:');
+                                                                    if (note === null) return;
+                                                                    setAckLoadingId(notif.id);
+                                                                    try {
+                                                                        await acknowledgeNotification(notif.id, 'rejected', note);
+                                                                    } catch (e) {
+                                                                        alert('Sorun bildirimi iletilemedi: ' + e.message);
+                                                                    } finally {
+                                                                        setAckLoadingId(null);
+                                                                    }
                                                                 }
                                                             }}
-                                                            className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer"
+                                                            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                                                                btn.style === 'emerald' ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20' :
+                                                                btn.style === 'red' ? 'bg-red-600/25 hover:bg-red-600/40 text-red-300 border border-red-500/30' :
+                                                                btn.style === 'amber' ? 'bg-amber-600/25 hover:bg-amber-600/40 text-amber-300 border border-amber-500/30' :
+                                                                btn.style === 'glass' ? 'bg-white/10 hover:bg-white/15 text-white border border-white/20' :
+                                                                'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/20'
+                                                            }`}
                                                         >
-                                                            <CheckCircle size={13} />
-                                                            <span>Onayladım / Yola Çıktım</span>
+                                                            <span>{btn.label}</span>
+                                                            {btn.actionType === 'navigate' && <ExternalLink size={11} className="opacity-60" />}
                                                         </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
 
-                                                        <button
-                                                            type="button"
-                                                            disabled={ackLoadingId === notif.id}
-                                                            onClick={async () => {
-                                                                const note = prompt('Lütfen karşılaştığınız sorunu kısaca yazın:');
-                                                                if (note === null) return;
-                                                                setAckLoadingId(notif.id);
-                                                                try {
-                                                                    await acknowledgeNotification(notif.id, 'rejected', note);
-                                                                } catch (e) {
-                                                                    alert('Sorun bildirimi iletilemedi: ' + e.message);
-                                                                } finally {
-                                                                    setAckLoadingId(null);
-                                                                }
-                                                            }}
-                                                            className="px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
-                                                        >
-                                                            <XCircle size={13} />
-                                                            <span>Sorun Var</span>
-                                                        </button>
-                                                    </>
-                                                )}
+                                        {/* Kullanıcı daha önce yanıt verdiyse rozeti göster */}
+                                        {myAck && (
+                                            <div className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border ml-auto ${
+                                                myAck.status === 'approved'
+                                                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                                                    : 'bg-red-500/15 border-red-500/30 text-red-400'
+                                            }`}>
+                                                {myAck.status === 'approved' ? <CheckCircle size={14} /> : <XCircle size={14} />}
+                                                <span>
+                                                    {myAck.status === 'approved'
+                                                        ? `Onayladınız (${new Date(myAck.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })})`
+                                                        : `Sorun Bildirildi: "${myAck.note || 'Belirtilmedi'}"`
+                                                    }
+                                                </span>
                                             </div>
                                         )}
                                     </div>

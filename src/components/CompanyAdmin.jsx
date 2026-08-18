@@ -10,22 +10,15 @@ import { uploadToCloudinary } from '../services/cloudinaryService';
 import VehicleAnalysis from './map/VehicleAnalysis';
 
 const NOTIF_DESTINATIONS = [
-    { id: 'dashboard', label: 'Özet', icon: BarChart3, color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' },
+    { id: 'detaylar', label: 'Bildirimler & Görevler', icon: Bell, color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30' },
+    { id: 'map', label: 'Canlı Harita', icon: MapPin, color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30' },
     { id: 'trips', label: 'Seferler', icon: Truck, color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' },
     { id: 'fuel', label: 'Mazot Fişleri', icon: Fuel, color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' },
     { id: 'maintenance', label: 'Araç Bakım', icon: Wrench, color: 'text-orange-400 bg-orange-500/10 border-orange-500/30' },
-    { id: 'detaylar', label: 'Ceza & Belgeler', icon: AlertTriangle, color: 'text-red-400 bg-red-500/10 border-red-500/30' },
     { id: 'invoices', label: 'Fatura Durumu', icon: FileText, color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' },
     { id: 'earsiv', label: 'E-Arşiv Fatura', icon: Receipt, color: 'text-pink-400 bg-pink-500/10 border-pink-500/30' },
-    { id: 'payments', label: 'Ödeme Takibi', icon: CreditCard, color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30' },
-    { id: 'map', label: 'Canlı Harita', icon: MapPin, color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30' },
-];
-
-const VIBRATION_PROFILES = [
-    { id: 'sos', label: 'Acil SOS', desc: 'Güçlü kesintili titreşim', icon: Radio, color: 'border-red-500/40 text-red-400 bg-red-500/10' },
-    { id: 'task', label: 'Görev / Operasyon', desc: 'Çift titreşim darbesi', icon: Activity, color: 'border-amber-500/40 text-amber-400 bg-amber-500/10' },
-    { id: 'general', label: 'Genel Duyuru', desc: 'Standart tek titreşim', icon: Volume2, color: 'border-indigo-500/40 text-indigo-400 bg-indigo-500/10' },
-    { id: 'silent', label: 'Sessiz', desc: 'Titreşimsiz (Yalnızca ekran)', icon: VolumeX, color: 'border-slate-500/40 text-slate-400 bg-slate-500/10' }
+    { id: 'payments', label: 'Ödeme Takibi', icon: CreditCard, color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' },
+    { id: 'dashboard', label: 'Özet Panel', icon: BarChart3, color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' },
 ];
 
 const AVAILABLE_ICONS = [
@@ -66,22 +59,14 @@ const BUTTON_PRESETS = [
         ]
     },
     {
-        label: '📋 Sefer + İrsaliye (2 Buton)',
+        label: '📋 Sefer Detayları + Onay (2 Buton)',
         buttons: [
             { id: '1', label: 'Sefer Detayları', icon: 'truck', actionType: 'navigate', targetTab: 'trips', style: 'indigo' },
-            { id: '2', label: 'İrsaliyeyi Gör', icon: 'file', actionType: 'navigate', targetTab: 'detaylar', style: 'amber' }
+            { id: '2', label: 'Yola Çıktım', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
         ]
     },
     {
-        label: '🌟 3 Butonlu Süper Set (3 Buton)',
-        buttons: [
-            { id: '1', label: 'Canlı Harita', icon: 'map_pin', actionType: 'navigate', targetTab: 'map', style: 'indigo' },
-            { id: '2', label: 'Onayladım', icon: 'thumbs_up', actionType: 'ack_approved', style: 'emerald' },
-            { id: '3', label: 'Sorun Var', icon: 'x', actionType: 'ack_rejected', style: 'red' }
-        ]
-    },
-    {
-        label: '💬 Butonsuz (Sade)',
+        label: '💬 Butonsuz (Sade Bilgilendirme)',
         buttons: []
     }
 ];
@@ -91,7 +76,6 @@ const QUICK_TEMPLATES = [
         title: 'İnaner Lojistik - Görev',
         body: 'Araç fabrikaya ulaştı, yükleme/boşaltma sırasına giriniz.',
         tab: 'trips',
-        vib: 'task',
         buttons: [
             { id: '1', label: 'Fabrika Konumu', icon: 'map_pin', actionType: 'navigate', targetTab: 'map', style: 'indigo' },
             { id: '2', label: 'Yola Çıktım', icon: 'thumbs_up', actionType: 'ack_approved', style: 'emerald' },
@@ -103,7 +87,6 @@ const QUICK_TEMPLATES = [
         title: 'İnaner Lojistik - Mazot',
         body: 'Lütfen aldığınız son yakıt fişinin fotoğrafını sisteme yükleyiniz.',
         tab: 'fuel',
-        vib: 'general',
         buttons: [
             { id: '1', label: 'Mazot Fişi Yükle', icon: 'fuel', actionType: 'navigate', targetTab: 'fuel', style: 'indigo' },
             { id: '2', label: 'Yükledim', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
@@ -114,7 +97,6 @@ const QUICK_TEMPLATES = [
         title: 'İnaner Lojistik - Evrak',
         body: 'Sefer irsaliyesini ve kantar fişini sisteme yükleyiniz.',
         tab: 'detaylar',
-        vib: 'general',
         buttons: [
             { id: '1', label: 'Evrakları Aç', icon: 'file', actionType: 'navigate', targetTab: 'detaylar', style: 'amber' },
             { id: '2', label: 'Tamamdır', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
@@ -125,7 +107,6 @@ const QUICK_TEMPLATES = [
         title: 'İnaner Lojistik - Bakım',
         body: 'Aracınızın periyodik bakım veya muayene zamanı yaklaşmıştır.',
         tab: 'maintenance',
-        vib: 'sos',
         buttons: [
             { id: '1', label: 'Bakım Detayı', icon: 'wrench', actionType: 'navigate', targetTab: 'maintenance', style: 'indigo' },
             { id: '2', label: 'Onayladım', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
@@ -136,7 +117,6 @@ const QUICK_TEMPLATES = [
         title: 'İnaner Lojistik - Konum',
         body: 'Lütfen canlı takip uygulamanızın açık olduğunu teyit ediniz.',
         tab: 'map',
-        vib: 'task',
         buttons: [
             { id: '1', label: 'Canlı Harita', icon: 'map_pin', actionType: 'navigate', targetTab: 'map', style: 'indigo' },
             { id: '2', label: 'Açık / Aktif', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
@@ -156,10 +136,7 @@ const CompanyAdmin = () => {
     const [notifTitle, setNotifTitle] = useState('İnaner Lojistik Duyuru');
     const [notifBody, setNotifBody] = useState('');
     const [notifRecipient, setNotifRecipient] = useState('all'); // 'all' veya kullanıcı id'si
-    const [notifTargetTab, setNotifTargetTab] = useState('trips');
-    const [notifImageUrl, setNotifImageUrl] = useState('');
-    const [notifUploadingImage, setNotifUploadingImage] = useState(false);
-    const [notifVibration, setNotifVibration] = useState('general');
+    const [notifTargetTab, setNotifTargetTab] = useState('detaylar');
     const [notifButtons, setNotifButtons] = useState([
         { id: '1', label: 'Onayladım', icon: 'thumbs_up', actionType: 'ack_approved', style: 'emerald' },
         { id: '2', label: 'Sorun Var', icon: 'x', actionType: 'ack_rejected', style: 'red' }
@@ -834,10 +811,9 @@ const CompanyAdmin = () => {
                                             setNotifTitle(tmpl.title);
                                             setNotifBody(tmpl.body);
                                             setNotifTargetTab(tmpl.tab);
-                                            setNotifVibration(tmpl.vib);
                                             setNotifButtons(tmpl.buttons || []);
                                         }}
-                                        className="text-xs bg-white/[0.03] hover:bg-white/[0.08] text-slate-300 border border-white/10 hover:border-indigo-500/40 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                                        className="text-xs bg-white/[0.03] hover:bg-white/[0.08] text-slate-300 border border-white/10 hover:border-indigo-500/40 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
                                     >
                                         {tmpl.label}
                                     </button>
@@ -859,9 +835,7 @@ const CompanyAdmin = () => {
                                     targetUid: isAll ? null : notifRecipient,
                                     title: notifTitle.trim(),
                                     body: notifBody.trim(),
-                                    imageUrl: notifImageUrl ? notifImageUrl.trim() : null,
                                     targetTab: notifTargetTab,
-                                    vibrationPattern: notifVibration,
                                     buttons: notifButtons,
                                     companyId: activeCompanyId
                                 });
@@ -869,10 +843,9 @@ const CompanyAdmin = () => {
                                 if (res.success && res.sentCount > 0) {
                                     setNotifResult({
                                         success: true,
-                                        message: `🚀 Bildirim başarıyla gönderildi! Toplam ${res.sentCount} cihaza ulaştırıldı ve arşive kaydedildi.`
+                                        message: `🚀 Bildirim başarıyla gönderildi! Toplam ${res.sentCount} cihaza iletildi ve arşive kaydedildi.`
                                     });
                                     setNotifBody('');
-                                    setNotifImageUrl('');
                                 } else if (res.success && res.sentCount === 0) {
                                     setNotifResult({
                                         success: true,
@@ -943,11 +916,11 @@ const CompanyAdmin = () => {
                                 />
                             </div>
 
-                            {/* 1. Hedef Sayfa / Aksiyon Butonu Seçici */}
+                            {/* Tıklanınca Açılacak Sayfa (Bildirimler en başta) */}
                             <div>
                                 <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-2 flex items-center gap-1.5">
                                     <Navigation size={14} className="text-indigo-400" />
-                                    Tıklanınca Açılacak Sayfa (Kilit Ekranı & Toast Butonu)
+                                    Tıklanınca Açılacak Sayfa (Kilit Ekranı & Bildirim Başlığı)
                                 </label>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
                                     {NOTIF_DESTINATIONS.map((dest) => {
@@ -958,7 +931,7 @@ const CompanyAdmin = () => {
                                                 key={dest.id}
                                                 type="button"
                                                 onClick={() => setNotifTargetTab(dest.id)}
-                                                className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-2 transition-all text-left ${
+                                                className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-2 transition-all text-left cursor-pointer ${
                                                     isSelected
                                                         ? 'bg-indigo-600/25 border-indigo-500 text-white shadow-md shadow-indigo-600/20'
                                                         : 'bg-white/[0.02] border-white/10 text-slate-400 hover:text-slate-200 hover:bg-white/[0.05]'
@@ -974,111 +947,16 @@ const CompanyAdmin = () => {
                                 </div>
                             </div>
 
-                            {/* 2. Titreşim ve Görsel Yükleyici */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-                                {/* Titreşim Profili */}
-                                <div>
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-2 flex items-center gap-1.5">
-                                        <Activity size={14} className="text-amber-400" />
-                                        Titreşim ve Öncelik Profili
-                                    </label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {VIBRATION_PROFILES.map((vib) => {
-                                            const VibIcon = vib.icon;
-                                            const isSelected = notifVibration === vib.id;
-                                            return (
-                                                <button
-                                                    key={vib.id}
-                                                    type="button"
-                                                    onClick={() => setNotifVibration(vib.id)}
-                                                    className={`p-2.5 rounded-xl border text-left transition-all ${
-                                                        isSelected
-                                                            ? 'bg-indigo-600/25 border-indigo-500 text-white shadow-md'
-                                                            : 'bg-white/[0.02] border-white/10 text-slate-400 hover:text-slate-200'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        <VibIcon size={14} className={vib.color} />
-                                                        <span className="text-xs font-bold text-slate-200">{vib.label}</span>
-                                                    </div>
-                                                    <p className="text-[10px] text-slate-400 mt-1 leading-tight">{vib.desc}</p>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-
-                                {/* Görsel / Fotoğraf Yükleyici */}
-                                <div>
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-2 flex items-center gap-1.5">
-                                        <Image size={14} className="text-sky-400" />
-                                        Fotoğraf / İrsaliye Görseli (Opsiyonel)
-                                    </label>
-                                    
-                                    {notifImageUrl ? (
-                                        <div className="relative rounded-xl overflow-hidden border border-white/15 bg-black/40 p-2 flex items-center gap-3">
-                                            <img src={notifImageUrl} alt="Bildirim Görseli" className="w-16 h-16 object-cover rounded-lg flex-shrink-0" />
-                                            <div className="min-w-0 flex-1">
-                                                <div className="text-xs font-medium text-slate-200 truncate">Görsel Eklendi</div>
-                                                <div className="text-[10px] text-emerald-400 mt-0.5">Kilit ekranında önizlenecek</div>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setNotifImageUrl('')}
-                                                className="p-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 text-xs transition-colors"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <label className="border border-dashed border-white/20 hover:border-indigo-500/50 rounded-xl p-3.5 flex flex-col items-center justify-center cursor-pointer bg-white/[0.02] hover:bg-white/[0.04] transition-all">
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                className="hidden"
-                                                disabled={notifUploadingImage}
-                                                onChange={async (e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (!file) return;
-                                                    setNotifUploadingImage(true);
-                                                    try {
-                                                        const uploadRes = await uploadToCloudinary(file);
-                                                        if (uploadRes?.url) {
-                                                            setNotifImageUrl(uploadRes.url);
-                                                        }
-                                                    } catch (upErr) {
-                                                        alert('Fotoğraf yüklenemedi: ' + (upErr.message || upErr));
-                                                    } finally {
-                                                        setNotifUploadingImage(false);
-                                                    }
-                                                }}
-                                            />
-                                            {notifUploadingImage ? (
-                                                <div className="flex items-center gap-2 text-xs text-indigo-400">
-                                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-400 border-t-transparent" />
-                                                    Fotoğraf Yükleniyor...
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-2 text-xs text-slate-300">
-                                                    <UploadCloud size={16} className="text-indigo-400" />
-                                                    Fotoğraf veya İrsaliye Seç
-                                                </div>
-                                            )}
-                                        </label>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* 3. Özel Buton Tasarımcısı (Custom Buttons Studio) */}
+                            {/* Özel Buton Tasarımcısı */}
                             <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/10 space-y-4">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <div>
                                         <label className="text-sm font-bold text-white flex items-center gap-1.5">
                                             <Sparkles size={16} className="text-indigo-400" />
-                                            Özel Buton Tasarımcısı (Bildirim Aksiyonları)
+                                            Özel Buton Tasarımcısı
                                         </label>
                                         <p className="text-xs text-slate-400 mt-0.5">
-                                            Kilit ekranı ve bildirim kartında görünecek butonları istediğiniz gibi oluşturun (En fazla 6 buton).
+                                            Bildirim kartında yer alacak aksiyon butonlarını kolayca oluşturun ve düzenleyin (En fazla 6 buton).
                                         </p>
                                     </div>
 
@@ -1101,7 +979,7 @@ const CompanyAdmin = () => {
 
                                 {/* Hızlı Buton Seti Şablonları */}
                                 <div>
-                                    <span className="text-[11px] font-semibold text-slate-400 block mb-1.5">Hızlı Buton Seti Seç:</span>
+                                    <span className="text-[11px] font-semibold text-slate-400 block mb-1.5">Hızlı Buton Seti Şablonu:</span>
                                     <div className="flex flex-wrap gap-1.5">
                                         {BUTTON_PRESETS.map((preset, pIdx) => (
                                             <button
@@ -1117,32 +995,30 @@ const CompanyAdmin = () => {
                                 </div>
 
                                 {/* Dinamik Buton Listesi & Düzenleyici */}
-                                <div className="space-y-3 pt-2">
+                                <div className="space-y-2.5 pt-1">
                                     {notifButtons.map((btn, idx) => (
                                         <div
                                             key={btn.id || idx}
-                                            className="p-3.5 rounded-xl bg-black/40 border border-white/10 flex flex-wrap items-center gap-3 animate-in fade-in"
+                                            className="p-3 rounded-xl bg-black/40 border border-white/10 flex flex-wrap items-center gap-2.5"
                                         >
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-xs font-bold text-slate-500 w-5">#{idx + 1}</span>
+                                            <span className="text-xs font-bold text-slate-500 w-4">#{idx + 1}</span>
 
-                                                {/* İkon Seçici */}
-                                                <select
-                                                    value={btn.icon}
-                                                    onChange={(e) => {
-                                                        const val = e.target.value;
-                                                        setNotifButtons(prev => prev.map(b => b.id === btn.id ? { ...b, icon: val } : b));
-                                                    }}
-                                                    className="bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-white text-xs rounded-lg px-2.5 py-1.5 outline-none"
-                                                >
-                                                    {AVAILABLE_ICONS.map(ic => (
-                                                        <option key={ic.id} value={ic.id}>{ic.label}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
+                                            {/* İkon Seçici */}
+                                            <select
+                                                value={btn.icon}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setNotifButtons(prev => prev.map(b => b.id === btn.id ? { ...b, icon: val } : b));
+                                                }}
+                                                className="bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-white text-xs rounded-lg px-2 py-1.5 outline-none"
+                                            >
+                                                {AVAILABLE_ICONS.map(ic => (
+                                                    <option key={ic.id} value={ic.id}>{ic.label}</option>
+                                                ))}
+                                            </select>
 
                                             {/* Buton Metni */}
-                                            <div className="flex-1 min-w-[140px]">
+                                            <div className="flex-1 min-w-[130px]">
                                                 <input
                                                     type="text"
                                                     value={btn.label}
@@ -1150,13 +1026,13 @@ const CompanyAdmin = () => {
                                                         const val = e.target.value;
                                                         setNotifButtons(prev => prev.map(b => b.id === btn.id ? { ...b, label: val } : b));
                                                     }}
-                                                    placeholder="Buton Üzerindeki Yazı..."
-                                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-white text-xs rounded-lg px-3 py-1.5 outline-none focus:border-indigo-500 font-semibold"
+                                                    placeholder="Buton Yazısı..."
+                                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-white text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-indigo-500 font-semibold"
                                                 />
                                             </div>
 
                                             {/* Aksiyon Türü */}
-                                            <div className="min-w-[130px]">
+                                            <div className="min-w-[125px]">
                                                 <select
                                                     value={btn.actionType}
                                                     onChange={(e) => {
@@ -1164,11 +1040,11 @@ const CompanyAdmin = () => {
                                                         setNotifButtons(prev => prev.map(b => b.id === btn.id ? {
                                                             ...b,
                                                             actionType: val,
-                                                            targetTab: val === 'navigate' ? (b.targetTab || 'trips') : undefined,
+                                                            targetTab: val === 'navigate' ? (b.targetTab || 'detaylar') : undefined,
                                                             style: val === 'ack_approved' ? 'emerald' : val === 'ack_rejected' ? 'red' : 'indigo'
                                                         } : b));
                                                     }}
-                                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-white text-xs rounded-lg px-2.5 py-1.5 outline-none"
+                                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-white text-xs rounded-lg px-2 py-1.5 outline-none"
                                                 >
                                                     <option value="ack_approved">🤝 Şoför Onayı</option>
                                                     <option value="ack_rejected">❌ Sorun Bildirimi</option>
@@ -1178,14 +1054,14 @@ const CompanyAdmin = () => {
 
                                             {/* Hedef Sayfa (Eğer Sayfaya Git ise) */}
                                             {btn.actionType === 'navigate' && (
-                                                <div className="min-w-[120px]">
+                                                <div className="min-w-[130px]">
                                                     <select
-                                                        value={btn.targetTab || 'trips'}
+                                                        value={btn.targetTab || 'detaylar'}
                                                         onChange={(e) => {
                                                             const val = e.target.value;
                                                             setNotifButtons(prev => prev.map(b => b.id === btn.id ? { ...b, targetTab: val } : b));
                                                         }}
-                                                        className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-indigo-300 text-xs rounded-lg px-2.5 py-1.5 outline-none font-semibold"
+                                                        className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-indigo-300 text-xs rounded-lg px-2 py-1.5 outline-none font-semibold"
                                                     >
                                                         {NOTIF_DESTINATIONS.map(d => (
                                                             <option key={d.id} value={d.id}>{d.label}</option>
@@ -1195,7 +1071,7 @@ const CompanyAdmin = () => {
                                             )}
 
                                             {/* Renk Teması */}
-                                            <div className="min-w-[100px]">
+                                            <div className="min-w-[95px]">
                                                 <select
                                                     value={btn.style || 'indigo'}
                                                     onChange={(e) => {
@@ -1208,7 +1084,7 @@ const CompanyAdmin = () => {
                                                     <option value="red">🔴 Kırmızı</option>
                                                     <option value="indigo">🔵 İndigo</option>
                                                     <option value="amber">🟡 Sarı</option>
-                                                    <option value="glass">⚪ Sade Cam</option>
+                                                    <option value="glass">⚪ Cam</option>
                                                 </select>
                                             </div>
 
@@ -1227,18 +1103,51 @@ const CompanyAdmin = () => {
                                     ))}
 
                                     {notifButtons.length === 0 && (
-                                        <div className="text-center py-4 text-xs text-slate-500 bg-white/[0.01] rounded-xl border border-dashed border-white/10">
+                                        <div className="text-center py-3 text-xs text-slate-500 bg-white/[0.01] rounded-xl border border-dashed border-white/10">
                                             Tanımlı buton yok. Bildirim yalnızca bilgilendirme metni olarak iletilecektir.
                                         </div>
                                     )}
                                 </div>
 
-                                {/* iPhone Haptic Touch İpucu */}
-                                <div className="p-2.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-[11px] text-indigo-300 flex items-start gap-2">
-                                    <Smartphone size={15} className="mt-0.5 flex-shrink-0 text-indigo-400" />
-                                    <span>
-                                        <strong>iPhone Kilit Ekranı Bilgisi:</strong> Apple iOS kuralı gereği kilit ekranında bildirim butonlarını görebilmek için gelen bildirimin üzerine <strong>1 saniye basılı tutulmalıdır (Haptic Touch)</strong>.
-                                    </span>
+                                {/* Canlı Önizleme Kartı (Live Preview Card) */}
+                                <div className="mt-3 p-4 rounded-xl bg-black/60 border border-white/10">
+                                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                        <Eye size={13} className="text-indigo-400" />
+                                        Cihazda Görünecek Canlı Kart Önizlemesi
+                                    </div>
+                                    <div className="p-4 rounded-2xl bg-[#090d16]/95 border border-white/10 shadow-2xl backdrop-blur-xl max-w-md">
+                                        <div className="flex items-start gap-3">
+                                            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center flex-shrink-0">
+                                                <Bell size={16} />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <h4 className="text-xs font-bold text-white truncate">{notifTitle || 'Bildirim Başlığı'}</h4>
+                                                <p className="text-[11px] text-slate-300 mt-1 leading-snug break-words">
+                                                    {notifBody || 'Bildirim metni burada görünecektir...'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {notifButtons.length > 0 && (
+                                            <div className="mt-3 pt-2.5 border-t border-white/5 flex flex-wrap gap-1.5">
+                                                {notifButtons.map((btn, bIdx) => (
+                                                    <div
+                                                        key={bIdx}
+                                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border flex items-center gap-1 ${
+                                                            btn.style === 'emerald' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
+                                                            btn.style === 'red' ? 'bg-red-500/20 text-red-300 border-red-500/30' :
+                                                            btn.style === 'amber' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
+                                                            btn.style === 'glass' ? 'bg-white/10 text-slate-200 border-white/20' :
+                                                            'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                                                        }`}
+                                                    >
+                                                        {AVAILABLE_ICONS.find(i => i.id === btn.icon)?.label.split(' ')[0] || '🔘'}
+                                                        <span>{btn.label}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
