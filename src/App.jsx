@@ -29,6 +29,7 @@ import { db, messaging } from './services/firebaseConfig'
 import { onMessage } from 'firebase/messaging'
 import { doc, updateDoc, setDoc, arrayUnion } from 'firebase/firestore'
 import { requestAndSaveNotificationToken } from './services/notificationService'
+import PushNotificationToast from './components/PushNotificationToast'
 
 function App() {
   const [activeTab, setActiveTab] = useState(() => {
@@ -39,6 +40,7 @@ function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(window.innerWidth >= 768)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
   const [theme, setTheme] = useState('dark')
+  const [activeNotification, setActiveNotification] = useState(null)
   const [bomPhase, setBomPhase] = useState(null); // null | 'fall' | 'recover'
   const bomSequence = useRef([]);
   const BOM_KEYS = ['b', 'o', 'm'];
@@ -155,7 +157,11 @@ function App() {
     if (!messaging) return;
     const unsubscribe = onMessage(messaging, (payload) => {
       console.log('Ön planda yeni bildirim alındı:', payload);
-      alert(`${payload.notification?.title || 'Yeni Bildirim'}\n\n${payload.notification?.body || ''}`);
+      setActiveNotification({
+        title: payload.notification?.title || payload.data?.title || 'İnaner Lojistik Duyuru',
+        body: payload.notification?.body || payload.data?.body || '',
+        data: payload.data || {}
+      });
     });
     return () => unsubscribe();
   }, []);
@@ -708,6 +714,17 @@ function App() {
           </div>
         </div>
       </main>
+
+      {/* Şık Ön Plan Push Bildirim Toast Kartı */}
+      <PushNotificationToast
+        notification={activeNotification}
+        onClose={() => setActiveNotification(null)}
+        onAction={() => {
+          if (activeNotification?.data?.tab) {
+            setActiveTab(activeNotification.data.tab);
+          }
+        }}
+      />
 
     </div>
   )

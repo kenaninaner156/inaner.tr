@@ -17,15 +17,50 @@ const messaging = firebase.messaging();
 
 // Handle background messages
 messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Arka planda mesaj alındı:', payload);
+  console.log('[firebase-messaging-sw.js] Arka planda bildirim alındı:', payload);
 
-  const notificationTitle = payload.notification?.title || "İnaner Lojistik";
+  const title = payload.notification?.title || payload.data?.title || "İnaner Lojistik";
+  const body = payload.notification?.body || payload.data?.body || "";
+  
   const notificationOptions = {
-    body: payload.notification?.body || "",
+    body: body,
     icon: '/tir-clear.png',
     badge: '/tir-clear.png',
-    data: payload.data || {}
+    tag: 'inaner-alert',
+    renotify: true,
+    vibrate: [200, 100, 200],
+    data: {
+      url: payload.data?.click_action || payload.fcmOptions?.link || '/',
+      ...payload.data
+    },
+    actions: [
+      { action: 'open', title: '🚀 Uygulamayı Aç' }
+    ]
   };
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  self.registration.showNotification(title, notificationOptions);
+});
+
+// Handle notification click
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  
+  if (event.action === 'dismiss') {
+    return;
+  }
+
+  const targetUrl = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (let client of windowClients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
 });
