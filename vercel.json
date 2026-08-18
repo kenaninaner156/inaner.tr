@@ -37,6 +37,9 @@
     }
   ],
   "rewrites": [
-    { "source": "/((?!api/|version\\.json|manifest\\.json|firebase-messaging-sw\\.js).*)", "destination": "/index.html" }
+    { "source": "/version.json", "destination": "/version.json" },
+    { "source": "/firebase-messaging-sw.js", "destination": "/firebase-messaging-sw.js" },
+    { "source": "/manifest.json", "destination": "/manifest.json" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
