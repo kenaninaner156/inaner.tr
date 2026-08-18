@@ -3,8 +3,9 @@ import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
 import { DataContext } from '../context/DataContext';
 import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key, BarChart3, Award, User, Bell, Send } from 'lucide-react';
-import { db } from '../services/firebaseConfig';
+import { db, auth } from '../services/firebaseConfig';
 import { collection, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
+import { requestAndSaveNotificationToken } from '../services/notificationService';
 import VehicleAnalysis from './map/VehicleAnalysis';
 
 const CompanyAdmin = () => {
@@ -20,6 +21,7 @@ const CompanyAdmin = () => {
     const [notifRecipient, setNotifRecipient] = useState('all'); // 'all' veya kullanıcı id'si
     const [notifSending, setNotifSending] = useState(false);
     const [notifResult, setNotifResult] = useState(null);
+    const [registeringDevice, setRegisteringDevice] = useState(false);
 
     // Yeni: Kullanıcı Silme Onay Modalı
     const [userToDelete, setUserToDelete] = useState(null);
@@ -578,27 +580,54 @@ const CompanyAdmin = () => {
             {/* Notifications Tab */}
             {activeTab === 'notifications' && (
                 <div className="glass-panel p-6 border border-[var(--border-color)] space-y-6 animate-in fade-in duration-300">
-                    <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-color)] pb-3">
                         <div className="flex items-center space-x-3">
                             <Bell className="text-indigo-400 animate-pulse" size={22} />
                             <h4 className="text-lg font-bold text-[var(--text-primary)]">Manuel Anlık Bildirim Gönder</h4>
                         </div>
-                        {typeof Notification !== 'undefined' && Notification.permission !== 'granted' && (
-                            <button
-                                type="button"
-                                onClick={async () => {
-                                    if (typeof Notification !== 'undefined') {
-                                        const p = await Notification.requestPermission();
-                                        if (p === 'granted') {
-                                            window.location.reload();
-                                        }
+                        <button
+                            type="button"
+                            disabled={registeringDevice}
+                            onClick={async () => {
+                                setRegisteringDevice(true);
+                                setNotifResult(null);
+                                try {
+                                    const currentUid = auth.currentUser?.uid;
+                                    if (!currentUid) {
+                                        setNotifResult({ error: 'Oturum açık değil. Lütfen tekrar giriş yapın.' });
+                                        return;
                                     }
-                                }}
-                                className="text-xs bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 px-3 py-1.5 rounded-lg font-medium transition-all"
-                            >
-                                Bu Cihazda Bildirim İzni Ver
-                            </button>
-                        )}
+                                    const res = await requestAndSaveNotificationToken(currentUid);
+                                    if (res.success) {
+                                        setNotifResult({
+                                            success: true,
+                                            message: '✅ Bu cihaz başarıyla bildirim sistemine kaydedildi! Artık bu telefondan/tarayıcıdan anlık bildirim alabilirsiniz.'
+                                        });
+                                    } else {
+                                        setNotifResult({
+                                            error: res.error || 'Cihaz kaydedilemedi.'
+                                        });
+                                    }
+                                } catch (err) {
+                                    setNotifResult({ error: err.message || 'Cihaz kaydedilirken bir hata oluştu.' });
+                                } finally {
+                                    setRegisteringDevice(false);
+                                }
+                            }}
+                            className="text-xs bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 px-3.5 py-2 rounded-lg font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                        >
+                            {registeringDevice ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-3 w-3 border-2 border-indigo-300 border-t-transparent" />
+                                    Cihaz Kaydediliyor...
+                                </>
+                            ) : (
+                                <>
+                                    <Bell size={13} />
+                                    Bu Cihazı Bildirime Kaydet
+                                </>
+                            )}
+                        </button>
                     </div>
 
                     {/* Şirket Cihaz Durumu Özeti */}

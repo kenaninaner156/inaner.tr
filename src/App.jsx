@@ -26,8 +26,9 @@ import Personnel from './components/Personnel'
 import EArsiv from './components/EArsiv'
 import { sendDiscordAlert } from './services/discordWebhook'
 import { db, messaging } from './services/firebaseConfig'
-import { getToken, onMessage } from 'firebase/messaging'
+import { onMessage } from 'firebase/messaging'
 import { doc, updateDoc, setDoc, arrayUnion } from 'firebase/firestore'
+import { requestAndSaveNotificationToken } from './services/notificationService'
 
 function App() {
   const [activeTab, setActiveTab] = useState(() => {
@@ -134,52 +135,15 @@ function App() {
 
   // PWA Bildirim Kaydı ve İzin Yönetimi
   useEffect(() => {
-    if (!currentUser || !currentUser.uid || !messaging) return;
-
-    const registerNotification = async () => {
-      try {
-        if (typeof Notification === 'undefined' || !('serviceWorker' in navigator)) {
-          console.warn('Bildirim veya Service Worker bu tarayıcıda desteklenmiyor.');
-          return;
-        }
-
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-          let swRegistration;
-          try {
-            swRegistration = await navigator.serviceWorker.ready;
-          } catch (swErr) {
-            console.warn('Service worker ready beklenirken hata:', swErr);
-          }
-
-          const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
-          const token = await getToken(messaging, {
-            vapidKey,
-            serviceWorkerRegistration: swRegistration || undefined
-          });
-
-          if (token) {
-            console.log('FCM Token alındı:', token);
-            // Kullanıcının approved_users belgesine fcmTokens dizisi olarak ekle
-            const userRef = doc(db, 'approved_users', currentUser.uid);
-            await setDoc(userRef, {
-              fcmTokens: arrayUnion(token),
-              lastActive: new Date().toISOString()
-            }, { merge: true });
-          }
-        }
-      } catch (err) {
-        console.error('Bildirim izin/token kaydı sırasında hata:', err);
-      }
-    };
+    if (!currentUser || !currentUser.uid) return;
 
     if (typeof Notification !== 'undefined') {
       if (Notification.permission === 'granted') {
-        registerNotification();
+        requestAndSaveNotificationToken(currentUser.uid);
       } else if (Notification.permission === 'default') {
         // Girişten 3 saniye sonra izin isteyelim
         const timer = setTimeout(() => {
-          registerNotification();
+          requestAndSaveNotificationToken(currentUser.uid);
         }, 3000);
         return () => clearTimeout(timer);
       }
