@@ -159,7 +159,9 @@ export default async function handler(req, res) {
             const currTime = new Date(formattedTimestamp).getTime();
             const timeDiffSec = (currTime - lastTime) / 1000;
 
-            const shouldRecordToDaily = !isStopped || !lastWasStopped || timeDiffSec >= 60;
+            const shouldRecordToDaily = isStopped 
+                ? (timeDiffSec >= 60 || !lastWasStopped) 
+                : (timeDiffSec >= 3 || Math.abs(speed - (lastLiveDoc?.data()?.speed || 0)) > 10);
 
             if (shouldRecordToDaily) {
                 const dailyDocId = `${cleanDeviceId}_${dateStr}`;

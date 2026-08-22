@@ -171,9 +171,27 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
             });
           });
 
-          // Canlı son nokta daily_routes'a henüz yazılmamışsa ekle
+          // Canlı son nokta ve recentTrail'deki ara noktalar daily_routes'a henüz yazılmamışsa ekle
           const lastDailyPt = points[points.length - 1];
-          if (veh.lat && veh.lon && (!lastDailyPt || new Date(veh.timestamp) > new Date(lastDailyPt.timestamp))) {
+          const lastDailyTime = lastDailyPt ? new Date(lastDailyPt.timestamp).getTime() : 0;
+          
+          if (Array.isArray(veh.recentTrail) && veh.recentTrail.length > 0) {
+            veh.recentTrail.forEach(trailPt => {
+              if (trailPt && trailPt.lat && trailPt.lon && new Date(trailPt.timestamp).getTime() > lastDailyTime) {
+                unrolledLocations.push({
+                  id: `${dId}_${trailPt.timestamp}`,
+                  driverId: dId,
+                  deviceId: dId,
+                  companyId: veh.companyId,
+                  lat: trailPt.lat,
+                  lon: trailPt.lon,
+                  speed: trailPt.speed || 0,
+                  altitude: trailPt.altitude || 0,
+                  timestamp: trailPt.timestamp
+                });
+              }
+            });
+          } else if (veh.lat && veh.lon && new Date(veh.timestamp).getTime() > lastDailyTime) {
             unrolledLocations.push({
               id: `${dId}_${veh.timestamp}`,
               driverId: dId,
