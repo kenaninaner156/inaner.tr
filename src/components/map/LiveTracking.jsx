@@ -350,7 +350,7 @@ function SidebarItem({
 }
 
 // ── Mobile Map Floating Actions (Fit All & Focus Followed) ──────────────
-function MobileMapActions({ vehicleList, followedVehicle, setIsCameraFollowActive }) {
+function MobileMapActions({ vehicleList, followedVehicle, setFollowedDriverId, setIsCameraFollowActive }) {
   const map = useMap();
   
   const handleFitAll = (e) => {
@@ -359,35 +359,49 @@ function MobileMapActions({ vehicleList, followedVehicle, setIsCameraFollowActiv
     if (pts.length === 1) {
       map.setView(pts[0], 12, { animate: true, duration: 0.8 });
     } else if (pts.length > 1) {
-      map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 12, animate: true, duration: 0.8 });
+      map.fitBounds(L.latLngBounds(pts), { padding: [70, 70], maxZoom: 12, animate: true, duration: 0.8 });
     }
   };
 
   const handleCenterFollowed = (e) => {
     e.stopPropagation();
-    if (followedVehicle?.lastPoint) {
+    const target = followedVehicle || vehicleList[0];
+    if (target?.lastPoint) {
+      if (setFollowedDriverId) setFollowedDriverId(target.driverId);
       setIsCameraFollowActive(true);
-      map.setView([followedVehicle.lastPoint.lat, followedVehicle.lastPoint.lon], 16, { animate: true, duration: 0.8 });
+      map.setView([target.lastPoint.lat, target.lastPoint.lon], 16, { animate: true, duration: 0.8 });
     }
   };
 
   return (
-    <div className="absolute right-3 top-18 z-[1000] flex flex-col gap-2 pointer-events-auto md:hidden">
-      {followedVehicle && (
-        <button
-          onClick={handleCenterFollowed}
-          className="p-3 bg-[#111113]/90 backdrop-blur-xl border border-emerald-500/40 text-emerald-400 rounded-2xl shadow-2xl active:scale-95 transition-all"
-          title="Seçili Araca Odaklan"
-        >
-          <Crosshair size={18} />
-        </button>
-      )}
+    <div 
+      className="absolute right-3.5 z-[1500] flex flex-col gap-2.5 pointer-events-auto md:hidden"
+      style={{
+        top: 'calc(env(safe-area-inset-top, 0px) + 78px)'
+      }}
+    >
+      {/* 1. Üçgen: Seçili Aracı Ortala */}
+      <button
+        onClick={handleCenterFollowed}
+        className="w-11 h-11 bg-[#0d1219]/95 backdrop-blur-2xl border border-emerald-500/40 text-emerald-400 rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.75)] active:scale-90 transition-all flex items-center justify-center"
+        title="Seçili Aracı Ortala"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-emerald-400 transform -rotate-45 translate-x-0.5">
+          <path d="M12 2L19 21L12 17L5 21L12 2Z" />
+        </svg>
+      </button>
+
+      {/* 2. 3 Tane Yuvarlak: Bütün Araçları Göster */}
       <button
         onClick={handleFitAll}
-        className="p-3 bg-[#111113]/90 backdrop-blur-xl border border-white/10 text-slate-300 hover:text-white rounded-2xl shadow-2xl active:scale-95 transition-all"
-        title="Tüm Araçları Göster"
+        className="w-11 h-11 bg-[#0d1219]/95 backdrop-blur-2xl border border-white/15 text-slate-200 hover:text-white rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.75)] active:scale-90 transition-all flex items-center justify-center"
+        title="Bütün Araçları Göster"
       >
-        <Navigation size={18} />
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-slate-200">
+          <circle cx="12" cy="5.5" r="2.8" />
+          <circle cx="6" cy="17" r="2.8" />
+          <circle cx="18" cy="17" r="2.8" />
+        </svg>
       </button>
     </div>
   );
@@ -675,6 +689,7 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
           <MobileMapActions 
             vehicleList={vehicleList}
             followedVehicle={followedVehicle}
+            setFollowedDriverId={setFollowedDriverId}
             setIsCameraFollowActive={setIsCameraFollowActive}
           />
 

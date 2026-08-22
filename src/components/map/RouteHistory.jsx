@@ -255,7 +255,40 @@ function MobileRouteHistoryCard({
         }`}
       >
         <div className="overflow-hidden flex flex-col gap-3 max-h-[70vh] overflow-y-auto custom-scrollbar">
-          {/* Tarih Seçimi — Üstte Diğer Butonu, Altta İnce 5'li Buton Satırı */}
+          {/* ── 1. ARAÇ SEÇİMİ (MOBİL) ── */}
+          <div>
+            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider px-0.5 mb-1.5 flex items-center justify-between">
+              <span>Araç Seç</span>
+              <span className="text-[9px] font-semibold text-orange-400 truncate max-w-[140px]">
+                {selectedDriver ? getDisplayName(selectedDriver) : ''}
+              </span>
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+              {Object.keys(deviceMappings).map(driver => {
+                const isSelected = selectedDriver === driver;
+                return (
+                  <button
+                    key={driver}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedDriver(driver);
+                      setSelectedSession(null);
+                    }}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all active:scale-95 flex items-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-orange-500 text-white border-orange-400/40 shadow-[0_2px_10px_rgba(245,158,11,0.3)]'
+                        : 'bg-white/[0.04] text-slate-300 border-white/[0.06] hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <span>{getDisplayName(driver)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── 2. TARİH SEÇİMİ ── */}
           <div>
             <div className="flex items-center justify-between px-0.5 mb-1.5">
               <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Tarih Seç</div>
@@ -600,13 +633,52 @@ export default function RouteHistory({
   // Takvim uzun basma ref'i
   const calendarTimerRef = useRef(null);
 
-  // İlk açılışta veya deviceMappings yüklendiğinde ilk aracı otomatik seç
+  // İlk açılışta: o hafta en çok yol yapan veya aktif/online olan aracı otomatik seç
   useEffect(() => {
     const drivers = Object.keys(deviceMappings);
     if (!selectedDriver && drivers.length > 0) {
-      setSelectedDriver(drivers[0]);
+      // 1. Önce canlı konumlarda en çok noktası / hareketi olanı bul (Mert vb.)
+      let topDriver = drivers[0];
+      let maxPoints = 0;
+      drivers.forEach(d => {
+        const pts = (liveLocations || []).filter(l => l.driver === d || l.deviceId === d).length;
+        if (pts > maxPoints) {
+          maxPoints = pts;
+          topDriver = d;
+        }
+      });
+      setSelectedDriver(topDriver);
+
+      // 2. Firestore'daki haftalık istatistiklerden toplam km'si en yüksek olanı doğrula
+      if (activeCompanyId) {
+        const q = query(
+          collection(db, 'vehicle_daily_stats'),
+          where('companyId', '==', activeCompanyId)
+        );
+        getDocs(q).then(snap => {
+          const kmMap = {};
+          snap.docs.forEach(doc => {
+            const data = doc.data();
+            if (data.deviceId && data.totalKm) {
+              kmMap[data.deviceId] = (kmMap[data.deviceId] || 0) + Number(data.totalKm || 0);
+            }
+          });
+          let maxKm = -1;
+          let bestWeeklyDriver = null;
+          drivers.forEach(d => {
+            const totalKm = kmMap[d] || 0;
+            if (totalKm > maxKm) {
+              maxKm = totalKm;
+              bestWeeklyDriver = d;
+            }
+          });
+          if (bestWeeklyDriver && maxKm > 0) {
+            setSelectedDriver(bestWeeklyDriver);
+          }
+        }).catch(() => {});
+      }
     }
-  }, [deviceMappings, selectedDriver]);
+  }, [deviceMappings, selectedDriver, activeCompanyId, liveLocations]);
 
   // Seçili driver veya tarih değiştiğinde veriyi çek (Önbellekten veya Firebase'den)
   // Hangi günlerin cachelendiğini periyodik olarak veya araç değişince çek
