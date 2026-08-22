@@ -9,33 +9,53 @@ import { Activity, WifiOff, X, Search, ShieldAlert, Navigation, Compass, Crossha
 const PANEL_BG     = 'rgba(13, 18, 25, 0.96)';
 const PANEL_BORDER = '1px solid rgba(255, 255, 255, 0.05)';
 
-// ── Leaflet Dinamik İkon Oluşturucu (Yön değiştirmez, sabit durur) ───────
-const createVehicleIcon = (isOnline, isMapped) => {
-  const borderColor = isMapped
-    ? (isOnline ? '#10b981' : '#475569')
-    : '#f59e0b';
-  const bgColor = isOnline ? '#ffffff' : '#1e2533';
-  const grayscaleClass = isOnline ? '' : 'grayscale opacity-60';
-  const pulseClass = isOnline ? (isMapped ? 'pulse-active' : 'pulse-unmapped') : '';
+// ── Leaflet Dinamik İkon Oluşturucu (Obsidiyen & Elegant Çerçeve) ────────
+const createVehicleIcon = (isOnline, isMapped, speedKmh = 0, isFollowed = false) => {
+  const isMoving = isOnline && speedKmh > 7;
+  
+  let borderColor = 'rgba(255, 255, 255, 0.12)';
+  let shadow = '0 4px 14px rgba(0,0,0,0.7)';
+  
+  if (isFollowed) {
+    borderColor = '#34d399';
+    shadow = '0 4px 20px rgba(0,0,0,0.85), 0 0 12px rgba(52, 211, 153, 0.45), inset 0 1px 0 rgba(255,255,255,0.2)';
+  } else if (isOnline) {
+    if (isMoving) {
+      borderColor = 'rgba(52, 211, 153, 0.8)';
+      shadow = '0 4px 16px rgba(0,0,0,0.75), 0 0 10px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255,255,255,0.15)';
+    } else {
+      borderColor = 'rgba(245, 158, 11, 0.7)';
+      shadow = '0 4px 16px rgba(0,0,0,0.75), 0 0 8px rgba(245, 158, 11, 0.25), inset 0 1px 0 rgba(255,255,255,0.15)';
+    }
+  }
+
+  const imgFilter = isOnline 
+    ? 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' 
+    : 'grayscale(1) opacity(0.4)';
 
   const html = `
     <div style="position: relative; width: 38px; height: 38px;">
-      <div class="${grayscaleClass} ${pulseClass}" style="
+      <div style="
         width: 38px;
         height: 38px;
-        background: ${bgColor};
-        border: 2.5px solid ${borderColor};
+        background: rgba(12, 16, 24, 0.95);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1.5px solid ${borderColor};
         border-radius: 50%;
+        box-shadow: ${shadow};
         display: flex;
         align-items: center;
         justify-content: center;
         overflow: hidden;
         cursor: pointer;
+        transition: all 0.25s ease;
       ">
         <img src="/tir-clear.png?v=8" style="
-          width: 80%;
-          height: 80%;
+          width: 72%;
+          height: 72%;
           object-fit: contain;
+          filter: ${imgFilter};
         " />
       </div>
     </div>
@@ -101,8 +121,9 @@ function SpeedPolylines({ session, isFollowed, isOffline, zoom }) {
 }
 
 function MapController({ 
-  sessionsByDriver, 
+  vehicleList,
   followedDriverId, 
+  setFollowedDriverId,
   isCameraFollowActive, 
   setIsCameraFollowActive, 
   didInitRef, 
@@ -118,40 +139,49 @@ function MapController({
     zoomend: () => setZoom(map.getZoom())
   });
 
-  // 1. İLK AÇILIŞTA TÜM ARAÇLARI GÖRÜNTÜLE
+  // 1. İLK AÇILIŞTA: 1 aktif araç varsa direkt ona odaklan (zoom 15), birden fazlaysa hepsini ekrana sığdır
   useEffect(() => {
-    if (!isVisible || didInitRef.current || !map) return;
-    const pts = [];
-    Object.values(sessionsByDriver).forEach(sessions => {
-      if (!sessions.length) return;
-      const last = sessions[sessions.length - 1];
-      if (!last.length) return;
-      const p = last[last.length - 1];
-      if (!isNaN(p.lat) && !isNaN(p.lon)) pts.push([p.lat, p.lon]);
-    });
-    if (pts.length === 1) {
-      map.setView(pts[0], 11, { animate: true, duration: 1 }); 
+    if (!isVisible || didInitRef.current || !map || !vehicleList || !vehicleList.length) return;
+    
+    // Aktif (online) araçları kontrol et
+    const activeVehicles = vehicleList.filter(v => v.isOnline && v.lastPoint && !isNaN(v.lastPoint.lat));
+    
+    if (activeVehicles.length === 1) {
+      // Sadece 1 aktif araç varsa: Doğrudan o araca zoom 15 ile odaklan
+      const pt = activeVehicles[0].lastPoint;
+      map.setView([pt.lat, pt.lon], 15, { animate: true, duration: 0.8 });
+      setFollowedDriverId(activeVehicles[0].driverId);
+      setIsCameraFollowActive(true);
       didInitRef.current = true;
-    } else if (pts.length > 1) {
-      map.fitBounds(L.latLngBounds(pts), { padding: [80, 80], maxZoom: 11, animate: true, duration: 1 }); 
+    } else if (activeVehicles.length > 1) {
+      // Birden fazla aktif araç varsa: Hepsini ekrana sığdır
+      const pts = activeVehicles.map(v => [v.lastPoint.lat, v.lastPoint.lon]);
+      map.fitBounds(L.latLngBounds(pts), { padding: [100, 100], maxZoom: 14, animate: true, duration: 0.8 });
       didInitRef.current = true;
+    } else {
+      // Aktif araç yoksa: Son konumu olan tüm araçları sığdır veya ilkine odaklan
+      const allPts = vehicleList.map(v => [v.lastPoint.lat, v.lastPoint.lon]).filter(p => !isNaN(p[0]) && !isNaN(p[1]));
+      if (allPts.length === 1) {
+        map.setView(allPts[0], 12, { animate: true, duration: 0.8 });
+        didInitRef.current = true;
+      } else if (allPts.length > 1) {
+        map.fitBounds(L.latLngBounds(allPts), { padding: [100, 100], maxZoom: 12, animate: true, duration: 0.8 });
+        didInitRef.current = true;
+      }
     }
-  }, [sessionsByDriver, map, didInitRef, isVisible]);
+  }, [vehicleList, map, didInitRef, isVisible, setFollowedDriverId, setIsCameraFollowActive]);
 
-  // 2. TAKİP MODUNDA ARACI ORTALA (YALNIZCA LİVE TAB AKTİFKEN VE CİHAZ TAKİBİ ETKİNKEN)
+  // 2. TAKİP MODUNDA ARACI ORTALA (KULLANICI TIKLAYINCA VEYA CANLI HAREKETTE)
   useEffect(() => {
     if (!isVisible || !followedDriverId || !map || !isCameraFollowActive) {
       prevCoordsRef.current = null;
       prevDriverIdRef.current = null;
       return;
     }
-    const sessions = sessionsByDriver[followedDriverId];
-    if (!sessions?.length) return;
-    const last = sessions[sessions.length - 1];
-    if (!last.length) return;
-    const p = last[last.length - 1];
-    if (isNaN(p.lat) || isNaN(p.lon)) return;
+    const veh = vehicleList.find(v => v.driverId === followedDriverId);
+    if (!veh || !veh.lastPoint || isNaN(veh.lastPoint.lat)) return;
 
+    const p = veh.lastPoint;
     const coordsKey = `${p.lat},${p.lon}`;
 
     // Yeni bir araç seçildiyse tıklama olayındaki setView animasyonu çalışsın, panTo yapma
@@ -166,7 +196,7 @@ function MapController({
       prevCoordsRef.current = coordsKey;
       map.panTo([p.lat, p.lon], { animate: true, duration: 0.8 });
     }
-  }, [sessionsByDriver, followedDriverId, map, isVisible, isCameraFollowActive]);
+  }, [vehicleList, followedDriverId, map, isVisible, isCameraFollowActive]);
 
   return null;
 }
@@ -187,7 +217,7 @@ function VehicleMarker({ driverId, lastPoint, isOnline, isFollowed, speedKmh, na
     <Marker
       ref={markerRef}
       position={[lastPoint.lat, lastPoint.lon]}
-      icon={createVehicleIcon(isOnline, isMapped)}
+      icon={createVehicleIcon(isOnline, isMapped, speedKmh, isFollowed)}
       zIndexOffset={isFollowed ? 1000 : 0}
       eventHandlers={{ click: handleClick }}
     >
@@ -195,7 +225,7 @@ function VehicleMarker({ driverId, lastPoint, isOnline, isFollowed, speedKmh, na
         <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <div style={{ fontWeight: 700, color: '#f1f3f5', fontSize: 11, lineHeight: 1.2 }}>{name}</div>
           <div style={{ fontSize: 9, color: isOnline ? '#10b981' : '#64748b', fontWeight: 600 }}>
-            {isOnline ? `Çevrimiçi (${speedKmh} km/h)` : 'Çevrimdışı'}
+            {isOnline ? (speedKmh > 7 ? `Yolda (${speedKmh} km/h)` : 'Park Halinde') : 'Çevrimdışı'}
           </div>
         </div>
       </Popup>
@@ -203,162 +233,113 @@ function VehicleMarker({ driverId, lastPoint, isOnline, isFollowed, speedKmh, na
   );
 }
 
+// ── Yardımcı Süre Formatlayıcı (Kompakt & İnsan Okumasına Uygun) ──────────
+const formatDuration = (minutes) => {
+  if (!minutes || isNaN(minutes) || minutes <= 0) return '0d';
+  const hrs = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hrs === 0) return `${mins}d`;
+  return `${hrs}s ${mins.toString().padStart(2, '0')}d`;
+};
+
 function SidebarItem({ 
   vehicle, 
   isFollowed, 
   setFollowedDriverId,
-  setIsCameraFollowActive,
-  setActiveTab,
-  setSelectedHistoryDriver
+  setIsCameraFollowActive
 }) {
   const map = useMap();
-  const { driverId, name, isOnline, speedKmh, km, lastPoint, isMapped, isDelayed, durationMin } = vehicle;
-  
+  const { driverId, driverName, plate, name, isOnline, speedKmh, km, lastPoint, topSpeedKmh, avgSpeedKmh } = vehicle;
+
   const borderClass = isFollowed 
-    ? (isMapped ? 'border-emerald-500/30' : 'border-amber-500/30') 
-    : 'border-white/[0.03] hover:border-white/[0.08]';
+    ? 'border-white/20 shadow-[0_4px_24px_rgba(0,0,0,0.6)]' 
+    : 'border-white/[0.05] hover:border-white/10';
     
   const bgClass = isFollowed 
-    ? (isMapped ? 'bg-emerald-500/[0.04]' : 'bg-amber-500/[0.04]') 
-    : 'bg-[#121821]/40 hover:bg-[#121821]/70';
+    ? 'bg-[#111622]/95' 
+    : 'bg-[#0f141d]/70 hover:bg-[#111622]/80';
 
   const handleHeaderClick = () => {
     if (isFollowed) {
       setFollowedDriverId(null);
     } else {
-      map.setView([lastPoint.lat, lastPoint.lon], 15, { animate: true, duration: 1 });
+      map.setView([lastPoint.lat, lastPoint.lon], 15, { animate: true, duration: 0.8 });
       setFollowedDriverId(driverId);
       setIsCameraFollowActive(true);
     }
   };
 
-  const handleCenter = (e) => {
-    e.stopPropagation();
-    map.setView([lastPoint.lat, lastPoint.lon], 16, { animate: true, duration: 1 });
-    setIsCameraFollowActive(true);
-  };
-
-  const handleShowHistory = (e) => {
-    e.stopPropagation();
-    if (setSelectedHistoryDriver) {
-      setSelectedHistoryDriver(driverId);
-    }
-    if (setActiveTab) {
-      setActiveTab('history');
-    }
-  };
-
-  const gpsTime = new Date(lastPoint.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-  const recTime = lastPoint.recordedAt 
-    ? new Date(lastPoint.recordedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) 
-    : null;
+  // Sadece plaka veya çevrimdışı
+  const subtitleText = !isOnline 
+    ? (plate ? `${plate} • Çevrimdışı` : 'Çevrimdışı') 
+    : (plate || '');
 
   return (
-    <div className={`w-full rounded-2xl border transition-all overflow-hidden ${borderClass} ${bgClass}`}>
-      {/* Header (Click to toggle expand) */}
+    <div className={`w-full rounded-2xl border transition-all duration-200 overflow-hidden ${borderClass} ${bgClass}`}>
+      {/* Header */}
       <div 
         onClick={handleHeaderClick}
-        className="w-full flex items-center gap-3 p-3 cursor-pointer select-none"
+        className="w-full flex items-center justify-between p-3.5 cursor-pointer select-none gap-3"
       >
-        {/* Avatar/Status */}
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border ${
-          isOnline 
-            ? (isMapped ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400')
-            : 'bg-slate-800/50 border-white/[0.03] text-slate-500'
-        }`}>
-          {isMapped ? (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
-            </svg>
-          ) : (
-            <span className="font-black text-sm">!</span>
+        <div className="min-w-0 flex-1">
+          <div className={`text-sm font-bold tracking-tight truncate ${isFollowed ? 'text-white' : 'text-slate-200'}`}>
+            {driverName || name}
+          </div>
+          {subtitleText && (
+            <div className="text-xs font-mono text-slate-400 font-medium tracking-tight mt-0.5 truncate">
+              {subtitleText}
+            </div>
           )}
         </div>
 
-        {/* Labels */}
-        <div className="flex-1 min-w-0">
-          <div className={`text-xs font-bold truncate ${isFollowed ? 'text-white' : 'text-slate-200'}`}>{name}</div>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <span className={`text-[9px] font-bold ${
-              isOnline 
-                ? (isMapped ? 'text-emerald-400' : 'text-amber-400') 
-                : 'text-slate-500'
-            }`}>
-              {isOnline 
-                ? (isMapped ? '● Çevrimiçi' : '● Eşleşmemiş') 
-                : '○ Çevrimdışı'}
-            </span>
-            {speedKmh > 0 && (
-              <span className="text-[9px] font-extrabold text-sky-400">{speedKmh} km/h</span>
-            )}
-            {isDelayed && (
-              <span className="text-[8px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.2 rounded-md">
-                Gecikmeli
-              </span>
-            )}
-          </div>
+        {/* Günlük KM */}
+        <div className="shrink-0 text-right">
+          <span className="text-sm font-mono font-bold text-white tracking-tight">{km}</span>
+          <span className="text-[11px] text-slate-400 font-sans font-medium ml-1">km</span>
         </div>
-
-        {/* Distance */}
-        <div className="text-[10px] font-extrabold text-indigo-300 shrink-0 pr-1">{km} km</div>
       </div>
 
-      {/* Expanded Telemetry Section */}
+      {/* Expanded Telemetry Section (Clean 3-Column Strip) */}
       <AnimatePresence>
         {isFollowed && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: 'easeInOut' }}
-            className="border-t border-white/[0.04] bg-black/15 overflow-hidden"
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="border-t border-white/[0.06] bg-[#0b0e15]/80 overflow-hidden"
           >
-            <div className="p-3.5 flex flex-col gap-3">
-              {/* Delayed warning */}
-              {isDelayed && (
-                <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl p-2 text-[9px] leading-relaxed">
-                  <ShieldAlert size={13} className="shrink-0 mt-0.5" />
-                  <div>
-                    <strong>Konum Güncel Değil:</strong> Cihazın saati veya GPS uydusu senkronize değil. Konum zamanı ile alım zamanı farklı.
-                  </div>
-                </div>
-              )}
-
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-[#121821]/30 border border-white/[0.02] rounded-xl p-2">
-                  <div className="text-[8px] font-bold text-slate-500 uppercase">HIZ</div>
-                  <div className="text-xs font-black text-white mt-0.5">{speedKmh} <span className="text-[8px] font-normal text-slate-500">km/h</span></div>
-                </div>
-                <div className="bg-[#121821]/30 border border-white/[0.02] rounded-xl p-2">
-                  <div className="text-[8px] font-bold text-slate-500 uppercase">AKTİF SÜRE</div>
-                  <div className="text-xs font-black text-white mt-0.5">{durationMin} <span className="text-[8px] font-normal text-slate-500">dk</span></div>
-                </div>
-                <div className="bg-[#121821]/30 border border-white/[0.02] rounded-xl p-2 col-span-2">
-                  <div className="text-[8px] font-bold text-slate-500 uppercase">ZAMANLAR (GPS / ALIM)</div>
-                  <div className="flex justify-between items-center mt-1 text-[9px] text-slate-300">
-                    <span>GPS: <strong>{gpsTime}</strong></span>
-                    {recTime && <span>Alım: <strong>{recTime}</strong></span>}
-                  </div>
+            <div className="grid grid-cols-3 divide-x divide-white/[0.05] p-3 text-center">
+              {/* 1. ANLIK HIZ / PARK */}
+              <div className="px-1.5">
+                <div className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">ANLIK HIZ</div>
+                <div className="text-sm font-mono font-bold text-slate-100 mt-1">
+                  {!isOnline ? (
+                    <span className="text-slate-500 font-sans text-xs">Çevrimdışı</span>
+                  ) : speedKmh <= 7 ? (
+                    <span className="text-slate-300 font-sans text-xs font-semibold">Park</span>
+                  ) : (
+                    <>
+                      {speedKmh} <span className="text-[9px] font-sans font-normal text-slate-400">km/h</span>
+                    </>
+                  )}
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  onClick={handleCenter}
-                  className="flex items-center justify-center gap-1.5 py-2 bg-white/[0.02] hover:bg-white/[0.06] border border-white/[0.03] hover:border-white/[0.08] rounded-xl text-[9px] font-bold text-slate-300 transition-all hover:text-white pointer-events-auto"
-                >
-                  <Navigation size={11} className="text-slate-400" />
-                  Odakla
-                </button>
-                <button
-                  onClick={handleShowHistory}
-                  className="flex items-center justify-center gap-1.5 py-2 bg-white/[0.02] hover:bg-white/[0.06] border border-white/[0.03] hover:border-white/[0.08] rounded-xl text-[9px] font-bold text-slate-300 transition-all hover:text-white pointer-events-auto"
-                >
-                  <Compass size={11} className="text-slate-400" />
-                  Geçmişi Gör
-                </button>
+              {/* 2. MAX HIZ */}
+              <div className="px-1.5">
+                <div className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">MAX HIZ</div>
+                <div className="text-sm font-mono font-bold text-slate-100 mt-1">
+                  {topSpeedKmh || speedKmh} <span className="text-[9px] font-sans font-normal text-slate-400">km/h</span>
+                </div>
+              </div>
+
+              {/* 3. ORTALAMA HIZ */}
+              <div className="px-1.5">
+                <div className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">ORT. HIZ</div>
+                <div className="text-sm font-mono font-bold text-slate-100 mt-1">
+                  {avgSpeedKmh || speedKmh} <span className="text-[9px] font-sans font-normal text-slate-400">km/h</span>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -413,13 +394,13 @@ function MobileMapActions({ vehicleList, followedVehicle, setIsCameraFollowActiv
 }
 
 // ── Mobile Followed Vehicle Telemetry Card (Smooth CSS Grid Accordion) ────
-function MobileFollowedCard({
+function MobileFollowedCard({ 
   vehicle,
   vehicleList,
   onSelectVehicle
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { name, isOnline, speedKmh, km, durationMin, lastPoint, isMapped, isDelayed } = vehicle;
+  const { driverName, plate, name, isOnline, speedKmh, km, topSpeedKmh, avgSpeedKmh } = vehicle;
 
   const cardRef = useCallback(node => {
     if (node) {
@@ -428,75 +409,58 @@ function MobileFollowedCard({
     }
   }, []);
 
-  const gpsTime = new Date(lastPoint.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  const subtitleText = !isOnline 
+    ? (plate ? `${plate} • Çevrimdışı` : 'Çevrimdışı') 
+    : (plate || '');
 
   return (
     <div
       ref={cardRef}
-      className="absolute bottom-3 left-3 right-3 z-[1500] pointer-events-auto rounded-[28px] p-3.5 flex flex-col gap-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.85)] border border-white/10 backdrop-blur-3xl md:hidden overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+      className="absolute bottom-3 left-3 right-3 z-[1500] pointer-events-auto rounded-[28px] p-3.5 flex flex-col gap-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.85)] border border-white/10 backdrop-blur-3xl md:hidden overflow-hidden transition-all duration-200"
       style={{
         background: 'rgba(13, 18, 25, 0.96)',
         marginBottom: 'env(safe-area-inset-bottom, 0px)'
       }}
     >
-      {/* Üst Başlık — Tıklayınca kart içi araç listesi genişler */}
+      {/* Üst Başlık */}
       <div 
         onClick={() => setIsExpanded(prev => !prev)}
         className="flex items-center justify-between cursor-pointer select-none group active:opacity-75 transition-opacity"
       >
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <div 
-            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 border transition-colors duration-300 ${
-              isOnline 
-                ? (isMapped ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-amber-500/10 border-amber-500/30 text-amber-400')
-                : 'bg-slate-800/60 border-white/5 text-slate-500'
-            }`}
-          >
-            <img src="/tir-clear.png?v=8" className="w-5 h-5 object-contain" alt="" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-bold text-white truncate">
+              {driverName || name}
+            </span>
+            <ChevronDown 
+              size={14} 
+              className={`text-slate-400 shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180 text-white' : ''}`}
+            />
           </div>
-          
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold text-white truncate group-hover:text-emerald-300 transition-colors">
-                {name}
-              </span>
-              <ChevronDown 
-                size={14} 
-                className={`text-slate-400 shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${isExpanded ? 'rotate-180 text-emerald-400' : ''}`}
-              />
+          {subtitleText && (
+            <div className="text-xs font-mono text-slate-400 font-medium tracking-tight mt-0.5 truncate">
+              {subtitleText}
             </div>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className={`text-[10px] font-bold ${
-                isOnline ? (isMapped ? 'text-emerald-400' : 'text-amber-400') : 'text-slate-500'
-              }`}>
-                {isOnline ? (speedKmh > 0 ? `● ${speedKmh} km/h` : '● Duran') : '○ Çevrimdışı'}
-              </span>
-              {isDelayed && (
-                <span className="text-[8px] font-bold text-amber-400 bg-amber-500/15 px-1.5 py-0.2 rounded">
-                  Gecikmeli
-                </span>
-              )}
-            </div>
-          </div>
+          )}
         </div>
 
-        {vehicleList.length > 1 && (
-          <div className="px-2.5 py-1 bg-white/[0.04] text-slate-400 rounded-xl text-[10px] font-bold border border-white/[0.04] flex items-center gap-1">
-            <span>{vehicleList.length} Araç</span>
-          </div>
-        )}
+        {/* Günlük KM */}
+        <div className="shrink-0 text-right">
+          <span className="text-sm font-mono font-bold text-white tracking-tight">{km}</span>
+          <span className="text-[11px] text-slate-400 font-sans font-medium ml-1">km</span>
+        </div>
       </div>
 
       {/* Kart İçi Akıcı CSS Grid Genişleyen Araç Seçim Listesi */}
       <div 
-        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+        className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
           isExpanded 
             ? 'grid-rows-[1fr] opacity-100 border-t border-white/[0.06] pt-2' 
             : 'grid-rows-[0fr] opacity-0 border-t-0 pt-0 pointer-events-none'
         }`}
       >
         <div className="overflow-hidden flex flex-col gap-1.5 max-h-52 overflow-y-auto custom-scrollbar">
-          <div className="text-[9px] font-bold text-slate-400 px-1 uppercase tracking-wider">Tüm Araçlar</div>
+          <div className="text-[9px] font-semibold text-slate-400 px-1 uppercase tracking-wider">Tüm Araçlar</div>
           {vehicleList.map(v => {
             const isSelected = v.driverId === vehicle.driverId;
             return (
@@ -507,34 +471,23 @@ function MobileFollowedCard({
                   onSelectVehicle(v.driverId);
                   setIsExpanded(false);
                 }}
-                className={`flex items-center justify-between p-2.5 rounded-2xl transition-all cursor-pointer select-none active:scale-[0.98] ${
+                className={`flex items-center justify-between p-2.5 rounded-xl transition-all cursor-pointer select-none active:scale-[0.98] ${
                   isSelected 
-                    ? 'bg-emerald-500/15 border border-emerald-500/30' 
+                    ? 'bg-white/[0.08] border border-white/10' 
                     : 'bg-[#121821]/70 border border-white/[0.03] hover:bg-white/[0.05]'
                 }`}
               >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 border ${
-                    v.isOnline 
-                      ? (v.isMapped ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-amber-500/10 border-amber-500/30 text-amber-400')
-                      : 'bg-slate-800/60 border-white/5 text-slate-500'
-                  }`}>
-                    <img src="/tir-clear.png?v=8" className="w-4 h-4 object-contain" alt="" />
+                <div className="min-w-0">
+                  <div className={`text-xs font-semibold truncate ${isSelected ? 'text-white' : 'text-slate-300'}`}>
+                    {v.driverName || v.name}
                   </div>
-                  <div className="min-w-0">
-                    <div className={`text-xs font-bold truncate ${isSelected ? 'text-emerald-300' : 'text-white'}`}>
-                      {v.name}
-                    </div>
-                    <div className="text-[9px] text-slate-400">
-                      {v.isOnline ? (v.speedKmh > 0 ? `● ${v.speedKmh} km/h` : '● Duran') : '○ Çevrimdışı'} • {v.km} km
-                    </div>
+                  <div className="text-[10px] text-slate-400 font-mono">
+                    {v.plate ? `${v.plate} • ` : ''}{v.km} km
                   </div>
                 </div>
 
                 {isSelected ? (
-                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                    <Check size={12} />
-                  </div>
+                  <Check size={13} className="text-emerald-400 shrink-0" />
                 ) : (
                   <ChevronRight size={13} className="text-slate-600 shrink-0" />
                 )}
@@ -544,23 +497,29 @@ function MobileFollowedCard({
         </div>
       </div>
 
-      {/* 4 Kolonlu Telemetri İstatistikleri */}
-      <div className="grid grid-cols-4 gap-1.5 text-center">
-        <div className="bg-[#121821]/70 border border-white/[0.04] rounded-2xl p-1.5">
-          <div className="text-[7.5px] font-bold text-slate-400 uppercase">HIZ</div>
-          <div className="text-xs font-black text-emerald-400 mt-0.5">{speedKmh} <span className="text-[7px] text-slate-400 font-normal">km/h</span></div>
+      {/* 3 Kolonlu Telemetri İstatistikleri */}
+      <div className="grid grid-cols-3 divide-x divide-white/[0.05] p-2 bg-[#0b0e15]/80 rounded-2xl border border-white/[0.04] text-center">
+        <div className="px-1">
+          <div className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">ANLIK HIZ</div>
+          <div className="text-xs font-mono font-bold text-slate-100 mt-0.5">
+            {!isOnline ? (
+              <span className="text-slate-500 font-sans text-[10px]">Çevrimdışı</span>
+            ) : speedKmh <= 7 ? (
+              <span className="text-slate-300 font-sans text-[11px] font-semibold">Park</span>
+            ) : (
+              <>
+                {speedKmh} <span className="text-[8px] font-sans font-normal text-slate-400">km/h</span>
+              </>
+            )}
+          </div>
         </div>
-        <div className="bg-[#121821]/70 border border-white/[0.04] rounded-2xl p-1.5">
-          <div className="text-[7.5px] font-bold text-slate-400 uppercase">MESAFE</div>
-          <div className="text-xs font-black text-indigo-300 mt-0.5">{km} <span className="text-[7px] text-slate-400 font-normal">km</span></div>
+        <div className="px-1">
+          <div className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">MAX HIZ</div>
+          <div className="text-xs font-mono font-bold text-slate-100 mt-0.5">{topSpeedKmh || speedKmh} <span className="text-[8px] font-sans font-normal text-slate-400">km/h</span></div>
         </div>
-        <div className="bg-[#121821]/70 border border-white/[0.04] rounded-2xl p-1.5">
-          <div className="text-[7.5px] font-bold text-slate-400 uppercase">SÜRE</div>
-          <div className="text-xs font-black text-white mt-0.5">{durationMin} <span className="text-[7px] text-slate-400 font-normal">dk</span></div>
-        </div>
-        <div className="bg-[#121821]/70 border border-white/[0.04] rounded-2xl p-1.5">
-          <div className="text-[7.5px] font-bold text-slate-400 uppercase">GPS SAATİ</div>
-          <div className="text-xs font-black text-slate-300 mt-0.5">{gpsTime}</div>
+        <div className="px-1">
+          <div className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">ORT. HIZ</div>
+          <div className="text-xs font-mono font-bold text-slate-100 mt-0.5">{avgSpeedKmh || speedKmh} <span className="text-[8px] font-sans font-normal text-slate-400">km/h</span></div>
         </div>
       </div>
     </div>
@@ -573,11 +532,6 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
   const [showSidebar, setShowSidebar]           = useState(true);
   const [zoom, setZoom] = useState(13);
   const didInitRef = useRef(false);
-  const autoSelectRef = useRef(false);
-
-  // Filters
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
 
   const sidebarCallbackRef = useCallback(node => {
     if (node) {
@@ -589,7 +543,6 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
   useEffect(() => {
     if (!isVisible) { 
       didInitRef.current = false; 
-      autoSelectRef.current = false;
       setFollowedDriverId(null); 
     }
   }, [isVisible]);
@@ -600,11 +553,14 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
     el.addEventListener('wheel', onWheel, { passive: false });
   }, []);
 
-  const getDisplayName = (deviceId) => {
+  const getVehicleInfo = (deviceId) => {
     const m = deviceMappings[deviceId];
-    if (!m) return deviceId;
-    const truck = (trucks||[]).find(t => t.id === m.truckId);
-    return [m.driverName, truck?.plate].filter(Boolean).join(' - ') || deviceId;
+    if (!m) return { driverName: `Cihaz (${deviceId})`, plate: '' };
+    const truck = (trucks || []).find(t => t.id === m.truckId);
+    return {
+      driverName: m.driverName || deviceId,
+      plate: truck?.plate || ''
+    };
   };
 
   const vehicleList = Object.entries(sessionsByDriver)
@@ -616,12 +572,9 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
       
       const isOnline  = (Date.now() - new Date(lastPoint.timestamp).getTime()) < 15 * 60 * 1000;
       const speedKmh  = isOnline ? Math.round((lastPoint.speed || 0) * 1.852) : 0;
-      const { km, durationMin } = calcStats(latestSession);
+      const { km, durationMin, topSpeedKmh, avgSpeedKmh } = calcStats(latestSession);
       const isMapped  = !!deviceMappings[driverId];
-      
-      // Delay (latency) calculation
-      const delayMs = lastPoint.recordedAt ? (new Date(lastPoint.recordedAt).getTime() - new Date(lastPoint.timestamp).getTime()) : 0;
-      const isDelayed = delayMs > 5 * 60 * 1000; // > 5 minutes
+      const info = getVehicleInfo(driverId);
       
       return { 
         driverId, 
@@ -631,9 +584,12 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
         speedKmh, 
         km, 
         durationMin, 
-        name: isMapped ? getDisplayName(driverId) : `Eşleştirilmemiş Cihaz (${driverId})`,
-        isMapped,
-        isDelayed
+        topSpeedKmh,
+        avgSpeedKmh,
+        driverName: info.driverName,
+        plate: info.plate,
+        name: info.plate ? `${info.driverName} - ${info.plate}` : info.driverName,
+        isMapped
       };
     })
     .filter(Boolean)
@@ -642,32 +598,6 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
       if (!a.isMapped && b.isMapped) return 1;
       return b.isOnline - a.isOnline;
     });
-
-  // Filtered List
-  const filteredVehicles = vehicleList.filter(v => {
-    const q = searchQuery.toLowerCase().trim();
-    if (q && !v.name.toLowerCase().includes(q) && !v.driverId.toLowerCase().includes(q)) {
-      return false;
-    }
-    
-    if (statusFilter === 'active') {
-      return v.isOnline && v.speedKmh > 5;
-    }
-    if (statusFilter === 'stopped') {
-      return !v.isOnline || v.speedKmh <= 5;
-    }
-    if (statusFilter === 'unmapped') {
-      return !v.isMapped;
-    }
-    return true;
-  });
-
-  useEffect(() => {
-    if (isVisible && vehicleList.length === 1 && !autoSelectRef.current) {
-      setFollowedDriverId(vehicleList[0].driverId);
-      autoSelectRef.current = true;
-    }
-  }, [isVisible, vehicleList.length]);
 
   const onlineCount = vehicleList.filter(v => v.isOnline).length;
   const followedVehicle = vehicleList.find(v => v.driverId === followedDriverId) || vehicleList[0];
@@ -704,7 +634,7 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
       `}</style>
 
       <MapController 
-        sessionsByDriver={sessionsByDriver} 
+        vehicleList={vehicleList}
         followedDriverId={followedDriverId} 
         setFollowedDriverId={setFollowedDriverId} 
         isCameraFollowActive={isCameraFollowActive}
@@ -714,7 +644,6 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
         isVisible={isVisible}
       />
 
-      {/* Harita Katmanları — isVisible ise göster */}
       {isVisible && vehicleList.map(v => {
         return (
           <React.Fragment key={`live-${v.driverId}`}>
@@ -741,7 +670,6 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
         );
       })}
 
-      {/* ── MOBİL KONTROLLER (Sadece Mobilde Görünür) ── */}
       {isVisible && (
         <>
           <MobileMapActions 
@@ -758,12 +686,15 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
                 setFollowedDriverId(driverId);
                 setIsCameraFollowActive(true);
               }}
+              onShowHistory={(driverId) => {
+                if (setSelectedHistoryDriver) setSelectedHistoryDriver(driverId);
+                if (setActiveTab) setActiveTab('history');
+              }}
             />
           )}
         </>
       )}
 
-      {/* ── MASAÜSTÜ SIDEBAR (Sadece Desktop'ta Görünür, md:flex) ── */}
       <AnimatePresence>
         {isVisible && showSidebar && (
             <motion.div 
@@ -781,118 +712,26 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
               overflow: 'hidden'
             }}
           >
-            {/* Başlık */}
             <div className="flex justify-between items-center px-5 py-4 border-b border-white/[0.05] shrink-0">
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <Activity size={15} className="text-emerald-400" />
+              <h2 className="text-sm font-bold text-white tracking-tight">
                 Canlı Araçlar
               </h2>
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] font-bold text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-400/10 border border-emerald-400/20">
-                  {onlineCount} Aktif
-                </span>
-                <button
-                  onClick={() => setShowSidebar(false)}
-                  className="p-1.5 text-slate-500 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] rounded-xl transition-all"
-                >
-                  <X size={13} />
-                </button>
-              </div>
+              <button
+                onClick={() => setShowSidebar(false)}
+                className="p-1.5 text-slate-500 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] rounded-xl transition-all"
+              >
+                <X size={13} />
+              </button>
             </div>
 
-            {/* Arama Kutusu */}
-            <div className="px-4 pt-3 pb-2 shrink-0">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Araç, plaka veya sürücü..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-[#121821]/60 border border-white/[0.04] rounded-xl px-9 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all"
-                />
-                <Search size={13} className="absolute left-3 top-2.5 text-slate-500" />
-                {searchQuery && (
-                  <button onClick={() => setSearchQuery('')} className="absolute right-3 top-2.5 text-slate-500 hover:text-white">
-                    <X size={11} />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Filtre Pill Butonları - 2x2 Izgara Düzeni ile Kusursuz Hizalama */}
-            <div className="px-4 pb-4 grid grid-cols-2 gap-2 shrink-0">
-              {[
-                { 
-                  id: 'all', 
-                  label: 'Tümü', 
-                  count: vehicleList.length,
-                  dotColor: 'bg-slate-400',
-                  activeStyle: 'bg-white/[0.08] text-white border-white/[0.15] shadow-[0_2px_12px_rgba(255,255,255,0.03)]',
-                  inactiveStyle: 'bg-white/[0.02] text-slate-400 border-white/[0.03] hover:text-slate-200 hover:bg-white/[0.04]',
-                  badgeActive: 'bg-white/10 text-white',
-                  badgeInactive: 'bg-white/[0.05] text-slate-500'
-                },
-                { 
-                  id: 'active', 
-                  label: 'Aktif', 
-                  count: vehicleList.filter(v => v.isOnline && v.speedKmh > 5).length,
-                  dotColor: 'bg-emerald-500 shadow-[0_0_6px_#10b981]',
-                  activeStyle: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_2px_12px_rgba(16,185,129,0.06)]',
-                  inactiveStyle: 'bg-white/[0.02] text-slate-400 border-white/[0.03] hover:text-emerald-400 hover:bg-emerald-500/[0.02] hover:border-emerald-500/10',
-                  badgeActive: 'bg-emerald-500/20 text-emerald-400',
-                  badgeInactive: 'bg-white/[0.05] text-slate-500'
-                },
-                { 
-                  id: 'stopped', 
-                  label: 'Duran', 
-                  count: vehicleList.filter(v => !v.isOnline || v.speedKmh <= 5).length,
-                  dotColor: 'bg-orange-500 shadow-[0_0_6px_#f97316]',
-                  activeStyle: 'bg-orange-500/10 text-orange-400 border-orange-500/20 shadow-[0_2px_12px_rgba(249,115,22,0.06)]',
-                  inactiveStyle: 'bg-white/[0.02] text-slate-400 border-white/[0.03] hover:text-orange-400 hover:bg-orange-500/[0.02] hover:border-orange-500/10',
-                  badgeActive: 'bg-orange-500/20 text-orange-400',
-                  badgeInactive: 'bg-white/[0.05] text-slate-500'
-                },
-                { 
-                  id: 'unmapped', 
-                  label: 'Eşleşmemiş', 
-                  count: vehicleList.filter(v => !v.isMapped).length,
-                  dotColor: 'bg-amber-500 shadow-[0_0_6px_#f59e0b]',
-                  activeStyle: 'bg-amber-500/10 text-amber-400 border-amber-500/20 shadow-[0_2px_12px_rgba(245,158,11,0.06)]',
-                  inactiveStyle: 'bg-white/[0.02] text-slate-400 border-white/[0.03] hover:text-amber-400 hover:bg-amber-500/[0.02] hover:border-amber-500/10',
-                  badgeActive: 'bg-amber-500/20 text-amber-400',
-                  badgeInactive: 'bg-white/[0.05] text-slate-500'
-                },
-              ].map(f => {
-                const isActive = statusFilter === f.id;
-                return (
-                  <button
-                    key={f.id}
-                    onClick={() => setStatusFilter(f.id)}
-                    className={`w-full px-2.5 py-1.5 rounded-xl text-[10px] font-bold border transition-all duration-300 flex items-center justify-between select-none outline-none ${
-                      isActive ? f.activeStyle : f.inactiveStyle
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${f.dotColor} ${isActive ? 'animate-pulse' : 'opacity-40'}`} />
-                      <span className="truncate">{f.label}</span>
-                    </div>
-                    <span className={`px-1.5 py-0.5 rounded-md text-[8px] font-extrabold ml-auto shrink-0 transition-all duration-300 ${isActive ? f.badgeActive : f.badgeInactive}`}>
-                      {f.count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Liste */}
-            <div ref={listCallbackRef} className="p-3 flex flex-col gap-2 overflow-y-auto max-h-[calc(100vh-250px)]" style={{ scrollbarWidth: 'none' }}>
-              {filteredVehicles.length === 0 ? (
+            <div ref={listCallbackRef} className="p-3 flex flex-col gap-2 overflow-y-auto max-h-[calc(100vh-160px)]" style={{ scrollbarWidth: 'none' }}>
+              {vehicleList.length === 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', gap: 8 }}>
                   <WifiOff size={22} color="#334155" />
-                  <span style={{ fontSize: 10, color: '#475569' }}>Sonuç bulunamadı</span>
+                  <span style={{ fontSize: 10, color: '#475569' }}>Kayıtlı araç bulunamadı</span>
                 </div>
               ) : (
-                filteredVehicles.map(v => (
+                vehicleList.map(v => (
                   <SidebarItem 
                     key={v.driverId} 
                     vehicle={v}
@@ -909,7 +748,6 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
         )}
       </AnimatePresence>
 
-      {/* Masaüstü Sidebar Açma Butonu */}
       <AnimatePresence>
         {isVisible && !showSidebar && (
           <motion.button

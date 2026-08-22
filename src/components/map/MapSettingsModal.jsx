@@ -1,6 +1,6 @@
 import React, { useState, useContext, useEffect, useCallback } from 'react';
-import { X, Smartphone, MapPin, Trash2, Plus, Check, User, Truck, Settings } from 'lucide-react';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { X, Smartphone, MapPin, Trash2, Plus, Check, User, Truck, Settings, AlertCircle } from 'lucide-react';
+import { doc, setDoc, getDoc, getDocs, collection, deleteDoc } from 'firebase/firestore';
 import { db } from '../../services/firebaseConfig';
 import { useCompany } from '../../context/CompanyContext';
 import { useTruck } from '../../context/TruckContext';
@@ -69,12 +69,14 @@ export default function MapSettingsModal({ onClose, onStartAddGeofence, unmapped
 }
 
 // ==========================================
+// ==========================================
 // TAB 1: CİHAZ EŞLEŞTİRMELERİ
 // ==========================================
 function DeviceTab({ unmappedActiveDeviceIds }) {
   const { activeCompanyId } = useCompany();
   const { trucks } = useTruck();
   const [deviceMappings, setDeviceMappings] = useState({});
+  const [liveDevices, setLiveDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   
   const [mappingDevice, setMappingDevice] = useState(null);
@@ -85,43 +87,78 @@ function DeviceTab({ unmappedActiveDeviceIds }) {
 
   const mappingsDocId = `device_mappings_${activeCompanyId || 'default'}`;
 
-  useEffect(() => {
-    getDoc(doc(db, 'company_data', mappingsDocId)).then(s => { 
-      if(s.exists()) setDeviceMappings(s.data()); 
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [mapSnap, liveSnap] = await Promise.all([
+        getDoc(doc(db, 'company_data', mappingsDocId)),
+        getDocs(collection(db, 'live_positions'))
+      ]);
+      if (mapSnap.exists()) {
+        setDeviceMappings(mapSnap.data() || {});
+      }
+      const liveList = [];
+      liveSnap.forEach(d => {
+        liveList.push({ id: d.id, ...d.data() });
+      });
+      setLiveDevices(liveList);
+    } catch (e) {
+      console.error("Cihaz verileri yüklenemedi:", e);
+    } finally {
       setLoading(false);
-    });
+    }
+  };
+
+  useEffect(() => {
+    loadData();
   }, [mappingsDocId]);
 
   const saveMapping = async (deviceId) => {
     if (!deviceId) return;
     setSavingMapping(true);
-    const updated = { ...deviceMappings, [deviceId]: { truckId: mappingTruckId, driverName: mappingDriverName } };
-    
-    // Eğer ikisi de boşsa eşleştirmeyi sil
-    if (!mappingTruckId && !mappingDriverName) {
-      delete updated[deviceId];
+    try {
+      const updated = { ...deviceMappings, [deviceId]: { truckId: mappingTruckId, driverName: mappingDriverName } };
+      
+      // Eğer ikisi de boşsa eşleştirmeyi sil
+      if (!mappingTruckId && !mappingDriverName) {
+        delete updated[deviceId];
+      }
+
+      await setDoc(doc(db, 'company_data', mappingsDocId), updated);
+      setDeviceMappings(updated);
+      setMappingDevice(null);
+      setMappingTruckId('');
+      setMappingDriverName('');
+      setNewDeviceId('');
+    } catch (err) {
+      console.error("Eşleştirme kaydetme hatası:", err);
+      alert("Kaydedilirken hata oluştu: " + err.message);
+    } finally {
+      setSavingMapping(false);
     }
-
-    await setDoc(doc(db, 'company_data', mappingsDocId), updated);
-    setDeviceMappings(updated);
-    setMappingDevice(null);
-    setMappingTruckId('');
-    setMappingDriverName('');
-    setNewDeviceId('');
-    setSavingMapping(false);
   };
 
-  const deleteMapping = async (deviceId) => {
-    if (!window.confirm(`${deviceId} cihazının eşleştirmesini silmek istediğinize emin misiniz?`)) return;
+  const deleteDevice = async (deviceId) => {
+    if (!window.confirm(`"${deviceId}" cihazını canlı haritadan ve sistemden tamamen silmek istediğinize emin misiniz?`)) return;
     setSavingMapping(true);
-    const updated = { ...deviceMappings };
-    delete updated[deviceId];
-    await setDoc(doc(db, 'company_data', mappingsDocId), updated);
-    setDeviceMappings(updated);
-    setSavingMapping(false);
+    try {
+      // 1. live_positions'dan sil
+      await deleteDoc(doc(db, 'live_positions', deviceId));
+      // 2. device_mappings'den sil
+      const updated = { ...deviceMappings };
+      delete updated[deviceId];
+      await setDoc(doc(db, 'company_data', mappingsDocId), updated);
+      setDeviceMappings(updated);
+      setLiveDevices(prev => prev.filter(d => d.id !== deviceId));
+    } catch (err) {
+      console.error("Cihaz silme hatası:", err);
+      alert("Cihaz silinirken hata oluştu: " + err.message);
+    } finally {
+      setSavingMapping(false);
+    }
   };
 
-  const devices = Object.keys(deviceMappings);
+  const allDeviceIds = Array.from(new Set([...Object.keys(deviceMappings), ...liveDevices.map(d => d.id)]));
 
   if (loading) {
     return <div className="flex justify-center py-10"><div className="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" /></div>;
@@ -167,32 +204,45 @@ function DeviceTab({ unmappedActiveDeviceIds }) {
 
       {/* Mevcut Eşleştirmeler Başlık */}
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-bold text-slate-300">Aktif Cihazlar</h3>
+        <h3 className="text-sm font-bold text-slate-300">Kayıtlı GPRS Cihazları</h3>
         <span className="bg-indigo-500/10 text-indigo-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-500/20">
-          {devices.length} Cihaz
+          {allDeviceIds.length} Cihaz
         </span>
       </div>
 
-      {/* Mevcut Eşleştirmeler */}
-      {devices.length === 0 && (
+      {/* Mevcut Cihazlar */}
+      {allDeviceIds.length === 0 && (
         <div className="flex flex-col items-center justify-center py-8 px-4 text-center border border-dashed border-white/10 rounded-2xl bg-white/[0.01]">
           <div className="w-12 h-12 bg-slate-800/50 rounded-full flex items-center justify-center mb-3">
             <Smartphone size={20} className="text-slate-500" />
           </div>
-          <p className="text-slate-400 text-sm font-medium">Kayıtlı cihaz eşleştirmesi yok.</p>
+          <p className="text-slate-400 text-sm font-medium">Kayıtlı cihaz veya canlı GPS sinyali yok.</p>
         </div>
       )}
       
-      {devices.map(deviceId => {
-        const mapped = deviceMappings[deviceId];
+      {allDeviceIds.map(deviceId => {
+        const mapped = deviceMappings[deviceId] || {};
         const isEditing = mappingDevice === deviceId;
         const truck = trucks.find(t => t.id === mapped.truckId);
+        const liveInfo = liveDevices.find(d => d.id === deviceId);
 
         return (
           <div key={deviceId} className="group bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.05] hover:border-indigo-500/30 rounded-2xl p-4 transition-all">
             <div className="flex justify-between items-start mb-2">
-              <div className="font-bold text-slate-200 text-sm group-hover:text-indigo-100 transition-colors flex items-center gap-2">
-                <Smartphone size={14} className="text-indigo-400/70" /> {deviceId}
+              <div>
+                <div className="font-bold text-slate-200 text-sm group-hover:text-indigo-100 transition-colors flex items-center gap-2">
+                  <Smartphone size={14} className="text-indigo-400/70" /> {deviceId}
+                  {liveInfo && (
+                    <span className="inline-flex items-center gap-1 text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded-md font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Canlı
+                    </span>
+                  )}
+                </div>
+                {liveInfo?.timestamp && (
+                  <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
+                    Son Sinyal: {new Date(liveInfo.timestamp).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button 
@@ -202,12 +252,16 @@ function DeviceTab({ unmappedActiveDeviceIds }) {
                     setMappingTruckId(mapped?.truckId || '');
                     setMappingDriverName(mapped?.driverName || '');
                   }}
-                  className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 px-2 py-1 rounded-lg transition-colors"
+                  className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 px-2 py-1 rounded-lg transition-colors cursor-pointer"
                 >
                   {isEditing ? 'İptal' : 'Düzenle'}
                 </button>
                 {!isEditing && (
-                  <button onClick={() => deleteMapping(deviceId)} className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-400/10 rounded-lg transition-all" title="Eşleştirmeyi Sil">
+                  <button 
+                    onClick={() => deleteDevice(deviceId)} 
+                    className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-400/10 rounded-lg transition-all cursor-pointer" 
+                    title="Cihazı Canlı Haritadan ve Sistemden Sil"
+                  >
                     <Trash2 size={14} />
                   </button>
                 )}
@@ -230,7 +284,7 @@ function DeviceTab({ unmappedActiveDeviceIds }) {
                   </select>
                 </div>
                 <button onClick={() => saveMapping(deviceId)} disabled={savingMapping}
-                  className="w-full py-2.5 mt-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-500/25 transition-all flex items-center justify-center gap-2">
+                  className="w-full py-2.5 mt-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-700 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer">
                   {savingMapping ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"/> : <Check size={14}/>}
                   Kaydet
                 </button>
@@ -238,10 +292,10 @@ function DeviceTab({ unmappedActiveDeviceIds }) {
             ) : (
               <div className="flex flex-col gap-1.5 mt-3">
                 <span className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-                  <User size={12} className="text-slate-500"/> {mapped.driverName || <span className="text-slate-600 italic">Belirtilmedi</span>}
+                  <User size={12} className="text-slate-500" /> {mapped.driverName || 'Şoför Belirtilmedi'}
                 </span>
                 <span className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-                  <Truck size={12} className="text-slate-500"/> {truck?.plate || <span className="text-slate-600 italic">Belirtilmedi</span>}
+                  <Truck size={12} className="text-slate-500" /> {truck?.plate ? `${truck.plate} (${truck.model || 'Tır'})` : 'Tır Atanmadı'}
                 </span>
               </div>
             )}

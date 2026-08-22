@@ -8,6 +8,19 @@ if (!admin.apps.length) {
         let clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
         let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
+        // Vercel raw JSON service account support
+        if (process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+            try {
+                const rawJson = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+                const fbData = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+                projectId = fbData.project_id || projectId;
+                clientEmail = fbData.client_email || clientEmail;
+                privateKey = fbData.private_key || privateKey;
+            } catch (e) {
+                console.error("Error parsing FIREBASE_SERVICE_ACCOUNT env:", e);
+            }
+        }
+
         // Local development fallback
         const localJsonPath = "C:/Users/kenan/Desktop/tr/v2-tir-firebase-adminsdk-fbsvc-7c846d0b8b.json";
         if ((!privateKey || !clientEmail) && fs.existsSync(localJsonPath)) {

@@ -104,6 +104,7 @@ service cloud.firestore {
       
       allow read: if isApproved() && isCompanyDataCollection() && (
         isSuperAdmin() ||
+        collectionName == 'company_notifications' ||
         (resource != null && resource.data.companyId == getCompanyId()) ||
         // company_data dökümanları şirket ID'si ile başlayan/biten veya info adında olabiliyor
         (collectionName == 'company_data' && (
@@ -125,13 +126,20 @@ service cloud.firestore {
       );
     }
 
-    // 5. Canlı Konum Takibi (truck_routes)
-    match /truck_routes/{routeId} {
-      // Canlı konumları haritada görmek için aynı şirketteki onaylı üyeler okuyabilir
+    // 5. Canlı Konum Takibi & Rotalar (live_positions, daily_routes, truck_routes)
+    match /live_positions/{deviceId} {
       allow read: if isApproved();
-      // GÜVENLİK AÇIĞI KAPATILDI: İstemci (tarayıcı) doğrudan konum yazamaz.
-      // Yazma işlemi sadece backend sunucusundaki Firebase Admin SDK (save-location) tarafından gerçekleştirilir.
-      allow write: if false;
+      allow write: if isApproved() && isSuperAdmin();
+    }
+
+    match /daily_routes/{docId} {
+      allow read: if isApproved();
+      allow write: if isApproved() && isSuperAdmin();
+    }
+
+    match /truck_routes/{routeId} {
+      allow read: if isApproved();
+      allow write: if isApproved() && isSuperAdmin();
     }
     
     // 6. Sistem Logları (admin_logs)

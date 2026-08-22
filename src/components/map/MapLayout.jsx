@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef, useContext, useCallback } from 'react';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebaseConfig';
 import { MapPin, History, Bookmark, Layers, Settings, Menu } from 'lucide-react';
 import { motion } from 'framer-motion'; // eslint-disable-line no-unused-vars
-import { doc } from 'firebase/firestore';
 import L from 'leaflet';
 
 import { useTruck } from '../../context/TruckContext';
@@ -77,7 +76,26 @@ function MapCameraSync({ activeTab, sessionsByDriver, deviceMappings }) {
   return null;
 }
 
-// ── Modül Düzeyinde Canlı Konum Önbelleği (Firebase Kota Tasarrufu) ──────────────────
+// Turkey Local Time Helper (UTC+3)
+function getTurkeyTodayStr() {
+  try {
+    const formatter = new Intl.DateTimeFormat('tr-TR', {
+      timeZone: 'Europe/Istanbul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const parts = formatter.formatToParts(new Date());
+    const day = parts.find(p => p.type === 'day')?.value || '01';
+    const month = parts.find(p => p.type === 'month')?.value || '01';
+    const year = parts.find(p => p.type === 'year')?.value || '2026';
+    return `${year}-${month}-${day}`;
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+// ── Modül Düzeyinde Canlı Konum Önbelleği (live_positions + daily_routes) ──
 let globalLocations = [];
 let globalUnsubscribe = null;
 const globalListeners = new Set();
@@ -110,26 +128,104 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
 
   if (!globalUnsubscribe) {
     globalLoading = true;
-    const past8h = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
-    const q = query(
-      collection(db, 'truck_routes'),
-      where('timestamp', '>=', past8h),
-      orderBy('timestamp', 'asc')
-    );
+    const q = collection(db, 'live_positions');
+    const todayStr = getTurkeyTodayStr();
 
-    globalUnsubscribe = onSnapshot(q, (snap) => {
-      const allData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    globalUnsubscribe = onSnapshot(q, async (snap) => {
+      const allVehicles = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const filtered = companyId
-        ? allData.filter(d => !d.companyId || d.companyId === companyId)
-        : allData;
+        ? allVehicles.filter(d => !d.companyId || d.companyId === companyId)
+        : allVehicles;
 
-      globalLocations = filtered;
+      // Her aktif araç için bugünün tam rotasını daily_routes dökümanından çek (1 okuma / araç)
+      const dailyRoutePromises = filtered.map(async (veh) => {
+        const dId = veh.deviceId || veh.driverId || veh.id;
+        try {
+          const dailySnap = await getDoc(doc(db, 'daily_routes', `${dId}_${todayStr}`));
+          if (dailySnap.exists() && Array.isArray(dailySnap.data().points) && dailySnap.data().points.length > 0) {
+            return { dId, veh, points: dailySnap.data().points };
+          }
+        } catch (e) {
+          console.warn(`daily_routes okuma atlandı (${dId}):`, e);
+        }
+        return { dId, veh, points: null };
+      });
+
+      const dailyResults = await Promise.all(dailyRoutePromises);
+
+      const unrolledLocations = [];
+      dailyResults.forEach(({ dId, veh, points }) => {
+        // Eğer bugünün tam rotası varsa eksiksiz tüm günün rotasını kullan (Örn: 90.9 km)
+        if (Array.isArray(points) && points.length > 0) {
+          points.forEach(pt => {
+            unrolledLocations.push({
+              id: `${dId}_${pt.timestamp}`,
+              driverId: dId,
+              deviceId: dId,
+              companyId: veh.companyId,
+              lat: pt.lat,
+              lon: pt.lon,
+              speed: pt.speed || 0,
+              altitude: pt.altitude || 0,
+              timestamp: pt.timestamp
+            });
+          });
+
+          // Canlı son nokta daily_routes'a henüz yazılmamışsa ekle
+          const lastDailyPt = points[points.length - 1];
+          if (veh.lat && veh.lon && (!lastDailyPt || new Date(veh.timestamp) > new Date(lastDailyPt.timestamp))) {
+            unrolledLocations.push({
+              id: `${dId}_${veh.timestamp}`,
+              driverId: dId,
+              deviceId: dId,
+              companyId: veh.companyId,
+              lat: veh.lat,
+              lon: veh.lon,
+              speed: veh.speed || 0,
+              altitude: veh.altitude || 0,
+              timestamp: veh.timestamp
+            });
+          }
+        } 
+        // Bugün rota yoksa (araç bugün çalışmamışsa), son bilinen konumunu kullan
+        else if (Array.isArray(veh.recentTrail) && veh.recentTrail.length > 0) {
+          veh.recentTrail.forEach(pt => {
+            unrolledLocations.push({
+              id: `${dId}_${pt.timestamp}`,
+              driverId: dId,
+              deviceId: dId,
+              companyId: veh.companyId,
+              lat: pt.lat,
+              lon: pt.lon,
+              speed: pt.speed || 0,
+              altitude: pt.altitude || 0,
+              timestamp: pt.timestamp
+            });
+          });
+        } else if (veh.lat && veh.lon) {
+          unrolledLocations.push({
+            id: `${dId}_${veh.timestamp}`,
+            driverId: dId,
+            deviceId: dId,
+            companyId: veh.companyId,
+            lat: veh.lat,
+            lon: veh.lon,
+            speed: veh.speed || 0,
+            altitude: veh.altitude || 0,
+            timestamp: veh.timestamp
+          });
+        }
+      });
+
+      unrolledLocations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+      globalLocations = unrolledLocations;
       globalLoading = false;
 
       // Tüm dinleyicileri güncelle
-      globalListeners.forEach(l => l.onUpdate(filtered, false));
+      globalListeners.forEach(l => l.onUpdate(unrolledLocations, false));
     }, (error) => {
-      console.error('Harita verisi çekme hatası:', error);
+      console.error('live_positions verisi çekme hatası:', error);
       globalLoading = false;
       globalListeners.forEach(l => l.onError(error));
     });
@@ -146,7 +242,7 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
           globalLoading = true;
           globalLocations = [];
           lastCompanyId = null;
-          console.log("Firestore truck_routes aboneliği inaktivite nedeniyle kapatıldı.");
+          console.log("Firestore live_positions aboneliği inaktivite nedeniyle kapatıldı.");
         }
       }, 5 * 60 * 1000); // 5 dakika
     }
@@ -264,9 +360,9 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
   };
 
   const tabs = [
-    { id: 'live',     label: 'Canlı Takip',     icon: MapPin, theme: 'bg-emerald-500 border-emerald-400/30', hoverText: 'group-hover:text-emerald-400' },
-    { id: 'history',  label: 'Rota Takibi',      icon: History, theme: 'bg-orange-500 border-orange-400/30', hoverText: 'group-hover:text-orange-400' },
-    { id: 'saved',    label: 'Kayıtlı Rotalar',  icon: Bookmark, theme: 'bg-indigo-500 border-indigo-400/30', hoverText: 'group-hover:text-indigo-400' },
+    { id: 'live',     label: 'Canlı Takip',     icon: MapPin, theme: 'bg-gradient-to-r from-emerald-600 to-emerald-500 border-emerald-400/40 shadow-[0_0_20px_rgba(16,185,129,0.35)]', hoverText: 'group-hover:text-emerald-400' },
+    { id: 'history',  label: 'Rota Takibi',      icon: History, theme: 'bg-gradient-to-r from-orange-600 to-amber-500 border-orange-400/40 shadow-[0_0_20px_rgba(249,115,22,0.35)]', hoverText: 'group-hover:text-orange-400' },
+    { id: 'saved',    label: 'Kayıtlı Rotalar',  icon: Bookmark, theme: 'bg-gradient-to-r from-indigo-600 to-violet-500 border-indigo-400/40 shadow-[0_0_20px_rgba(99,102,241,0.35)]', hoverText: 'group-hover:text-indigo-400' },
   ];
 
   const navBarCallbackRef = useCallback(node => {
@@ -279,17 +375,16 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
   return (
     <div 
       data-map-module 
-      className="flex flex-col h-[100dvh] md:h-[calc(100vh-8rem)] relative rounded-none md:rounded-2xl overflow-hidden shadow-2xl" 
-      style={{ background: '#0B0E14', border: '1px solid rgba(255,255,255,0.04)' }}
+      className="flex flex-col w-full h-screen relative overflow-hidden bg-[#07090e] select-none" 
     >
       <div
         ref={navBarCallbackRef}
-        className="absolute top-2 sm:top-4 left-1/2 -translate-x-1/2 z-[2000] pointer-events-auto w-[96%] sm:w-11/12 max-w-2xl"
+        className="absolute top-3 sm:top-5 left-1/2 -translate-x-1/2 z-[2000] pointer-events-auto w-[96%] sm:w-11/12 max-w-2xl"
         style={{
           paddingTop: 'env(safe-area-inset-top, 0px)'
         }}
       >
-        <div className="flex bg-[#111113]/85 backdrop-blur-xl p-1 sm:p-1.5 rounded-2xl shadow-2xl ring-1 ring-black/30 w-full border border-white/10 items-center select-none gap-0.5 sm:gap-1">
+        <div className="flex bg-[#0B0F17]/80 backdrop-blur-2xl p-1 sm:p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] w-full border border-white/10 items-center select-none gap-0.5 sm:gap-1 ring-1 ring-black/40">
           {/* Mobile Menu Button (Hamburger) */}
           {onOpenMenu && (
             <button
@@ -358,7 +453,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
               {showLayerMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowLayerMenu(false)} />
-                  <div className="absolute right-0 top-full mt-2 w-32 bg-[#111113] border border-white/10 rounded-2xl p-1.5 shadow-2xl z-20">
+                  <div className="absolute right-0 top-full mt-2 w-36 bg-[#0D1219]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.9)] z-20">
                     {[
                       { id: 'voyager',    name: 'Açık Harita' },
                       { id: 'darkmatter', name: 'Koyu Harita' },
@@ -369,7 +464,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
                         onClick={() => { setMapStyle(s.id); setShowLayerMenu(false); }}
                         className={`w-full text-left px-3 py-2 text-xs rounded-xl transition-colors ${
                           mapStyle === s.id
-                            ? 'bg-indigo-500/20 text-indigo-400 font-semibold'
+                            ? 'bg-emerald-500/20 text-emerald-400 font-semibold'
                             : 'text-slate-400 hover:bg-white/[0.06] hover:text-white'
                         }`}
                       >
@@ -384,7 +479,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
         </div>
       </div>
 
-      <div className="flex-1 relative bg-[#0B0E14]">
+      <div className="flex-1 relative bg-[#07090e]">
         {isMounted ? (
           <MapContainer 
             center={[39.9334, 32.8597]} 

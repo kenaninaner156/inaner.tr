@@ -740,7 +740,7 @@ function App() {
         <div className="flex flex-col min-h-screen w-full">
 
           {/* Header - Simple & Clean (sticky) */}
-          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['invoices', 'fuel'].includes(activeTab) ? 'md:hidden' : ''} ${activeTab === 'map' ? 'hidden md:flex' : ''}`}
+          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['invoices', 'fuel', 'map'].includes(activeTab) ? 'hidden' : ''}`}
             style={{
               paddingTop: 'calc(0.5rem + env(safe-area-inset-top))'
             }}
@@ -758,7 +758,7 @@ function App() {
           </div>
 
           {/* Content Area */}
-          <div className={`flex-1 ${activeTab === 'map' ? 'p-0 md:p-6 xl:p-8' : 'p-4 md:p-6 xl:p-8'}`}>
+          <div className={`flex-1 ${activeTab === 'map' ? 'p-0 h-screen overflow-hidden' : 'p-4 md:p-6 xl:p-8'}`}>
             <div key={activeTab} className="page-transition">
               {activeTab === 'dashboard' && <Dashboard />}
               {activeTab === 'trips' && <Trips />}

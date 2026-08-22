@@ -61,29 +61,49 @@ export default function VehicleAnalysis() {
     }
   };
 
-  // ── Tek bir günün verisini ham GPS'ten hesapla ──────────────────────────
+  // ── Tek bir günün verisini hesapla (daily_routes öncelikli) ───────────
   const calcDayStats = async (deviceId, dayStart, dayEnd) => {
-    const conditions = [
-      where('timestamp', '>=', dayStart.toISOString()),
-      where('timestamp', '<=', dayEnd.toISOString()),
-      orderBy('timestamp', 'asc'),
-      limit(1500),
-    ];
+    let data = [];
+
+    // 1. Öncelik: daily_routes dökümanından tek okuma ile al
     if (deviceId !== 'all') {
-      conditions.unshift(where('driverId', '==', deviceId));
+      try {
+        const dateStr = dayStart.toISOString().slice(0, 10);
+        const dailyDocId = `${deviceId}_${dateStr}`;
+        const dailySnap = await getDoc(doc(db, 'daily_routes', dailyDocId));
+        if (dailySnap.exists() && Array.isArray(dailySnap.data().points) && dailySnap.data().points.length > 0) {
+          data = dailySnap.data().points;
+          if (activeCompanyId && dailySnap.data().companyId && dailySnap.data().companyId !== activeCompanyId) {
+            data = [];
+          }
+        }
+      } catch (err) {
+        console.warn('daily_routes analizi hatası:', err);
+      }
     }
 
-    const q = query(collection(db, 'truck_routes'), ...conditions);
-    const snap = await getDocs(q);
-    let data = snap.docs.map(d => d.data());
+    // 2. Fallback: Bulunamadıysa eski truck_routes sorgusu
+    if (data.length === 0) {
+      const conditions = [
+        where('timestamp', '>=', dayStart.toISOString()),
+        where('timestamp', '<=', dayEnd.toISOString()),
+        orderBy('timestamp', 'asc'),
+        limit(1500),
+      ];
+      if (deviceId !== 'all') {
+        conditions.unshift(where('driverId', '==', deviceId));
+      }
 
-    // Şirket izolasyonu
-    if (activeCompanyId) {
-      data = data.filter(d => !d.companyId || d.companyId === activeCompanyId);
-    }
-    if (deviceId !== 'all') {
-      // deviceId de dene (fallback)
-      if (data.length === 0) {
+      const q = query(collection(db, 'truck_routes'), ...conditions);
+      const snap = await getDocs(q);
+      data = snap.docs.map(d => d.data());
+
+      // Şirket izolasyonu
+      if (activeCompanyId) {
+        data = data.filter(d => !d.companyId || d.companyId === activeCompanyId);
+      }
+      if (deviceId !== 'all' && data.length === 0) {
+        // deviceId de dene (fallback)
         const q2 = query(
           collection(db, 'truck_routes'),
           where('deviceId', '==', deviceId),

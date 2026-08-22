@@ -1,29 +1,6 @@
 /* eslint-env node */
 import admin from 'firebase-admin';
-
-// Initialize Firebase Admin SDK
-if (!admin.apps.length) {
-    try {
-        const projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID;
-        const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-        const privateKey = process.env.FIREBASE_PRIVATE_KEY;
-
-        if (projectId && clientEmail && privateKey) {
-            admin.initializeApp({
-                credential: admin.credential.cert({
-                    projectId,
-                    clientEmail,
-                    privateKey: privateKey.replace(/\\n/g, '\n')
-                })
-            });
-            console.log("Firebase Admin SDK initialized successfully in save-location handler.");
-        } else {
-            console.warn("Firebase Admin credentials missing, falling back to public Firestore REST API.");
-        }
-    } catch (err) {
-        console.error("Firebase Admin SDK initialization failed:", err);
-    }
-}
+import { db } from './firebaseAdmin.js';
 
 export default async function handler(req, res) {
     if (req.method !== 'GET' && req.method !== 'POST') {
@@ -78,8 +55,6 @@ export default async function handler(req, res) {
              return res.status(400).json({ error: 'Enlem veya boylam sayisal bir deger degil' });
         }
 
-        const PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID || "v2-tir";
-        
         let formattedTimestamp = new Date().toISOString();
         if (timestampStr) {
             // Eğer OsmAnd gibi saniye cinsinden UNIX ise:
@@ -96,8 +71,33 @@ export default async function handler(req, res) {
             }
         }
 
+        // Turkey Local Time Helper (UTC+3)
+        const getTurkeyDateStr = (dateInput) => {
+            try {
+                const d = new Date(dateInput);
+                if (isNaN(d.getTime())) return '1970-01-01';
+                const formatter = new Intl.DateTimeFormat('tr-TR', {
+                    timeZone: 'Europe/Istanbul',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                });
+                const parts = formatter.formatToParts(d);
+                const day = parts.find(p => p.type === 'day')?.value || '01';
+                const month = parts.find(p => p.type === 'month')?.value || '01';
+                const year = parts.find(p => p.type === 'year')?.value || '2026';
+                return `${year}-${month}-${day}`;
+            } catch {
+                return new Date().toISOString().slice(0, 10);
+            }
+        };
+
+        const cleanDeviceId = String(deviceId).trim();
+        const dateStr = getTurkeyDateStr(formattedTimestamp);
+
         const plainLocationData = {
-            driverId: String(deviceId).trim(),
+            driverId: cleanDeviceId,
+            deviceId: cleanDeviceId,
             lat: lat,
             lon: lon,
             speed: speed,
@@ -107,54 +107,87 @@ export default async function handler(req, res) {
             source: 'traccar_ios'
         };
 
-        // Eğer Firebase Admin SDK aktifse, güvenli bir şekilde admin yetkileriyle yazıyoruz.
-        if (admin.apps.length > 0) {
-            const db = admin.firestore();
+        // 1. ESKİ SİSTEM YEDEK (Dual-Write: truck_routes'a yazmaya devam et)
+        let docRefId = null;
+        try {
             const docRef = await db.collection('truck_routes').add(plainLocationData);
-            return res.status(200).json({ 
-                success: true, 
-                message: 'Konum basariyla kaydedildi (Admin SDK)',
-                id: docRef.id
-            });
-        } else {
-            // Firebase Admin SDK yapılandırılmamışsa, eski REST API yöntemine geri dön (local geliştirme fallback)
-            const locationData = {
-                fields: {
-                    driverId: { stringValue: plainLocationData.driverId },
-                    lat: { doubleValue: plainLocationData.lat },
-                    lon: { doubleValue: plainLocationData.lon },
-                    speed: { doubleValue: plainLocationData.speed },
-                    altitude: { doubleValue: plainLocationData.altitude },
-                    timestamp: { stringValue: plainLocationData.timestamp },
-                    recordedAt: { stringValue: plainLocationData.recordedAt },
-                    source: { stringValue: plainLocationData.source }
-                }
-            };
-
-            const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/truck_routes`;
-
-            const response = await fetch(firestoreUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(locationData)
-            });
-
-            if (!response.ok) {
-                const errBody = await response.text();
-                throw new Error(`Firebase REST Error: ${response.status} - ${errBody}`);
-            }
-
-            const result = await response.json();
-
-            return res.status(200).json({ 
-                success: true, 
-                message: 'Konum basariyla kaydedildi (REST API Fallback)',
-                id: result.name
-            });
+            docRefId = docRef.id;
+        } catch (trkErr) {
+            console.error("truck_routes yedek yazma hatası:", trkErr);
         }
 
+        // 2. YENİ SİSTEM (Canlı Takip: live_positions/{deviceId})
+        let lastLiveDoc = null;
+        try {
+            const liveRef = db.collection('live_positions').doc(cleanDeviceId);
+            lastLiveDoc = await liveRef.get();
+            let recentTrail = [];
+            if (lastLiveDoc.exists && Array.isArray(lastLiveDoc.data().recentTrail)) {
+                recentTrail = lastLiveDoc.data().recentTrail;
+            }
+            recentTrail.push({
+                lat: Number(lat.toFixed(5)),
+                lon: Number(lon.toFixed(5)),
+                speed: Number(speed.toFixed(1)),
+                altitude: Number(altitude.toFixed(1)),
+                timestamp: formattedTimestamp
+            });
+            if (recentTrail.length > 100) {
+                recentTrail = recentTrail.slice(-100);
+            }
+
+            await liveRef.set({
+                deviceId: cleanDeviceId,
+                driverId: cleanDeviceId,
+                lat: Number(lat.toFixed(5)),
+                lon: Number(lon.toFixed(5)),
+                speed: Number(speed.toFixed(1)),
+                altitude: Number(altitude.toFixed(1)),
+                timestamp: formattedTimestamp,
+                recordedAt: new Date().toISOString(),
+                recentTrail
+            }, { merge: true });
+        } catch (liveErr) {
+            console.error("live_positions güncelleme hatası:", liveErr);
+        }
+
+        // 3. YENİ SİSTEM (Günlük Rota Geçmişi: daily_routes/{deviceId_YYYY-MM-DD})
+        try {
+            const isStopped = speed <= 2;
+            const lastWasStopped = (lastLiveDoc?.data()?.speed || 0) <= 2;
+            const lastTime = lastLiveDoc?.data()?.timestamp ? new Date(lastLiveDoc.data().timestamp).getTime() : 0;
+            const currTime = new Date(formattedTimestamp).getTime();
+            const timeDiffSec = (currTime - lastTime) / 1000;
+
+            const shouldRecordToDaily = !isStopped || !lastWasStopped || timeDiffSec >= 60;
+
+            if (shouldRecordToDaily) {
+                const dailyDocId = `${cleanDeviceId}_${dateStr}`;
+                const dailyRef = db.collection('daily_routes').doc(dailyDocId);
+                await dailyRef.set({
+                    deviceId: cleanDeviceId,
+                    driverId: cleanDeviceId,
+                    date: dateStr,
+                    lastTimestamp: formattedTimestamp,
+                    updatedAt: new Date().toISOString(),
+                    points: admin.firestore.FieldValue.arrayUnion({
+                        lat: Number(lat.toFixed(5)),
+                        lon: Number(lon.toFixed(5)),
+                        speed: Number(speed.toFixed(1)),
+                        altitude: Number(altitude.toFixed(1)),
+                        timestamp: formattedTimestamp
+                    })
+                }, { merge: true });
+            }
+        } catch (dailyErr) {
+            console.error("daily_routes güncelleme hatası:", dailyErr);
+        }
+
+        return res.status(200).json({ 
+            success: true, 
+            message: 'Konum basariyla kaydedildi (Dual-Write Admin SDK)',
+            id: docRefId
+        });
     } catch (error) {
         console.error("Konum kaydedilirken hata:", error);
         return res.status(500).json({ error: 'Sunucu hatasi', details: error.message });

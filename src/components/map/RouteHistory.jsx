@@ -76,11 +76,33 @@ const SpeedPolylines = React.memo(({ session }) => {
 });
 
 
-const truckPlayIcon = new L.Icon({
-  iconUrl: '/tir-clear.png?v=8',
+const truckPlayIcon = L.divIcon({
+  html: `
+    <div style="
+      width: 36px;
+      height: 36px;
+      background: rgba(12, 16, 24, 0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1.5px solid rgba(245, 158, 11, 0.85);
+      border-radius: 50%;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.8), 0 0 10px rgba(245, 158, 11, 0.35), inset 0 1px 0 rgba(255,255,255,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    ">
+      <img src="/tir-clear.png?v=8" style="
+        width: 72%;
+        height: 72%;
+        object-fit: contain;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+      " />
+    </div>
+  `,
+  className: 'custom-playback-marker-div',
   iconSize: [36, 36],
   iconAnchor: [18, 18],
-  className: 'bg-white rounded-full border-2 border-orange-500 shadow-lg object-contain',
 });
 
 // ── Mobile Route History Card (Integrated Navigation & Playback) ─────────
@@ -637,20 +659,24 @@ export default function RouteHistory({
           return;
         }
 
-        // 2. CACHE YOKSA HAM VERİYİ ÇEK VEYA CANLI TAKİPTEN AL
+        // 2. CACHE YOKSA: ÖNCELİKLE YENİ OPTİMİZE GÜNLÜK DÖKÜMANDAN ÇEK (daily_routes)
         const todayStr = new Date().toISOString().slice(0, 10);
         const isToday = historyDate === todayStr;
         let points = [];
 
-        // GÜNCELLEME: Canlı konumlar kota tasarrufu için son 8 saatle sınırlı olduğundan,
-        // bugün seçili olsa bile günün tüm rotalarını göstermek için doğrudan Firestore'dan çekiyoruz.
-        // (Eski optimizasyon devredışı bırakıldı, çünkü 8 saatten eski bugünkü rotaları göstermiyordu)
+        // 2.1 daily_routes/{selectedDriver_YYYY-MM-DD} dökümanını tek okumada çek
+        try {
+          const dailyDocId = `${selectedDriver}_${historyDate}`;
+          const dailySnap = await getDoc(doc(db, 'daily_routes', dailyDocId));
+          if (dailySnap.exists() && Array.isArray(dailySnap.data().points) && dailySnap.data().points.length > 0) {
+            points = dailySnap.data().points;
+          }
+        } catch (dailyErr) {
+          console.warn("daily_routes okuma uyarısı (fallback deneniyor):", dailyErr);
+        }
 
-
-        // Eğer MapLayout'ta veri yoksa veya bugün değilse mecburen Firebase'den çekeceğiz
+        // 2.2 Fallback: Eğer daily_routes'da yoksa veya eski kayıt ise truck_routes'dan çek
         if (points.length === 0) {
-          // Gece yarısını geçen seferlerin bölünmemesi için zaman penceresini genişletiyoruz:
-          // Önceki gün 20:00'den, Ertesi gün 12:00'ye kadar (Toplam 40 Saat)
           const [y, m, d] = historyDate.split('-').map(Number);
           const dayStart = new Date(y, m - 1, d, -4, 0, 0, 0); // Önceki gün 20:00
           const dayEnd   = new Date(y, m - 1, d, 36, 0, 0, 0); // Ertesi gün 12:00
