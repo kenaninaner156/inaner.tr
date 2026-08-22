@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../../services/firebaseConfig';
-import { MapPin, History, Bookmark, Layers, Settings } from 'lucide-react';
+import { MapPin, History, Bookmark, Layers, Settings, Menu } from 'lucide-react';
 import { motion } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import { doc } from 'firebase/firestore';
 import L from 'leaflet';
@@ -153,7 +153,7 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
   };
 };
 
-export default function MapLayout({ onReady }) {
+export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
   const { trucks } = useTruck();
   const { activeCompanyId } = useCompany();
   const { geofences, manualSplits, addGeofence } = useContext(DataContext);
@@ -232,8 +232,6 @@ export default function MapLayout({ onReady }) {
     return () => unsubscribe();
   }, [activeCompanyId]);
 
-  // Rota Geçmişi fetch işlemi artık RouteHistory içinde (per-vehicle ve cache destekli) yapılacak.
-
   // ── sessionsByDriver (Canlı Takip) ─────────────────────────────────────
   const sessionsByDriver = useMemo(() => {
     const grouped = locations.reduce((acc, loc) => {
@@ -246,7 +244,6 @@ export default function MapLayout({ onReady }) {
     Object.keys(grouped).forEach(d => {
       const rawSessions = groupIntoSessions(grouped[d], 30, geofences, manualSplits);
       // Sadece en son seferi tut (Son 30dk molasından sonraki kesintisiz hareket)
-      // GPU'yu yormamak için Douglas-Peucker sıkıştırmasını (filterSessionPoints) DEVRE DIŞI bırakıyoruz.
       if (rawSessions.length > 0) {
         res[d] = [rawSessions[rawSessions.length - 1]];
       } else {
@@ -259,8 +256,6 @@ export default function MapLayout({ onReady }) {
   const unmappedActiveDeviceIds = useMemo(() => {
     return Object.keys(sessionsByDriver).filter(id => !deviceMappings[id] && id !== 'Bilinmeyen');
   }, [sessionsByDriver, deviceMappings]);
-
-  // historySessionsByDriver kaldırıldı, RouteHistory kendi yönetecek.
 
   const mapUrls = {
     voyager: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
@@ -281,16 +276,32 @@ export default function MapLayout({ onReady }) {
     }
   }, []);
 
-  // (early return kaldırıldı, yükleme ekranı artık MapPage.jsx içindeki butonda gösteriliyor)
-
   return (
-    <div data-map-module className="flex flex-col h-[calc(100vh-8rem)] relative rounded-2xl overflow-hidden shadow-2xl" style={{ background: '#0B0E14', border: '1px solid rgba(255,255,255,0.04)' }}>
+    <div 
+      data-map-module 
+      className="flex flex-col h-[100dvh] md:h-[calc(100vh-8rem)] relative rounded-none md:rounded-2xl overflow-hidden shadow-2xl" 
+      style={{ background: '#0B0E14', border: '1px solid rgba(255,255,255,0.04)' }}
+    >
       <div
         ref={navBarCallbackRef}
-        className="absolute top-4 left-1/2 -translate-x-1/2 z-[2000] pointer-events-auto w-11/12 max-w-2xl"
+        className="absolute top-2 sm:top-4 left-1/2 -translate-x-1/2 z-[2000] pointer-events-auto w-[96%] sm:w-11/12 max-w-2xl"
+        style={{
+          paddingTop: 'env(safe-area-inset-top, 0px)'
+        }}
       >
-        <div className="flex bg-[#111113]/80 backdrop-blur-xl p-1.5 rounded-2xl shadow-inner ring-1 ring-black/20 w-full border border-white/5 items-center select-none">
-          <div className="flex flex-1 gap-0.5">
+        <div className="flex bg-[#111113]/85 backdrop-blur-xl p-1 sm:p-1.5 rounded-2xl shadow-2xl ring-1 ring-black/30 w-full border border-white/10 items-center select-none gap-0.5 sm:gap-1">
+          {/* Mobile Menu Button (Hamburger) */}
+          {onOpenMenu && (
+            <button
+              onClick={onOpenMenu}
+              className="p-2 sm:hidden rounded-xl text-slate-300 hover:text-white hover:bg-white/[0.08] active:scale-95 transition-all duration-200 flex items-center justify-center shrink-0"
+              title="Menüyü Aç"
+            >
+              <Menu size={18} />
+            </button>
+          )}
+
+          <div className="flex flex-1 gap-0.5 sm:gap-1">
             {tabs.map(tab => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -298,8 +309,8 @@ export default function MapLayout({ onReady }) {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`relative flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-sm transition-all duration-300 group outline-none ${
-                    isActive ? 'text-white font-medium' : 'text-slate-400 font-medium hover:text-slate-200'
+                  className={`relative flex-1 flex items-center justify-center gap-1 sm:gap-1.5 py-2 px-1 sm:px-2 rounded-xl text-xs transition-all duration-300 group outline-none ${
+                    isActive ? 'text-white font-semibold' : 'text-slate-400 font-medium hover:text-slate-200'
                   }`}
                 >
                   {!isActive && (
@@ -315,21 +326,23 @@ export default function MapLayout({ onReady }) {
                     />
                   )}
                   <Icon
-                    size={15}
-                    className={`relative z-10 transition-colors duration-300 ${
-                      isActive ? 'text-white/90' : `text-slate-500 ${tab.hoverText}`
+                    size={14}
+                    className={`relative z-10 transition-colors duration-300 shrink-0 ${
+                      isActive ? 'text-white' : `text-slate-400 ${tab.hoverText}`
                     }`}
                   />
-                  <span className="relative z-10 hidden sm:inline text-xs">{tab.label}</span>
+                  <span className={`relative z-10 text-[11px] sm:text-xs truncate ${isActive ? 'inline' : 'hidden sm:inline'}`}>
+                    {tab.label}
+                  </span>
                 </button>
               );
             })}
           </div>
-          <div className="w-px h-5 bg-white/10 mx-1.5 flex-shrink-0" />
-          <div className="flex items-center gap-0.5 pr-0.5">
+          <div className="w-px h-5 bg-white/10 mx-0.5 sm:mx-1 flex-shrink-0" />
+          <div className="flex items-center gap-0.5 pr-0.5 shrink-0">
             <button
               onClick={() => setShowMapSettings(true)}
-              className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-white/[0.08] transition-all duration-200"
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.08] active:scale-95 transition-all duration-200"
               title="Harita Ayarları"
             >
               <Settings size={16} />
@@ -337,7 +350,8 @@ export default function MapLayout({ onReady }) {
             <div className="relative">
               <button
                 onClick={() => setShowLayerMenu(v => !v)}
-                className={`p-2 rounded-xl transition-all duration-200 ${showLayerMenu ? 'text-white bg-white/10' : 'text-slate-500 hover:text-white hover:bg-white/[0.08]'}`}
+                className={`p-2 rounded-xl transition-all duration-200 ${showLayerMenu ? 'text-white bg-white/10' : 'text-slate-400 hover:text-white hover:bg-white/[0.08]'}`}
+                title="Katmanlar"
               >
                 <Layers size={16} />
               </button>
@@ -397,6 +411,7 @@ export default function MapLayout({ onReady }) {
               trucks={trucks}
               setActiveTab={setActiveTab}
               setSelectedHistoryDriver={setSelectedHistoryDriver}
+              isMobile={isMobile}
             />
             <RouteHistory
               isVisible={activeTab === 'history'}
@@ -409,6 +424,7 @@ export default function MapLayout({ onReady }) {
               activeCompanyId={activeCompanyId}
               selectedDriver={selectedHistoryDriver}
               setSelectedDriver={setSelectedHistoryDriver}
+              isMobile={isMobile}
             />
             <SavedRoutes
               isVisible={activeTab === 'saved'}

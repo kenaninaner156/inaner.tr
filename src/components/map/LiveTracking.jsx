@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line 
 import { Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { calcStats } from '../../utils/mapUtils';
-import { Activity, WifiOff, X, Search, ShieldAlert, Navigation, Compass } from 'lucide-react';
+import { Activity, WifiOff, X, Search, ShieldAlert, Navigation, Compass, Crosshair, ChevronRight, ChevronDown, Check } from 'lucide-react';
 
 // ── Tema renkleri — site ile tam uyumlu ──────────────────────────────────
 const PANEL_BG     = 'rgba(13, 18, 25, 0.96)';
@@ -368,6 +368,205 @@ function SidebarItem({
   );
 }
 
+// ── Mobile Map Floating Actions (Fit All & Focus Followed) ──────────────
+function MobileMapActions({ vehicleList, followedVehicle, setIsCameraFollowActive }) {
+  const map = useMap();
+  
+  const handleFitAll = (e) => {
+    e.stopPropagation();
+    const pts = vehicleList.map(v => [v.lastPoint.lat, v.lastPoint.lon]).filter(p => !isNaN(p[0]) && !isNaN(p[1]));
+    if (pts.length === 1) {
+      map.setView(pts[0], 12, { animate: true, duration: 0.8 });
+    } else if (pts.length > 1) {
+      map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 12, animate: true, duration: 0.8 });
+    }
+  };
+
+  const handleCenterFollowed = (e) => {
+    e.stopPropagation();
+    if (followedVehicle?.lastPoint) {
+      setIsCameraFollowActive(true);
+      map.setView([followedVehicle.lastPoint.lat, followedVehicle.lastPoint.lon], 16, { animate: true, duration: 0.8 });
+    }
+  };
+
+  return (
+    <div className="absolute right-3 top-18 z-[1000] flex flex-col gap-2 pointer-events-auto md:hidden">
+      {followedVehicle && (
+        <button
+          onClick={handleCenterFollowed}
+          className="p-3 bg-[#111113]/90 backdrop-blur-xl border border-emerald-500/40 text-emerald-400 rounded-2xl shadow-2xl active:scale-95 transition-all"
+          title="Seçili Araca Odaklan"
+        >
+          <Crosshair size={18} />
+        </button>
+      )}
+      <button
+        onClick={handleFitAll}
+        className="p-3 bg-[#111113]/90 backdrop-blur-xl border border-white/10 text-slate-300 hover:text-white rounded-2xl shadow-2xl active:scale-95 transition-all"
+        title="Tüm Araçları Göster"
+      >
+        <Navigation size={18} />
+      </button>
+    </div>
+  );
+}
+
+// ── Mobile Followed Vehicle Telemetry Card (Smooth CSS Grid Accordion) ────
+function MobileFollowedCard({
+  vehicle,
+  vehicleList,
+  onSelectVehicle
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { name, isOnline, speedKmh, km, durationMin, lastPoint, isMapped, isDelayed } = vehicle;
+
+  const cardRef = useCallback(node => {
+    if (node) {
+      L.DomEvent.disableClickPropagation(node);
+      L.DomEvent.disableScrollPropagation(node);
+    }
+  }, []);
+
+  const gpsTime = new Date(lastPoint.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <div
+      ref={cardRef}
+      className="absolute bottom-3 left-3 right-3 z-[1500] pointer-events-auto rounded-[28px] p-3.5 flex flex-col gap-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.85)] border border-white/10 backdrop-blur-3xl md:hidden overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+      style={{
+        background: 'rgba(13, 18, 25, 0.96)',
+        marginBottom: 'env(safe-area-inset-bottom, 0px)'
+      }}
+    >
+      {/* Üst Başlık — Tıklayınca kart içi araç listesi genişler */}
+      <div 
+        onClick={() => setIsExpanded(prev => !prev)}
+        className="flex items-center justify-between cursor-pointer select-none group active:opacity-75 transition-opacity"
+      >
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <div 
+            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 border transition-colors duration-300 ${
+              isOnline 
+                ? (isMapped ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-amber-500/10 border-amber-500/30 text-amber-400')
+                : 'bg-slate-800/60 border-white/5 text-slate-500'
+            }`}
+          >
+            <img src="/tir-clear.png?v=8" className="w-5 h-5 object-contain" alt="" />
+          </div>
+          
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-white truncate group-hover:text-emerald-300 transition-colors">
+                {name}
+              </span>
+              <ChevronDown 
+                size={14} 
+                className={`text-slate-400 shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${isExpanded ? 'rotate-180 text-emerald-400' : ''}`}
+              />
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className={`text-[10px] font-bold ${
+                isOnline ? (isMapped ? 'text-emerald-400' : 'text-amber-400') : 'text-slate-500'
+              }`}>
+                {isOnline ? (speedKmh > 0 ? `● ${speedKmh} km/h` : '● Duran') : '○ Çevrimdışı'}
+              </span>
+              {isDelayed && (
+                <span className="text-[8px] font-bold text-amber-400 bg-amber-500/15 px-1.5 py-0.2 rounded">
+                  Gecikmeli
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {vehicleList.length > 1 && (
+          <div className="px-2.5 py-1 bg-white/[0.04] text-slate-400 rounded-xl text-[10px] font-bold border border-white/[0.04] flex items-center gap-1">
+            <span>{vehicleList.length} Araç</span>
+          </div>
+        )}
+      </div>
+
+      {/* Kart İçi Akıcı CSS Grid Genişleyen Araç Seçim Listesi */}
+      <div 
+        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+          isExpanded 
+            ? 'grid-rows-[1fr] opacity-100 border-t border-white/[0.06] pt-2' 
+            : 'grid-rows-[0fr] opacity-0 border-t-0 pt-0 pointer-events-none'
+        }`}
+      >
+        <div className="overflow-hidden flex flex-col gap-1.5 max-h-52 overflow-y-auto custom-scrollbar">
+          <div className="text-[9px] font-bold text-slate-400 px-1 uppercase tracking-wider">Tüm Araçlar</div>
+          {vehicleList.map(v => {
+            const isSelected = v.driverId === vehicle.driverId;
+            return (
+              <div
+                key={v.driverId}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectVehicle(v.driverId);
+                  setIsExpanded(false);
+                }}
+                className={`flex items-center justify-between p-2.5 rounded-2xl transition-all cursor-pointer select-none active:scale-[0.98] ${
+                  isSelected 
+                    ? 'bg-emerald-500/15 border border-emerald-500/30' 
+                    : 'bg-[#121821]/70 border border-white/[0.03] hover:bg-white/[0.05]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 border ${
+                    v.isOnline 
+                      ? (v.isMapped ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-amber-500/10 border-amber-500/30 text-amber-400')
+                      : 'bg-slate-800/60 border-white/5 text-slate-500'
+                  }`}>
+                    <img src="/tir-clear.png?v=8" className="w-4 h-4 object-contain" alt="" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className={`text-xs font-bold truncate ${isSelected ? 'text-emerald-300' : 'text-white'}`}>
+                      {v.name}
+                    </div>
+                    <div className="text-[9px] text-slate-400">
+                      {v.isOnline ? (v.speedKmh > 0 ? `● ${v.speedKmh} km/h` : '● Duran') : '○ Çevrimdışı'} • {v.km} km
+                    </div>
+                  </div>
+                </div>
+
+                {isSelected ? (
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                    <Check size={12} />
+                  </div>
+                ) : (
+                  <ChevronRight size={13} className="text-slate-600 shrink-0" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 4 Kolonlu Telemetri İstatistikleri */}
+      <div className="grid grid-cols-4 gap-1.5 text-center">
+        <div className="bg-[#121821]/70 border border-white/[0.04] rounded-2xl p-1.5">
+          <div className="text-[7.5px] font-bold text-slate-400 uppercase">HIZ</div>
+          <div className="text-xs font-black text-emerald-400 mt-0.5">{speedKmh} <span className="text-[7px] text-slate-400 font-normal">km/h</span></div>
+        </div>
+        <div className="bg-[#121821]/70 border border-white/[0.04] rounded-2xl p-1.5">
+          <div className="text-[7.5px] font-bold text-slate-400 uppercase">MESAFE</div>
+          <div className="text-xs font-black text-indigo-300 mt-0.5">{km} <span className="text-[7px] text-slate-400 font-normal">km</span></div>
+        </div>
+        <div className="bg-[#121821]/70 border border-white/[0.04] rounded-2xl p-1.5">
+          <div className="text-[7.5px] font-bold text-slate-400 uppercase">SÜRE</div>
+          <div className="text-xs font-black text-white mt-0.5">{durationMin} <span className="text-[7px] text-slate-400 font-normal">dk</span></div>
+        </div>
+        <div className="bg-[#121821]/70 border border-white/[0.04] rounded-2xl p-1.5">
+          <div className="text-[7.5px] font-bold text-slate-400 uppercase">GPS SAATİ</div>
+          <div className="text-xs font-black text-slate-300 mt-0.5">{gpsTime}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappings, trucks, setActiveTab, setSelectedHistoryDriver }) {
   const [followedDriverId, setFollowedDriverId] = useState(null);
   const [isCameraFollowActive, setIsCameraFollowActive] = useState(true);
@@ -471,6 +670,7 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
   }, [isVisible, vehicleList.length]);
 
   const onlineCount = vehicleList.filter(v => v.isOnline).length;
+  const followedVehicle = vehicleList.find(v => v.driverId === followedDriverId) || vehicleList[0];
 
   return (
     <>
@@ -541,7 +741,29 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
         );
       })}
 
-      {/* Sidebar — Framer Motion ile Akışkan Geçiş */}
+      {/* ── MOBİL KONTROLLER (Sadece Mobilde Görünür) ── */}
+      {isVisible && (
+        <>
+          <MobileMapActions 
+            vehicleList={vehicleList}
+            followedVehicle={followedVehicle}
+            setIsCameraFollowActive={setIsCameraFollowActive}
+          />
+
+          {followedVehicle && (
+            <MobileFollowedCard
+              vehicle={followedVehicle}
+              vehicleList={vehicleList}
+              onSelectVehicle={(driverId) => {
+                setFollowedDriverId(driverId);
+                setIsCameraFollowActive(true);
+              }}
+            />
+          )}
+        </>
+      )}
+
+      {/* ── MASAÜSTÜ SIDEBAR (Sadece Desktop'ta Görünür, md:flex) ── */}
       <AnimatePresence>
         {isVisible && showSidebar && (
             <motion.div 
@@ -550,7 +772,7 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
             animate={{ x: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
             exit={{ x: -10, opacity: 0, scale: 0.99, filter: 'blur(4px)' }}
             transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-            className="absolute top-[76px] left-4 w-[300px] z-[1500] flex flex-col rounded-3xl" 
+            className="hidden md:flex absolute top-[76px] left-4 w-[300px] z-[1500] flex-col rounded-3xl" 
             style={{
               background: 'rgba(13,18,25,0.96)',
               border: PANEL_BORDER,
@@ -687,6 +909,7 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
         )}
       </AnimatePresence>
 
+      {/* Masaüstü Sidebar Açma Butonu */}
       <AnimatePresence>
         {isVisible && !showSidebar && (
           <motion.button
@@ -694,7 +917,7 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.8, opacity: 0 }}
             onClick={() => setShowSidebar(true)}
-            className="absolute left-4 top-[76px] z-[1500] p-3.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-2xl border border-emerald-500/20 transition-all backdrop-blur-md"
+            className="hidden md:flex absolute left-4 top-[76px] z-[1500] p-3.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-2xl border border-emerald-500/20 transition-all backdrop-blur-md"
           >
             <Activity size={16} />
           </motion.button>

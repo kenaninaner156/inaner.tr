@@ -57,34 +57,35 @@ function App() {
   };
 
   const handleTouchEnd = (e) => {
-    if (!touchStartX.current || !touchStartY.current) return;
+    if (touchStartX.current === null || touchStartY.current === null) return;
     
     touchEndX.current = e.changedTouches[0].clientX;
     touchEndY.current = e.changedTouches[0].clientY;
     
     const distanceX = touchStartX.current - touchEndX.current;
     const distanceY = Math.abs(touchStartY.current - touchEndY.current);
+    const startX = touchStartX.current;
     
-    // Eğer dikeyde (Y ekseni) kaydırma yataydan fazlaysa, bu bir aşağı/yukarı scroll'dur, menüyü açma.
-    if (distanceY > Math.abs(distanceX)) {
-      touchStartX.current = null;
-      touchStartY.current = null;
-      return;
-    }
-    
-    // Swipe left to close (if distance is positive and > 120px)
-    if (distanceX > 120 && isMenuOpen && isMobile) {
-      setIsMenuOpen(false);
-    }
-    // Swipe right to open (if distance is negative and < -120px)
-    if (distanceX < -120 && !isMenuOpen && isMobile) {
-      setIsMenuOpen(true);
-    }
-    
+    // Değerleri sıfırla
     touchStartX.current = null;
     touchStartY.current = null;
     touchEndX.current = null;
     touchEndY.current = null;
+    
+    // Eğer dikey kaydırma yataya yakınsa veya fazlaysa, bu scroll hareketidir; menüyü tetikleme
+    if (distanceY > Math.abs(distanceX) * 0.7) {
+      return;
+    }
+    
+    // Swipe left to close (Menü açıkken sola doğru en az 100px kaydırma)
+    if (distanceX > 100 && isMenuOpen && isMobile) {
+      setIsMenuOpen(false);
+    }
+    // Swipe right to open:
+    // Sadece ekranın en sol kenarından (ilk 45px) başlayıp en az 140px sağa kaydırıldığında açılsın
+    if (distanceX < -140 && !isMenuOpen && isMobile && startX <= 45) {
+      setIsMenuOpen(true);
+    }
   };
 
   useEffect(() => {
@@ -739,7 +740,7 @@ function App() {
         <div className="flex flex-col min-h-screen w-full">
 
           {/* Header - Simple & Clean (sticky) */}
-          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['invoices', 'fuel'].includes(activeTab) ? 'md:hidden' : ''}`}
+          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['invoices', 'fuel'].includes(activeTab) ? 'md:hidden' : ''} ${activeTab === 'map' ? 'hidden md:flex' : ''}`}
             style={{
               paddingTop: 'calc(0.5rem + env(safe-area-inset-top))'
             }}
@@ -757,7 +758,7 @@ function App() {
           </div>
 
           {/* Content Area */}
-          <div className="flex-1 p-4 md:p-6 xl:p-8">
+          <div className={`flex-1 ${activeTab === 'map' ? 'p-0 md:p-6 xl:p-8' : 'p-4 md:p-6 xl:p-8'}`}>
             <div key={activeTab} className="page-transition">
               {activeTab === 'dashboard' && <Dashboard />}
               {activeTab === 'trips' && <Trips />}
@@ -771,7 +772,7 @@ function App() {
               {activeTab === 'settings' && <SettingsPage />}
               {activeTab === 'company_admin' && <CompanyAdmin />}
               {activeTab === 'super_admin' && <SuperAdmin />}
-              {activeTab === 'map' && userRole === 'super_admin' && <MapPage />}
+              {activeTab === 'map' && userRole === 'super_admin' && <MapPage onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'adminlog' && (userRole === 'super_admin' || userRole === 'company_admin') && <AdminLog />}
             </div>
           </div>

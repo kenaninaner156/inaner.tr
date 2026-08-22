@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useContext } from 'rea
 import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import { Polyline, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { ChevronLeft, ChevronRight, ChevronDown, Play, Pause, X, Smartphone, BookmarkPlus, Scissors, Edit2, Check, Loader2, Clock } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, ChevronDown, Play, Pause, X, Smartphone, BookmarkPlus, Scissors, Edit2, Check, Loader2, Clock } from 'lucide-react';
 import { calcStats, getInterpolatedPointLinear, haversineKm, groupIntoSessions, filterSessionPoints } from '../../utils/mapUtils';
 import { DataContext } from '../../context/DataContext';
 import { db } from '../../services/firebaseConfig';
@@ -82,6 +82,454 @@ const truckPlayIcon = new L.Icon({
   iconAnchor: [18, 18],
   className: 'bg-white rounded-full border-2 border-orange-500 shadow-lg object-contain',
 });
+
+// ── Mobile Route History Card (Integrated Navigation & Playback) ─────────
+function MobileRouteHistoryCard({
+  selectedDriver,
+  setSelectedDriver,
+  deviceMappings,
+  trucks,
+  getDisplayName,
+  historyDate,
+  setHistoryDate,
+  sessions,
+  selectedSession,
+  setSelectedSession,
+  isPlaying,
+  setIsPlaying,
+  playbackSpeed,
+  setPlaybackSpeed,
+  progress,
+  setProgress,
+  interpolatedData,
+  historyLoading,
+  customRouteNames
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarViewDate, setCalendarViewDate] = useState(new Date());
+
+  const touchStartRef = useRef(null);
+  const touchEndRef = useRef(null);
+
+  const handleTouchStart = (e) => {
+    touchEndRef.current = null;
+    touchStartRef.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchMove = (e) => {
+    touchEndRef.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStartRef.current || !touchEndRef.current) return;
+    const distance = touchStartRef.current - touchEndRef.current;
+    if (distance > 40) {
+      // Swiped Left -> Next Month
+      const nextM = new Date(calendarViewDate);
+      nextM.setMonth(nextM.getMonth() + 1);
+      setCalendarViewDate(nextM);
+    } else if (distance < -40) {
+      // Swiped Right -> Previous Month
+      const prevM = new Date(calendarViewDate);
+      prevM.setMonth(prevM.getMonth() - 1);
+      setCalendarViewDate(prevM);
+    }
+  };
+
+  const cardRef = useCallback(node => {
+    if (node) {
+      L.DomEvent.disableClickPropagation(node);
+      L.DomEvent.disableScrollPropagation(node);
+    }
+  }, []);
+
+  // Filter valid sessions (>= 5 km or >= 5 min)
+  const validSessions = (sessions || []).filter(s => {
+    const { km, durationMin } = calcStats(s);
+    return parseFloat(km) >= 5 && parseInt(durationMin) >= 5;
+  });
+
+  const currentStats = selectedSession ? calcStats(selectedSession) : null;
+  const currentSpeed = interpolatedData ? Math.round((interpolatedData.speed || 0) * 1.852) : 0;
+  const startTime = selectedSession && selectedSession[0] ? new Date(selectedSession[0].timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '';
+  const endTime = selectedSession && selectedSession.length > 0 ? new Date(selectedSession[selectedSession.length - 1].timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '';
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const yesterdayDate = new Date();
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterdayStr = yesterdayDate.toISOString().slice(0, 10);
+
+  // Generate 5 quick date items (Bugün, Dün, vb.)
+  const quickDates = Array.from({ length: 5 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dStr = d.toISOString().slice(0, 10);
+    const isToday = i === 0;
+    const isYesterday = i === 1;
+    const label = isToday ? 'Bugün' : isYesterday ? 'Dün' : d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+    return { dateStr: dStr, label };
+  });
+
+  const isCustomDate = !quickDates.some(q => q.dateStr === historyDate);
+
+  return (
+    <div
+      ref={cardRef}
+      className="absolute bottom-3 left-3 right-3 z-[1500] pointer-events-auto rounded-[28px] p-3.5 flex flex-col gap-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.85)] border border-white/10 backdrop-blur-3xl md:hidden overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+      style={{
+        background: 'rgba(13, 18, 25, 0.96)',
+        marginBottom: 'env(safe-area-inset-bottom, 0px)'
+      }}
+    >
+      {/* ── ÜST BAŞLIK — Tıklayınca Sefer / Tarih Değiştirme Menüsü Genişler ── */}
+      <div 
+        onClick={() => setIsExpanded(prev => !prev)}
+        className="flex items-center justify-between cursor-pointer select-none group active:opacity-75 transition-opacity"
+      >
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 border bg-orange-500/10 border-orange-500/30 text-orange-400">
+            <Clock size={16} />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-white truncate group-hover:text-orange-300 transition-colors">
+                {selectedSession 
+                  ? (customRouteNames[selectedSession[0]?.timestamp] || 'Seçili Sefer')
+                  : (selectedDriver ? getDisplayName(selectedDriver) : 'Rota Geçmişi')
+                }
+              </span>
+              <ChevronDown 
+                size={14} 
+                className={`text-slate-400 shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${isExpanded ? 'rotate-180 text-orange-400' : ''}`}
+              />
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              {selectedSession && currentStats ? (
+                <span className="text-[10px] font-bold text-orange-400">
+                  {currentStats.km} km • {formatDuration(currentStats.durationMin)} • {startTime} - {endTime}
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold text-slate-400">
+                  {historyDate === todayStr ? 'Bugün' : new Date(historyDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })} • {validSessions.length} Sefer
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="px-2.5 py-1 bg-white/[0.04] text-slate-400 rounded-xl text-[10px] font-bold border border-white/[0.04] flex items-center gap-1 shrink-0">
+          <span>{validSessions.length} Sefer</span>
+        </div>
+      </div>
+
+      {/* ── SEFER / TARİH SEÇİM MENÜSÜ (CSS Grid Accordion) ── */}
+      <div
+        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+          isExpanded 
+            ? 'grid-rows-[1fr] opacity-100 border-t border-white/[0.06] pt-2.5' 
+            : 'grid-rows-[0fr] opacity-0 border-t-0 pt-0 pointer-events-none'
+        }`}
+      >
+        <div className="overflow-hidden flex flex-col gap-3 max-h-[70vh] overflow-y-auto custom-scrollbar">
+          {/* Tarih Seçimi — Üstte Diğer Butonu, Altta İnce 5'li Buton Satırı */}
+          <div>
+            <div className="flex items-center justify-between px-0.5 mb-1.5">
+              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Tarih Seç</div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowCalendar(prev => !prev);
+                }}
+                className={`text-[10px] font-bold px-2.5 py-1 rounded-xl border transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer ${
+                  showCalendar || isCustomDate
+                    ? 'bg-orange-500/20 text-orange-400 border-orange-500/40 shadow-[0_2px_8px_rgba(245,158,11,0.2)]'
+                    : 'bg-white/[0.04] text-slate-400 border-white/[0.06] hover:text-white'
+                }`}
+              >
+                <Calendar size={11} className={showCalendar || isCustomDate ? 'text-orange-400' : 'text-slate-400'} />
+                <span>{isCustomDate ? new Date(historyDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }) : 'Diğer'}</span>
+              </button>
+            </div>
+
+            {/* İnce ve Şık 5 Hızlı Tarih Butonu */}
+            <div className="grid grid-cols-5 gap-1 w-full">
+              {quickDates.map(p => {
+                const isSelected = historyDate === p.dateStr && !showCalendar;
+                return (
+                  <button
+                    key={p.dateStr}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setHistoryDate(p.dateStr);
+                      setSelectedSession(null);
+                      setShowCalendar(false);
+                    }}
+                    className={`py-1.5 px-0.5 rounded-xl text-[10.5px] font-bold text-center border transition-all active:scale-95 flex flex-col items-center justify-center ${
+                      isSelected 
+                        ? 'bg-orange-500 text-white border-orange-400/40 shadow-[0_2px_8px_rgba(245,158,11,0.3)]' 
+                        : 'bg-white/[0.04] text-slate-400 border-white/[0.04] hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <span className="truncate w-full">{p.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* ── DİĞER'E BASILINCA AÇILAN TAM BOYUT AY TAKVİMİ ── */}
+            {showCalendar && (
+              <div className="mt-2.5 rounded-2xl bg-black/50 border border-white/[0.06] p-3 flex flex-col gap-2 backdrop-blur-xl">
+                <div className="flex items-center justify-between px-1">
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const prevM = new Date(calendarViewDate);
+                      prevM.setMonth(prevM.getMonth() - 1);
+                      setCalendarViewDate(prevM);
+                    }} 
+                    className="p-1.5 hover:bg-white/10 rounded-xl transition-colors text-slate-400 hover:text-white active:scale-95"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    {calendarViewDate.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' })}
+                  </span>
+
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const nextM = new Date(calendarViewDate);
+                      nextM.setMonth(nextM.getMonth() + 1);
+                      setCalendarViewDate(nextM);
+                    }} 
+                    className="p-1.5 hover:bg-white/10 rounded-xl transition-colors text-slate-400 hover:text-white active:scale-95"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+
+                {/* Gün İsimleri */}
+                <div className="grid grid-cols-7 gap-1 text-center">
+                  {['Pt', 'Sa', 'Ça', 'Pe', 'Cu', 'Ct', 'Pz'].map(d => (
+                    <div key={d} className="text-[10px] font-bold text-slate-500 py-0.5">{d}</div>
+                  ))}
+                </div>
+
+                {/* Günler Izgarası */}
+                <div className="grid grid-cols-7 gap-1">
+                  {(() => {
+                    const year = calendarViewDate.getFullYear();
+                    const month = calendarViewDate.getMonth();
+                    const firstDay = new Date(year, month, 1).getDay();
+                    const adjFirstDay = firstDay === 0 ? 6 : firstDay - 1;
+                    const daysInMonth = new Date(year, month + 1, 0).getDate();
+                    
+                    const days = [];
+                    for (let i = 0; i < adjFirstDay; i++) {
+                      days.push(<div key={`pad-${i}`} />);
+                    }
+                    
+                    for (let day = 1; day <= daysInMonth; day++) {
+                      const dObj = new Date(year, month, day);
+                      const dStr = dObj.toISOString().slice(0, 10);
+                      const isSelected = historyDate === dStr;
+                      const isToday = dStr === todayStr;
+                      const isFuture = dStr > todayStr;
+                      
+                      days.push(
+                        <button
+                          key={day}
+                          type="button"
+                          disabled={isFuture}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHistoryDate(dStr);
+                            setSelectedSession(null);
+                            setShowCalendar(false);
+                          }}
+                          className={`h-9 w-full rounded-xl text-xs font-bold transition-all active:scale-95 flex flex-col items-center justify-center relative ${
+                            isSelected
+                              ? 'bg-orange-500 text-white shadow-[0_2px_12px_rgba(245,158,11,0.45)]'
+                              : isToday
+                              ? 'bg-white/[0.08] text-orange-400 border border-orange-500/30'
+                              : isFuture
+                              ? 'text-slate-700 cursor-not-allowed opacity-30'
+                              : 'text-slate-300 hover:bg-white/[0.08] active:bg-white/10'
+                          }`}
+                        >
+                          <span>{day}</span>
+                          {isToday && !isSelected && (
+                            <span className="w-1 h-1 rounded-full bg-orange-400 absolute bottom-1" />
+                          )}
+                        </button>
+                      );
+                    }
+                    return days;
+                  })()}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Araç Seçici (Eğer birden fazla araç varsa) */}
+          {Object.keys(deviceMappings).length > 1 && (
+            <div>
+              <div className="text-[9px] font-bold text-slate-400 px-1 mb-1.5 uppercase tracking-wider">Araç Seç</div>
+              <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar -mx-0.5 px-0.5">
+                {Object.keys(deviceMappings).map(driver => {
+                  const isSelected = selectedDriver === driver;
+                  return (
+                    <button
+                      key={driver}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedDriver(driver);
+                        setSelectedSession(null);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap border transition-all active:scale-95 shrink-0 ${
+                        isSelected 
+                          ? 'bg-orange-500/20 text-orange-300 border-orange-500/40 shadow-[0_2px_8px_rgba(245,158,11,0.15)]' 
+                          : 'bg-white/[0.04] text-slate-400 border-white/[0.04]'
+                      }`}
+                    >
+                      {getDisplayName(driver)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Seferler Listesi */}
+          <div>
+            <div className="text-[9px] font-bold text-slate-400 px-1 mb-1.5 uppercase tracking-wider">Seferler</div>
+            {historyLoading ? (
+              <div className="py-6 flex items-center justify-center gap-2 text-slate-500">
+                <Loader2 size={16} className="animate-spin text-orange-400" />
+                <span className="text-xs">Yükleniyor...</span>
+              </div>
+            ) : validSessions.length === 0 ? (
+              <div className="py-6 text-center text-xs text-slate-500">
+                Bu tarihte kayıtlı sefer bulunamadı.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {[...validSessions].reverse().map((session, idx) => {
+                  const isSelected = selectedSession === session;
+                  const { km, durationMin } = calcStats(session);
+                  const start = new Date(session[0]?.timestamp);
+                  const end = new Date(session[session.length - 1]?.timestamp);
+                  const title = customRouteNames[session[0]?.timestamp] || `Sefer ${validSessions.length - idx}`;
+                  return (
+                    <div
+                      key={idx}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedSession(session);
+                        setIsExpanded(false);
+                      }}
+                      className={`flex items-center justify-between p-2.5 rounded-2xl transition-all cursor-pointer select-none active:scale-[0.98] ${
+                        isSelected 
+                          ? 'bg-orange-500/15 border border-orange-500/30' 
+                          : 'bg-[#121821]/70 border border-white/[0.03] hover:bg-white/[0.05]'
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`text-xs font-bold truncate ${isSelected ? 'text-orange-300' : 'text-white'}`}>
+                            {title}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium shrink-0">
+                            {start.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[10px] font-bold text-orange-400">{km} km</span>
+                          <span className="text-[10px] text-slate-400">• {formatDuration(durationMin)}</span>
+                        </div>
+                      </div>
+                      {isSelected ? (
+                        <div className="w-5 h-5 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center shrink-0 ml-2">
+                          <Check size={12} />
+                        </div>
+                      ) : (
+                        <ChevronRight size={13} className="text-slate-600 shrink-0 ml-2" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── SEÇİLİ SEFER ENTEGRE OYNATMA KONTROLLERİ ── */}
+      {selectedSession && (
+        <div className="border-t border-white/[0.06] pt-2 flex flex-col gap-2">
+          {/* Üst Bar: Play/Pause, Hız Butonu, Anlık Hız Rozeti */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsPlaying(!isPlaying);
+                }}
+                className="w-9 h-9 rounded-full bg-orange-500 flex items-center justify-center text-white active:scale-95 shadow-[0_2px_12px_rgba(245,158,11,0.35)] transition-all shrink-0"
+              >
+                {isPlaying ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" className="ml-0.5" />}
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPlaybackSpeed(prev => (prev === 1 ? 2 : prev === 2 ? 5 : prev === 5 ? 10 : 1));
+                }}
+                className="px-2.5 py-1 rounded-xl bg-white/[0.05] border border-white/[0.06] text-[10px] font-bold text-orange-400 active:scale-95 transition-all"
+              >
+                {playbackSpeed}x
+              </button>
+            </div>
+
+            {/* Anlık Simülasyon Hızı */}
+            <div className="px-3 py-1 bg-orange-500/10 border border-orange-500/20 rounded-full flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+              <span className="text-[11px] font-black text-orange-400">{currentSpeed} km/h</span>
+            </div>
+          </div>
+
+          {/* İlerleme Çubuğu ve Saatler */}
+          <div className="flex flex-col gap-1">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="0.1"
+              value={progress}
+              onInput={e => { setIsPlaying(false); setProgress(parseFloat(e.target.value)); }}
+              onChange={e => { setIsPlaying(false); setProgress(parseFloat(e.target.value)); }}
+              className="w-full h-1.5 appearance-none rounded-full outline-none cursor-pointer"
+              style={{
+                background: `linear-gradient(to right, #f97316 ${progress}%, rgba(255,255,255,0.08) ${progress}%)`,
+              }}
+            />
+            <div className="flex justify-between text-[9px] font-semibold text-slate-500">
+              <span>{startTime}</span>
+              <span>{endTime}</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const DATE_FILTERS = [
   { label: 'Bugün',  days: 1 },
@@ -455,9 +903,10 @@ export default function RouteHistory({
       const validPoints = selectedSession.filter(p => !isNaN(p.lat) && !isNaN(p.lon));
       if (validPoints.length === 0) return;
       const bounds = L.latLngBounds(validPoints.map(p => [p.lat, p.lon]));
+      const isMobile = window.innerWidth < 768;
       map.fitBounds(bounds, { 
-        paddingTopLeft: [380, 60], 
-        paddingBottomRight: [60, 60], 
+        paddingTopLeft: isMobile ? [80, 20] : [380, 60], 
+        paddingBottomRight: isMobile ? [20, 220] : [60, 60], 
         maxZoom: 14 
       });
       setProgress(0);
@@ -576,7 +1025,7 @@ export default function RouteHistory({
             animate={{ x: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
             exit={{ x: -10, opacity: 0, scale: 0.99, filter: 'blur(4px)' }}
             transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-            className="absolute top-[76px] left-4 bottom-4 w-[300px] z-[1500] flex flex-col rounded-3xl"
+            className="hidden md:flex absolute top-[76px] left-4 bottom-4 w-[300px] z-[1500] flex-col rounded-3xl"
             style={{
               background: 'rgba(13,18,25,0.97)',
               border: '1px solid rgba(255,255,255,0.04)',
@@ -1067,7 +1516,7 @@ export default function RouteHistory({
       )}
       </AnimatePresence>
 
-      {/* Sidebar kapalıyken aç butonu */}
+      {/* Sidebar kapalıyken aç butonu (Sadece Desktop) */}
       <AnimatePresence>
         {isVisible && !showSidebar && (
           <motion.button
@@ -1075,14 +1524,14 @@ export default function RouteHistory({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.8, opacity: 0 }}
             onClick={() => setShowSidebar(true)}
-            className="absolute left-4 top-[76px] z-[1500] p-3.5 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-2xl border border-orange-500/20 transition-all backdrop-blur-md"
+            className="hidden md:block absolute left-4 top-[76px] z-[1500] p-3.5 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-2xl border border-orange-500/20 transition-all backdrop-blur-md"
           >
             <Clock size={16} />
           </motion.button>
         )}
       </AnimatePresence>
 
-      {/* ── Alt Oynatma Çubuğu ── */}
+      {/* ── Alt Oynatma Çubuğu (Sadece Desktop) ── */}
       <AnimatePresence>
         {isVisible && selectedSession && (
           <motion.div 
@@ -1091,8 +1540,8 @@ export default function RouteHistory({
             animate={{ y: 0, opacity: 1, x: '-50%', scale: 1, filter: 'blur(0px)' }}
             exit={{ y: 20, opacity: 0, x: '-50%', scale: 0.96, filter: 'blur(8px)' }}
             transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-            className="absolute bottom-6 z-[2000] w-11/12 max-w-[420px] pointer-events-auto transition-all duration-300 ease-out"
-            style={{ left: showSidebar ? 'calc(50% + 158px)' : '50%' }}
+            className="hidden md:block absolute bottom-6 z-[2000] w-11/12 max-w-[420px] pointer-events-auto transition-all duration-300 ease-out"
+            style={{ left: (showSidebar && window.innerWidth >= 768) ? 'calc(50% + 158px)' : '50%' }}
           >
           <div
             className="px-4 py-3 rounded-3xl flex items-center gap-4"
@@ -1183,6 +1632,31 @@ export default function RouteHistory({
         </motion.div>
       )}
       </AnimatePresence>
+
+      {/* ── MOBİL ROTA GEÇMİŞİ KARTI (Sadece Mobilde Görünür) ── */}
+      {isVisible && (
+        <MobileRouteHistoryCard
+          selectedDriver={selectedDriver}
+          setSelectedDriver={setSelectedDriver}
+          deviceMappings={deviceMappings}
+          trucks={trucks}
+          getDisplayName={getDisplayName}
+          historyDate={historyDate}
+          setHistoryDate={setHistoryDate}
+          sessions={sessionsByDriver[selectedDriver] || []}
+          selectedSession={selectedSession}
+          setSelectedSession={setSelectedSession}
+          isPlaying={isPlaying}
+          setIsPlaying={setIsPlaying}
+          playbackSpeed={playbackSpeed}
+          setPlaybackSpeed={setPlaybackSpeed}
+          progress={progress}
+          setProgress={setProgress}
+          interpolatedData={interpolatedData}
+          historyLoading={historyLoading}
+          customRouteNames={customRouteNames}
+        />
+      )}
 
       {/* ── Kaydetme Modalı ── */}
       {savingSession && (

@@ -3,12 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, ArrowRight, ShieldCheck, Zap } from 'lucide-react';
 import MapLayout from './map/MapLayout';
 
-const MapPage = () => {
+const MapPage = ({ onOpenMenu, isMobile }) => {
     const [isMapLaunched, setIsMapLaunched] = useState(false);
     const [isMapReady, setIsMapReady] = useState(false);
 
     return (
-        <div className="w-full h-full relative" style={{ minHeight: 'calc(100vh - 120px)' }}>
+        <div className="w-full h-full relative min-h-[100dvh] md:min-h-[calc(100vh-120px)]">
             <AnimatePresence mode="wait">
                 {!isMapReady ? (
                     <motion.div
@@ -17,7 +17,7 @@ const MapPage = () => {
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 1.05 }}
                         transition={{ duration: 0.6, ease: "easeOut" }}
-                        className="absolute -inset-x-4 -inset-y-4 md:-inset-x-6 md:-inset-y-6 xl:-inset-x-8 xl:-inset-y-8 flex flex-col items-center justify-center p-6 bg-[url('/ankara_midnight_blue_v3.png')] bg-center bg-cover bg-no-repeat z-10"
+                        className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-[url('/ankara_midnight_blue_v3.png')] bg-center bg-cover bg-no-repeat z-10"
                     >
                         {/* Premium Subtle Glow with transparency to show image */}
                         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#c99c37]/10 via-[#0B0E14]/40 to-[#0B0E14]/90 z-0"></div>
@@ -114,7 +114,7 @@ const MapPage = () => {
                     transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
                     className="w-full h-full absolute inset-0 z-0"
                 >
-                    <MapLayout onReady={() => setIsMapReady(true)} />
+                    <MapLayout onReady={() => setIsMapReady(true)} onOpenMenu={onOpenMenu} isMobile={isMobile} />
                 </motion.div>
             )}
         </div>
