@@ -16,10 +16,54 @@ export function haversineKm(lat1, lon1, lat2, lon2) {
 }
 
 /**
+ * GPS sıçramalarını (1-2 saniye içinde imkansız hızda başka yere ışınlanıp geri dönen bozuk noktaları) temizler.
+ */
+export function cleanGpsSpikes(points, maxSpeedKmh = 160) {
+  if (!points || points.length < 3) return points || [];
+  const cleaned = [points[0]];
+
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = cleaned[cleaned.length - 1];
+    const curr = points[i];
+    const next = points[i + 1];
+
+    if (!curr || isNaN(curr.lat) || isNaN(curr.lon)) continue;
+
+    const timeDiffSec1 = Math.max(1, (new Date(curr.timestamp).getTime() - new Date(prev.timestamp).getTime()) / 1000);
+    const distKm1 = haversineKm(prev.lat, prev.lon, curr.lat, curr.lon);
+    const impliedSpeedKmh1 = (distKm1 / (timeDiffSec1 / 3600));
+
+    const timeDiffSec2 = Math.max(1, (new Date(next.timestamp).getTime() - new Date(curr.timestamp).getTime()) / 1000);
+    const distKm2 = haversineKm(curr.lat, curr.lon, next.lat, next.lon);
+    const impliedSpeedKmh2 = (distKm2 / (timeDiffSec2 / 3600));
+
+    const directDistKm = haversineKm(prev.lat, prev.lon, next.lat, next.lon);
+
+    // Eğer nokta önceki ve sonraki noktalardan aşırı uzaksa (>160 km/h) ama önceki ve sonraki birbirine yakınsa
+    if (impliedSpeedKmh1 > maxSpeedKmh && impliedSpeedKmh2 > maxSpeedKmh && directDistKm < distKm1 * 0.5) {
+      continue; // Sıçrayan noktayı filtrele
+    }
+
+    cleaned.push(curr);
+  }
+
+  if (points.length > 1) {
+    const last = points[points.length - 1];
+    if (last && !isNaN(last.lat) && !isNaN(last.lon)) {
+      cleaned.push(last);
+    }
+  }
+
+  return cleaned;
+}
+
+/**
  * 30 dakikadan uzun hareketsizliklere veya özel bölgelerdeki bekleme sürelerine (örn: 5 dk)
  * göre konum noktalarını oturumlara (rotalara) böler.
  */
-export function groupIntoSessions(points, maxGapMinutes = 30, geofences = [], manualSplits = [], manualMerges = []) {
+export function groupIntoSessions(rawPoints, maxGapMinutes = 30, geofences = [], manualSplits = [], manualMerges = []) {
+  if (!rawPoints || !rawPoints.length) return [];
+  const points = cleanGpsSpikes(rawPoints);
   if (!points || !points.length) return [];
   const sessions = [];
   let curSession = [points[0]];

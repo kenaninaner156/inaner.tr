@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { collection, onSnapshot, query, orderBy, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebaseConfig';
-import { MapPin, History, Bookmark, Layers, Settings, Menu } from 'lucide-react';
+import { MapPin, History, Bookmark, Layers, Settings, Menu, CloudRain } from 'lucide-react';
 import { motion } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import L from 'leaflet';
 
@@ -18,6 +18,37 @@ import SavedRoutes from './SavedRoutes';
 import VehicleAnalysis from './VehicleAnalysis';
 import MapSettingsModal from './MapSettingsModal';
 import { InteractiveGeofenceMapLayer, InteractiveGeofencePanel } from './InteractiveGeofence';
+
+// ── Canlı Yağış Radarı Hook ──
+function useRainViewerRadar() {
+  const [radarPath, setRadarPath] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchRadar = async () => {
+      try {
+        const res = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+        if (!res.ok) return;
+        const data = await res.json();
+        const past = data?.radar?.past;
+        if (past && past.length > 0 && isMounted) {
+          setRadarPath(past[past.length - 1].path);
+        }
+      } catch (err) {
+        console.warn('Yağış radarı yüklenemedi:', err);
+      }
+    };
+
+    fetchRadar();
+    const interval = setInterval(fetchRadar, 5 * 60 * 1000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  return radarPath;
+}
 
 // Map ref setter - MapContainer içinde çalışır
 function MapRefSetter({ mapRef }) {
@@ -69,33 +100,18 @@ function MapCameraSync({ activeTab, sessionsByDriver, deviceMappings }) {
         map.fitBounds(L.latLngBounds(activeLocations), { padding: [80, 80], maxZoom: 11, animate: true, duration: 1 });
       }
     }
-    
     prevTabRef.current = activeTab;
-  }, [activeTab, map, sessionsByDriver, deviceMappings]);
+  }, [activeTab, sessionsByDriver, deviceMappings, map]);
 
   return null;
 }
 
-// Turkey Local Time Helper (UTC+3)
-function getTurkeyTodayStr() {
-  try {
-    const formatter = new Intl.DateTimeFormat('tr-TR', {
-      timeZone: 'Europe/Istanbul',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-    const parts = formatter.formatToParts(new Date());
-    const day = parts.find(p => p.type === 'day')?.value || '01';
-    const month = parts.find(p => p.type === 'month')?.value || '01';
-    const year = parts.find(p => p.type === 'year')?.value || '2026';
-    return `${year}-${month}-${day}`;
-  } catch {
-    return new Date().toISOString().slice(0, 10);
-  }
-}
+const getTurkeyTodayStr = () => {
+  const now = new Date();
+  const trTime = new Date(now.getTime() + (3 * 60 * 60 * 1000));
+  return trTime.toISOString().slice(0, 10);
+};
 
-// ── Modül Düzeyinde Canlı Konum Önbelleği (live_positions + daily_routes) ──
 let globalLocations = [];
 let globalUnsubscribe = null;
 const globalListeners = new Set();
@@ -159,83 +175,32 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
         if (Array.isArray(points) && points.length > 0) {
           points.forEach(pt => {
             unrolledLocations.push({
-              id: `${dId}_${pt.timestamp}`,
               driverId: dId,
               deviceId: dId,
-              companyId: veh.companyId,
+              companyId: veh.companyId || companyId,
               lat: pt.lat,
               lon: pt.lon,
               speed: pt.speed || 0,
-              altitude: pt.altitude || 0,
-              timestamp: pt.timestamp
-            });
-          });
-
-          // Canlı son nokta ve recentTrail'deki ara noktalar daily_routes'a henüz yazılmamışsa ekle
-          const lastDailyPt = points[points.length - 1];
-          const lastDailyTime = lastDailyPt ? new Date(lastDailyPt.timestamp).getTime() : 0;
-          
-          if (Array.isArray(veh.recentTrail) && veh.recentTrail.length > 0) {
-            veh.recentTrail.forEach(trailPt => {
-              if (trailPt && trailPt.lat && trailPt.lon && new Date(trailPt.timestamp).getTime() > lastDailyTime) {
-                unrolledLocations.push({
-                  id: `${dId}_${trailPt.timestamp}`,
-                  driverId: dId,
-                  deviceId: dId,
-                  companyId: veh.companyId,
-                  lat: trailPt.lat,
-                  lon: trailPt.lon,
-                  speed: trailPt.speed || 0,
-                  altitude: trailPt.altitude || 0,
-                  timestamp: trailPt.timestamp
-                });
-              }
-            });
-          } else if (veh.lat && veh.lon && new Date(veh.timestamp).getTime() > lastDailyTime) {
-            unrolledLocations.push({
-              id: `${dId}_${veh.timestamp}`,
-              driverId: dId,
-              deviceId: dId,
-              companyId: veh.companyId,
-              lat: veh.lat,
-              lon: veh.lon,
-              speed: veh.speed || 0,
-              altitude: veh.altitude || 0,
-              timestamp: veh.timestamp
-            });
-          }
-        } 
-        // Bugün rota yoksa (araç bugün çalışmamışsa), son bilinen konumunu kullan
-        else if (Array.isArray(veh.recentTrail) && veh.recentTrail.length > 0) {
-          veh.recentTrail.forEach(pt => {
-            unrolledLocations.push({
-              id: `${dId}_${pt.timestamp}`,
-              driverId: dId,
-              deviceId: dId,
-              companyId: veh.companyId,
-              lat: pt.lat,
-              lon: pt.lon,
-              speed: pt.speed || 0,
-              altitude: pt.altitude || 0,
-              timestamp: pt.timestamp
+              timestamp: pt.timestamp || pt.time || veh.updatedAt || veh.timestamp,
+              createdAt: pt.timestamp || pt.time || veh.updatedAt || veh.timestamp,
+              ignition: pt.ignition !== undefined ? pt.ignition : (veh.ignition || false)
             });
           });
         } else if (veh.lat && veh.lon) {
+          // Eğer daily_routes henüz oluşmadıysa en azından anlık tek noktayı göster
           unrolledLocations.push({
-            id: `${dId}_${veh.timestamp}`,
             driverId: dId,
             deviceId: dId,
-            companyId: veh.companyId,
+            companyId: veh.companyId || companyId,
             lat: veh.lat,
             lon: veh.lon,
             speed: veh.speed || 0,
-            altitude: veh.altitude || 0,
-            timestamp: veh.timestamp
+            timestamp: veh.updatedAt || veh.timestamp || Date.now(),
+            createdAt: veh.updatedAt || veh.timestamp || Date.now(),
+            ignition: veh.ignition || false
           });
         }
       });
-
-      unrolledLocations.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
       globalLocations = unrolledLocations;
       globalLoading = false;
@@ -276,11 +241,19 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
   const [mapStyle, setMapStyle] = useState(() => {
     return localStorage.getItem('mapStyle') || 'voyager';
   });
+
+  // ── Canlı Yağış Katmanı State ──
+  const [showWeather, setShowWeather] = useState(() => localStorage.getItem('map_show_weather') === 'true');
   const [showLayerMenu, setShowLayerMenu] = useState(false);
+  const radarPath = useRainViewerRadar();
 
   useEffect(() => {
     localStorage.setItem('mapStyle', mapStyle);
   }, [mapStyle]);
+
+  useEffect(() => {
+    localStorage.setItem('map_show_weather', showWeather);
+  }, [showWeather]);
   
   const [locations, setLocations] = useState([]);
   const [, setLoading] = useState(true);
@@ -348,29 +321,28 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
 
   // ── sessionsByDriver (Canlı Takip) ─────────────────────────────────────
   const sessionsByDriver = useMemo(() => {
-    const grouped = locations.reduce((acc, loc) => {
-      const k = loc.driverId || loc.deviceId || 'Bilinmeyen';
-      if (!acc[k]) acc[k] = [];
-      acc[k].push(loc);
-      return acc;
-    }, {});
-    const res = {};
-    Object.keys(grouped).forEach(d => {
-      const rawSessions = groupIntoSessions(grouped[d], 30, geofences, manualSplits);
-      // Sadece en son seferi tut (Son 30dk molasından sonraki kesintisiz hareket)
-      if (rawSessions.length > 0) {
-        res[d] = [rawSessions[rawSessions.length - 1]];
-      } else {
-        res[d] = [];
-      }
+    const byDriver = {};
+    locations.forEach(loc => {
+      const dId = loc.driverId || loc.deviceId || 'Bilinmeyen';
+      if (!byDriver[dId]) byDriver[dId] = [];
+      byDriver[dId].push(loc);
     });
-    return res;
-  }, [locations, geofences, manualSplits]);
+
+    const result = {};
+    Object.keys(byDriver).forEach(dId => {
+      const driverPoints = byDriver[dId];
+      driverPoints.sort((a, b) => (a.createdAt || a.timestamp || 0) - (b.createdAt || b.timestamp || 0));
+      result[dId] = groupIntoSessions(driverPoints, 30, manualSplits[dId]);
+    });
+
+    return result;
+  }, [locations, manualSplits]);
 
   const unmappedActiveDeviceIds = useMemo(() => {
     return Object.keys(sessionsByDriver).filter(id => !deviceMappings[id] && id !== 'Bilinmeyen');
   }, [sessionsByDriver, deviceMappings]);
 
+  // ── Orijinal Kristal Netliğinde Harita Tabanları (Değiştirilmedi) ──
   const mapUrls = {
     voyager: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
     darkmatter: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
@@ -393,10 +365,11 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
   return (
     <div 
       data-map-module 
-      className="flex flex-col w-full h-screen relative overflow-hidden bg-[#07090e] select-none" 
+      className="relative w-full h-[calc(100vh-64px)] md:h-screen overflow-hidden flex flex-col select-none bg-[#07090e]"
     >
-      <div
-        ref={navBarCallbackRef}
+      {/* ── ÜST YÜZEN KONTROL PANELİ (ORİJİNAL MERKEZLİ TASARIM) ── */}
+      <div 
+        ref={navBarCallbackRef} 
         className="absolute top-3 sm:top-5 left-1/2 -translate-x-1/2 z-[2000] pointer-events-auto w-[96%] sm:w-11/12 max-w-2xl"
         style={{
           paddingTop: 'env(safe-area-inset-top, 0px)'
@@ -463,7 +436,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
             <div className="relative">
               <button
                 onClick={() => setShowLayerMenu(v => !v)}
-                className={`p-2 rounded-xl transition-all duration-200 ${showLayerMenu ? 'text-white bg-white/10' : 'text-slate-400 hover:text-white hover:bg-white/[0.08]'}`}
+                className={`p-2 rounded-xl transition-all duration-200 ${showLayerMenu || showWeather ? 'text-white bg-white/10' : 'text-slate-400 hover:text-white hover:bg-white/[0.08]'}`}
                 title="Katmanlar"
               >
                 <Layers size={16} />
@@ -471,7 +444,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
               {showLayerMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowLayerMenu(false)} />
-                  <div className="absolute right-0 top-full mt-2 w-36 bg-[#0D1219]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.9)] z-20">
+                  <div className="absolute right-0 top-full mt-2 w-40 bg-[#0D1219]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.9)] z-20 flex flex-col gap-1">
                     {[
                       { id: 'voyager',    name: 'Açık Harita' },
                       { id: 'darkmatter', name: 'Koyu Harita' },
@@ -479,7 +452,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
                     ].map(s => (
                       <button
                         key={s.id}
-                        onClick={() => { setMapStyle(s.id); setShowLayerMenu(false); }}
+                        onClick={() => { setMapStyle(s.id); }}
                         className={`w-full text-left px-3 py-2 text-xs rounded-xl transition-colors ${
                           mapStyle === s.id
                             ? 'bg-emerald-500/20 text-emerald-400 font-semibold'
@@ -489,6 +462,25 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
                         {s.name}
                       </button>
                     ))}
+
+                    <div className="w-full h-px bg-white/[0.06] my-0.5" />
+
+                    {/* Canlı Yağış Katmanı Toggle Switch */}
+                    <div 
+                      onClick={() => setShowWeather(v => !v)}
+                      className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-white/[0.06] cursor-pointer transition-colors select-none"
+                    >
+                      <div className="flex items-center gap-2">
+                        <CloudRain size={14} className={showWeather ? 'text-sky-400' : 'text-slate-500'} />
+                        <span className={`text-xs font-medium ${showWeather ? 'text-slate-100' : 'text-slate-400'}`}>
+                          Yağış
+                        </span>
+                      </div>
+                      
+                      <div className={`w-8 h-4 rounded-full transition-colors relative p-0.5 ${showWeather ? 'bg-sky-500' : 'bg-slate-800'}`}>
+                        <div className={`w-3 h-3 rounded-full bg-white transition-transform ${showWeather ? 'translate-x-4' : 'translate-x-0'}`} />
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
@@ -497,6 +489,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
         </div>
       </div>
 
+      {/* ── HARİTA ALANI ── */}
       <div className="flex-1 relative bg-[#07090e]">
         {isMounted ? (
           <MapContainer 
@@ -511,12 +504,27 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
             <MapClickHandler pickingLocation={draftZone.lat === null} onLocationPicked={(ll) => setDraftZone(prev => ({ ...prev, lat: ll.lat, lon: ll.lng }))} />
             <MapCameraSync activeTab={activeTab} sessionsByDriver={sessionsByDriver} deviceMappings={deviceMappings} />
 
+            {/* Orijinal ESRI Saf Uydu & Harita Tabanı */}
             <TileLayer
               url={mapUrls[mapStyle]}
               maxZoom={20}
               maxNativeZoom={mapStyle === 'satellite' ? 18 : 19}
               keepBuffer={4}
             />
+
+            {/* Canlı Yağış Radarı */}
+            {showWeather && radarPath && (
+              <TileLayer
+                key={radarPath}
+                url={`https://tilecache.rainviewer.com${radarPath}/256/{z}/{x}/{y}/2/1_1.png`}
+                opacity={0.65}
+                zIndex={450}
+                maxZoom={20}
+                maxNativeZoom={7}
+                keepBuffer={4}
+              />
+            )}
+
             <LiveTracking
               isVisible={activeTab === 'live'}
               sessionsByDriver={sessionsByDriver}
@@ -552,8 +560,6 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
           </div>
         )}
       </div>
-
-
 
       {isEditingGeofence && (
         <InteractiveGeofencePanel 
