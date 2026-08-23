@@ -1,6 +1,6 @@
 import React, { useState, useContext, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Droplet, Plus, MapPin, X, Trash2, Paperclip, FileText, Download, Pencil, StickyNote, ChevronDown, Calendar, Activity, Wallet } from 'lucide-react';
+import { Droplet, Plus, MapPin, X, Trash2, Paperclip, FileText, Download, Pencil, StickyNote, ChevronDown, Calendar, Activity, Wallet, TrendingUp, Gauge, Fuel as FuelIcon } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import FileUpload from './FileUpload';
 import { sendDiscordAlert } from '../services/discordWebhook';
@@ -302,8 +302,8 @@ const Fuel = () => {
         let totalCostForConsumption = 0;
         
         filteredRecords.forEach(r => {
-            totalLiters += r.liters;
-            totalCost += r.price;
+            totalLiters += (r.liters || 0);
+            totalCost += (r.price || 0);
             
             if (r.consumptionStats) {
                 totalDistanceForConsumption += r.consumptionStats.distance;
@@ -314,8 +314,17 @@ const Fuel = () => {
         
         const avgLtPer100km = totalDistanceForConsumption > 0 ? (totalLitersForConsumption / totalDistanceForConsumption) * 100 : null;
         const avgCostPerKm = totalDistanceForConsumption > 0 ? (totalCostForConsumption / totalDistanceForConsumption) : null;
+        const avgPricePerLiter = totalLiters > 0 ? (totalCost / totalLiters) : null;
         
-        return { totalLiters, totalCost, avgLtPer100km, avgCostPerKm, totalDistanceForConsumption };
+        return { 
+            totalLiters, 
+            totalCost, 
+            avgLtPer100km, 
+            avgCostPerKm, 
+            avgPricePerLiter, 
+            totalDistanceForConsumption,
+            receiptCount: filteredRecords.length
+        };
     }, [filteredRecords]);
 
     const uniqueStations = [...new Set(activeFuelRecords.filter(r => r.station).map(r => toTitleCase(r.station)))];
@@ -332,7 +341,7 @@ const Fuel = () => {
                     <div className="relative w-full sm:w-auto min-w-[200px]" ref={dropdownRef}>
                         <button 
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                            className="w-full glass-panel px-4 py-2.5 rounded-xl text-sm font-bold text-[var(--text-primary)] flex items-center justify-between gap-3 hover:border-[var(--text-secondary)] transition-all border border-white/5 shadow-lg group"
+                            className="w-full glass-panel px-4 py-2.5 rounded-xl text-sm font-bold text-[var(--text-primary)] flex items-center justify-between gap-3 hover:border-[var(--text-secondary)] transition-all border border-white/5 shadow-lg group cursor-pointer"
                         >
                             <div className="flex items-center gap-2">
                                 <Calendar size={16} className="text-cyan-400 group-hover:text-cyan-300 transition-colors" />
@@ -346,7 +355,7 @@ const Fuel = () => {
                                 <div className="max-h-[300px] overflow-y-auto custom-scrollbar flex flex-col p-1.5 gap-0.5">
                                     <button 
                                         onClick={() => { setTimeFilter('all'); setIsDropdownOpen(false); }}
-                                        className={`w-full text-left px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${timeFilter === 'all' ? 'bg-cyan-500/10 text-cyan-400' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}`}
+                                        className={`w-full text-left px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors cursor-pointer ${timeFilter === 'all' ? 'bg-cyan-500/10 text-cyan-400' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}`}
                                     >
                                         Tüm Zamanlar
                                     </button>
@@ -354,7 +363,7 @@ const Fuel = () => {
                                         <button 
                                             key={opt.value}
                                             onClick={() => { setTimeFilter(opt.value); setIsDropdownOpen(false); }}
-                                            className={`w-full text-left px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${timeFilter === opt.value ? 'bg-cyan-500/10 text-cyan-400' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}`}
+                                            className={`w-full text-left px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors cursor-pointer ${timeFilter === opt.value ? 'bg-cyan-500/10 text-cyan-400' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}`}
                                         >
                                             {opt.label}
                                         </button>
@@ -366,58 +375,141 @@ const Fuel = () => {
                 </div>
 
                 <button onClick={() => openAddModal()}
-                    className="w-full sm:w-auto bg-gradient-to-r from-cyan-500 to-cyan-500 hover:from-cyan-400 hover:to-cyan-400 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(249,115,22,0.2)] hover:shadow-[0_0_25px_rgba(249,115,22,0.4)] hover:-translate-y-0.5 flex items-center justify-center flex-shrink-0">
+                    className="w-full sm:w-auto bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(6,182,212,0.25)] hover:shadow-[0_0_25px_rgba(6,182,212,0.45)] hover:-translate-y-0.5 flex items-center justify-center flex-shrink-0 cursor-pointer">
                     <Plus size={18} className="mr-2" /> Yeni Fiş
                 </button>
             </div>
 
-            {/* İstatistik Kartları */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="glass-panel p-4 flex flex-col gap-1 relative overflow-hidden group border-cyan-500/10 hover:border-cyan-500/30 transition-colors">
-                    <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-cyan-500"><Droplet size={80}/></div>
-                    <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-cyan-500/80 tracking-widest mb-1"><Droplet size={12}/> Toplam Alınan</div>
-                    <div className="font-black text-2xl text-[var(--text-primary)]">{summaryStats.totalLiters.toFixed(2)} <span className="text-sm font-semibold text-[var(--text-secondary)]">Lt</span></div>
-                </div>
+            {/* ─── YENİ TASARIM 4'LÜ ÖZET KARTLAR (MÜKEMMEL SİMETRİ) ─── */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 
-                <div className="glass-panel p-4 flex flex-col gap-1 relative overflow-hidden group border-emerald-500/10 hover:border-emerald-500/30 transition-colors">
-                    <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-emerald-500"><Wallet size={80}/></div>
-                    <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-emerald-500/80 tracking-widest mb-1"><Wallet size={12}/> Toplam Tutar</div>
-                    <div className="font-black text-2xl text-[var(--text-primary)]"><span className="text-lg font-semibold text-emerald-500 mr-1">₺</span>{summaryStats.totalCost.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
+                {/* KART 1: Toplam Tutar */}
+                <div className="bg-[#0c1017]/90 backdrop-blur-xl border border-white/[0.07] hover:border-cyan-500/35 rounded-xl p-3.5 sm:p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group transition-all duration-200">
+                    <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-cyan-400 pointer-events-none">
+                        <Wallet size={90} />
+                    </div>
+                    
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="p-1 rounded-md bg-cyan-500/10 text-cyan-400">
+                                <Wallet size={12} />
+                            </span>
+                            Toplam Tutar
+                        </span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-white/5 text-slate-400 border border-white/5 font-mono">
+                            {summaryStats.receiptCount} Fiş
+                        </span>
+                    </div>
+
+                    <div>
+                        <div className="font-black text-xl sm:text-2xl text-white tracking-tight flex items-baseline gap-0.5">
+                            <span className="text-cyan-400 text-base sm:text-lg font-bold">₺</span>
+                            <span>{Math.round(summaryStats.totalCost).toLocaleString('tr-TR')}</span>
+                        </div>
+                        <div className="text-[11px] font-semibold text-slate-400/80 mt-0.5 flex items-center gap-1">
+                            <Droplet size={11} className="text-cyan-400/80" />
+                            <span>{Math.round(summaryStats.totalLiters).toLocaleString('tr-TR')} Lt</span>
+                        </div>
+                    </div>
                 </div>
 
-                {summaryStats.totalDistanceForConsumption > 0 ? (
-                    <>
-                        <div className="glass-panel p-4 flex flex-col gap-1 relative overflow-hidden group border-sky-500/10 hover:border-sky-500/30 transition-colors animate-in fade-in zoom-in duration-500">
-                            <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-sky-500"><Activity size={80}/></div>
-                            <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-sky-500/80 tracking-widest mb-1"><Activity size={12}/> Ort. Tüketim</div>
-                            <div className="font-black text-2xl text-[var(--text-primary)]">{summaryStats.avgLtPer100km.toFixed(1)} <span className="text-sm font-semibold text-sky-500/80">L/100km</span></div>
-                        </div>
-                        
-                        <div className="glass-panel p-4 flex flex-col gap-1 relative overflow-hidden group border-cyan-500/10 hover:border-cyan-500/30 transition-colors animate-in fade-in zoom-in duration-500">
-                            <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-cyan-500"><MapPin size={80}/></div>
-                            <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-cyan-500/80 tracking-widest mb-1"><MapPin size={12}/> KM Maliyeti</div>
-                            <div className="font-black text-2xl text-[var(--text-primary)]"><span className="text-lg font-semibold text-cyan-500 mr-1">₺</span>{summaryStats.avgCostPerKm.toFixed(2)} <span className="text-sm font-semibold text-[var(--text-secondary)]">/km</span></div>
-                        </div>
-                    </>
-                ) : (
-                    <div className="col-span-2 glass-panel p-4 flex flex-col items-center justify-center text-center opacity-50 border-dashed border-2 border-white/5">
-                        <MapPin size={24} className="mb-2 text-[var(--text-secondary)]" />
-                        <p className="text-xs font-bold text-[var(--text-secondary)]">Ortalama Tüketim İçin KM Verisi Bekleniyor</p>
+                {/* KART 2: Ortalama Litre Fiyatı */}
+                <div className="bg-[#0c1017]/90 backdrop-blur-xl border border-white/[0.07] hover:border-amber-500/35 rounded-xl p-3.5 sm:p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group transition-all duration-200">
+                    <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-amber-400 pointer-events-none">
+                        <TrendingUp size={90} />
                     </div>
-                )}
+
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="p-1 rounded-md bg-amber-500/10 text-amber-400">
+                                <TrendingUp size={12} />
+                            </span>
+                            Ortalama Litre Fiyatı
+                        </span>
+                    </div>
+
+                    <div>
+                        <div className="font-black text-xl sm:text-2xl text-white tracking-tight flex items-baseline gap-1">
+                            <span className="text-amber-400 text-base sm:text-lg font-bold">₺</span>
+                            <span>{summaryStats.avgPricePerLiter ? summaryStats.avgPricePerLiter.toFixed(2) : '0,00'}</span>
+                            <span className="text-xs font-semibold text-slate-500">/ Lt</span>
+                        </div>
+                        <div className="h-[17px] mt-0.5"></div>
+                    </div>
+                </div>
+
+                {/* KART 3: Ortalama Tüketim */}
+                <div className="bg-[#0c1017]/90 backdrop-blur-xl border border-white/[0.07] hover:border-sky-500/35 rounded-xl p-3.5 sm:p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group transition-all duration-200">
+                    <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-sky-400 pointer-events-none">
+                        <Activity size={90} />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="p-1 rounded-md bg-sky-500/10 text-sky-400">
+                                <Activity size={12} />
+                            </span>
+                            Ortalama Tüketim
+                        </span>
+                    </div>
+
+                    <div>
+                        <div className="font-black text-xl sm:text-2xl text-white tracking-tight flex items-baseline gap-1">
+                            <span className={summaryStats.avgLtPer100km ? "text-white" : "text-slate-600"}>
+                                {summaryStats.avgLtPer100km ? summaryStats.avgLtPer100km.toFixed(1) : '—'}
+                            </span>
+                            {summaryStats.avgLtPer100km && (
+                                <span className="text-xs font-semibold text-sky-400">L/100km</span>
+                            )}
+                        </div>
+                        <div className="h-[17px] mt-0.5"></div>
+                    </div>
+                </div>
+
+                {/* KART 4: Kilometre Maliyeti */}
+                <div className="bg-[#0c1017]/90 backdrop-blur-xl border border-white/[0.07] hover:border-emerald-500/35 rounded-xl p-3.5 sm:p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group transition-all duration-200">
+                    <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-emerald-400 pointer-events-none">
+                        <Gauge size={90} />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="p-1 rounded-md bg-emerald-500/10 text-emerald-400">
+                                <Gauge size={12} />
+                            </span>
+                            Kilometre Maliyeti
+                        </span>
+                    </div>
+
+                    <div>
+                        <div className="font-black text-xl sm:text-2xl text-white tracking-tight flex items-baseline gap-1">
+                            {summaryStats.avgCostPerKm ? (
+                                <>
+                                    <span className="text-emerald-400 text-base sm:text-lg font-bold">₺</span>
+                                    <span>{summaryStats.avgCostPerKm.toFixed(2)}</span>
+                                    <span className="text-xs font-semibold text-slate-500">/ km</span>
+                                </>
+                            ) : (
+                                <span className="text-slate-600">—</span>
+                            )}
+                        </div>
+                        <div className="h-[17px] mt-0.5"></div>
+                    </div>
+                </div>
+
             </div>
 
             {/* Tablo */}
             <div className="glass-panel overflow-hidden">
                 <div className="overflow-x-auto -mx-0 md:mx-0">
-                    <table className="w-full text-left border-collapse hidden md:table" style={{ minWidth: '600px' }}>
+                    <table className="w-full table-fixed text-left border-collapse hidden md:table" style={{ minWidth: '600px' }}>
                         <thead>
                             <tr className="bg-white/5 border-b border-[var(--border-color)] text-[var(--text-secondary)] text-xs uppercase tracking-wide">
-                                <th className="p-3 pl-4">Tarih</th>
-                                <th className="p-3">İstasyon</th>
-                                <th className="p-3 text-center">Litre</th>
-                                <th className="p-3 text-right">Tutar</th>
-                                <th className="p-3 text-center w-24"></th>
+                                <th className="p-3 pl-4 w-[16%]">Tarih</th>
+                                <th className="p-3 w-[42%]">İstasyon</th>
+                                <th className="p-3 text-center w-[18%]">Litre</th>
+                                <th className="p-3 text-right w-[16%]">Tutar</th>
+                                <th className="p-3 text-center w-[8%]"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -426,13 +518,13 @@ const Fuel = () => {
                                     <td className="p-3 pl-4 text-[var(--text-primary)] text-sm whitespace-nowrap">
                                         {new Date(record.date).toLocaleDateString('tr-TR')}
                                     </td>
-                                    <td className="p-3">
-                                        <div className="flex items-center gap-1.5">
+                                    <td className="p-3 overflow-hidden">
+                                        <div className="flex items-center gap-1.5 min-w-0">
                                             <MapPin size={10} className="text-cyan-400 flex-shrink-0" />
-                                            <span className="text-[var(--text-primary)] text-sm">{record.station}</span>
+                                            <span className="text-[var(--text-primary)] text-sm font-medium truncate">{record.station}</span>
                                         </div>
                                         {(record.notes || record.odometer) && (
-                                            <div className="flex flex-col gap-0.5 mt-0.5">
+                                            <div className="flex flex-col gap-0.5 mt-0.5 min-w-0">
                                                 {record.odometer && (
                                                     <div className="flex items-center gap-1 text-emerald-400/80">
                                                         <span className="text-[10px] font-bold tracking-wide">KM:</span>
@@ -440,15 +532,15 @@ const Fuel = () => {
                                                     </div>
                                                 )}
                                                 {record.notes && (
-                                                    <div className="flex items-center gap-1">
-                                                        <StickyNote size={9} className="text-slate-500" />
-                                                        <span className="text-xs text-slate-500 truncate max-w-[200px]">{record.notes}</span>
+                                                    <div className="flex items-center gap-1 min-w-0">
+                                                        <StickyNote size={9} className="text-slate-500 flex-shrink-0" />
+                                                        <span className="text-xs text-slate-500 truncate max-w-full">{record.notes}</span>
                                                     </div>
                                                 )}
                                             </div>
                                         )}
                                     </td>
-                                    <td className="p-3 text-center">
+                                    <td className="p-3 text-center whitespace-nowrap">
                                         <div className="text-[var(--text-primary)] font-medium text-sm">{record.liters} Lt</div>
                                         {record.isPartial && (
                                             <div className="text-[10px] text-cyan-500 bg-cyan-500/10 inline-block px-1.5 py-0.5 rounded font-bold mt-1 border border-cyan-500/20">
@@ -461,7 +553,7 @@ const Fuel = () => {
                                             </div>
                                         )}
                                     </td>
-                                    <td className="p-3 text-right">
+                                    <td className="p-3 text-right whitespace-nowrap">
                                         <div className="text-orange-400 font-bold text-sm">₺{record.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
                                         <div className="text-xs text-slate-500 font-normal">₺{(record.price / record.liters).toFixed(2)}/Lt</div>
                                         {record.consumptionStats && (
@@ -475,12 +567,12 @@ const Fuel = () => {
                                             {record.files && record.files.length > 0 && (
                                                 <button onClick={() => setViewFiles({ title: record.station, files: record.files })}
                                                     title={`${record.files.length} ek`}
-                                                    className="p-1.5 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/10">
+                                                    className="p-1.5 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer">
                                                     <Paperclip size={14} />
                                                 </button>
                                             )}
                                             <button onClick={() => openEditModal(record)}
-                                                className="p-1.5 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/10">
+                                                className="p-1.5 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer">
                                                 <Pencil size={14} />
                                             </button>
                                         </div>
