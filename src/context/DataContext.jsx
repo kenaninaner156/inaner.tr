@@ -1114,6 +1114,15 @@ export const DataProvider = ({ children }) => {
         addLog('ISLEM_EKLE', `${geofence.name} adlı özel bölge eklendi`);
     };
 
+    const updateGeofence = async (id, updatedData) => {
+        if (!id) return;
+        await updateDoc(doc(db, 'geofences', id), {
+            ...updatedData,
+            updatedAt: new Date().toISOString()
+        });
+        addLog('ISLEM_GUNCELLE', `${updatedData.name || 'Özel bölge'} güncellendi`);
+    };
+
     const deleteGeofence = async (id, name) => {
         await deleteDoc(doc(db, 'geofences', id));
         addLog('ISLEM_SIL', `${name} adlı özel bölge silindi`);
@@ -1220,7 +1229,7 @@ export const DataProvider = ({ children }) => {
             shoppingItems, addShoppingItem, updateShoppingItem, deleteShoppingItem, updateShoppingItemsOrder,
             updateTruckImage,
             isDataLoading, dataError,
-            geofences, addGeofence, deleteGeofence,
+            geofences, addGeofence, updateGeofence, deleteGeofence,
             dailyNotes, updateDailyNote,
             manualSplits, addManualSplit,
             manualMerges, addManualMerge,

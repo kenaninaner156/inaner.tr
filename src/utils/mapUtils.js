@@ -58,6 +58,47 @@ export function cleanGpsSpikes(points, maxSpeedKmh = 160) {
 }
 
 /**
+ * Ray-Casting algoritmasıyla bir koordinatın çokgen (poligon) sınırları içinde olup olmadığını kontrol eder.
+ * @param {{lat: number, lon: number}} point 
+ * @param {Array<[number, number]>} polygon [[lat, lon], [lat, lon], ...]
+ */
+export function isPointInPolygon(point, polygon) {
+  if (!point || !polygon || polygon.length < 3) return false;
+  const x = Number(point.lat);
+  const y = Number(point.lon);
+  if (isNaN(x) || isNaN(y)) return false;
+
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const p1 = polygon[i];
+    const p2 = polygon[j];
+    const xi = Number(p1.lat !== undefined ? p1.lat : p1[0]);
+    const yi = Number(p1.lon !== undefined ? p1.lon : p1[1]);
+    const xj = Number(p2.lat !== undefined ? p2.lat : p2[0]);
+    const yj = Number(p2.lon !== undefined ? p2.lon : p2[1]);
+    const intersect = ((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Bir noktanın herhangi bir Geofence (Poligon veya Dairesel) içinde olup olmadığını kontrol eder.
+ */
+export function isPointInGeofence(pt, geofence) {
+  if (!pt || !geofence) return false;
+  // 1. Poligon Geofence Kontrolü (varsa)
+  if (Array.isArray(geofence.polygon) && geofence.polygon.length >= 3) {
+    return isPointInPolygon(pt, geofence.polygon);
+  }
+  // 2. Geriye dönük uyumluluk: Dairesel Geofence
+  if (geofence.lat !== undefined && geofence.lon !== undefined) {
+    return haversineKm(pt.lat, pt.lon, geofence.lat, geofence.lon) <= (geofence.radiusKm || 0.5);
+  }
+  return false;
+}
+
+/**
  * 30 dakikadan uzun hareketsizliklere veya özel bölgelerdeki bekleme sürelerine (örn: 5 dk)
  * göre konum noktalarını oturumlara (rotalara) böler.
  */
@@ -70,7 +111,7 @@ export function groupIntoSessions(rawPoints, maxGapMinutes = 30, geofences = [],
 
   let activeGeofenceId = null;
   let geofenceEntryTime = null;
-  let hasSplitForThisGeofenceVisit = false;
+  let geofenceSpentMeaningfulTime = false;
   
   // Hareketsiz kalma (stationary) takibi için değişken (Traccar knot -> km/h: 1 knot = 1.852 km/h)
   let stationaryStartTime = null;
@@ -105,32 +146,33 @@ export function groupIntoSessions(rawPoints, maxGapMinutes = 30, geofences = [],
       }
       stationaryStartTime = null;
     }
-    // Kural 2: Özel Bölge (Geofence) Kontrolü
+    // Kural 2: Özel Bölge (Geofence) ÇIKIŞ Kontrolü (Poligon/Daireye girince değil, içeride yükleme/boşaltma yapıp çıkınca yeni sefer başlar)
     else if (geofences && geofences.length > 0) {
-      // Nokta herhangi bir bölgenin içinde mi? (Yarıçap genelde 0.5 km)
-      const currentGeofence = geofences.find(g => haversineKm(pt.lat, pt.lon, g.lat, g.lon) <= (g.radiusKm || 0.5));
+      // Nokta herhangi bir bölgenin (Poligon veya Daire) içinde mi? (Örn: Çayırhan, Baştaş Elmadağ vb.)
+      const currentGeofence = geofences.find(g => isPointInGeofence(pt, g));
       
       if (currentGeofence) {
         if (activeGeofenceId !== currentGeofence.id) {
           // Bölgeye yeni girdi
           activeGeofenceId = currentGeofence.id;
           geofenceEntryTime = curTime;
-          hasSplitForThisGeofenceVisit = false;
+          geofenceSpentMeaningfulTime = false;
         } else {
-          // Zaten bölgede
-          if (!hasSplitForThisGeofenceVisit) {
-            const timeInside = curTime - geofenceEntryTime;
-            if (timeInside >= 5 * 60 * 1000) { // 5 dakika
-              splitTriggered = true;
-              hasSplitForThisGeofenceVisit = true; // Bu ziyaret için bir daha bölme
-            }
+          // Bölgenin içinde vakit geçiriyor (kantar, yükleme, boşaltma)
+          const timeInside = curTime - (geofenceEntryTime || curTime);
+          if (timeInside >= 2 * 60 * 1000 || isStationary) {
+            geofenceSpentMeaningfulTime = true;
           }
         }
       } else {
-        // Bölgeden çıktı
+        // Tır bölgeden ÇIKTI
+        if (activeGeofenceId && geofenceSpentMeaningfulTime) {
+          // Tesis sahasında bekleyip kapıdan yola çıktığı an -> YENİ SEFERİ BAŞLAT
+          splitTriggered = true;
+        }
         activeGeofenceId = null;
         geofenceEntryTime = null;
-        hasSplitForThisGeofenceVisit = false;
+        geofenceSpentMeaningfulTime = false;
       }
     }
 

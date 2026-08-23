@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useContext, useCallback } from 'react';
-import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { collection, onSnapshot, query, orderBy, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebaseConfig';
@@ -235,7 +235,7 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
 export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
   const { trucks } = useTruck();
   const { activeCompanyId } = useCompany();
-  const { geofences, manualSplits, addGeofence } = useContext(DataContext);
+  const { geofences, manualSplits, addGeofence, updateGeofence } = useContext(DataContext);
   
   const [activeTab, setActiveTab] = useState('live');
   const [mapStyle, setMapStyle] = useState(() => {
@@ -265,7 +265,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
   const [selectedHistoryDriver, setSelectedHistoryDriver] = useState(null);
   
   const [isEditingGeofence, setIsEditingGeofence] = useState(false);
-  const [draftZone, setDraftZone] = useState({ lat: null, lon: null, radiusKm: 1, name: '' });
+  const [draftZone, setDraftZone] = useState({ id: null, polygon: [], name: '' });
 
   const mapRef = useRef(null);
 
@@ -277,13 +277,32 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
   }, []);
 
   const handleSaveGeofence = async (zone) => {
-    if (!zone.name || !zone.lat || !zone.lon) return;
-    await addGeofence({
-      name: zone.name,
-      lat: parseFloat(zone.lat),
-      lon: parseFloat(zone.lon),
-      radiusKm: parseFloat(zone.radiusKm)
-    });
+    const name = (zone.name || '').trim();
+    const rawPolygon = zone.polygon || [];
+    if (!name || rawPolygon.length < 3) return;
+
+    // Firestore uyumlu { lat, lon } array'ine dönüştür (nested array hatasını önler)
+    const formattedPolygon = rawPolygon.map(p => ({
+      lat: Number(p.lat !== undefined ? p.lat : p[0]),
+      lon: Number(p.lon !== undefined ? p.lon : p[1])
+    }));
+
+    const avgLat = formattedPolygon.reduce((acc, p) => acc + p.lat, 0) / formattedPolygon.length;
+    const avgLon = formattedPolygon.reduce((acc, p) => acc + p.lon, 0) / formattedPolygon.length;
+
+    const payload = {
+      name,
+      polygon: formattedPolygon,
+      lat: avgLat,
+      lon: avgLon,
+      radiusKm: 1
+    };
+
+    if (zone.id) {
+      await updateGeofence(zone.id, payload);
+    } else {
+      await addGeofence(payload);
+    }
     setIsEditingGeofence(false);
     setShowMapSettings(true);
   };
@@ -332,11 +351,11 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
     Object.keys(byDriver).forEach(dId => {
       const driverPoints = byDriver[dId];
       driverPoints.sort((a, b) => (a.createdAt || a.timestamp || 0) - (b.createdAt || b.timestamp || 0));
-      result[dId] = groupIntoSessions(driverPoints, 30, manualSplits[dId]);
+      result[dId] = groupIntoSessions(driverPoints, 30, geofences, manualSplits[dId]);
     });
 
     return result;
-  }, [locations, manualSplits]);
+  }, [locations, geofences, manualSplits]);
 
   const unmappedActiveDeviceIds = useMemo(() => {
     return Object.keys(sessionsByDriver).filter(id => !deviceMappings[id] && id !== 'Bilinmeyen');
@@ -530,7 +549,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
             )}
 
             <LiveTracking
-              isVisible={activeTab === 'live'}
+              isVisible={activeTab === 'live' && !isEditingGeofence}
               sessionsByDriver={sessionsByDriver}
               deviceMappings={deviceMappings}
               trucks={trucks}
@@ -555,6 +574,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
             <SavedRoutes
               isVisible={activeTab === 'saved'}
             />
+
             {isEditingGeofence && (
               <InteractiveGeofenceMapLayer draftZone={draftZone} setDraftZone={setDraftZone} />
             )}
@@ -579,8 +599,29 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
         <MapSettingsModal 
           onClose={() => setShowMapSettings(false)}
           onStartAddGeofence={() => {
+            setShowMapSettings(false);
+            setDraftZone({ id: null, polygon: [], name: '' });
             setIsEditingGeofence(true);
-            setDraftZone({ lat: null, lon: null, radiusKm: 0.5, name: '' });
+          }}
+          onStartEditGeofence={(zone) => {
+            setShowMapSettings(false);
+            const polygon = Array.isArray(zone.polygon) && zone.polygon.length >= 3
+              ? zone.polygon.map(p => ({
+                  lat: Number(p.lat !== undefined ? p.lat : p[0]),
+                  lon: Number(p.lon !== undefined ? p.lon : p[1])
+                }))
+              : (zone.lat && zone.lon ? [
+                  { lat: zone.lat + 0.003, lon: zone.lon - 0.003 },
+                  { lat: zone.lat + 0.003, lon: zone.lon + 0.003 },
+                  { lat: zone.lat - 0.003, lon: zone.lon + 0.003 },
+                  { lat: zone.lat - 0.003, lon: zone.lon - 0.003 }
+                ] : []);
+            setDraftZone({
+              id: zone.id,
+              name: zone.name,
+              polygon
+            });
+            setIsEditingGeofence(true);
           }}
           unmappedActiveDeviceIds={unmappedActiveDeviceIds}
         />

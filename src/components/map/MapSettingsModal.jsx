@@ -7,7 +7,7 @@ import { useTruck } from '../../context/TruckContext';
 import { DataContext } from '../../context/DataContext';
 import L from 'leaflet';
 
-export default function MapSettingsModal({ onClose, onStartAddGeofence, unmappedActiveDeviceIds }) {
+export default function MapSettingsModal({ onClose, onStartAddGeofence, onStartEditGeofence, unmappedActiveDeviceIds }) {
   const [activeTab, setActiveTab] = useState('devices'); // 'devices' or 'geofences'
 
   const modalRef = useCallback(node => {
@@ -60,7 +60,15 @@ export default function MapSettingsModal({ onClose, onStartAddGeofence, unmapped
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6 pt-8 custom-scrollbar">
-            {activeTab === 'devices' ? <DeviceTab unmappedActiveDeviceIds={unmappedActiveDeviceIds} /> : <GeofenceTab onClose={onClose} onStartAddGeofence={onStartAddGeofence} />}
+            {activeTab === 'devices' ? (
+              <DeviceTab unmappedActiveDeviceIds={unmappedActiveDeviceIds} />
+            ) : (
+              <GeofenceTab 
+                onClose={onClose} 
+                onStartAddGeofence={onStartAddGeofence} 
+                onStartEditGeofence={onStartEditGeofence} 
+              />
+            )}
           </div>
         </div>
       </div>
@@ -355,7 +363,7 @@ function DeviceTab({ unmappedActiveDeviceIds }) {
 // ==========================================
 // TAB 2: ÖZEL BÖLGELER (GEOFENCES)
 // ==========================================
-function GeofenceTab({ onClose, onStartAddGeofence }) {
+function GeofenceTab({ onClose, onStartAddGeofence, onStartEditGeofence }) {
   const { geofences, deleteGeofence } = useContext(DataContext);
 
   return (
@@ -367,41 +375,67 @@ function GeofenceTab({ onClose, onStartAddGeofence }) {
           onClose();
           onStartAddGeofence();
         }}
-        className="w-full relative group overflow-hidden rounded-2xl p-[1px] transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/25"
+        className="w-full relative group overflow-hidden rounded-2xl p-[1px] transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/25 cursor-pointer"
       >
         <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 opacity-70 group-hover:opacity-100 transition-opacity"></div>
         <div className="relative bg-[#0f141e] px-4 py-4 rounded-2xl flex items-center justify-center gap-2 transition-all group-hover:bg-[#141a26]">
-          <Plus size={20} className="text-indigo-400 group-hover:text-white transition-colors" />
-          <span className="font-bold text-indigo-100 group-hover:text-white transition-colors">
-            Harita Üzerinde Yeni Bölge Çiz
+          <Plus size={18} className="text-indigo-400 group-hover:text-white transition-colors" />
+          <span className="text-xs font-bold text-indigo-100 group-hover:text-white transition-colors">
+            Harita Üzerinde Yeni Poligon Çiz
           </span>
         </div>
       </button>
 
       {/* List */}
       <div className="space-y-3">
-        {geofences.map(zone => (
-          <div key={zone.id} className="group flex items-center justify-between p-4 bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.05] hover:border-indigo-500/30 rounded-2xl transition-all">
-            <div>
-              <h3 className="text-sm font-bold text-slate-200 group-hover:text-indigo-100 transition-colors">{zone.name}</h3>
-              <p className="text-[11px] text-slate-500 mt-1 font-medium flex items-center gap-1.5">
-                <span>{zone.lat.toFixed(4)}, {zone.lon.toFixed(4)}</span>
-                <span className="w-1 h-1 rounded-full bg-slate-700"></span>
-                <span className="text-indigo-400/80 font-mono">{Number(zone.radiusKm).toFixed(2)} km çap</span>
-              </p>
+        {geofences.map(zone => {
+          const isPolygon = Array.isArray(zone.polygon) && zone.polygon.length >= 3;
+          return (
+            <div key={zone.id} className="group flex items-center justify-between p-4 bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.05] hover:border-indigo-500/30 rounded-2xl transition-all">
+              <div>
+                <h3 className="text-sm font-bold text-slate-200 group-hover:text-indigo-100 transition-colors flex items-center gap-2">
+                  <MapPin size={14} className="text-indigo-400" />
+                  {zone.name}
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-1 font-medium flex items-center gap-1.5">
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${isPolygon ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' : 'bg-slate-800 text-slate-400'}`}>
+                    {isPolygon ? `Poligon (${zone.polygon.length} Köşe)` : 'Daire'}
+                  </span>
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => {
+                    onClose();
+                    onStartEditGeofence(zone);
+                  }}
+                  className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-xl transition-all cursor-pointer"
+                  title="Haritada Düzenle"
+                >
+                  <Settings size={15} />
+                </button>
+                <button 
+                  onClick={() => {
+                    if (window.confirm(`"${zone.name}" bölgesini silmek istediğinize emin misiniz?`)) {
+                      deleteGeofence(zone.id, zone.name);
+                    }
+                  }} 
+                  className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-400/10 rounded-xl transition-all cursor-pointer" 
+                  title="Bölgeyi Sil"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
             </div>
-            <button onClick={() => deleteGeofence(zone.id, zone.name)} className="p-2.5 text-slate-500 hover:text-rose-400 hover:bg-rose-400/10 rounded-xl transition-all" title="Bölgeyi Sil">
-              <Trash2 size={16} />
-            </button>
-          </div>
-        ))}
+          );
+        })}
         {geofences.length === 0 && (
           <div className="flex flex-col items-center justify-center py-8 px-4 text-center border border-dashed border-white/10 rounded-2xl bg-white/[0.01]">
             <div className="w-12 h-12 bg-slate-800/50 rounded-full flex items-center justify-center mb-3">
               <MapPin size={20} className="text-slate-500" />
             </div>
             <p className="text-slate-400 text-sm font-medium">Henüz özel bölge eklemediniz.</p>
-            <p className="text-slate-500 text-xs mt-1">Yukarıdaki butonu kullanarak haritadan çizebilirsiniz.</p>
+            <p className="text-slate-500 text-xs mt-1">Yukarıdaki butona tıklayıp harita üzerinde poligon çizebilirsiniz.</p>
           </div>
         )}
       </div>
