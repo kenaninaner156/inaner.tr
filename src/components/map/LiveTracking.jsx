@@ -541,7 +541,16 @@ function MobileFollowedCard({
   );
 }
 
-export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappings, trucks, setActiveTab, setSelectedHistoryDriver }) {
+export default function LiveTracking({
+  isVisible,
+  sessionsByDriver,
+  deviceMappings,
+  trucks = [],
+  setActiveTab,
+  setSelectedHistoryDriver,
+  isMobile,
+  hidePolylines = false,
+}) {
   const [followedDriverId, setFollowedDriverId] = useState(null);
   const [isCameraFollowActive, setIsCameraFollowActive] = useState(true);
   const [showSidebar, setShowSidebar]           = useState(true);
@@ -662,7 +671,7 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
       {isVisible && vehicleList.map(v => {
         return (
           <React.Fragment key={`live-${v.driverId}`}>
-            {v.latestSession.length > 1 && (
+            {v.latestSession.length > 1 && !hidePolylines && (
               <SpeedPolylines 
                 session={v.latestSession} 
                 isFollowed={followedDriverId === v.driverId} 

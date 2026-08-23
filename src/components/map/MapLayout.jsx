@@ -342,11 +342,12 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
     return Object.keys(sessionsByDriver).filter(id => !deviceMappings[id] && id !== 'Bilinmeyen');
   }, [sessionsByDriver, deviceMappings]);
 
-  // ── Orijinal Kristal Netliğinde Harita Tabanları (Değiştirilmedi) ──
+  // ── Harita Tabanları (Orijinal ESRI Uydu Korunmuş + Canlı Trafik Eklenmiş) ──
   const mapUrls = {
     voyager: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
     darkmatter: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
     satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    traffic: 'https://mt{s}.google.com/vt/lyrs=y,traffic&hl=tr&x={x}&y={y}&z={z}',
   };
 
   const tabs = [
@@ -449,6 +450,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
                       { id: 'voyager',    name: 'Açık Harita' },
                       { id: 'darkmatter', name: 'Koyu Harita' },
                       { id: 'satellite',  name: 'Uydu' },
+                      { id: 'traffic',    name: 'Canlı Trafik' },
                     ].map(s => (
                       <button
                         key={s.id}
@@ -504,9 +506,11 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
             <MapClickHandler pickingLocation={draftZone.lat === null} onLocationPicked={(ll) => setDraftZone(prev => ({ ...prev, lat: ll.lat, lon: ll.lng }))} />
             <MapCameraSync activeTab={activeTab} sessionsByDriver={sessionsByDriver} deviceMappings={deviceMappings} />
 
-            {/* Orijinal ESRI Saf Uydu & Harita Tabanı */}
+            {/* Temel Harita Tabanı (Açık, Koyu, Orijinal ESRI Uydu, veya Canlı Trafik) */}
             <TileLayer
-              url={mapUrls[mapStyle]}
+              key={mapStyle}
+              url={mapUrls[mapStyle] || mapUrls.voyager}
+              subdomains={mapStyle === 'traffic' ? ['0', '1', '2', '3'] : ['a', 'b', 'c', 'd']}
               maxZoom={20}
               maxNativeZoom={mapStyle === 'satellite' ? 18 : 19}
               keepBuffer={4}
@@ -533,6 +537,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
               setActiveTab={setActiveTab}
               setSelectedHistoryDriver={setSelectedHistoryDriver}
               isMobile={isMobile}
+              hidePolylines={mapStyle === 'traffic'}
             />
             <RouteHistory
               isVisible={activeTab === 'history'}
