@@ -1,11 +1,11 @@
 import React, { useState, useContext, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Droplet, Plus, MapPin, X, Trash2, Paperclip, FileText, Download, Pencil, StickyNote, ChevronDown, Calendar, Activity, Wallet, TrendingUp, Gauge, Fuel as FuelIcon } from 'lucide-react';
+import { Droplet, Plus, MapPin, X, Trash2, Paperclip, FileText, Download, Pencil, StickyNote, ChevronDown, Calendar, Activity, Wallet, TrendingUp, Gauge, Fuel as FuelIcon, Menu } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import FileUpload from './FileUpload';
 import { sendDiscordAlert } from '../services/discordWebhook';
 
-const Fuel = () => {
+const Fuel = ({ onOpenMenu, isMobile }) => {
     const { fuelRecords, addFuel, deleteFuel, editFuel } = useContext(DataContext);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [viewFiles, setViewFiles] = useState(null);
@@ -330,29 +330,47 @@ const Fuel = () => {
     const uniqueStations = [...new Set(activeFuelRecords.filter(r => r.station).map(r => toTitleCase(r.station)))];
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500 relative pb-ios-nav">
-            {/* Üst Bar: Filtre ve Aksiyon */}
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="w-full sm:w-auto">
-                    {/* Custom Dropdown */}
-                    <div className="relative w-full sm:w-auto min-w-[200px]" ref={dropdownRef}>
+        <div className="space-y-5 animate-in fade-in duration-500 relative pb-ios-nav">
+            {/* ─── ENTEGRE TEK SATIR HEADER BAR (LİNEAR & VERCEL STANDARDI) ─── */}
+            <div 
+                className="flex items-center justify-between gap-3 pb-3 border-b border-white/[0.06]"
+                style={{
+                    paddingTop: 'calc(0.2rem + env(safe-area-inset-top, 0px))'
+                }}
+            >
+                {/* Sol Grup: Hamburger (Mobil) + Başlık + Tarih Kapsülü */}
+                <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
+                    {isMobile && onOpenMenu && (
+                        <button 
+                            onClick={onOpenMenu} 
+                            className="p-1.5 -ml-1 text-slate-400 hover:text-slate-100 transition-colors flex items-center justify-center cursor-pointer rounded-lg hover:bg-white/5"
+                            title="Menüyü Aç"
+                        >
+                            <Menu size={22} />
+                        </button>
+                    )}
+                    
+                    <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white whitespace-nowrap">
+                        Mazot Fişleri
+                    </h2>
+                    
+                    {/* Zarif Zaman Seçici Kapsülü (Başlığın hemen yanında) */}
+                    <div className="relative" ref={dropdownRef}>
                         <button 
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                            className="w-full glass-panel px-4 py-2.5 rounded-xl text-sm font-bold text-[var(--text-primary)] flex items-center justify-between gap-3 hover:border-[var(--text-secondary)] transition-all border border-white/5 shadow-lg group cursor-pointer"
+                            className="bg-white/[0.04] hover:bg-white/[0.08] px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-300 flex items-center gap-1.5 sm:gap-2 hover:border-cyan-500/40 hover:text-white transition-all border border-white/10 shadow-sm group cursor-pointer"
                         >
-                            <div className="flex items-center gap-2">
-                                <Calendar size={16} className="text-cyan-400 group-hover:text-cyan-300 transition-colors" />
-                                <span>{timeFilter === 'all' ? 'Tüm Zamanlar' : monthOptions.find(o => o.value === timeFilter)?.label}</span>
-                            </div>
-                            <ChevronDown size={16} className={`text-[var(--text-secondary)] transition-transform duration-300 ${isDropdownOpen ? 'rotate-180 text-cyan-400' : ''}`} />
+                            <Calendar size={13} className="text-cyan-400 group-hover:text-cyan-300 transition-colors shrink-0" />
+                            <span className="truncate max-w-[100px] sm:max-w-none">{timeFilter === 'all' ? 'Tüm Zamanlar' : monthOptions.find(o => o.value === timeFilter)?.label}</span>
+                            <ChevronDown size={13} className={`text-slate-500 transition-transform duration-200 shrink-0 ${isDropdownOpen ? 'rotate-180 text-cyan-400' : ''}`} />
                         </button>
                         
                         {isDropdownOpen && (
-                            <div className="absolute z-50 top-full left-0 right-0 mt-2 bg-[#0B0E14]/95 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl shadow-black/80 animate-in fade-in slide-in-from-top-2 duration-200">
+                            <div className="absolute z-50 top-full left-0 mt-2 min-w-[190px] bg-[#0B0E14]/95 backdrop-blur-2xl border border-white/10 rounded-xl overflow-hidden shadow-2xl shadow-black/80 animate-in fade-in slide-in-from-top-2 duration-200">
                                 <div className="max-h-[300px] overflow-y-auto custom-scrollbar flex flex-col p-1.5 gap-0.5">
                                     <button 
                                         onClick={() => { setTimeFilter('all'); setIsDropdownOpen(false); }}
-                                        className={`w-full text-left px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors cursor-pointer ${timeFilter === 'all' ? 'bg-cyan-500/10 text-cyan-400' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}`}
+                                        className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors cursor-pointer ${timeFilter === 'all' ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                                     >
                                         Tüm Zamanlar
                                     </button>
@@ -360,7 +378,7 @@ const Fuel = () => {
                                         <button 
                                             key={opt.value}
                                             onClick={() => { setTimeFilter(opt.value); setIsDropdownOpen(false); }}
-                                            className={`w-full text-left px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors cursor-pointer ${timeFilter === opt.value ? 'bg-cyan-500/10 text-cyan-400' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'}`}
+                                            className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors cursor-pointer ${timeFilter === opt.value ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                                         >
                                             {opt.label}
                                         </button>
@@ -371,9 +389,13 @@ const Fuel = () => {
                     </div>
                 </div>
 
-                <button onClick={() => openAddModal()}
-                    className="w-full sm:w-auto bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(6,182,212,0.25)] hover:shadow-[0_0_25px_rgba(6,182,212,0.45)] hover:-translate-y-0.5 flex items-center justify-center flex-shrink-0 cursor-pointer">
-                    <Plus size={18} className="mr-2" /> Yeni Fiş
+                {/* Sağ Aksiyon: Yeni Fiş Butonu */}
+                <button 
+                    onClick={() => openAddModal()}
+                    className="bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-[0_0_20px_rgba(6,182,212,0.25)] hover:shadow-[0_0_25px_rgba(6,182,212,0.45)] hover:-translate-y-0.5 flex items-center justify-center shrink-0 cursor-pointer"
+                >
+                    <Plus size={15} className="mr-1 sm:mr-1.5" /> 
+                    <span className="whitespace-nowrap">Yeni Fiş</span>
                 </button>
             </div>
 

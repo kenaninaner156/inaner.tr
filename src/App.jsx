@@ -740,7 +740,7 @@ function App() {
         <div className="flex flex-col min-h-screen w-full">
 
           {/* Header - Simple & Clean (sticky) */}
-          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${activeTab === 'map' ? 'hidden' : ''}`}
+          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map'].includes(activeTab) ? 'hidden' : ''}`}
             style={{
               paddingTop: 'calc(0.5rem + env(safe-area-inset-top))'
             }}
@@ -762,7 +762,7 @@ function App() {
             <div key={activeTab} className="page-transition">
               {activeTab === 'dashboard' && <Dashboard />}
               {activeTab === 'trips' && <Trips />}
-              {activeTab === 'fuel' && <Fuel />}
+              {activeTab === 'fuel' && <Fuel onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'maintenance' && <Maintenance />}
               {activeTab === 'detaylar' && <Detaylar />}
               {activeTab === 'invoices' && <Invoices />}
