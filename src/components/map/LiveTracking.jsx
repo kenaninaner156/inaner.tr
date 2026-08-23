@@ -80,17 +80,14 @@ function getSpeedColor(speedKnots) {
   return '#22c55e';
 }
 
-function SpeedPolylines({ session, isFollowed, isOffline, zoom }) {
+function SpeedPolylines({ session, isFollowed, zoom }) {
   if (!session || session.length < 2) return null;
   const segments = [];
   
-  const shouldDash = isOffline && zoom >= 12;
-  const dashArray = shouldDash ? "10, 15" : null;
-  const opacity = isOffline ? (zoom < 12 ? 0.3 : 0.45) : (isFollowed ? 0.9 : 0.6);
-  
   // Dinamik ve akıcı çizgi kalınlığı formülü (zoom derecesine göre kesintisiz ölçeklenir)
-  const baseWeight = Math.max(1, (zoom - 7) * 0.35 + 1.2);
-  const weight = Math.min(5.0, Math.max(1.2, isFollowed ? baseWeight * 1.35 : baseWeight));
+  const baseWeight = Math.max(1.5, (zoom - 7) * 0.35 + 1.2);
+  const weight = Math.min(5.5, Math.max(1.5, isFollowed ? baseWeight * 1.35 : baseWeight));
+  const shadowWeight = weight + 2.5;
 
   for (let i = 0; i < session.length - 1; i++) {
     const a = session[i], b = session[i + 1];
@@ -105,15 +102,23 @@ function SpeedPolylines({ session, isFollowed, isOffline, zoom }) {
   }
   return (
     <>
+      {/* ── Alt Gölge (Yumuşak Dış Hat) ── */}
+      <Polyline
+        positions={session.filter(p => !isNaN(p.lat)).map(p => [p.lat, p.lon])}
+        color="#000"
+        weight={shadowWeight}
+        opacity={0.35}
+        smoothFactor={1}
+      />
+      {/* ── Renkli Hız Çizgileri (Daima Kesintisiz Düz Çizgi) ── */}
       {segments.map((seg, i) => (
         <Polyline
           key={i}
           positions={seg.positions}
           color={seg.color}
           weight={weight}
-          opacity={opacity}
-          dashArray={dashArray}
-          smoothFactor={2}
+          opacity={isFollowed ? 0.95 : 0.8}
+          smoothFactor={1}
         />
       ))}
     </>
@@ -665,7 +670,6 @@ export default function LiveTracking({ isVisible, sessionsByDriver, deviceMappin
               <SpeedPolylines 
                 session={v.latestSession} 
                 isFollowed={followedDriverId === v.driverId} 
-                isOffline={!v.isOnline}
                 zoom={zoom}
               />
             )}
