@@ -265,13 +265,9 @@ function SidebarItem({
     : 'bg-[#0f141d]/70 hover:bg-[#111622]/80';
 
   const handleHeaderClick = () => {
-    if (isFollowed) {
-      setFollowedDriverId(null);
-    } else {
-      map.setView([lastPoint.lat, lastPoint.lon], 15, { animate: true, duration: 0.8 });
-      setFollowedDriverId(driverId);
-      setIsCameraFollowActive(true);
-    }
+    map.setView([lastPoint.lat, lastPoint.lon], 15, { animate: true, duration: 0.8 });
+    setFollowedDriverId(driverId);
+    setIsCameraFollowActive(true);
   };
 
   // Sadece plaka veya çevrimdışı
