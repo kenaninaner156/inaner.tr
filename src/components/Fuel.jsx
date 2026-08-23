@@ -331,12 +331,9 @@ const Fuel = () => {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 relative pb-ios-nav">
-            {/* Üst Bar: Başlık, Filtre ve Aksiyon */}
+            {/* Üst Bar: Filtre ve Aksiyon */}
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="flex items-center gap-4 w-full sm:w-auto">
-                    {/* Masaüstünde Başlık */}
-                    <h2 className="hidden md:block text-2xl font-bold text-[var(--text-primary)] mr-2 tracking-tight">Mazot Fişleri</h2>
-                    
+                <div className="w-full sm:w-auto">
                     {/* Custom Dropdown */}
                     <div className="relative w-full sm:w-auto min-w-[200px]" ref={dropdownRef}>
                         <button 

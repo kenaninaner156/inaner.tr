@@ -740,7 +740,7 @@ function App() {
         <div className="flex flex-col min-h-screen w-full">
 
           {/* Header - Simple & Clean (sticky) */}
-          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['invoices', 'fuel', 'map'].includes(activeTab) ? 'hidden' : ''}`}
+          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${activeTab === 'map' ? 'hidden' : ''}`}
             style={{
               paddingTop: 'calc(0.5rem + env(safe-area-inset-top))'
             }}
