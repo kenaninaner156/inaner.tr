@@ -116,14 +116,15 @@ export default async function handler(req, res) {
             console.error("truck_routes yedek yazma hatası:", trkErr);
         }
 
-        // 2. YENİ SİSTEM (Canlı Takip: live_positions/{deviceId})
-        let lastLiveDoc = null;
+        // 2. YENİ SİSTEM (Canlı Takip & Günlük Rota Kaydı)
         try {
             const liveRef = db.collection('live_positions').doc(cleanDeviceId);
-            lastLiveDoc = await liveRef.get();
+            const lastLiveDoc = await liveRef.get();
+            const lastLiveData = lastLiveDoc.exists ? lastLiveDoc.data() : null;
+
             let recentTrail = [];
-            if (lastLiveDoc.exists && Array.isArray(lastLiveDoc.data().recentTrail)) {
-                recentTrail = lastLiveDoc.data().recentTrail;
+            if (lastLiveData && Array.isArray(lastLiveData.recentTrail)) {
+                recentTrail = lastLiveData.recentTrail;
             }
             recentTrail.push({
                 lat: Number(lat.toFixed(5)),
@@ -136,6 +137,20 @@ export default async function handler(req, res) {
                 recentTrail = recentTrail.slice(-100);
             }
 
+            // Günlük rotaya kayıt kontrolü (lastDailyTimestamp'e göre)
+            const isStopped = speed <= 2;
+            const lastWasStopped = (lastLiveData?.speed || 0) <= 2;
+            const lastDailyTime = lastLiveData?.lastDailyTimestamp 
+                ? new Date(lastLiveData.lastDailyTimestamp).getTime() 
+                : 0;
+            const currTime = new Date(formattedTimestamp).getTime();
+            const timeDiffSec = (currTime - lastDailyTime) / 1000;
+
+            const shouldRecordToDaily = !lastDailyTime || (isStopped 
+                ? (timeDiffSec >= 60 || !lastWasStopped) 
+                : (timeDiffSec >= 3 || Math.abs(speed - (lastLiveData?.speed || 0)) > 10));
+
+            // 1. live_positions güncelle
             await liveRef.set({
                 deviceId: cleanDeviceId,
                 driverId: cleanDeviceId,
@@ -145,24 +160,11 @@ export default async function handler(req, res) {
                 altitude: Number(altitude.toFixed(1)),
                 timestamp: formattedTimestamp,
                 recordedAt: new Date().toISOString(),
+                lastDailyTimestamp: shouldRecordToDaily ? formattedTimestamp : (lastLiveData?.lastDailyTimestamp || formattedTimestamp),
                 recentTrail
             }, { merge: true });
-        } catch (liveErr) {
-            console.error("live_positions güncelleme hatası:", liveErr);
-        }
 
-        // 3. YENİ SİSTEM (Günlük Rota Geçmişi: daily_routes/{deviceId_YYYY-MM-DD})
-        try {
-            const isStopped = speed <= 2;
-            const lastWasStopped = (lastLiveDoc?.data()?.speed || 0) <= 2;
-            const lastTime = lastLiveDoc?.data()?.timestamp ? new Date(lastLiveDoc.data().timestamp).getTime() : 0;
-            const currTime = new Date(formattedTimestamp).getTime();
-            const timeDiffSec = (currTime - lastTime) / 1000;
-
-            const shouldRecordToDaily = isStopped 
-                ? (timeDiffSec >= 60 || !lastWasStopped) 
-                : (timeDiffSec >= 3 || Math.abs(speed - (lastLiveDoc?.data()?.speed || 0)) > 10);
-
+            // 2. daily_routes güncelle
             if (shouldRecordToDaily) {
                 const dailyDocId = `${cleanDeviceId}_${dateStr}`;
                 const dailyRef = db.collection('daily_routes').doc(dailyDocId);
@@ -181,8 +183,8 @@ export default async function handler(req, res) {
                     })
                 }, { merge: true });
             }
-        } catch (dailyErr) {
-            console.error("daily_routes güncelleme hatası:", dailyErr);
+        } catch (syncErr) {
+            console.error("live_positions / daily_routes güncelleme hatası:", syncErr);
         }
 
         return res.status(200).json({ 
