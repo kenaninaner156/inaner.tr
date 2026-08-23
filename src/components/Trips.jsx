@@ -1,13 +1,13 @@
-import React, { useState, useContext, useEffect, useRef } from 'react';
+import React, { useState, useContext, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Search, MapPin, X, ChevronDown, Check, Trash2, Paperclip, FileText, Pencil, StickyNote, Truck } from 'lucide-react';
+import { Plus, Search, MapPin, X, ChevronDown, Check, Trash2, Paperclip, FileText, Pencil, StickyNote, Truck, Menu, Calendar, Scale, Activity, Wallet, ArrowRight } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import FileUpload from './FileUpload';
 import CustomSelect from './CustomSelect';
 import CustomDatePicker from './CustomDatePicker';
 import { useCompany } from '../context/CompanyContext';
 
-const Trips = () => {
+const Trips = ({ onOpenMenu, isMobile }) => {
     const { trips, addTrip, deleteTrip, editTrip, routes, addRoute, updateRoute, deleteRoute, premiums, allDrivers } = useContext(DataContext);
     const { companyData } = useCompany();
     const [editingTrip, setEditingTrip] = useState(null);
@@ -17,6 +17,51 @@ const Trips = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isRouteManagerOpen, setIsRouteManagerOpen] = useState(false);
     const [editingRoute, setEditingRoute] = useState(null);
+
+    // Ay / Dönem Filtresi State'leri
+    const [timeFilter, setTimeFilter] = useState('all');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    // Dışarı tıklandığında ay dropdown'ını kapat
+    useEffect(() => {
+        if (!isDropdownOpen) return;
+        const handleClickOutside = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setIsDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('touchstart', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('touchstart', handleClickOutside);
+        };
+    }, [isDropdownOpen]);
+
+    // Ay seçeneklerini otomatik oluştur (Ters kronolojik)
+    const monthOptions = useMemo(() => {
+        const options = [];
+        const currentYear = new Date().getFullYear();
+        
+        const uniqueMonths = [...new Set((trips || []).filter(t => !t.deleted && t.date).map(t => {
+            const d = new Date(t.date);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        }))].sort().reverse();
+        
+        uniqueMonths.forEach(ym => {
+            const [y, m] = ym.split('-');
+            const year = parseInt(y);
+            const monthIndex = parseInt(m) - 1;
+            const date = new Date(year, monthIndex, 1);
+            const monthName = date.toLocaleString('tr-TR', { month: 'long' });
+            
+            const label = year === currentYear ? monthName : `${monthName} ${year}`;
+            options.push({ value: ym, label });
+        });
+        
+        return options;
+    }, [trips]);
 
     // Rota Seçim State'leri
     const [useSavedRoute, setUseSavedRoute] = useState(true);
@@ -375,109 +420,274 @@ const Trips = () => {
         setSaveNewRoute(false);
     };
 
-    const filteredTrips = trips.filter(trip =>
-        !trip.deleted && (
-            trip.from.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            trip.to.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            trip.date.includes(searchTerm)
-        )
-    );
+    const filteredTrips = useMemo(() => {
+        return (trips || []).filter(trip => {
+            if (trip.deleted) return false;
+            
+            // Ay / Dönem Filtresi
+            if (timeFilter !== 'all') {
+                const d = new Date(trip.date);
+                const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                if (ym !== timeFilter) return false;
+            }
+
+            // Arama Terimi Filtresi
+            if (searchTerm.trim()) {
+                const term = searchTerm.toLowerCase();
+                const fromMatch = (trip.from || '').toLowerCase().includes(term);
+                const toMatch = (trip.to || '').toLowerCase().includes(term);
+                const dateMatch = (trip.date || '').includes(term);
+                const driverMatch = (trip.driverName || '').toLowerCase().includes(term);
+                const notesMatch = (trip.notes || '').toLowerCase().includes(term);
+                if (!fromMatch && !toMatch && !dateMatch && !driverMatch && !notesMatch) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }, [trips, timeFilter, searchTerm]);
+
+    // Tonaj değerini ton cinsine normalize et (örn: 33100 kg girilmişse 33.1 ton yap)
+    const parseTonnageInTons = (val) => {
+        const num = parseFloat(val);
+        if (isNaN(num) || num <= 0) return 0;
+        if (num > 200) {
+            return num / 1000;
+        }
+        return num;
+    };
+
+    const summaryStats = useMemo(() => {
+        let totalTrips = filteredTrips.length;
+        let totalTonnage = 0;
+
+        filteredTrips.forEach(trip => {
+            totalTonnage += parseTonnageInTons(trip.tonnage);
+        });
+
+        const avgTonnagePerTrip = totalTrips > 0 ? (totalTonnage / totalTrips) : 0;
+
+        return {
+            totalTrips,
+            totalTonnage,
+            avgTonnagePerTrip
+        };
+    }, [filteredTrips]);
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500 relative pb-ios-nav">
+        <div className="space-y-4 animate-in fade-in duration-500 relative pb-ios-nav">
 
-            {/* Üst Kısım / Filtreleme */}
-            <div className="glass-panel p-4 flex flex-col md:flex-row justify-between items-center gap-4 mb-2 isolate overflow-hidden" style={{ contain: 'paint', willChange: 'transform', transform: 'translateZ(0)' }}>
-                <div className="relative w-full md:w-96 flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none" size={16} />
-                    <input
-                        type="text"
-                        placeholder="Sefer ara (Tarih, Güzergah)..."
-                        className="w-full glass-input pr-4 py-2"
-                        style={{ paddingLeft: '2.5rem' }}
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
+            {/* ─── ENTEGRE TEK SATIR HEADER & INLINE STAT BAR ─── */}
+            <div 
+                className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-white/[0.06] relative"
+                style={{
+                    paddingTop: 'calc(0.2rem + env(safe-area-inset-top, 0px))'
+                }}
+            >
+                {/* Sol Grup: Hamburger (Mobil) + Başlık + Ay Seçici + INLINE STAT KAPSÜLLERİ */}
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap min-w-0">
+                    {isMobile && onOpenMenu && (
+                        <button 
+                            onClick={onOpenMenu} 
+                            className="p-1.5 -ml-1 text-slate-400 hover:text-slate-100 transition-colors flex items-center justify-center cursor-pointer rounded-lg hover:bg-white/5"
+                            title="Menüyü Aç"
+                        >
+                            <Menu size={22} />
+                        </button>
+                    )}
+                    
+                    <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white whitespace-nowrap">
+                        Seferler
+                    </h2>
+
+                    {/* Ay / Zaman Filtresi Dropdown */}
+                    <div className="relative" ref={dropdownRef}>
+                        <button
+                            type="button"
+                            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                            className="h-[36px] w-[155px] px-3 bg-[#0b0e14]/90 border border-white/10 hover:border-cyan-500/35 rounded-xl flex items-center justify-between gap-2 text-xs sm:text-sm font-semibold text-slate-200 hover:text-white transition-all shadow-lg cursor-pointer"
+                        >
+                            <div className="flex items-center gap-2 min-w-0">
+                                <Calendar size={13} className="text-cyan-400 shrink-0" />
+                                <span className="truncate">
+                                    {timeFilter === 'all' 
+                                        ? 'Tüm Zamanlar' 
+                                        : (monthOptions.find(o => o.value === timeFilter)?.label || timeFilter)}
+                                </span>
+                            </div>
+                            <ChevronDown size={13} className={`text-slate-400 shrink-0 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180 text-cyan-400' : ''}`} />
+                        </button>
+
+                        {isDropdownOpen && (
+                            <div className="absolute left-0 top-full mt-1.5 w-44 bg-[#0c1017]/95 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                                <button
+                                    type="button"
+                                    onClick={() => { setTimeFilter('all'); setIsDropdownOpen(false); }}
+                                    className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors cursor-pointer ${
+                                        timeFilter === 'all' ? 'bg-cyan-500/15 text-cyan-300 font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                                    }`}
+                                >
+                                    <span>Tüm Zamanlar</span>
+                                </button>
+                                <div className="my-1 border-t border-white/5" />
+                                <div className="max-h-56 overflow-y-auto [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                                    {monthOptions.map(opt => (
+                                        <button
+                                            key={opt.value}
+                                            type="button"
+                                            onClick={() => { setTimeFilter(opt.value); setIsDropdownOpen(false); }}
+                                            className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors cursor-pointer ${
+                                                timeFilter === opt.value ? 'bg-cyan-500/15 text-cyan-300 font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                                            }`}
+                                        >
+                                            <span className="truncate">{opt.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ─── INLINE METRIC KAPSÜLLERİ (SİMETRİK & SABİT GENİŞLİKLİ) ─── */}
+                    <div className="flex items-center gap-2">
+                        {/* Toplam Sefer Kapsülü */}
+                        <div className="h-[36px] px-3 bg-[#0b0e14]/90 border border-white/10 hover:border-cyan-500/30 rounded-xl flex items-center gap-2 text-xs shadow-sm transition-all">
+                            <span className="p-1 rounded-md bg-cyan-500/10 text-cyan-400 shrink-0 flex items-center justify-center">
+                                <Truck size={12} />
+                            </span>
+                            <div className="flex items-baseline gap-1 whitespace-nowrap">
+                                <span className="text-[11px] text-slate-400 font-medium">Toplam:</span>
+                                <span className="font-bold text-white text-xs sm:text-sm">{summaryStats.totalTrips}</span>
+                                <span className="text-[11px] text-slate-400">Sefer</span>
+                            </div>
+                        </div>
+
+                        {/* Ortalama Tonaj Kapsülü */}
+                        <div className="h-[36px] px-3 bg-[#0b0e14]/90 border border-white/10 hover:border-cyan-500/30 rounded-xl flex items-center gap-2 text-xs shadow-sm transition-all">
+                            <span className="p-1 rounded-md bg-cyan-500/10 text-cyan-400 shrink-0 flex items-center justify-center">
+                                <Scale size={12} />
+                            </span>
+                            <div className="flex items-baseline gap-1 whitespace-nowrap">
+                                <span className="text-[11px] text-slate-400 font-medium">Ortalama:</span>
+                                <span className="font-bold text-cyan-400 text-xs sm:text-sm">{summaryStats.avgTonnagePerTrip.toFixed(1)}</span>
+                                <span className="text-[11px] text-slate-400">Ton</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div className="flex flex-col md:flex-row w-full md:w-auto gap-3">
-                    <button
+
+                {/* Sağ Grup: Arama Çubuğu + Yeni Sefer Butonu */}
+                <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto">
+                    <div className="relative flex-1 md:w-60">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                        <input
+                            type="text"
+                            placeholder="Sefer ara (Güzergah, şoför...)"
+                            className="w-full h-[36px] bg-[#0b0e14]/90 border border-white/10 hover:border-white/20 focus:border-cyan-500/50 rounded-xl pl-8 pr-3 text-xs sm:text-sm text-white placeholder:text-slate-500 focus:outline-none transition-all"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                        {searchTerm && (
+                            <button
+                                onClick={() => setSearchTerm('')}
+                                className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-slate-300 p-0.5 cursor-pointer"
+                            >
+                                <X size={13} />
+                            </button>
+                        )}
+                    </div>
+
+                    <button 
                         onClick={() => setIsModalOpen(true)}
-                        className="w-full md:w-auto bg-sky-600 hover:bg-sky-500 text-[var(--text-primary)] px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center whitespace-nowrap"
+                        className="bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white px-3.5 h-[36px] sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-[0_0_20px_rgba(6,182,212,0.25)] hover:shadow-[0_0_25px_rgba(6,182,212,0.45)] hover:-translate-y-0.5 flex items-center justify-center shrink-0 cursor-pointer"
                     >
-                        <Plus size={18} className="mr-2" />
-                        Sefer Ekle
+                        <Plus size={15} className="mr-1 sm:mr-1.5" /> 
+                        <span className="whitespace-nowrap">Yeni Sefer</span>
                     </button>
                 </div>
             </div>
 
-            {/* Seferler Tablosu - Masaüstü */}
-            <div className="glass-panel overflow-hidden" style={{ background: 'var(--bg-base)' }}>
-                <div className="overflow-x-auto -mx-0 md:mx-0">
-                    <table className="w-full text-left border-collapse hidden md:table" style={{ minWidth: '500px' }}>
+            {/* ─── SEFERLER LİSTESİ / TABLOSU ─── */}
+            <div className="bg-[#0c1017]/90 backdrop-blur-xl border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                    {/* Masaüstü Tablosu */}
+                    <table className="w-full text-left border-collapse hidden md:table table-fixed">
                         <thead>
-                            <tr className="bg-white/5 border-b border-[var(--border-color)] text-[var(--text-secondary)] text-xs uppercase tracking-wide">
-                                <th className="p-3 pl-4 font-semibold whitespace-nowrap">Tarih</th>
-                                <th className="p-3 font-semibold whitespace-nowrap">Güzergah</th>
-                                <th className="p-3 font-semibold text-center whitespace-nowrap">Tonaj</th>
-                                <th className="p-3 font-semibold text-center whitespace-nowrap">Durum</th>
-                                <th className="p-3 font-semibold text-center whitespace-nowrap w-16"></th>
+                            <tr className="bg-white/[0.03] border-b border-white/[0.06] text-slate-400 text-[11px] uppercase font-bold tracking-wider">
+                                <th className="p-3 pl-4 whitespace-nowrap w-36">Tarih</th>
+                                <th className="p-3 whitespace-nowrap">Güzergah</th>
+                                <th className="p-3 text-center whitespace-nowrap w-28">Tonaj</th>
+                                <th className="p-3 text-center whitespace-nowrap w-36">Durum</th>
+                                <th className="p-3 text-center whitespace-nowrap w-24">İşlemler</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/5">
+                        <tbody className="divide-y divide-white/[0.04]">
                             {filteredTrips.length > 0 ? (
                                 filteredTrips.map((trip) => (
-                                    <tr key={trip.id} className="hover:bg-white/5 group">
+                                    <tr key={trip.id} className="hover:bg-white/[0.02] transition-colors group">
                                         <td className="p-3 pl-4 whitespace-nowrap">
-                                            <div className="text-[var(--text-primary)] text-sm font-medium">{new Date(trip.date).toLocaleDateString('tr-TR')}</div>
+                                            <div className="text-white text-sm font-semibold">{new Date(trip.date).toLocaleDateString('tr-TR')}</div>
                                         </td>
                                         <td className="p-3">
-                                            <div className="text-sm font-semibold text-[var(--text-primary)] whitespace-nowrap">
-                                                {trip.from} <span className="text-sky-400 mx-1">→</span> {trip.to}
+                                            <div className="text-sm font-bold text-white whitespace-nowrap flex items-center gap-1.5">
+                                                <span>{trip.from}</span>
+                                                <ArrowRight size={13} className="text-cyan-400 shrink-0" />
+                                                <span>{trip.to}</span>
                                             </div>
-                                            {trip.km > 0 && (
-                                                <div className="text-xs text-slate-500 mt-0.5 whitespace-nowrap">{trip.km} km</div>
-                                            )}
-                                            {trip.notes && (
-                                                <div className="flex items-center gap-1 mt-0.5">
-                                                    <StickyNote size={9} className="text-slate-500" />
-                                                    <span className="text-xs text-slate-500 truncate max-w-[200px]">{trip.notes}</span>
-                                                </div>
-                                            )}
-                                            {companyData?.personnelEnabled && trip.driverName && (
-                                                <div className="flex items-center gap-1.5 mt-1">
-                                                    <span className="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/20 font-medium whitespace-nowrap">
-                                                        👤 {trip.driverName}
-                                                    </span>
-                                                    {trip.premiumAmount > 0 && (
-                                                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 font-bold whitespace-nowrap">
-                                                            ₺{trip.premiumAmount} Prim
+                                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                                                {trip.km > 0 && (
+                                                    <span className="text-[10px] text-slate-500 font-medium font-mono">{trip.km} km</span>
+                                                )}
+                                                {trip.notes && (
+                                                    <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                                                        <StickyNote size={10} className="text-slate-500" />
+                                                        <span className="truncate max-w-[220px]">{trip.notes}</span>
+                                                    </div>
+                                                )}
+                                                {companyData?.personnelEnabled && trip.driverName && (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/20 font-medium whitespace-nowrap">
+                                                            👤 {trip.driverName}
                                                         </span>
-                                                    )}
-                                                </div>
-                                            )}
+                                                        {trip.premiumAmount > 0 && (
+                                                            <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 font-bold whitespace-nowrap">
+                                                                ₺{trip.premiumAmount} Prim
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="p-3 text-center whitespace-nowrap">
-                                            <span className="text-[var(--text-primary)] font-medium text-sm">{trip.tonnage} t</span>
+                                            <span className="text-white font-bold text-sm bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">
+                                                {parseTonnageInTons(trip.tonnage) > 0 ? `${parseTonnageInTons(trip.tonnage).toFixed(1)} t` : '—'}
+                                            </span>
                                         </td>
                                         <td className="p-3 text-center">
-                                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${trip.status === 'Faturalandı' || trip.status === 'Fatura Kesildi'
-                                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                                : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                                                }`}>
+                                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${
+                                                trip.status === 'Faturalandı' || trip.status === 'Fatura Kesildi'
+                                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                                    : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                            }`}>
                                                 {trip.status}
                                             </span>
                                         </td>
-                                        <td className="p-2 text-center">
-                                            <div className="flex items-center justify-center gap-0.5">
+                                        <td className="p-3 text-center">
+                                            <div className="flex items-center justify-center gap-1">
                                                 {trip.files && trip.files.length > 0 && (
-                                                    <button onClick={() => setViewFiles({ title: `${trip.from} → ${trip.to}`, files: trip.files })}
-                                                        title={`${trip.files.length} ek`}
-                                                        className="p-1.5 rounded-lg text-slate-500 hover:text-sky-400 hover:bg-sky-500/10">
+                                                    <button 
+                                                        onClick={() => setViewFiles({ title: `${trip.from} → ${trip.to}`, files: trip.files })}
+                                                        title={`${trip.files.length} Ek Dosya`}
+                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 transition-colors cursor-pointer"
+                                                    >
                                                         <Paperclip size={14} />
                                                     </button>
                                                 )}
-                                                <button onClick={() => openEditModal(trip)}
-                                                    className="p-1.5 rounded-lg text-slate-500 hover:text-sky-400 hover:bg-sky-500/10">
+                                                <button 
+                                                    onClick={() => openEditModal(trip)}
+                                                    title="Seferi Düzenle"
+                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 transition-colors cursor-pointer"
+                                                >
                                                     <Pencil size={14} />
                                                 </button>
                                             </div>
@@ -486,10 +696,10 @@ const Trips = () => {
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan="5" className="p-8 text-center text-slate-500">
-                                        <MapPin size={32} className="mx-auto mb-3 opacity-30" />
-                                        <p className="text-lg font-medium text-[var(--text-secondary)]">Henüz Kayıtlı Sefer Yok</p>
-                                        <p className="text-sm mt-1">Sisteme yeni bir sefer eklediğinizde burada listelenecektir.</p>
+                                    <td colSpan="5" className="p-12 text-center text-slate-500">
+                                        <Truck size={36} className="mx-auto mb-3 opacity-20 text-cyan-400" />
+                                        <p className="text-base font-semibold text-slate-300">Kayıtlı Sefer Bulunamadı</p>
+                                        <p className="text-xs text-slate-500 mt-1">Seçili dönemde veya arama kriterinde sefer kaydı yok.</p>
                                     </td>
                                 </tr>
                             )}
@@ -497,91 +707,105 @@ const Trips = () => {
                     </table>
 
                     {/* Mobil Kart Görünümü */}
-                    <div className="md:hidden flex flex-col gap-3 p-2">
+                    <div className="md:hidden flex flex-col gap-2.5 p-3">
                         {filteredTrips.length > 0 ? (
                             filteredTrips.map((trip) => (
-                                <div key={trip.id} className="bg-[var(--bg-panel)] border border-[var(--border-color)] rounded-2xl p-4 shadow-sm relative overflow-hidden">
-                                    {/* Satır 1: Tarih | Durum Etiketi | Ekler/Duzenle */}
-                                    <div className="flex items-center justify-between mb-1.5">
-                                        <div className="text-[10px] text-slate-500 font-medium">{new Date(trip.date).toLocaleDateString('tr-TR')}</div>
+                                <div key={trip.id} className="bg-[#0b0e14]/90 border border-white/[0.08] hover:border-cyan-500/30 rounded-xl p-3.5 shadow-md relative transition-all">
+                                    {/* Üst Satır: Tarih | Durum | Ekler & Düzenle */}
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="text-xs font-bold text-slate-400">
+                                            {new Date(trip.date).toLocaleDateString('tr-TR')}
+                                        </div>
                                         <div className="flex items-center gap-1.5">
-                                            <div className={`px-1 py-0.5 rounded text-[8px] font-bold tracking-wider uppercase whitespace-nowrap
-                                                ${trip.status === 'Faturalandı' || trip.status === 'Fatura Kesildi'
+                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                                trip.status === 'Faturalandı' || trip.status === 'Fatura Kesildi'
                                                     ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
+                                                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                            }`}>
                                                 {trip.status}
-                                            </div>
+                                            </span>
                                             {trip.files && trip.files.length > 0 && (
-                                                <button onClick={() => setViewFiles({ title: `${trip.from} → ${trip.to}`, files: trip.files })}
-                                                    className="p-1 bg-sky-500/10 hover:bg-sky-500/20 rounded-md text-sky-400 transition-colors flex items-center">
+                                                <button 
+                                                    onClick={() => setViewFiles({ title: `${trip.from} → ${trip.to}`, files: trip.files })}
+                                                    className="p-1 bg-cyan-500/10 hover:bg-cyan-500/20 rounded-lg text-cyan-400 transition-colors flex items-center cursor-pointer"
+                                                >
                                                     <Paperclip size={12} />
                                                 </button>
                                             )}
-                                            <button onClick={() => openEditModal(trip)}
-                                                className="p-1 bg-white/5 hover:bg-white/10 rounded-md text-[var(--text-secondary)] hover:text-sky-400 transition-colors">
+                                            <button 
+                                                onClick={() => openEditModal(trip)}
+                                                className="p-1 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer"
+                                            >
                                                 <Pencil size={13} />
                                             </button>
                                         </div>
                                     </div>
 
-                                    {/* Satır 2: Tam genislikte Guzergah */}
-                                    <div className="font-bold text-[var(--text-primary)] text-[13px] leading-snug mb-1 break-words">
-                                        {trip.from} <span className="text-sky-400">→</span> {trip.to}
+                                    {/* Güzergah */}
+                                    <div className="font-bold text-white text-sm leading-snug mb-1.5 flex items-center gap-1.5 flex-wrap">
+                                        <span>{trip.from}</span>
+                                        <ArrowRight size={13} className="text-cyan-400 shrink-0" />
+                                        <span>{trip.to}</span>
                                     </div>
 
+                                    {/* Şoför & Prim Rozetleri */}
                                     {companyData?.personnelEnabled && trip.driverName && (
-                                        <div className="flex flex-wrap items-center gap-1.5 mb-2 mt-0.5">
-                                            <span className="text-[9px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/20 font-medium whitespace-nowrap">
+                                        <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                                            <span className="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/20 font-medium">
                                                 👤 {trip.driverName}
                                             </span>
                                             {trip.premiumAmount > 0 && (
-                                                <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 font-bold whitespace-nowrap">
+                                                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 font-bold">
                                                     ₺{trip.premiumAmount} Prim
                                                 </span>
                                             )}
                                         </div>
                                     )}
 
-                                    {/* Not gösterimi */}
+                                    {/* Not */}
                                     {trip.notes && (
-                                        <div className="flex items-center gap-1 mb-2">
-                                            <StickyNote size={9} className="text-slate-500" />
-                                            <span className="text-[10px] text-slate-500 truncate">{trip.notes}</span>
+                                        <div className="flex items-center gap-1.5 mb-2 text-xs text-slate-400 bg-white/[0.02] p-1.5 rounded-lg border border-white/5">
+                                            <StickyNote size={11} className="text-slate-500 shrink-0" />
+                                            <span className="truncate">{trip.notes}</span>
                                         </div>
                                     )}
 
-                                    {/* Satır 3: Tonaj */}
-                                    <div className="flex bg-white/5 rounded-xl p-2.5 items-center mt-1">
-                                        <div className="flex flex-col">
-                                            <div className="text-[9px] text-slate-500 uppercase font-semibold mb-0.5">TONAJ</div>
-                                            <div className="text-[var(--text-primary)] font-medium text-xs">{trip.tonnage} t</div>
+                                    {/* Alt Bar: Tonaj ve KM */}
+                                    <div className="flex items-center justify-between pt-2 border-t border-white/5 text-xs">
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-slate-500 uppercase text-[10px] font-bold">Tonaj:</span>
+                                            <span className="text-white font-bold">{parseTonnageInTons(trip.tonnage) > 0 ? `${parseTonnageInTons(trip.tonnage).toFixed(1)} t` : '—'}</span>
                                         </div>
+                                        {trip.km > 0 && (
+                                            <div className="text-slate-500 text-[10px] font-mono">
+                                                {trip.km} km
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))
                         ) : (
                             <div className="p-8 text-center text-slate-500">
-                                <Truck size={32} className="mx-auto mb-3 opacity-30" />
-                                <p className="text-lg font-medium text-[var(--text-secondary)]">Henüz Kayıtlı Sefer Yok</p>
+                                <Truck size={32} className="mx-auto mb-2 opacity-20 text-cyan-400" />
+                                <p className="text-sm font-semibold text-slate-300">Kayıtlı Sefer Bulunamadı</p>
                             </div>
                         )}
                     </div>
                 </div>
             </div>
 
-
             {/* ─── DÜZENLE MODAL ─── */}
             {editingTrip && createPortal(
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto">
-                        <button onClick={() => setEditingTrip(null)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
-                        <h3 className="text-lg font-bold text-[var(--text-primary)] mb-5 flex items-center gap-2">
-                            <Pencil size={16} className="text-sky-400" /> Seferi Düzenle
+                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto border-cyan-500/30">
+                        <button onClick={() => setEditingTrip(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer"><X size={20} /></button>
+                        <h3 className="text-lg font-bold text-white mb-5 flex items-center gap-2">
+                            <Pencil size={16} className="text-cyan-400" /> Seferi Düzenle
                         </h3>
                         <div className="space-y-4">
                             {/* Tarih */}
                             <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1 uppercase tracking-wider">Tarih</label>
+                                <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">Tarih</label>
                                 <CustomDatePicker 
                                     value={editForm.date}
                                     onChange={(val) => setEditForm({ ...editForm, date: val })}
@@ -589,22 +813,22 @@ const Trips = () => {
                                 />
                             </div>
                             {/* Güzergah Belirleme */}
-                            <div className="p-4 bg-sky-500/5 border border-sky-500/20 rounded-2xl space-y-4 shadow-lg shadow-sky-500/5 transition-all duration-300 border-dashed md:border-solid">
+                            <div className="p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-2xl space-y-4 shadow-lg shadow-cyan-500/5 transition-all duration-300 border-dashed md:border-solid">
                                 <div className="flex items-center justify-between mb-2">
-                                    <label className="text-xs font-bold text-sky-400 uppercase tracking-widest flex items-center gap-2">
+                                    <label className="text-xs font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
                                         <MapPin size={14} /> Güzergah Belirleme
                                     </label>
-                                    <div className="flex items-center space-x-2 bg-[var(--bg-panel-hover)] p-1 rounded-lg">
+                                    <div className="flex items-center space-x-2 bg-black/40 p-1 rounded-lg border border-white/5">
                                         <button
                                             type="button"
-                                            className={`px-3 py-1 text-xs font-medium rounded ${editUseSavedRoute ? 'bg-sky-500 text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}
+                                            className={`px-3 py-1 text-xs font-medium rounded cursor-pointer transition-all ${editUseSavedRoute ? 'bg-cyan-500 text-white shadow-md shadow-cyan-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
                                             onClick={() => setEditUseSavedRoute(true)}
                                         >
                                             Kayıtlı Rota
                                         </button>
                                         <button
                                             type="button"
-                                            className={`px-3 py-1 text-xs font-medium rounded ${!editUseSavedRoute ? 'bg-sky-500 text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}
+                                            className={`px-3 py-1 text-xs font-medium rounded cursor-pointer transition-all ${!editUseSavedRoute ? 'bg-cyan-500 text-white shadow-md shadow-cyan-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
                                             onClick={() => {
                                                 setEditUseSavedRoute(false);
                                                 setEditSelectedRouteId('');
@@ -616,7 +840,7 @@ const Trips = () => {
                                         <div className="w-[1px] h-3 bg-white/10 mx-1"></div>
                                         <button
                                             type="button"
-                                            className="px-2 py-1 text-[10px] font-bold text-sky-400 hover:text-sky-300 uppercase tracking-tighter"
+                                            className="px-2 py-1 text-[10px] font-bold text-cyan-400 hover:text-cyan-300 uppercase tracking-tighter cursor-pointer"
                                             onClick={() => setIsRouteManagerOpen(true)}
                                         >
                                             Yönet
@@ -632,15 +856,15 @@ const Trips = () => {
                                                 setRouteSelectorMode('edit');
                                                 setIsRouteSelectorOpen(true);
                                             }}
-                                            className="w-full glass-input px-4 py-3 flex items-center justify-between text-sm group hover:border-sky-500/40 hover:bg-sky-500/5 transition-all"
+                                            className="w-full glass-input px-4 py-3 flex items-center justify-between text-sm group hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all cursor-pointer"
                                         >
-                                            <span className={editSelectedRouteId ? "text-[var(--text-primary)] font-medium" : "text-slate-500"}>
+                                            <span className={editSelectedRouteId ? "text-white font-medium" : "text-slate-500"}>
                                                 {editSelectedRouteId
                                                     ? `${routes.find(r => r.id === parseInt(editSelectedRouteId))?.from} ➔ ${routes.find(r => r.id === parseInt(editSelectedRouteId))?.to}`
                                                     : "Kayıtlı Rotalarımdan Seçin..."}
                                             </span>
                                             <div className="flex items-center">
-                                                <span className="text-[10px] uppercase font-bold text-sky-500 bg-sky-500/10 px-2 py-1 rounded">SEÇ</span>
+                                                <span className="text-[10px] uppercase font-bold text-cyan-400 bg-cyan-500/10 px-2 py-1 rounded border border-cyan-500/20">SEÇ</span>
                                             </div>
                                         </button>
                                     </div>
@@ -648,7 +872,7 @@ const Trips = () => {
                                     <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-xs text-[var(--text-secondary)] mb-1">Yükleme (Nereden)</label>
+                                                <label className="block text-xs text-slate-400 mb-1">Yükleme (Nereden)</label>
                                                 <input
                                                     type="text"
                                                     required={!editUseSavedRoute}
@@ -659,7 +883,7 @@ const Trips = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs text-[var(--text-secondary)] mb-1">Boşaltma (Nereye)</label>
+                                                <label className="block text-xs text-slate-400 mb-1">Boşaltma (Nereye)</label>
                                                 <input
                                                     type="text"
                                                     required={!editUseSavedRoute}
@@ -671,7 +895,7 @@ const Trips = () => {
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="block text-xs text-[var(--text-secondary)] mb-1">Mesafe (KM)</label>
+                                            <label className="block text-xs text-slate-400 mb-1">Mesafe (KM)</label>
                                             <input
                                                 type="number"
                                                 required={!editUseSavedRoute}
@@ -683,9 +907,9 @@ const Trips = () => {
                                         </div>
                                         <div className="flex items-center justify-between border-t border-white/5 pt-3">
                                             <div className="flex items-center gap-2">
-                                                <label className="flex items-center space-x-2 text-sm text-[var(--text-primary)] cursor-pointer whitespace-nowrap">
-                                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${editSaveNewRoute ? 'bg-sky-500 border-sky-500' : 'border-slate-500'}`}>
-                                                        {editSaveNewRoute && <Check size={14} className="text-[var(--text-primary)]" />}
+                                                <label className="flex items-center space-x-2 text-sm text-white cursor-pointer whitespace-nowrap">
+                                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${editSaveNewRoute ? 'bg-cyan-500 border-cyan-500' : 'border-slate-500'}`}>
+                                                        {editSaveNewRoute && <Check size={14} className="text-white" />}
                                                     </div>
                                                     <input
                                                         type="checkbox"
@@ -699,7 +923,7 @@ const Trips = () => {
                                                     type="button"
                                                     onClick={handleEditSaveRouteOnly}
                                                     disabled={!editForm.from || !editForm.to || editSaveRouteSuccess}
-                                                    className={`px-2 py-1 flex items-center gap-1 text-[10px] font-bold rounded border transition-all uppercase ${editSaveRouteSuccess ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : (!editForm.from || !editForm.to) ? 'bg-white/5 text-slate-600 border-white/5 cursor-not-allowed' : 'bg-sky-500/20 text-sky-400 border-sky-500/30 hover:bg-sky-500/30'}`}
+                                                    className={`px-2 py-1 flex items-center gap-1 text-[10px] font-bold rounded border transition-all uppercase ${editSaveRouteSuccess ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : (!editForm.from || !editForm.to) ? 'bg-white/5 text-slate-600 border-white/5 cursor-not-allowed' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/30 cursor-pointer'}`}
                                                 >
                                                     {editSaveRouteSuccess ? (
                                                         <><Check size={12} /> Kaydedildi</>
@@ -715,7 +939,7 @@ const Trips = () => {
                             <div className="grid grid-cols-2 gap-4 items-end">
                                 {/* Tonaj */}
                                 <div>
-                                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1 uppercase tracking-wider">Tonaj</label>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">Tonaj</label>
                                     <input type="number" step="0.01" className="w-full glass-input px-3 py-2 text-sm"
                                         value={editForm.tonnage}
                                         onChange={(e) => {
@@ -734,7 +958,7 @@ const Trips = () => {
                                 <button
                                     type="button"
                                     onClick={() => setEditShowExtra(!editShowExtra)}
-                                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-300 ${editShowExtra ? 'bg-sky-500/10 border-sky-500/30 text-sky-400' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-300 cursor-pointer ${editShowExtra ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                                 >
                                     <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
                                         <StickyNote size={12} /> Ek Bilgiler
@@ -749,7 +973,7 @@ const Trips = () => {
                             {companyData?.personnelEnabled && (
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Şoför</label>
+                                        <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wider">Şoför</label>
                                         <CustomSelect
                                             value={editForm.driverName}
                                             onChange={val => setEditForm({ ...editForm, driverName: val })}
@@ -761,7 +985,7 @@ const Trips = () => {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Prim Şablonu</label>
+                                        <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wider">Prim Şablonu</label>
                                         <CustomSelect
                                             value={editForm.premiumId}
                                             onChange={val => handlePremiumChange(val, 'edit')}
@@ -778,7 +1002,7 @@ const Trips = () => {
 
                             {companyData?.personnelEnabled && editForm.premiumId === 'custom' && (
                                 <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-                                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Özel Prim Tutarı (₺)</label>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wider">Özel Prim Tutarı (₺)</label>
                                     <input
                                         type="number"
                                         required
@@ -803,7 +1027,7 @@ const Trips = () => {
                                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300 p-3 bg-white/5 rounded-xl border border-white/5 mt-2">
                                     {/* Not */}
                                     <div>
-                                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1 uppercase tracking-wider">📝 Not (İsteğe Bağlı)</label>
+                                        <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">📝 Not (İsteğe Bağlı)</label>
                                         <textarea
                                             rows={2}
                                             className="w-full glass-input px-3 py-2 text-sm resize-none"
@@ -814,19 +1038,19 @@ const Trips = () => {
                                     </div>
                                     {/* Fotoğraf */}
                                     <div>
-                                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-2 uppercase tracking-wider">📎 İrsaliye / Belge Ekle</label>
+                                        <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">📎 İrsaliye / Belge Ekle</label>
                                         <FileUpload files={editForm.files} onChange={files => setEditForm({ ...editForm, files })} />
                                     </div>
                                 </div>
                             )}
                             {/* Kaydet */}
                             <button onClick={handleEdit}
-                                className="w-full bg-sky-600 hover:bg-sky-500 text-[var(--text-primary)] py-2.5 rounded-lg font-medium transition-all mt-1">
+                                className="w-full bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-cyan-500/20 cursor-pointer mt-1">
                                 Kaydet
                             </button>
                             {/* Sil */}
                             <button onClick={() => { handleDelete(editingTrip.id); setEditingTrip(null); }}
-                                className="w-full flex items-center justify-center gap-2 text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/40 hover:bg-red-500/5 py-2.5 rounded-lg text-sm font-medium transition-all">
+                                className="w-full flex items-center justify-center gap-2 text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/40 hover:bg-red-500/5 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer">
                                 <Trash2 size={14} /> Bu Seferi Sil
                             </button>
                         </div>
@@ -838,22 +1062,22 @@ const Trips = () => {
             {/* ─── MANUEL EKLE MODAL ─── */}
             {isModalOpen && createPortal(
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 border-sky-500/30 max-h-[92vh] overflow-y-visible flex flex-col">
+                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 border-cyan-500/30 max-h-[92vh] overflow-y-visible flex flex-col">
                         <button
                             onClick={() => setIsModalOpen(false)}
-                            className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)] z-[80]"
+                            className="absolute top-4 right-4 text-slate-400 hover:text-white z-[80] cursor-pointer"
                         >
                             <X size={20} />
                         </button>
 
-                        <h3 className="text-xl font-bold text-[var(--text-primary)] mb-6 flex items-center flex-shrink-0">
-                            <MapPin className="mr-2 text-sky-500" /> Yeni Sefer / Rota
+                        <h3 className="text-xl font-bold text-white mb-6 flex items-center flex-shrink-0">
+                            <MapPin className="mr-2 text-cyan-400" /> Yeni Sefer / Rota
                         </h3>
 
                         <form onSubmit={handleManualAdd} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar pb-20">
                             {/* Tarih */}
                             <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1 uppercase tracking-wider">Tarih</label>
+                                <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">Tarih</label>
                                 <CustomDatePicker 
                                     value={formData.date}
                                     onChange={(val) => setFormData({ ...formData, date: val })}
@@ -862,22 +1086,22 @@ const Trips = () => {
                             </div>
 
                             {/* Rota Seçim Alanı */}
-                            <div className="p-4 bg-sky-500/5 border border-sky-500/20 rounded-2xl space-y-4 shadow-lg shadow-sky-500/5 transition-all duration-300 border-dashed md:border-solid">
+                            <div className="p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-2xl space-y-4 shadow-lg shadow-cyan-500/5 transition-all duration-300 border-dashed md:border-solid">
                                 <div className="flex items-center justify-between mb-2">
-                                    <label className="text-xs font-bold text-sky-400 uppercase tracking-widest flex items-center gap-2">
+                                    <label className="text-xs font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
                                         <MapPin size={14} /> Güzergah Belirleme
                                     </label>
-                                    <div className="flex items-center space-x-2 bg-[var(--bg-panel-hover)] p-1 rounded-lg">
+                                    <div className="flex items-center space-x-2 bg-black/40 p-1 rounded-lg border border-white/5">
                                         <button
                                             type="button"
-                                            className={`px-3 py-1 text-xs font-medium rounded ${useSavedRoute ? 'bg-sky-500 text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}
+                                            className={`px-3 py-1 text-xs font-medium rounded cursor-pointer transition-all ${useSavedRoute ? 'bg-cyan-500 text-white shadow-md shadow-cyan-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
                                             onClick={() => setUseSavedRoute(true)}
                                         >
                                             Kayıtlı Rota
                                         </button>
                                         <button
                                             type="button"
-                                            className={`px-3 py-1 text-xs font-medium rounded ${!useSavedRoute ? 'bg-sky-500 text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}
+                                            className={`px-3 py-1 text-xs font-medium rounded cursor-pointer transition-all ${!useSavedRoute ? 'bg-cyan-500 text-white shadow-md shadow-cyan-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
                                             onClick={() => {
                                                 setUseSavedRoute(false);
                                                 setSelectedRouteId('');
@@ -889,7 +1113,7 @@ const Trips = () => {
                                         <div className="w-[1px] h-3 bg-white/10 mx-1"></div>
                                         <button
                                             type="button"
-                                            className="px-2 py-1 text-[10px] font-bold text-sky-400 hover:text-sky-300 uppercase tracking-tighter"
+                                            className="px-2 py-1 text-[10px] font-bold text-cyan-400 hover:text-cyan-300 uppercase tracking-tighter cursor-pointer"
                                             onClick={() => setIsRouteManagerOpen(true)}
                                         >
                                             Yönet
@@ -905,23 +1129,23 @@ const Trips = () => {
                                                 setRouteSelectorMode('add');
                                                 setIsRouteSelectorOpen(true);
                                             }}
-                                            className="w-full glass-input px-4 py-3 flex items-center justify-between text-sm group hover:border-sky-500/40 hover:bg-sky-500/5 transition-all"
+                                            className="w-full glass-input px-4 py-3 flex items-center justify-between text-sm group hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all cursor-pointer"
                                         >
-                                            <span className={selectedRouteId ? "text-[var(--text-primary)] font-medium" : "text-slate-500"}>
+                                            <span className={selectedRouteId ? "text-white font-medium" : "text-slate-500"}>
                                                 {selectedRouteId 
                                                     ? `${routes.find(r => r.id === parseInt(selectedRouteId))?.from} ➔ ${routes.find(r => r.id === parseInt(selectedRouteId))?.to}`
                                                     : "Kayıtlı Rotalarımdan Seçin..."}
                                             </span>
-                                                <div className="flex items-center">
-                                                    <span className="text-[10px] uppercase font-bold text-sky-500 bg-sky-500/10 px-2 py-1 rounded">SEÇ</span>
-                                                </div>
+                                            <div className="flex items-center">
+                                                <span className="text-[10px] uppercase font-bold text-cyan-400 bg-cyan-500/10 px-2 py-1 rounded border border-cyan-500/20">SEÇ</span>
+                                            </div>
                                         </button>
                                     </div>
                                 ) : (
                                     <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-xs text-[var(--text-secondary)] mb-1">Yükleme (Nereden)</label>
+                                                <label className="block text-xs text-slate-400 mb-1">Yükleme (Nereden)</label>
                                                 <input
                                                     type="text"
                                                     required={!useSavedRoute}
@@ -932,7 +1156,7 @@ const Trips = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs text-[var(--text-secondary)] mb-1">Boşaltma (Nereye)</label>
+                                                <label className="block text-xs text-slate-400 mb-1">Boşaltma (Nereye)</label>
                                                 <input
                                                     type="text"
                                                     required={!useSavedRoute}
@@ -945,7 +1169,7 @@ const Trips = () => {
                                         </div>
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
-                                                <label className="block text-xs text-[var(--text-secondary)] mb-1">Mesafe (KM)</label>
+                                                <label className="block text-xs text-slate-400 mb-1">Mesafe (KM)</label>
                                                 <input
                                                     type="number"
                                                     required={!useSavedRoute}
@@ -954,13 +1178,13 @@ const Trips = () => {
                                                     value={formData.km}
                                                     onChange={(e) => setFormData({ ...formData, km: e.target.value })}
                                                 />
-                                        </div>
+                                            </div>
                                         </div>
                                         <div className="flex items-center justify-between border-t border-white/5 pt-3">
                                             <div className="flex items-center gap-2">
-                                                <label className="flex items-center space-x-2 text-sm text-[var(--text-primary)] cursor-pointer whitespace-nowrap">
-                                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${saveNewRoute ? 'bg-sky-500 border-sky-500' : 'border-slate-500'}`}>
-                                                        {saveNewRoute && <Check size={14} className="text-[var(--text-primary)]" />}
+                                                <label className="flex items-center space-x-2 text-sm text-white cursor-pointer whitespace-nowrap">
+                                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${saveNewRoute ? 'bg-cyan-500 border-cyan-500' : 'border-slate-500'}`}>
+                                                        {saveNewRoute && <Check size={14} className="text-white" />}
                                                     </div>
                                                     <input
                                                         type="checkbox"
@@ -968,13 +1192,13 @@ const Trips = () => {
                                                         checked={saveNewRoute}
                                                         onChange={(e) => setSaveNewRoute(e.target.checked)}
                                                     />
-                                                    <span>Hafızaya Al</span>
+                                                    <span className="text-xs">Hafızaya Al</span>
                                                 </label>
                                                 <button
                                                     type="button"
                                                     onClick={handleSaveRouteOnly}
                                                     disabled={!formData.from || !formData.to || saveRouteSuccess}
-                                                    className={`px-2 py-1 flex items-center gap-1 text-[10px] font-bold rounded border transition-all uppercase ${saveRouteSuccess ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : (!formData.from || !formData.to) ? 'bg-white/5 text-slate-600 border-white/5 cursor-not-allowed' : 'bg-sky-500/20 text-sky-400 border-sky-500/30 hover:bg-sky-500/30'}`}
+                                                    className={`px-2 py-1 flex items-center gap-1 text-[10px] font-bold rounded border transition-all uppercase ${saveRouteSuccess ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : (!formData.from || !formData.to) ? 'bg-white/5 text-slate-600 border-white/5 cursor-not-allowed' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/30 cursor-pointer'}`}
                                                 >
                                                     {saveRouteSuccess ? (
                                                         <><Check size={12} /> Kaydedildi</>
@@ -990,7 +1214,7 @@ const Trips = () => {
 
                             <div className="grid grid-cols-2 gap-4 items-end">
                                 <div>
-                                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1 uppercase tracking-wider">Tonaj</label>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">Tonaj</label>
                                     <input
                                         type="number"
                                         step="0.01"
@@ -1015,7 +1239,7 @@ const Trips = () => {
                                 <button
                                     type="button"
                                     onClick={() => setShowExtra(!showExtra)}
-                                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-300 ${showExtra ? 'bg-sky-500/10 border-sky-500/30 text-sky-400' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-300 cursor-pointer ${showExtra ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                                 >
                                     <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
                                         <StickyNote size={12} /> Ek Bilgiler
@@ -1030,7 +1254,7 @@ const Trips = () => {
                             {companyData?.personnelEnabled && (
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Şoför</label>
+                                        <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wider">Şoför</label>
                                         <CustomSelect
                                             value={formData.driverName}
                                             onChange={val => setFormData({ ...formData, driverName: val })}
@@ -1042,7 +1266,7 @@ const Trips = () => {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Prim Şablonu</label>
+                                        <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wider">Prim Şablonu</label>
                                         <CustomSelect
                                             value={formData.premiumId}
                                             onChange={val => handlePremiumChange(val, 'add')}
@@ -1060,7 +1284,7 @@ const Trips = () => {
 
                             {companyData?.personnelEnabled && formData.premiumId === 'custom' && (
                                 <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-                                    <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wider">Özel Prim Tutarı (₺)</label>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wider">Özel Prim Tutarı (₺)</label>
                                     <input
                                         type="number"
                                         required
@@ -1095,7 +1319,7 @@ const Trips = () => {
                                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300 p-3 bg-white/5 rounded-xl border border-white/5">
                                     {/* Not */}
                                     <div>
-                                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1 uppercase tracking-wider">📝 Not (İsteğe Bağlı)</label>
+                                        <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">📝 Not (İsteğe Bağlı)</label>
                                         <textarea
                                             rows={2}
                                             className="w-full glass-input px-4 py-2 resize-none"
@@ -1106,7 +1330,7 @@ const Trips = () => {
                                     </div>
 
                                     <div>
-                                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1 uppercase tracking-wider">📎 İrsaliye / Belge Ekle</label>
+                                        <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">📎 İrsaliye / Belge Ekle</label>
                                         <FileUpload files={formData.files} onChange={files => setFormData({ ...formData, files })} />
                                     </div>
                                 </div>
@@ -1114,7 +1338,7 @@ const Trips = () => {
 
                             <button
                                 type="submit"
-                                className="w-full bg-sky-600 hover:bg-sky-500 text-[var(--text-primary)] px-4 py-3 rounded-lg font-medium transition-all shadow-lg mt-2"
+                                className="w-full bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white px-4 py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:-translate-y-0.5 mt-2 uppercase tracking-wider cursor-pointer"
                             >
                                 Seferi Kaydet
                             </button>
@@ -1127,13 +1351,13 @@ const Trips = () => {
             {/* ─── ROTA YÖNETİMİ MODAL ─── */}
             {isRouteManagerOpen && createPortal(
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-                    <div className="glass-panel w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 border-sky-500/30">
-                        <button onClick={() => setIsRouteManagerOpen(false)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
-                        <h3 className="text-xl font-bold text-[var(--text-primary)] mb-6 flex items-center"><MapPin className="mr-2 text-sky-500" /> Rota Yönetimi</h3>
+                    <div className="glass-panel w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 border-cyan-500/30">
+                        <button onClick={() => setIsRouteManagerOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer"><X size={20} /></button>
+                        <h3 className="text-xl font-bold text-white mb-6 flex items-center"><MapPin className="mr-2 text-cyan-400" /> Rota Yönetimi</h3>
 
                         <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
                             {routes.map(route => (
-                                <div key={route.id} className="p-3 bg-white/5 border border-[var(--border-color)] rounded-xl">
+                                <div key={route.id} className="p-3 bg-white/5 border border-white/5 rounded-xl">
                                     {editingRoute === route.id ? (
                                         <div className="space-y-3">
                                             <div className="grid grid-cols-2 gap-2">
@@ -1147,18 +1371,18 @@ const Trips = () => {
                                                 </div>
                                             </div>
                                             <div className="flex">
-                                                <button onClick={() => setEditingRoute(null)} className="ml-auto bg-sky-600 text-[var(--text-primary)] px-3 py-1 rounded text-xs">Tamam</button>
+                                                <button onClick={() => setEditingRoute(null)} className="ml-auto bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1 rounded text-xs cursor-pointer">Tamam</button>
                                             </div>
                                         </div>
                                     ) : (
                                         <div className="flex items-center justify-between">
                                             <div>
-                                                <p className="text-sm font-bold text-[var(--text-primary)]">{route.from} ➔ {route.to}</p>
+                                                <p className="text-sm font-bold text-white">{route.from} ➔ {route.to}</p>
                                                 <p className="text-xs text-slate-500">{route.km} km</p>
                                             </div>
                                             <div className="flex gap-1">
-                                                <button onClick={() => setEditingRoute(route.id)} className="p-1.5 text-[var(--text-secondary)] hover:text-sky-400"><Pencil size={14} /></button>
-                                                <button onClick={() => deleteRoute(route.id)} className="p-1.5 text-[var(--text-secondary)] hover:text-red-400"><Trash2 size={14} /></button>
+                                                <button onClick={() => setEditingRoute(route.id)} className="p-1.5 text-slate-400 hover:text-cyan-400 cursor-pointer"><Pencil size={14} /></button>
+                                                <button onClick={() => deleteRoute(route.id)} className="p-1.5 text-slate-400 hover:text-red-400 cursor-pointer"><Trash2 size={14} /></button>
                                             </div>
                                         </div>
                                     )}
@@ -1169,7 +1393,7 @@ const Trips = () => {
 
                         <button
                             onClick={() => setIsRouteManagerOpen(false)}
-                            className="w-full bg-[var(--bg-panel-hover)] hover:bg-slate-700 text-[var(--text-primary)] py-3 rounded-lg font-medium transition-all mt-6 border border-[var(--border-color)]"
+                            className="w-full bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl font-medium transition-all mt-6 border border-white/10 cursor-pointer"
                         >
                             Kapat
                         </button>
@@ -1183,22 +1407,22 @@ const Trips = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setViewFiles(null)}>
                     <div className="glass-panel w-full max-w-lg p-5 relative animate-in zoom-in-95 duration-200 max-h-[80vh] overflow-y-auto"
                         onClick={e => e.stopPropagation()}>
-                        <button onClick={() => setViewFiles(null)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
-                        <h3 className="font-bold text-[var(--text-primary)] mb-1 pr-8">📎 Ekler</h3>
+                        <button onClick={() => setViewFiles(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer"><X size={20} /></button>
+                        <h3 className="font-bold text-white mb-1 pr-8">📎 Ekler</h3>
                         <p className="text-xs text-slate-500 mb-4">{viewFiles.title}</p>
                         <div className="space-y-3">
                             {viewFiles.files.map((f, i) => (
-                                <div key={i} className="bg-white/5 rounded-xl p-3 border border-[var(--border-color)]">
+                                <div key={i} className="bg-white/5 rounded-xl p-3 border border-white/5">
                                     {f.type && f.type.startsWith('image/') ? (
                                         <a href={f.data} target="_blank" rel="noreferrer">
-                                            <img src={f.data} alt={f.name} className="w-full rounded-lg max-h-64 object-contain bg-[var(--bg-panel)] cursor-zoom-in hover:opacity-90 transition" />
+                                            <img src={f.data} alt={f.name} className="w-full rounded-lg max-h-64 object-contain bg-black/40 cursor-zoom-in hover:opacity-90 transition" />
                                         </a>
                                     ) : (
                                         <a href={f.data} download={f.name}
                                             className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                                            <FileText size={24} className="text-sky-400 flex-shrink-0" />
+                                            <FileText size={24} className="text-cyan-400 flex-shrink-0" />
                                             <div>
-                                                <p className="text-sm font-medium text-[var(--text-primary)]">{f.name}</p>
+                                                <p className="text-sm font-medium text-white">{f.name}</p>
                                                 <p className="text-xs text-slate-500">İndirmek için tıklayın</p>
                                             </div>
                                         </a>
@@ -1215,18 +1439,18 @@ const Trips = () => {
             {/* ─── ROTA SEÇİCİ MODAL (YENİ PENCERE) ─── */}
             {isRouteSelectorOpen && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-                    <div className="glass-panel w-full max-w-lg p-0 relative animate-in zoom-in-95 duration-200 border-sky-500/30 overflow-hidden flex flex-col h-[80vh] md:h-auto md:max-h-[85vh]">
+                    <div className="glass-panel w-full max-w-lg p-0 relative animate-in zoom-in-95 duration-200 border-cyan-500/30 overflow-hidden flex flex-col h-[80vh] md:h-auto md:max-h-[85vh]">
                         {/* Modal Header */}
                         <div className="p-4 flex items-center justify-between border-b border-white/5 bg-white/5 shrink-0">
-                            <h3 className="text-lg font-bold text-[var(--text-primary)] flex items-center">
-                                <Search className="mr-2 text-sky-500" size={18} /> Rota Seç
+                            <h3 className="text-lg font-bold text-white flex items-center">
+                                <Search className="mr-2 text-cyan-400" size={18} /> Rota Seç
                             </h3>
                             <button
                                 onClick={() => {
                                     setIsRouteSelectorOpen(false);
                                     setRouteSearchTerm('');
                                 }}
-                                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors p-1"
+                                className="text-slate-400 hover:text-white transition-colors p-1 cursor-pointer"
                             >
                                 <X size={20} />
                             </button>
@@ -1240,7 +1464,7 @@ const Trips = () => {
                                     type="text"
                                     autoFocus
                                     placeholder="Rota ara (Nereden veya Nereye)..."
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:border-sky-500/50 focus:bg-white/10 transition-all placeholder:text-slate-500"
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:bg-white/10 transition-all placeholder:text-slate-500"
                                     value={routeSearchTerm}
                                     onChange={(e) => setRouteSearchTerm(e.target.value)}
                                 />
@@ -1270,12 +1494,12 @@ const Trips = () => {
                                                 setIsRouteSelectorOpen(false);
                                                 setRouteSearchTerm('');
                                             }}
-                                            className="w-full flex items-center justify-between p-4 rounded-xl transition-all text-left bg-white/5 hover:bg-sky-500/10 border border-transparent hover:border-sky-500/30 group"
+                                            className="w-full flex items-center justify-between p-4 rounded-xl transition-all text-left bg-white/5 hover:bg-cyan-500/10 border border-transparent hover:border-cyan-500/30 group cursor-pointer"
                                         >
                                             <div className="flex flex-col gap-1.5 flex-1">
                                                 <div className="flex items-center gap-2">
-                                                    <MapPin size={14} className="text-slate-500 group-hover:text-sky-400 transition-colors" />
-                                                    <span className="text-sm font-bold text-[var(--text-primary)] tracking-wide">{r.from} <span className="text-sky-500 mx-1">➔</span> {r.to}</span>
+                                                    <MapPin size={14} className="text-slate-500 group-hover:text-cyan-400 transition-colors" />
+                                                    <span className="text-sm font-bold text-white tracking-wide">{r.from} <span className="text-cyan-400 mx-1">➔</span> {r.to}</span>
                                                 </div>
                                                 <div className="flex items-center gap-4 pl-6 opacity-70">
                                                     <div className="flex items-center gap-1.5 text-xs text-slate-400">
@@ -1288,8 +1512,8 @@ const Trips = () => {
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="w-8 h-8 rounded-full bg-white/5 group-hover:bg-sky-500 flex items-center justify-center transition-colors shrink-0">
-                                                <ChevronDown size={14} className="text-slate-400 group-hover:text-[var(--text-primary)] -rotate-90" />
+                                            <div className="w-8 h-8 rounded-full bg-white/5 group-hover:bg-cyan-500 flex items-center justify-center transition-colors shrink-0">
+                                                <ChevronDown size={14} className="text-slate-400 group-hover:text-white -rotate-90" />
                                             </div>
                                         </button>
                                     ))}
@@ -1310,5 +1534,4 @@ const Trips = () => {
         </div>
     );
 };
-
 export default Trips;

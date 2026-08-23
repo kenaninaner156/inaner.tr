@@ -740,7 +740,7 @@ function App() {
         <div className="flex flex-col min-h-screen w-full">
 
           {/* Header - Simple & Clean (sticky) */}
-          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map'].includes(activeTab) ? 'hidden' : ''}`}
+          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map', 'trips', 'dashboard'].includes(activeTab) ? 'hidden' : ''}`}
             style={{
               paddingTop: 'calc(0.5rem + env(safe-area-inset-top))'
             }}
@@ -758,10 +758,16 @@ function App() {
           </div>
 
           {/* Content Area */}
-          <div className={`flex-1 ${activeTab === 'map' ? 'p-0 h-[100dvh] md:h-screen overflow-hidden' : 'p-4 md:p-6 xl:p-8'}`}>
-            <div key={activeTab} className="page-transition">
-              {activeTab === 'dashboard' && <Dashboard />}
-              {activeTab === 'trips' && <Trips />}
+          <div className={`flex-1 ${
+            activeTab === 'map' 
+              ? 'p-0 h-[100dvh] md:h-screen overflow-hidden' 
+              : activeTab === 'dashboard' 
+                ? 'p-3 sm:p-4 md:p-5 h-[100dvh] md:h-screen overflow-hidden flex flex-col' 
+                : 'p-4 md:p-6 xl:p-8'
+          }`}>
+            <div key={activeTab} className={activeTab === 'dashboard' ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
+              {activeTab === 'dashboard' && <Dashboard onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
+              {activeTab === 'trips' && <Trips onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'fuel' && <Fuel onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'maintenance' && <Maintenance />}
               {activeTab === 'detaylar' && <Detaylar />}

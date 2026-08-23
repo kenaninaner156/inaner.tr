@@ -154,6 +154,14 @@
     height: 0;
     background: transparent;
   }
+
+  /* Metinlere tıklandığında imleç (caret) çıkmasını engelle */
+  *:not(input):not(textarea):not([contenteditable="true"]) {
+    caret-color: transparent;
+  }
+  input, textarea, [contenteditable="true"] {
+    caret-color: auto;
+  }
   
   .leaflet-container {
     background-color: #16161a !important; /* Koyu haritaya (Dark Matter) uyumlu nötr/siyah zemin */

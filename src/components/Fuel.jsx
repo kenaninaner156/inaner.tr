@@ -115,10 +115,28 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
     };
 
     const handleOdometerClick = (e) => {
-        const val = e.target.value;
-        if (val && val.length >= 3) {
-            e.target.setSelectionRange(val.length - 3, val.length);
+        const input = e.target;
+        const val = input.value || '';
+        if (!val) return;
+
+        // Tıklanan veya dokunulan imleç pozisyonunu al
+        let pos = input.selectionStart;
+        
+        // Eğer konum belirlenememişse varsayılan son 3 hane
+        if (pos === null || pos === undefined) {
+            pos = val.length >= 3 ? val.length - 3 : 0;
         }
+
+        // Tıklanan karakter ayraç '.' ise bir sonraki rakamdan başlat
+        if (val[pos] === '.' && pos + 1 < val.length) {
+            pos = pos + 1;
+        }
+
+        // Tıklanan rakam dahil sonuna kadar olan kısmı seç
+        const start = Math.max(0, Math.min(pos, val.length));
+        setTimeout(() => {
+            input.setSelectionRange(start, val.length);
+        }, 10);
     };
 
     const openAddModal = () => {
@@ -804,9 +822,11 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                                     <div className="flex-1 ml-4 flex justify-end">
                                         <input 
                                             type="tel" 
-                                            className="bg-transparent text-xl font-black text-cyan-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-cyan-900/30"
+                                            className="bg-transparent text-xl font-black text-cyan-400 text-right focus:outline-none w-[140px] min-w-0 placeholder:text-cyan-900/30 font-mono tracking-tight"
                                             value={editForm.odometer}
                                             onClick={handleOdometerClick}
+                                            onMouseUp={handleOdometerClick}
+                                            onTouchEnd={handleOdometerClick}
                                             onChange={e => setEditForm({ ...editForm, odometer: formatKM(e.target.value) })}
                                             placeholder="Km Girin"
                                         />
@@ -974,9 +994,11 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                                     <div className="flex-1 ml-4 flex justify-end">
                                         <input 
                                             type="tel" 
-                                            className="bg-transparent text-xl font-black text-cyan-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-cyan-900/30"
+                                            className="bg-transparent text-xl font-black text-cyan-400 text-right focus:outline-none w-[140px] min-w-0 placeholder:text-cyan-900/30 font-mono tracking-tight"
                                             value={formData.odometer}
                                             onClick={handleOdometerClick}
+                                            onMouseUp={handleOdometerClick}
+                                            onTouchEnd={handleOdometerClick}
                                             onChange={e => setFormData({ ...formData, odometer: formatKM(e.target.value) })}
                                             placeholder="Km Girin"
                                         />
