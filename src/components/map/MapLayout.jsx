@@ -385,7 +385,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
   return (
     <div 
       data-map-module 
-      className="relative w-full h-[calc(100vh-64px)] md:h-screen overflow-hidden flex flex-col select-none bg-[#07090e]"
+      className="relative w-full h-[100dvh] md:h-screen overflow-hidden flex flex-col select-none bg-[#07090e]"
     >
       {/* ── ÜST YÜZEN KONTROL PANELİ (ORİJİNAL MERKEZLİ TASARIM) ── */}
       <div 

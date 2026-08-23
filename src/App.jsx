@@ -758,7 +758,7 @@ function App() {
           </div>
 
           {/* Content Area */}
-          <div className={`flex-1 ${activeTab === 'map' ? 'p-0 h-screen overflow-hidden' : 'p-4 md:p-6 xl:p-8'}`}>
+          <div className={`flex-1 ${activeTab === 'map' ? 'p-0 h-[100dvh] md:h-screen overflow-hidden' : 'p-4 md:p-6 xl:p-8'}`}>
             <div key={activeTab} className="page-transition">
               {activeTab === 'dashboard' && <Dashboard />}
               {activeTab === 'trips' && <Trips />}
