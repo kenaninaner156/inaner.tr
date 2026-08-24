@@ -10,7 +10,7 @@ import L from 'leaflet';
 import { useTruck } from '../../context/TruckContext';
 import { useCompany } from '../../context/CompanyContext';
 import { DataContext } from '../../context/DataContext';
-import { groupIntoSessions } from '../../utils/mapUtils';
+import { groupIntoSessions, getPointTime } from '../../utils/mapUtils';
 
 import LiveTracking from './LiveTracking';
 import RouteHistory from './RouteHistory';
@@ -350,7 +350,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
     const result = {};
     Object.keys(byDriver).forEach(dId => {
       const driverPoints = byDriver[dId];
-      driverPoints.sort((a, b) => (a.createdAt || a.timestamp || 0) - (b.createdAt || b.timestamp || 0));
+      driverPoints.sort((a, b) => getPointTime(a) - getPointTime(b));
       result[dId] = groupIntoSessions(driverPoints, 30, geofences, manualSplits[dId]);
     });
 
@@ -395,7 +395,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
           paddingTop: 'env(safe-area-inset-top, 0px)'
         }}
       >
-        <div className="flex bg-[#0B0F17]/80 backdrop-blur-2xl p-1 sm:p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] w-full border border-white/10 items-center select-none gap-0.5 sm:gap-1 ring-1 ring-black/40">
+        <div className="flex bg-[#0D1219]/96 backdrop-blur-2xl p-1 sm:p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] w-full border border-white/10 items-center select-none gap-0.5 sm:gap-1 ring-1 ring-black/40">
           {/* Mobile Menu Button (Hamburger) */}
           {onOpenMenu && (
             <button

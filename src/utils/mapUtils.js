@@ -16,42 +16,74 @@ export function haversineKm(lat1, lon1, lat2, lon2) {
 }
 
 /**
- * GPS sıçramalarını (1-2 saniye içinde imkansız hızda başka yere ışınlanıp geri dönen bozuk noktaları) temizler.
+ * GPS noktalarının zaman damgasını (number, string, Firestore Timestamp) milisaniyeye çevirir.
+ */
+export function getPointTime(p) {
+  if (!p) return 0;
+  if (p.timestamp !== undefined && p.timestamp !== null) {
+    if (typeof p.timestamp === 'number') return p.timestamp;
+    if (p.timestamp.seconds !== undefined) return p.timestamp.seconds * 1000;
+    const t = new Date(p.timestamp).getTime();
+    if (!isNaN(t)) return t;
+  }
+  if (p.createdAt !== undefined && p.createdAt !== null) {
+    if (typeof p.createdAt === 'number') return p.createdAt;
+    if (p.createdAt.seconds !== undefined) return p.createdAt.seconds * 1000;
+    const t = new Date(p.createdAt).getTime();
+    if (!isNaN(t)) return t;
+  }
+  if (p.deviceTime) {
+    const t = new Date(p.deviceTime).getTime();
+    if (!isNaN(t)) return t;
+  }
+  if (p.fixTime) {
+    const t = new Date(p.fixTime).getTime();
+    if (!isNaN(t)) return t;
+  }
+  return 0;
+}
+
+/**
+ * GPS sıçramalarını ve zaman sırası bozukluklarını (örümcek ağı / yelpaze çizgilerini) temizler.
  */
 export function cleanGpsSpikes(points, maxSpeedKmh = 160) {
-  if (!points || points.length < 3) return points || [];
-  const cleaned = [points[0]];
+  if (!points || points.length < 2) return points || [];
+  
+  // 1. Geçersiz koordinatları ayıkla ve KESİN KRONOLOJİK SIRAYA DİZ
+  const valid = points.filter(p => p && !isNaN(Number(p.lat)) && !isNaN(Number(p.lon)));
+  if (valid.length < 2) return valid;
 
-  for (let i = 1; i < points.length - 1; i++) {
+  const sorted = [...valid].sort((a, b) => getPointTime(a) - getPointTime(b));
+
+  // 2. Mükerrer / aynı konumdaki titreşimleri ve ışınlanma sıçramalarını temizle
+  const cleaned = [sorted[0]];
+
+  for (let i = 1; i < sorted.length; i++) {
     const prev = cleaned[cleaned.length - 1];
-    const curr = points[i];
-    const next = points[i + 1];
+    const curr = sorted[i];
 
-    if (!curr || isNaN(curr.lat) || isNaN(curr.lon)) continue;
+    const t1 = getPointTime(prev);
+    const t2 = getPointTime(curr);
 
-    const timeDiffSec1 = Math.max(1, (new Date(curr.timestamp).getTime() - new Date(prev.timestamp).getTime()) / 1000);
-    const distKm1 = haversineKm(prev.lat, prev.lon, curr.lat, curr.lon);
-    const impliedSpeedKmh1 = (distKm1 / (timeDiffSec1 / 3600));
+    // Aynı konum ve zaman ise atla
+    if (t2 <= t1 && Number(prev.lat) === Number(curr.lat) && Number(prev.lon) === Number(curr.lon)) {
+      continue;
+    }
 
-    const timeDiffSec2 = Math.max(1, (new Date(next.timestamp).getTime() - new Date(curr.timestamp).getTime()) / 1000);
-    const distKm2 = haversineKm(curr.lat, curr.lon, next.lat, next.lon);
-    const impliedSpeedKmh2 = (distKm2 / (timeDiffSec2 / 3600));
+    const timeDiffSec = Math.max(0.5, (t2 - t1) / 1000);
+    const distKm = haversineKm(Number(prev.lat), Number(prev.lon), Number(curr.lat), Number(curr.lon));
+    const impliedSpeedKmh = distKm / (timeDiffSec / 3600);
 
-    const directDistKm = haversineKm(prev.lat, prev.lon, next.lat, next.lon);
-
-    // Eğer nokta önceki ve sonraki noktalardan aşırı uzaksa (>160 km/h) ama önceki ve sonraki birbirine yakınsa
-    if (impliedSpeedKmh1 > maxSpeedKmh && impliedSpeedKmh2 > maxSpeedKmh && directDistKm < distKm1 * 0.5) {
-      continue; // Sıçrayan noktayı filtrele
+    // Eğer nokta imkansız bir hızla sıçrıyorsa (>160 km/h) ve sonraki nokta prev'e daha yakınsa
+    if (impliedSpeedKmh > maxSpeedKmh && i < sorted.length - 1) {
+      const next = sorted[i + 1];
+      const distToNext = haversineKm(Number(prev.lat), Number(prev.lon), Number(next.lat), Number(next.lon));
+      if (distToNext < distKm * 0.65) {
+        continue; // Bozuk sıçrayan noktayı yut
+      }
     }
 
     cleaned.push(curr);
-  }
-
-  if (points.length > 1) {
-    const last = points[points.length - 1];
-    if (last && !isNaN(last.lat) && !isNaN(last.lon)) {
-      cleaned.push(last);
-    }
   }
 
   return cleaned;
@@ -116,13 +148,13 @@ export function groupIntoSessions(rawPoints, maxGapMinutes = 30, geofences = [],
   // Hareketsiz kalma (stationary) takibi için değişken (Traccar knot -> km/h: 1 knot = 1.852 km/h)
   let stationaryStartTime = null;
   if ((points[0].speed || 0) * 1.852 < 5) {
-    stationaryStartTime = new Date(points[0].timestamp).getTime();
+    stationaryStartTime = getPointTime(points[0]);
   }
 
   for (let i = 1; i < points.length; i++) {
     const pt = points[i];
-    const prevTime = new Date(points[i - 1].timestamp).getTime();
-    const curTime = new Date(pt.timestamp).getTime();
+    const prevTime = getPointTime(points[i - 1]);
+    const curTime = getPointTime(pt);
     
     let splitTriggered = false;
 

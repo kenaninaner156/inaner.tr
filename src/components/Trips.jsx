@@ -505,17 +505,17 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                         <button
                             type="button"
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                            className="h-[36px] w-[155px] px-3 bg-[#0b0e14]/90 border border-white/10 hover:border-cyan-500/35 rounded-xl flex items-center justify-between gap-2 text-xs sm:text-sm font-semibold text-slate-200 hover:text-white transition-all shadow-lg cursor-pointer"
+                            className="h-[36px] w-[155px] px-3 bg-[#0b0e14]/90 border border-white/10 hover:border-sky-500/35 rounded-xl flex items-center justify-between gap-2 text-xs sm:text-sm font-semibold text-slate-200 hover:text-white transition-all shadow-lg cursor-pointer"
                         >
                             <div className="flex items-center gap-2 min-w-0">
-                                <Calendar size={13} className="text-cyan-400 shrink-0" />
+                                <Calendar size={13} className="text-sky-400 shrink-0" />
                                 <span className="truncate">
                                     {timeFilter === 'all' 
                                         ? 'Tüm Zamanlar' 
                                         : (monthOptions.find(o => o.value === timeFilter)?.label || timeFilter)}
                                 </span>
                             </div>
-                            <ChevronDown size={13} className={`text-slate-400 shrink-0 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180 text-cyan-400' : ''}`} />
+                            <ChevronDown size={13} className={`text-slate-400 shrink-0 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180 text-sky-400' : ''}`} />
                         </button>
 
                         {isDropdownOpen && (
@@ -524,7 +524,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                     type="button"
                                     onClick={() => { setTimeFilter('all'); setIsDropdownOpen(false); }}
                                     className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors cursor-pointer ${
-                                        timeFilter === 'all' ? 'bg-cyan-500/15 text-cyan-300 font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                                        timeFilter === 'all' ? 'bg-sky-500/15 text-sky-300 font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
                                     }`}
                                 >
                                     <span>Tüm Zamanlar</span>
@@ -537,7 +537,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                             type="button"
                                             onClick={() => { setTimeFilter(opt.value); setIsDropdownOpen(false); }}
                                             className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors cursor-pointer ${
-                                                timeFilter === opt.value ? 'bg-cyan-500/15 text-cyan-300 font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                                                timeFilter === opt.value ? 'bg-sky-500/15 text-sky-300 font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'
                                             }`}
                                         >
                                             <span className="truncate">{opt.label}</span>
@@ -551,8 +551,8 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                     {/* ─── INLINE METRIC KAPSÜLLERİ (SİMETRİK & SABİT GENİŞLİKLİ) ─── */}
                     <div className="flex items-center gap-2">
                         {/* Toplam Sefer Kapsülü */}
-                        <div className="h-[36px] px-3 bg-[#0b0e14]/90 border border-white/10 hover:border-cyan-500/30 rounded-xl flex items-center gap-2 text-xs shadow-sm transition-all">
-                            <span className="p-1 rounded-md bg-cyan-500/10 text-cyan-400 shrink-0 flex items-center justify-center">
+                        <div className="h-[36px] px-3 bg-[#0b0e14]/90 border border-white/10 hover:border-sky-500/30 rounded-xl flex items-center gap-2 text-xs shadow-sm transition-all">
+                            <span className="p-1 rounded-md bg-sky-500/10 text-sky-400 shrink-0 flex items-center justify-center">
                                 <Truck size={12} />
                             </span>
                             <div className="flex items-baseline gap-1 whitespace-nowrap">
@@ -563,13 +563,13 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                         </div>
 
                         {/* Ortalama Tonaj Kapsülü */}
-                        <div className="h-[36px] px-3 bg-[#0b0e14]/90 border border-white/10 hover:border-cyan-500/30 rounded-xl flex items-center gap-2 text-xs shadow-sm transition-all">
-                            <span className="p-1 rounded-md bg-cyan-500/10 text-cyan-400 shrink-0 flex items-center justify-center">
+                        <div className="h-[36px] px-3 bg-[#0b0e14]/90 border border-white/10 hover:border-sky-500/30 rounded-xl flex items-center gap-2 text-xs shadow-sm transition-all">
+                            <span className="p-1 rounded-md bg-sky-500/10 text-sky-400 shrink-0 flex items-center justify-center">
                                 <Scale size={12} />
                             </span>
                             <div className="flex items-baseline gap-1 whitespace-nowrap">
                                 <span className="text-[11px] text-slate-400 font-medium">Ortalama:</span>
-                                <span className="font-bold text-cyan-400 text-xs sm:text-sm">{summaryStats.avgTonnagePerTrip.toFixed(1)}</span>
+                                <span className="font-bold text-sky-400 text-xs sm:text-sm">{summaryStats.avgTonnagePerTrip.toFixed(1)}</span>
                                 <span className="text-[11px] text-slate-400">Ton</span>
                             </div>
                         </div>
@@ -583,7 +583,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                         <input
                             type="text"
                             placeholder="Sefer ara (Güzergah, şoför...)"
-                            className="w-full h-[36px] bg-[#0b0e14]/90 border border-white/10 hover:border-white/20 focus:border-cyan-500/50 rounded-xl pl-8 pr-3 text-xs sm:text-sm text-white placeholder:text-slate-500 focus:outline-none transition-all"
+                            className="w-full h-[36px] bg-[#0b0e14]/90 border border-white/10 hover:border-white/20 focus:border-sky-500/50 rounded-xl pl-8 pr-3 text-xs sm:text-sm text-white placeholder:text-slate-500 focus:outline-none transition-all"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -599,7 +599,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
 
                     <button 
                         onClick={() => setIsModalOpen(true)}
-                        className="bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white px-3.5 h-[36px] sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-[0_0_20px_rgba(6,182,212,0.25)] hover:shadow-[0_0_25px_rgba(6,182,212,0.45)] hover:-translate-y-0.5 flex items-center justify-center shrink-0 cursor-pointer"
+                        className="bg-gradient-to-r from-sky-600 to-blue-500 hover:from-sky-500 hover:to-blue-400 border border-sky-400/40 text-white px-3.5 h-[36px] sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-[0_0_20px_rgba(14,165,233,0.35)] hover:shadow-[0_0_25px_rgba(14,165,233,0.5)] hover:-translate-y-0.5 flex items-center justify-center shrink-0 cursor-pointer"
                     >
                         <Plus size={15} className="mr-1 sm:mr-1.5" /> 
                         <span className="whitespace-nowrap">Yeni Sefer</span>
@@ -631,7 +631,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                         <td className="p-3">
                                             <div className="text-sm font-bold text-white whitespace-nowrap flex items-center gap-1.5">
                                                 <span>{trip.from}</span>
-                                                <ArrowRight size={13} className="text-cyan-400 shrink-0" />
+                                                <ArrowRight size={13} className="text-sky-400 shrink-0" />
                                                 <span>{trip.to}</span>
                                             </div>
                                             <div className="flex flex-wrap items-center gap-2 mt-1">
@@ -660,7 +660,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                         </td>
                                         <td className="p-3 text-center whitespace-nowrap">
                                             <span className="text-white font-bold text-sm bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">
-                                                {parseTonnageInTons(trip.tonnage) > 0 ? `${parseTonnageInTons(trip.tonnage).toFixed(1)} t` : '—'}
+                                                {parseTonnageInTons(trip.tonnage) > 0 ? `${parseTonnageInTons(trip.tonnage)} t` : '—'}
                                             </span>
                                         </td>
                                         <td className="p-3 text-center">
@@ -678,7 +678,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                     <button 
                                                         onClick={() => setViewFiles({ title: `${trip.from} → ${trip.to}`, files: trip.files })}
                                                         title={`${trip.files.length} Ek Dosya`}
-                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 transition-colors cursor-pointer"
+                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-sky-500/10 transition-colors cursor-pointer"
                                                     >
                                                         <Paperclip size={14} />
                                                     </button>
@@ -686,7 +686,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                 <button 
                                                     onClick={() => openEditModal(trip)}
                                                     title="Seferi Düzenle"
-                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 transition-colors cursor-pointer"
+                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-sky-500/10 transition-colors cursor-pointer"
                                                 >
                                                     <Pencil size={14} />
                                                 </button>
@@ -697,7 +697,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                             ) : (
                                 <tr>
                                     <td colSpan="5" className="p-12 text-center text-slate-500">
-                                        <Truck size={36} className="mx-auto mb-3 opacity-20 text-cyan-400" />
+                                        <Truck size={36} className="mx-auto mb-3 opacity-20 text-sky-400" />
                                         <p className="text-base font-semibold text-slate-300">Kayıtlı Sefer Bulunamadı</p>
                                         <p className="text-xs text-slate-500 mt-1">Seçili dönemde veya arama kriterinde sefer kaydı yok.</p>
                                     </td>
@@ -710,7 +710,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                     <div className="md:hidden flex flex-col gap-2.5 p-3">
                         {filteredTrips.length > 0 ? (
                             filteredTrips.map((trip) => (
-                                <div key={trip.id} className="bg-[#0b0e14]/90 border border-white/[0.08] hover:border-cyan-500/30 rounded-xl p-3.5 shadow-md relative transition-all">
+                                <div key={trip.id} className="bg-[#0b0e14]/90 border border-white/[0.08] hover:border-sky-500/30 rounded-xl p-3.5 shadow-md relative transition-all">
                                     {/* Üst Satır: Tarih | Durum | Ekler & Düzenle */}
                                     <div className="flex items-center justify-between mb-2">
                                         <div className="text-xs font-bold text-slate-400">
@@ -727,14 +727,14 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                             {trip.files && trip.files.length > 0 && (
                                                 <button 
                                                     onClick={() => setViewFiles({ title: `${trip.from} → ${trip.to}`, files: trip.files })}
-                                                    className="p-1 bg-cyan-500/10 hover:bg-cyan-500/20 rounded-lg text-cyan-400 transition-colors flex items-center cursor-pointer"
+                                                    className="p-1 bg-sky-500/10 hover:bg-sky-500/20 rounded-lg text-sky-400 transition-colors flex items-center cursor-pointer"
                                                 >
                                                     <Paperclip size={12} />
                                                 </button>
                                             )}
                                             <button 
                                                 onClick={() => openEditModal(trip)}
-                                                className="p-1 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer"
+                                                className="p-1 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-sky-400 transition-colors cursor-pointer"
                                             >
                                                 <Pencil size={13} />
                                             </button>
@@ -744,7 +744,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                     {/* Güzergah */}
                                     <div className="font-bold text-white text-sm leading-snug mb-1.5 flex items-center gap-1.5 flex-wrap">
                                         <span>{trip.from}</span>
-                                        <ArrowRight size={13} className="text-cyan-400 shrink-0" />
+                                        <ArrowRight size={13} className="text-sky-400 shrink-0" />
                                         <span>{trip.to}</span>
                                     </div>
 
@@ -774,7 +774,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                     <div className="flex items-center justify-between pt-2 border-t border-white/5 text-xs">
                                         <div className="flex items-center gap-1">
                                             <span className="text-slate-500 uppercase text-[10px] font-bold">Tonaj:</span>
-                                            <span className="text-white font-bold">{parseTonnageInTons(trip.tonnage) > 0 ? `${parseTonnageInTons(trip.tonnage).toFixed(1)} t` : '—'}</span>
+                                            <span className="text-white font-bold">{parseTonnageInTons(trip.tonnage) > 0 ? `${parseTonnageInTons(trip.tonnage)} t` : '—'}</span>
                                         </div>
                                         {trip.km > 0 && (
                                             <div className="text-slate-500 text-[10px] font-mono">
@@ -786,7 +786,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                             ))
                         ) : (
                             <div className="p-8 text-center text-slate-500">
-                                <Truck size={32} className="mx-auto mb-2 opacity-20 text-cyan-400" />
+                                <Truck size={32} className="mx-auto mb-2 opacity-20 text-sky-400" />
                                 <p className="text-sm font-semibold text-slate-300">Kayıtlı Sefer Bulunamadı</p>
                             </div>
                         )}
@@ -797,10 +797,10 @@ const Trips = ({ onOpenMenu, isMobile }) => {
             {/* ─── DÜZENLE MODAL ─── */}
             {editingTrip && createPortal(
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto border-cyan-500/30">
+                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto border-sky-500/30">
                         <button onClick={() => setEditingTrip(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer"><X size={20} /></button>
                         <h3 className="text-lg font-bold text-white mb-5 flex items-center gap-2">
-                            <Pencil size={16} className="text-cyan-400" /> Seferi Düzenle
+                            <Pencil size={16} className="text-sky-400" /> Seferi Düzenle
                         </h3>
                         <div className="space-y-4">
                             {/* Tarih */}
@@ -813,22 +813,22 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                 />
                             </div>
                             {/* Güzergah Belirleme */}
-                            <div className="p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-2xl space-y-4 shadow-lg shadow-cyan-500/5 transition-all duration-300 border-dashed md:border-solid">
+                            <div className="p-4 bg-sky-500/5 border border-sky-500/20 rounded-2xl space-y-4 shadow-lg shadow-sky-500/5 transition-all duration-300 border-dashed md:border-solid">
                                 <div className="flex items-center justify-between mb-2">
-                                    <label className="text-xs font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
+                                    <label className="text-xs font-bold text-sky-400 uppercase tracking-widest flex items-center gap-2">
                                         <MapPin size={14} /> Güzergah Belirleme
                                     </label>
                                     <div className="flex items-center space-x-2 bg-black/40 p-1 rounded-lg border border-white/5">
                                         <button
                                             type="button"
-                                            className={`px-3 py-1 text-xs font-medium rounded cursor-pointer transition-all ${editUseSavedRoute ? 'bg-cyan-500 text-white shadow-md shadow-cyan-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
+                                            className={`px-3 py-1 text-xs font-medium rounded cursor-pointer transition-all ${editUseSavedRoute ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
                                             onClick={() => setEditUseSavedRoute(true)}
                                         >
                                             Kayıtlı Rota
                                         </button>
                                         <button
                                             type="button"
-                                            className={`px-3 py-1 text-xs font-medium rounded cursor-pointer transition-all ${!editUseSavedRoute ? 'bg-cyan-500 text-white shadow-md shadow-cyan-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
+                                            className={`px-3 py-1 text-xs font-medium rounded cursor-pointer transition-all ${!editUseSavedRoute ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
                                             onClick={() => {
                                                 setEditUseSavedRoute(false);
                                                 setEditSelectedRouteId('');
@@ -840,7 +840,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                         <div className="w-[1px] h-3 bg-white/10 mx-1"></div>
                                         <button
                                             type="button"
-                                            className="px-2 py-1 text-[10px] font-bold text-cyan-400 hover:text-cyan-300 uppercase tracking-tighter cursor-pointer"
+                                            className="px-2 py-1 text-[10px] font-bold text-sky-400 hover:text-sky-300 uppercase tracking-tighter cursor-pointer"
                                             onClick={() => setIsRouteManagerOpen(true)}
                                         >
                                             Yönet
@@ -856,7 +856,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                 setRouteSelectorMode('edit');
                                                 setIsRouteSelectorOpen(true);
                                             }}
-                                            className="w-full glass-input px-4 py-3 flex items-center justify-between text-sm group hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all cursor-pointer"
+                                            className="w-full glass-input px-4 py-3 flex items-center justify-between text-sm group hover:border-sky-500/40 hover:bg-sky-500/5 transition-all cursor-pointer"
                                         >
                                             <span className={editSelectedRouteId ? "text-white font-medium" : "text-slate-500"}>
                                                 {editSelectedRouteId
@@ -864,7 +864,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                     : "Kayıtlı Rotalarımdan Seçin..."}
                                             </span>
                                             <div className="flex items-center">
-                                                <span className="text-[10px] uppercase font-bold text-cyan-400 bg-cyan-500/10 px-2 py-1 rounded border border-cyan-500/20">SEÇ</span>
+                                                <span className="text-[10px] uppercase font-bold text-sky-400 bg-sky-500/10 px-2 py-1 rounded border border-sky-500/20">SEÇ</span>
                                             </div>
                                         </button>
                                     </div>
@@ -908,7 +908,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                         <div className="flex items-center justify-between border-t border-white/5 pt-3">
                                             <div className="flex items-center gap-2">
                                                 <label className="flex items-center space-x-2 text-sm text-white cursor-pointer whitespace-nowrap">
-                                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${editSaveNewRoute ? 'bg-cyan-500 border-cyan-500' : 'border-slate-500'}`}>
+                                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${editSaveNewRoute ? 'bg-sky-500 border-sky-500' : 'border-slate-500'}`}>
                                                         {editSaveNewRoute && <Check size={14} className="text-white" />}
                                                     </div>
                                                     <input
@@ -923,7 +923,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                     type="button"
                                                     onClick={handleEditSaveRouteOnly}
                                                     disabled={!editForm.from || !editForm.to || editSaveRouteSuccess}
-                                                    className={`px-2 py-1 flex items-center gap-1 text-[10px] font-bold rounded border transition-all uppercase ${editSaveRouteSuccess ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : (!editForm.from || !editForm.to) ? 'bg-white/5 text-slate-600 border-white/5 cursor-not-allowed' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/30 cursor-pointer'}`}
+                                                    className={`px-2 py-1 flex items-center gap-1 text-[10px] font-bold rounded border transition-all uppercase ${editSaveRouteSuccess ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : (!editForm.from || !editForm.to) ? 'bg-white/5 text-slate-600 border-white/5 cursor-not-allowed' : 'bg-sky-500/20 text-sky-400 border-sky-500/30 hover:bg-sky-500/30 cursor-pointer'}`}
                                                 >
                                                     {editSaveRouteSuccess ? (
                                                         <><Check size={12} /> Kaydedildi</>
@@ -958,7 +958,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                 <button
                                     type="button"
                                     onClick={() => setEditShowExtra(!editShowExtra)}
-                                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-300 cursor-pointer ${editShowExtra ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-300 cursor-pointer ${editShowExtra ? 'bg-sky-500/10 border-sky-500/30 text-sky-400' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                                 >
                                     <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
                                         <StickyNote size={12} /> Ek Bilgiler
@@ -1045,7 +1045,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                             )}
                             {/* Kaydet */}
                             <button onClick={handleEdit}
-                                className="w-full bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-cyan-500/20 cursor-pointer mt-1">
+                                className="w-full bg-gradient-to-r from-sky-600 to-blue-500 hover:from-sky-500 hover:to-blue-400 border border-sky-400/40 text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-sky-500/20 cursor-pointer mt-1">
                                 Kaydet
                             </button>
                             {/* Sil */}
@@ -1062,7 +1062,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
             {/* ─── MANUEL EKLE MODAL ─── */}
             {isModalOpen && createPortal(
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 border-cyan-500/30 max-h-[92vh] overflow-y-visible flex flex-col">
+                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 border-sky-500/30 max-h-[92vh] overflow-y-visible flex flex-col">
                         <button
                             onClick={() => setIsModalOpen(false)}
                             className="absolute top-4 right-4 text-slate-400 hover:text-white z-[80] cursor-pointer"
@@ -1071,7 +1071,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                         </button>
 
                         <h3 className="text-xl font-bold text-white mb-6 flex items-center flex-shrink-0">
-                            <MapPin className="mr-2 text-cyan-400" /> Yeni Sefer / Rota
+                            <MapPin className="mr-2 text-sky-400" /> Yeni Sefer / Rota
                         </h3>
 
                         <form onSubmit={handleManualAdd} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar pb-20">
@@ -1086,22 +1086,22 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                             </div>
 
                             {/* Rota Seçim Alanı */}
-                            <div className="p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-2xl space-y-4 shadow-lg shadow-cyan-500/5 transition-all duration-300 border-dashed md:border-solid">
+                            <div className="p-4 bg-sky-500/5 border border-sky-500/20 rounded-2xl space-y-4 shadow-lg shadow-sky-500/5 transition-all duration-300 border-dashed md:border-solid">
                                 <div className="flex items-center justify-between mb-2">
-                                    <label className="text-xs font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
+                                    <label className="text-xs font-bold text-sky-400 uppercase tracking-widest flex items-center gap-2">
                                         <MapPin size={14} /> Güzergah Belirleme
                                     </label>
                                     <div className="flex items-center space-x-2 bg-black/40 p-1 rounded-lg border border-white/5">
                                         <button
                                             type="button"
-                                            className={`px-3 py-1 text-xs font-medium rounded cursor-pointer transition-all ${useSavedRoute ? 'bg-cyan-500 text-white shadow-md shadow-cyan-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
+                                            className={`px-3 py-1 text-xs font-medium rounded cursor-pointer transition-all ${useSavedRoute ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
                                             onClick={() => setUseSavedRoute(true)}
                                         >
                                             Kayıtlı Rota
                                         </button>
                                         <button
                                             type="button"
-                                            className={`px-3 py-1 text-xs font-medium rounded cursor-pointer transition-all ${!useSavedRoute ? 'bg-cyan-500 text-white shadow-md shadow-cyan-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
+                                            className={`px-3 py-1 text-xs font-medium rounded cursor-pointer transition-all ${!useSavedRoute ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
                                             onClick={() => {
                                                 setUseSavedRoute(false);
                                                 setSelectedRouteId('');
@@ -1113,7 +1113,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                         <div className="w-[1px] h-3 bg-white/10 mx-1"></div>
                                         <button
                                             type="button"
-                                            className="px-2 py-1 text-[10px] font-bold text-cyan-400 hover:text-cyan-300 uppercase tracking-tighter cursor-pointer"
+                                            className="px-2 py-1 text-[10px] font-bold text-sky-400 hover:text-sky-300 uppercase tracking-tighter cursor-pointer"
                                             onClick={() => setIsRouteManagerOpen(true)}
                                         >
                                             Yönet
@@ -1129,7 +1129,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                 setRouteSelectorMode('add');
                                                 setIsRouteSelectorOpen(true);
                                             }}
-                                            className="w-full glass-input px-4 py-3 flex items-center justify-between text-sm group hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all cursor-pointer"
+                                            className="w-full glass-input px-4 py-3 flex items-center justify-between text-sm group hover:border-sky-500/40 hover:bg-sky-500/5 transition-all cursor-pointer"
                                         >
                                             <span className={selectedRouteId ? "text-white font-medium" : "text-slate-500"}>
                                                 {selectedRouteId 
@@ -1137,7 +1137,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                     : "Kayıtlı Rotalarımdan Seçin..."}
                                             </span>
                                             <div className="flex items-center">
-                                                <span className="text-[10px] uppercase font-bold text-cyan-400 bg-cyan-500/10 px-2 py-1 rounded border border-cyan-500/20">SEÇ</span>
+                                                <span className="text-[10px] uppercase font-bold text-sky-400 bg-sky-500/10 px-2 py-1 rounded border border-sky-500/20">SEÇ</span>
                                             </div>
                                         </button>
                                     </div>
@@ -1183,7 +1183,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                         <div className="flex items-center justify-between border-t border-white/5 pt-3">
                                             <div className="flex items-center gap-2">
                                                 <label className="flex items-center space-x-2 text-sm text-white cursor-pointer whitespace-nowrap">
-                                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${saveNewRoute ? 'bg-cyan-500 border-cyan-500' : 'border-slate-500'}`}>
+                                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${saveNewRoute ? 'bg-sky-500 border-sky-500' : 'border-slate-500'}`}>
                                                         {saveNewRoute && <Check size={14} className="text-white" />}
                                                     </div>
                                                     <input
@@ -1198,7 +1198,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                     type="button"
                                                     onClick={handleSaveRouteOnly}
                                                     disabled={!formData.from || !formData.to || saveRouteSuccess}
-                                                    className={`px-2 py-1 flex items-center gap-1 text-[10px] font-bold rounded border transition-all uppercase ${saveRouteSuccess ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : (!formData.from || !formData.to) ? 'bg-white/5 text-slate-600 border-white/5 cursor-not-allowed' : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/30 cursor-pointer'}`}
+                                                    className={`px-2 py-1 flex items-center gap-1 text-[10px] font-bold rounded border transition-all uppercase ${saveRouteSuccess ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : (!formData.from || !formData.to) ? 'bg-white/5 text-slate-600 border-white/5 cursor-not-allowed' : 'bg-sky-500/20 text-sky-400 border-sky-500/30 hover:bg-sky-500/30 cursor-pointer'}`}
                                                 >
                                                     {saveRouteSuccess ? (
                                                         <><Check size={12} /> Kaydedildi</>
@@ -1239,7 +1239,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                 <button
                                     type="button"
                                     onClick={() => setShowExtra(!showExtra)}
-                                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-300 cursor-pointer ${showExtra ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                                    className={`flex items-center justify-between p-2.5 rounded-xl border transition-all duration-300 cursor-pointer ${showExtra ? 'bg-sky-500/10 border-sky-500/30 text-sky-400' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                                 >
                                     <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
                                         <StickyNote size={12} /> Ek Bilgiler
@@ -1338,7 +1338,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
 
                             <button
                                 type="submit"
-                                className="w-full bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white px-4 py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:-translate-y-0.5 mt-2 uppercase tracking-wider cursor-pointer"
+                                className="w-full bg-gradient-to-r from-sky-600 to-blue-500 hover:from-sky-500 hover:to-blue-400 border border-sky-400/40 text-white px-4 py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-sky-500/20 hover:shadow-sky-500/40 hover:-translate-y-0.5 mt-2 uppercase tracking-wider cursor-pointer"
                             >
                                 Seferi Kaydet
                             </button>
@@ -1351,9 +1351,9 @@ const Trips = ({ onOpenMenu, isMobile }) => {
             {/* ─── ROTA YÖNETİMİ MODAL ─── */}
             {isRouteManagerOpen && createPortal(
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-                    <div className="glass-panel w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 border-cyan-500/30">
+                    <div className="glass-panel w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 border-sky-500/30">
                         <button onClick={() => setIsRouteManagerOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer"><X size={20} /></button>
-                        <h3 className="text-xl font-bold text-white mb-6 flex items-center"><MapPin className="mr-2 text-cyan-400" /> Rota Yönetimi</h3>
+                        <h3 className="text-xl font-bold text-white mb-6 flex items-center"><MapPin className="mr-2 text-sky-400" /> Rota Yönetimi</h3>
 
                         <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
                             {routes.map(route => (
@@ -1371,7 +1371,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                 </div>
                                             </div>
                                             <div className="flex">
-                                                <button onClick={() => setEditingRoute(null)} className="ml-auto bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1 rounded text-xs cursor-pointer">Tamam</button>
+                                                <button onClick={() => setEditingRoute(null)} className="ml-auto bg-sky-600 hover:bg-sky-500 text-white px-3 py-1 rounded text-xs cursor-pointer">Tamam</button>
                                             </div>
                                         </div>
                                     ) : (
@@ -1381,7 +1381,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                 <p className="text-xs text-slate-500">{route.km} km</p>
                                             </div>
                                             <div className="flex gap-1">
-                                                <button onClick={() => setEditingRoute(route.id)} className="p-1.5 text-slate-400 hover:text-cyan-400 cursor-pointer"><Pencil size={14} /></button>
+                                                <button onClick={() => setEditingRoute(route.id)} className="p-1.5 text-slate-400 hover:text-sky-400 cursor-pointer"><Pencil size={14} /></button>
                                                 <button onClick={() => deleteRoute(route.id)} className="p-1.5 text-slate-400 hover:text-red-400 cursor-pointer"><Trash2 size={14} /></button>
                                             </div>
                                         </div>
@@ -1420,7 +1420,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                     ) : (
                                         <a href={f.data} download={f.name}
                                             className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                                            <FileText size={24} className="text-cyan-400 flex-shrink-0" />
+                                            <FileText size={24} className="text-sky-400 flex-shrink-0" />
                                             <div>
                                                 <p className="text-sm font-medium text-white">{f.name}</p>
                                                 <p className="text-xs text-slate-500">İndirmek için tıklayın</p>
@@ -1439,11 +1439,11 @@ const Trips = ({ onOpenMenu, isMobile }) => {
             {/* ─── ROTA SEÇİCİ MODAL (YENİ PENCERE) ─── */}
             {isRouteSelectorOpen && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-                    <div className="glass-panel w-full max-w-lg p-0 relative animate-in zoom-in-95 duration-200 border-cyan-500/30 overflow-hidden flex flex-col h-[80vh] md:h-auto md:max-h-[85vh]">
+                    <div className="glass-panel w-full max-w-lg p-0 relative animate-in zoom-in-95 duration-200 border-sky-500/30 overflow-hidden flex flex-col h-[80vh] md:h-auto md:max-h-[85vh]">
                         {/* Modal Header */}
                         <div className="p-4 flex items-center justify-between border-b border-white/5 bg-white/5 shrink-0">
                             <h3 className="text-lg font-bold text-white flex items-center">
-                                <Search className="mr-2 text-cyan-400" size={18} /> Rota Seç
+                                <Search className="mr-2 text-sky-400" size={18} /> Rota Seç
                             </h3>
                             <button
                                 onClick={() => {
@@ -1464,7 +1464,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                     type="text"
                                     autoFocus
                                     placeholder="Rota ara (Nereden veya Nereye)..."
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:bg-white/10 transition-all placeholder:text-slate-500"
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-4 py-3 text-sm text-white focus:outline-none focus:border-sky-500/50 focus:bg-white/10 transition-all placeholder:text-slate-500"
                                     value={routeSearchTerm}
                                     onChange={(e) => setRouteSearchTerm(e.target.value)}
                                 />
@@ -1494,12 +1494,12 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                 setIsRouteSelectorOpen(false);
                                                 setRouteSearchTerm('');
                                             }}
-                                            className="w-full flex items-center justify-between p-4 rounded-xl transition-all text-left bg-white/5 hover:bg-cyan-500/10 border border-transparent hover:border-cyan-500/30 group cursor-pointer"
+                                            className="w-full flex items-center justify-between p-4 rounded-xl transition-all text-left bg-white/5 hover:bg-sky-500/10 border border-transparent hover:border-sky-500/30 group cursor-pointer"
                                         >
                                             <div className="flex flex-col gap-1.5 flex-1">
                                                 <div className="flex items-center gap-2">
-                                                    <MapPin size={14} className="text-slate-500 group-hover:text-cyan-400 transition-colors" />
-                                                    <span className="text-sm font-bold text-white tracking-wide">{r.from} <span className="text-cyan-400 mx-1">➔</span> {r.to}</span>
+                                                    <MapPin size={14} className="text-slate-500 group-hover:text-sky-400 transition-colors" />
+                                                    <span className="text-sm font-bold text-white tracking-wide">{r.from} <span className="text-sky-400 mx-1">➔</span> {r.to}</span>
                                                 </div>
                                                 <div className="flex items-center gap-4 pl-6 opacity-70">
                                                     <div className="flex items-center gap-1.5 text-xs text-slate-400">
@@ -1512,7 +1512,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="w-8 h-8 rounded-full bg-white/5 group-hover:bg-cyan-500 flex items-center justify-center transition-colors shrink-0">
+                                            <div className="w-8 h-8 rounded-full bg-white/5 group-hover:bg-sky-500 flex items-center justify-center transition-colors shrink-0">
                                                 <ChevronDown size={14} className="text-slate-400 group-hover:text-white -rotate-90" />
                                             </div>
                                         </button>

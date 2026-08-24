@@ -14,7 +14,6 @@ import Maintenance from './components/Maintenance'
 import Payments from './components/Payments'
 import SettingsPage from './components/Settings'
 import Login from './components/Login'
-import AdminLog from './components/AdminLog'
 import Detaylar from './components/Detaylar'
 import CompanyAdmin from './components/CompanyAdmin'
 import SuperAdmin from './components/SuperAdmin'
@@ -100,7 +99,7 @@ function App() {
     
     // Set initial theme-color
     const meta = document.getElementById('theme-color-meta');
-    if (meta) meta.setAttribute('content', theme === 'light' ? '#f8f9fa' : '#0B0E14');
+    if (meta) meta.setAttribute('content', theme === 'light' ? '#f8f9fa' : '#07090E');
     
     return () => clearTimeout(timer);
   }, [theme]);
@@ -110,7 +109,7 @@ function App() {
     setTheme(next);
     localStorage.setItem('tir_theme', next);
     const meta = document.getElementById('theme-color-meta');
-    if (meta) meta.setAttribute('content', next === 'light' ? '#f8f9fa' : '#0B0E14');
+    if (meta) meta.setAttribute('content', next === 'light' ? '#f8f9fa' : '#07090E');
   }
 
   const { currentSession, logoutSession, isDataLoading, dataError, docs, penalties, companyNotifications, acknowledgeNotification, markNotificationAsRead } = useContext(DataContext)
@@ -119,7 +118,6 @@ function App() {
   const currentUser = currentSession;
   const userRole = currentUser?.username === 'kenan' ? 'super_admin' : String(currentUser?.role || 'user').toLowerCase();
 
-  const [showCompanyExpand, setShowCompanyExpand] = useState(false);
   const [showTruckExpand, setShowTruckExpand] = useState(false);
 
   const DEFAULT_PIC = '/tir-clear.png?v=8'
@@ -381,19 +379,18 @@ function App() {
   const notifCount = unreadDocsCount + unreadPenaltiesCount;
 
   const menuItems = [
-    { id: 'dashboard', label: 'Özet', icon: <PieChart size={20} />, theme: 'from-violet-500/80 to-violet-600/80 shadow-[0_2px_12px_rgba(139,92,246,0.3)] border-violet-400/30', hoverText: 'group-hover:text-violet-400' },
-    { id: 'trips', label: 'Seferler', icon: <MapPin size={20} />, theme: 'from-sky-500/80 to-sky-600/80 shadow-[0_2px_12px_rgba(14,165,233,0.3)] border-sky-400/30', hoverText: 'group-hover:text-sky-400' },
-    { id: 'fuel', label: 'Mazot Fişleri', icon: <Droplet size={20} />, theme: 'from-cyan-500/80 to-cyan-600/80 shadow-[0_2px_12px_rgba(6,182,212,0.3)] border-cyan-400/30', hoverText: 'group-hover:text-cyan-400' },
-    { id: 'maintenance', label: 'Araç Bakım', icon: <Wrench size={20} />, theme: 'from-amber-500/80 to-amber-600/80 shadow-[0_2px_12px_rgba(245,158,11,0.3)] border-amber-400/30', hoverText: 'group-hover:text-amber-400' },
-    { id: 'detaylar', label: 'Ceza & Belgeler', icon: <AlertTriangle size={20} />, badge: notifCount, theme: 'from-red-500/80 to-red-600/80 shadow-[0_2px_12px_rgba(239,68,68,0.3)] border-red-400/30', hoverText: 'group-hover:text-red-400' },
-    { id: 'invoices', label: 'Fatura Durumu', icon: <FileText size={20} />, theme: 'from-emerald-500/80 to-emerald-600/80 shadow-[0_2px_12px_rgba(16,185,129,0.3)] border-emerald-400/30', hoverText: 'group-hover:text-emerald-400' },
-    { id: 'earsiv', label: 'E-Arşiv Fatura', icon: <Receipt size={20} />, theme: 'from-orange-500/80 to-orange-600/80 shadow-[0_2px_12px_rgba(249,115,22,0.3)] border-orange-400/30', hoverText: 'group-hover:text-orange-400' },
-    { id: 'payments', label: 'Ödeme Takibi', icon: <CreditCard size={20} />, theme: 'from-green-500/80 to-green-600/80 shadow-[0_2px_12px_rgba(34,197,94,0.3)] border-green-400/30', hoverText: 'group-hover:text-green-400' },
-    { id: 'personel', label: 'Personel', icon: <Users size={20} />, theme: 'from-orange-500/80 to-orange-600/80 shadow-[0_2px_12px_rgba(249,115,22,0.3)] border-orange-400/30', hoverText: 'group-hover:text-orange-400' },
-    { id: 'map', label: 'Harita', badge_beta: true, icon: <MapPin size={20} />, theme: 'from-[#c99c37]/70 to-[#c99c37]/90 shadow-[0_2px_12px_rgba(201,156,55,0.3)] border-[#c99c37]/30', hoverText: 'group-hover:text-[#c99c37]' },
-    { id: 'company_admin', label: 'Şirket Yönetimi', icon: <Building2 size={20} />, theme: 'from-indigo-500/80 to-indigo-600/80 shadow-[0_2px_12px_rgba(99,102,241,0.3)] border-indigo-400/30', hoverText: 'group-hover:text-indigo-400' },
-    { id: 'super_admin', label: 'SaaS Yönetimi', icon: <Server size={20} />, theme: 'from-fuchsia-500/80 to-fuchsia-600/80 shadow-[0_2px_12px_rgba(217,70,239,0.3)] border-fuchsia-400/30', hoverText: 'group-hover:text-fuchsia-400' },
-    { id: 'adminlog', label: 'Admin Logu', icon: <Shield size={20} />, theme: 'from-slate-500/80 to-slate-600/80 shadow-[0_2px_12px_rgba(100,116,139,0.3)] border-slate-400/30', hoverText: 'group-hover:text-slate-400' },
+    { id: 'dashboard', label: 'Özet', icon: <PieChart size={20} />, theme: 'bg-gradient-to-r from-violet-600 to-purple-500 border-violet-400/40 shadow-[0_0_20px_rgba(139,92,246,0.35)] text-white', hoverText: 'group-hover:text-violet-400' },
+    { id: 'trips', label: 'Seferler', icon: <MapPin size={20} />, theme: 'bg-gradient-to-r from-sky-600 to-blue-500 border-sky-400/40 shadow-[0_0_20px_rgba(14,165,233,0.35)] text-white', hoverText: 'group-hover:text-sky-400' },
+    { id: 'fuel', label: 'Mazot Fişleri', icon: <Droplet size={20} />, theme: 'bg-gradient-to-r from-cyan-600 to-teal-500 border-cyan-400/40 shadow-[0_0_20px_rgba(6,182,212,0.35)] text-white', hoverText: 'group-hover:text-cyan-400' },
+    { id: 'maintenance', label: 'Araç Bakım', icon: <Wrench size={20} />, theme: 'bg-gradient-to-r from-amber-600 to-orange-500 border-amber-400/40 shadow-[0_0_20px_rgba(245,158,11,0.35)] text-white', hoverText: 'group-hover:text-amber-400' },
+    { id: 'detaylar', label: 'Ceza & Belgeler', icon: <AlertTriangle size={20} />, badge: notifCount, theme: 'bg-gradient-to-r from-red-600 to-rose-500 border-red-400/40 shadow-[0_0_20px_rgba(239,68,68,0.35)] text-white', hoverText: 'group-hover:text-red-400' },
+    { id: 'invoices', label: 'Fatura Durumu', icon: <FileText size={20} />, theme: 'bg-gradient-to-r from-emerald-600 to-green-500 border-emerald-400/40 shadow-[0_0_20px_rgba(16,185,129,0.35)] text-white', hoverText: 'group-hover:text-emerald-400' },
+    { id: 'earsiv', label: 'E-Arşiv Fatura', icon: <Receipt size={20} />, theme: 'bg-gradient-to-r from-orange-600 to-amber-500 border-orange-400/40 shadow-[0_0_20px_rgba(249,115,22,0.35)] text-white', hoverText: 'group-hover:text-orange-400' },
+    { id: 'payments', label: 'Ödeme Takibi', icon: <CreditCard size={20} />, theme: 'bg-gradient-to-r from-emerald-600 to-teal-500 border-emerald-400/40 shadow-[0_0_20px_rgba(16,185,129,0.35)] text-white', hoverText: 'group-hover:text-emerald-400' },
+    { id: 'personel', label: 'Personel', icon: <Users size={20} />, theme: 'bg-gradient-to-r from-orange-600 to-amber-500 border-orange-400/40 shadow-[0_0_20px_rgba(249,115,22,0.35)] text-white', hoverText: 'group-hover:text-orange-400' },
+    { id: 'map', label: 'Harita', icon: <MapPin size={20} />, theme: 'bg-gradient-to-r from-blue-600 to-indigo-500 border-blue-400/40 shadow-[0_0_20px_rgba(37,99,235,0.35)] text-white', hoverText: 'group-hover:text-blue-400' },
+    { id: 'company_admin', label: 'Şirket Yönetimi', icon: <Building2 size={20} />, theme: 'bg-gradient-to-r from-indigo-600 to-violet-500 border-indigo-400/40 shadow-[0_0_20px_rgba(99,102,241,0.35)] text-white', hoverText: 'group-hover:text-indigo-400' },
+    { id: 'super_admin', label: 'SaaS Yönetimi', icon: <Server size={20} />, theme: 'bg-gradient-to-r from-fuchsia-600 to-pink-500 border-fuchsia-400/40 shadow-[0_0_20px_rgba(217,70,239,0.35)] text-white', hoverText: 'group-hover:text-fuchsia-400' },
   ]
 
 
@@ -410,7 +407,7 @@ function App() {
     }
 
     // Default 'şoför' (Sürücü) -> Sadece operasyonel sekmeleri görür
-    return !['adminlog', 'super_admin', 'company_admin', 'map', 'personel', 'earsiv'].includes(item.id);
+    return !['super_admin', 'company_admin', 'map', 'personel', 'earsiv'].includes(item.id);
   })
 
   // Login ekranı
@@ -502,94 +499,6 @@ function App() {
           {filteredMenuItems.map((item) => {
             const isActive = activeTab === item.id;
 
-            // ── SaaS Yönetimi: morph eden buton + ayrı expand ──
-            if (item.id === 'super_admin') {
-              const activeCompanyName = (companies || []).find(c => c.id === activeCompanyId)?.name || '—';
-              const otherCompanies = (companies || []).filter(c => c.id !== activeCompanyId);
-              return (
-                <div key={item.id}>
-                  <button onClick={() => { setActiveTab(item.id); if (isMobile) setIsMenuOpen(false); }}
-                    className={`w-full relative flex items-center space-x-3 px-4 h-10 rounded-xl text-left group transition-all duration-300 outline-none ${isActive ? 'font-medium text-white' : 'text-slate-400 hover:text-slate-200'}`}>
-                    {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 rounded-xl transition-colors duration-300 -z-10" />}
-                    {isActive && (
-                      <motion.div layoutId="sidebar-active-apple"
-                        className={`absolute inset-0 bg-gradient-to-b rounded-xl border ${item.theme}`}
-                        style={{ zIndex: 0 }} initial={false}
-                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}
-                      />
-                    )}
-                    <div className={`relative z-10 flex items-center flex-shrink-0 transition-transform duration-300 ${isActive ? 'scale-110 drop-shadow-md text-white/90' : `text-slate-500 group-hover:scale-110 ${item.hoverText}`}`}>
-                      {item.icon}
-                    </div>
-                    {/* Clip container — flex-col justify-center keeps label naturally left-aligned */}
-                    <div className="flex-1 self-stretch overflow-hidden relative z-10 flex flex-col justify-center">
-                      {/* Label — normal flow, left-aligned, slides up slightly when active */}
-                      <motion.span
-                        className="text-sm tracking-wide drop-shadow-md leading-none text-left"
-                        animate={{ y: isActive ? -3 : 0 }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}>
-                        {item.label}
-                      </motion.span>
-                      {/* Company name — absolute, slides from below clip */}
-                      <motion.span
-                        className="absolute left-0 right-0 text-[10px] text-fuchsia-200/75 font-medium truncate leading-none"
-                        style={{ top: 0 }}
-                        animate={{ y: isActive ? 27 : 50, opacity: isActive ? 1 : 0 }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}>
-                        {activeCompanyName}
-                      </motion.span>
-                    </div>
-                    {/* Expand chevron — always in DOM, opacity only */}
-                    <motion.div
-                      role="button"
-                      tabIndex={0}
-                      animate={{ opacity: isActive ? 1 : 0 }}
-                      transition={{ duration: 0.15 }}
-                      onClick={(e) => { e.stopPropagation(); if (isActive) setShowCompanyExpand(v => !v); }}
-                      className="relative z-20 p-1 rounded-md hover:bg-white/15 transition-colors flex-shrink-0 cursor-pointer"
-                      style={{ pointerEvents: isActive ? 'auto' : 'none' }}>
-                      <motion.div animate={{ rotate: showCompanyExpand ? 180 : 0 }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}>
-                        <ChevronDown size={12} className="text-fuchsia-300/70" />
-                      </motion.div>
-                    </motion.div>
-                  </button>
-
-                  {/* Şirket listesi - sadece expand açıkken ve aktifken */}
-                  <AnimatePresence>
-                    {isActive && showCompanyExpand && (
-                      <motion.div key="saas-companies"
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
-                        className="overflow-hidden">
-                        <div className="mx-1 mt-1 mb-0.5 bg-fuchsia-500/5 border border-fuchsia-500/15 rounded-xl overflow-hidden">
-                          {/* Aktif şirket */}
-                          <div className="flex items-center gap-2.5 px-3 py-2.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-fuchsia-400 flex-shrink-0 shadow-[0_0_6px_rgba(217,70,239,0.5)]" />
-                            <span className="text-xs font-semibold text-fuchsia-200 flex-1 truncate">{activeCompanyName}</span>
-                            <span className="text-[8px] bg-fuchsia-500/20 text-fuchsia-400 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide">Aktif</span>
-                          </div>
-                          {/* Diğer şirketler */}
-                          {otherCompanies.map((c, i) => (
-                            <div key={c.id}>
-                              {i === 0 && <div className="h-px bg-fuchsia-500/10 mx-3" />}
-                              <button onClick={() => { setActiveCompanyId(c.id); localStorage.setItem('tir_current_company', c.id); setShowCompanyExpand(false); }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-fuchsia-500/10 transition-colors group/co">
-                                <Building2 size={11} className="text-slate-600 group-hover/co:text-fuchsia-400 transition-colors flex-shrink-0" />
-                                <span className="text-xs text-slate-400 group-hover/co:text-white transition-colors truncate">{c.name}</span>
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-            }
-
             // ── Şirket Yönetimi: morph eden buton + ayrı expand (Tır seçimi için) ──
             if (item.id === 'company_admin') {
               const activeTruckPlate = trucks.find(t => t.id === activeTruckId)?.plate || 'Tır Seçin';
@@ -602,7 +511,7 @@ function App() {
                     {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 rounded-xl transition-colors duration-300 -z-10" />}
                     {isActive && (
                       <motion.div layoutId="sidebar-active-apple"
-                        className={`absolute inset-0 bg-gradient-to-b rounded-xl border ${item.theme}`}
+                        className={`absolute inset-0 rounded-xl border ${item.theme}`}
                         style={{ zIndex: 0 }} initial={false}
                         transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}
                       />
@@ -681,7 +590,7 @@ function App() {
                 {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 rounded-xl transition-colors duration-300 -z-10" />}
                 {isActive && (
                   <motion.div layoutId="sidebar-active-apple"
-                    className={`absolute inset-0 bg-gradient-to-b rounded-xl border ${item.theme}`}
+                    className={`absolute inset-0 rounded-xl border ${item.theme}`}
                     style={{ zIndex: 0 }} initial={false}
                     transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}
                   />
@@ -700,10 +609,6 @@ function App() {
             );
           })}
 
-          <div className="pt-6 pb-2">
-            <div className="h-px w-full bg-gradient-to-r from-transparent via-slate-700/30 to-transparent"></div>
-          </div>
-
         </nav>
 
         {/* Footer: User & Theme */}
@@ -719,15 +624,6 @@ function App() {
             {currentUser.username}
           </button>
           <div className="flex items-center gap-2">
-            {/* Tema Değiştirme Butonu - Geçici olarak devre dışı ve gizli */}
-            {/* 
-            <button onClick={toggleTheme}
-              title={theme === 'dark' ? 'Aydınlık Tema' : 'Karanlık Tema'}
-              className="p-2 rounded-full transition-all duration-300 hover:bg-slate-800/50 text-slate-400 hover:text-slate-200"
-            >
-              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-            </button> 
-            */}
             <button onClick={handleLogout} title="Oturumu Kapat" className="p-2 rounded-full text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-300">
               <LogOut size={14} />
             </button>
@@ -736,11 +632,11 @@ function App() {
       </aside>
 
       {/* Main Content */}
-      <main className={`min-h-screen ${mainPaddingLeft}`}>
-        <div className="flex flex-col min-h-screen w-full">
+      <main className={`${['dashboard', 'map'].includes(activeTab) ? 'h-[100dvh] md:h-screen overflow-hidden' : 'min-h-screen'} ${mainPaddingLeft}`}>
+        <div className={`flex flex-col w-full ${['dashboard', 'map'].includes(activeTab) ? 'h-full overflow-hidden' : 'min-h-screen'}`}>
 
           {/* Header - Simple & Clean (sticky) */}
-          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map', 'trips', 'dashboard'].includes(activeTab) ? 'hidden' : ''}`}
+          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map', 'trips', 'dashboard', 'maintenance', 'detaylar'].includes(activeTab) ? 'hidden' : ''}`}
             style={{
               paddingTop: 'calc(0.5rem + env(safe-area-inset-top))'
             }}
@@ -760,17 +656,17 @@ function App() {
           {/* Content Area */}
           <div className={`flex-1 ${
             activeTab === 'map' 
-              ? 'p-0 h-[100dvh] md:h-screen overflow-hidden' 
-              : activeTab === 'dashboard' 
-                ? 'p-3 sm:p-4 md:p-5 h-[100dvh] md:h-screen overflow-hidden flex flex-col' 
+              ? 'p-0 h-full overflow-hidden' 
+              : activeTab === 'dashboard'
+                ? 'pt-3 sm:pt-4 md:pt-5 pb-3 sm:pb-4 px-3.5 sm:px-5 md:px-6 h-full overflow-hidden flex flex-col' 
                 : 'p-4 md:p-6 xl:p-8'
           }`}>
             <div key={activeTab} className={activeTab === 'dashboard' ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
               {activeTab === 'dashboard' && <Dashboard onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'trips' && <Trips onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'fuel' && <Fuel onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'maintenance' && <Maintenance />}
-              {activeTab === 'detaylar' && <Detaylar />}
+              {activeTab === 'maintenance' && <Maintenance onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
+              {activeTab === 'detaylar' && <Detaylar onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'invoices' && <Invoices />}
               {activeTab === 'earsiv' && <EArsiv />}
               {activeTab === 'payments' && <Payments />}
@@ -779,7 +675,6 @@ function App() {
               {activeTab === 'company_admin' && <CompanyAdmin />}
               {activeTab === 'super_admin' && <SuperAdmin />}
               {activeTab === 'map' && userRole === 'super_admin' && <MapPage onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'adminlog' && (userRole === 'super_admin' || userRole === 'company_admin') && <AdminLog />}
             </div>
           </div>
         </div>

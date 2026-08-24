@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import { Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { calcStats } from '../../utils/mapUtils';
+import { calcStats, cleanGpsSpikes } from '../../utils/mapUtils';
 import { Activity, WifiOff, X, Search, ShieldAlert, Navigation, Compass, Crosshair, ChevronRight, ChevronDown, Check } from 'lucide-react';
 
 // ── Tema renkleri — site ile tam uyumlu ──────────────────────────────────
@@ -82,6 +82,14 @@ function getSpeedColor(speedKnots) {
 
 function SpeedPolylines({ session, isFollowed, zoom }) {
   if (!session || session.length < 2) return null;
+  
+  // Kronolojik sıraya diz ve sıçramaları/mükerrer noktaları temizle
+  const cleaned = useMemo(() => {
+    return cleanGpsSpikes(session);
+  }, [session]);
+
+  if (!cleaned || cleaned.length < 2) return null;
+
   const segments = [];
   
   // Dinamik ve akıcı çizgi kalınlığı formülü (zoom derecesine göre kesintisiz ölçeklenir)
@@ -89,8 +97,8 @@ function SpeedPolylines({ session, isFollowed, zoom }) {
   const weight = Math.min(5.5, Math.max(1.5, isFollowed ? baseWeight * 1.35 : baseWeight));
   const shadowWeight = weight + 2.5;
 
-  for (let i = 0; i < session.length - 1; i++) {
-    const a = session[i], b = session[i + 1];
+  for (let i = 0; i < cleaned.length - 1; i++) {
+    const a = cleaned[i], b = cleaned[i + 1];
     if (isNaN(a.lat) || isNaN(b.lat)) continue;
     const color = getSpeedColor(a.speed);
     const last = segments[segments.length - 1];
@@ -104,7 +112,7 @@ function SpeedPolylines({ session, isFollowed, zoom }) {
     <>
       {/* ── Alt Gölge (Yumuşak Dış Hat) ── */}
       <Polyline
-        positions={session.filter(p => !isNaN(p.lat)).map(p => [p.lat, p.lon])}
+        positions={cleaned.filter(p => !isNaN(p.lat)).map(p => [p.lat, p.lon])}
         color="#000"
         weight={shadowWeight}
         opacity={0.35}

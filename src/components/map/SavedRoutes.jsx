@@ -8,6 +8,7 @@ import {
 import { Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { mineCommercialTripCorridors } from '../../utils/routeMiningUtils';
+import { fetchRoadGeometry } from '../../utils/roadRoutingUtils';
 
 // ── Vektör Başlangıç & Bitiş Pin İkonları ──
 const createPinIcon = (colorHex, label) => L.divIcon({
@@ -295,6 +296,7 @@ export default function SavedRoutes({ isVisible }) {
   const [editName, setEditName]               = useState('');
   const [editFrom, setEditFrom]               = useState('');
   const [editTo, setEditTo]                   = useState('');
+  const [roadGeometries, setRoadGeometries]   = useState({});
 
   const map = useMap();
   const [zoom, setZoom] = useState(map ? map.getZoom() : 13);
@@ -358,10 +360,70 @@ export default function SavedRoutes({ isVisible }) {
     (r.to?.toLowerCase()   || '').includes(searchTerm.toLowerCase())
   );
 
+  // 3. KARAYOLU GERÇEK ROTA GEOMETRİSİNİ (OSRM & Virajlar) OTOMATİK ÇEKME
   useEffect(() => {
-    if (!isVisible) return;
-    if (selectedRoute?.startPoint && selectedRoute?.endPoint && map) {
-      const isMobile = window.innerWidth < 768;
+    if (!isVisible || !selectedRoute) return;
+    const routeId = selectedRoute.id || selectedRoute.name;
+
+    const hasRichPath = selectedRoute.path && selectedRoute.path.length > 5;
+    if (hasRichPath || roadGeometries[routeId]) return;
+
+    let isMounted = true;
+    const loadGeometry = async () => {
+      const startPt = selectedRoute.startPoint;
+      const endPt   = selectedRoute.endPoint;
+      if (startPt && endPt) {
+        const roadResult = await fetchRoadGeometry(startPt, endPt);
+        if (roadResult && roadResult.coordinates && isMounted) {
+          setRoadGeometries(prev => ({
+            ...prev,
+            [routeId]: roadResult.coordinates
+          }));
+        }
+      }
+    };
+    loadGeometry();
+    return () => { isMounted = false; };
+  }, [selectedRoute, isVisible, roadGeometries]);
+
+  // Arka planda ilk 6 rotanın karayolu geometrisini sessizce önceden hazırla (0ms gecikme)
+  useEffect(() => {
+    if (!isVisible || !discoveredRoutes || discoveredRoutes.length === 0) return;
+    let isMounted = true;
+    const prefetchRoutes = async () => {
+      const topRoutes = discoveredRoutes.slice(0, 6);
+      for (const route of topRoutes) {
+        const routeId = route.id || route.name;
+        if (!roadGeometries[routeId] && (!route.path || route.path.length <= 2)) {
+          if (route.startPoint && route.endPoint) {
+            const res = await fetchRoadGeometry(route.startPoint, route.endPoint);
+            if (res && res.coordinates && isMounted) {
+              setRoadGeometries(prev => ({ ...prev, [routeId]: res.coordinates }));
+            }
+          }
+        }
+      }
+    };
+    prefetchRoutes();
+    return () => { isMounted = false; };
+  }, [discoveredRoutes, isVisible]);
+
+  // Haritayı seçili rotanın karayolu koordinatlarına göre tam odakla
+  useEffect(() => {
+    if (!isVisible || !selectedRoute || !map) return;
+    const routeId = selectedRoute.id || selectedRoute.name;
+    const activeRoadCoords = roadGeometries[routeId] || (selectedRoute.path && selectedRoute.path.length > 5 ? selectedRoute.path.map(p => p.lat != null ? [p.lat, p.lon] : p) : null);
+
+    const isMobile = window.innerWidth < 768;
+
+    if (activeRoadCoords && activeRoadCoords.length > 2) {
+      const bounds = L.latLngBounds(activeRoadCoords);
+      map.fitBounds(bounds, {
+        paddingTopLeft: isMobile ? [20, 20] : [380, 60],
+        paddingBottomRight: isMobile ? [20, 180] : [60, 60],
+        maxZoom: 13
+      });
+    } else if (selectedRoute.startPoint && selectedRoute.endPoint) {
       const bounds = L.latLngBounds([
         [selectedRoute.startPoint.lat, selectedRoute.startPoint.lon],
         [selectedRoute.endPoint.lat,   selectedRoute.endPoint.lon],
@@ -372,7 +434,7 @@ export default function SavedRoutes({ isVisible }) {
         maxZoom: 12
       });
     }
-  }, [selectedRoute, map, isVisible]);
+  }, [selectedRoute, map, isVisible, roadGeometries]);
 
   const handleDelete = (id) => {
     deleteSavedTrackingRoute(id);
@@ -400,6 +462,8 @@ export default function SavedRoutes({ isVisible }) {
 
   const handleSaveDiscovered = async (corridor) => {
     try {
+      const routeId = corridor.id || corridor.name;
+      const roadPath = roadGeometries[routeId] || corridor.path || [];
       await addSavedTrackingRoute({
         name: corridor.name,
         from: corridor.from,
@@ -409,7 +473,7 @@ export default function SavedRoutes({ isVisible }) {
         avgSpeedKmh: corridor.avgSpeedKmh,
         startPoint: corridor.startPoint,
         endPoint: corridor.endPoint,
-        path: corridor.path || [],
+        path: roadPath.map(p => Array.isArray(p) ? { lat: p[0], lon: p[1] } : p),
       });
     } catch (err) {
       console.error('Keşfedilen rota kaydedilemedi:', err);
@@ -420,13 +484,18 @@ export default function SavedRoutes({ isVisible }) {
     <>
       {/* ── Harita Katmanları ── */}
       {isVisible && selectedRoute && (() => {
-        const hasPath = selectedRoute.path && selectedRoute.path.length > 0;
-        const startPt = hasPath ? selectedRoute.path[0] : selectedRoute.startPoint;
-        const endPt   = hasPath ? selectedRoute.path[selectedRoute.path.length - 1] : selectedRoute.endPoint;
+        const routeId = selectedRoute.id || selectedRoute.name;
+        const activeRoadPath = (selectedRoute.path && selectedRoute.path.length > 5)
+          ? selectedRoute.path.map(p => (p.lat != null ? [p.lat, p.lon] : p))
+          : (roadGeometries[routeId] || null);
+
+        const hasPath = activeRoadPath && activeRoadPath.length > 0;
+        const startPt = hasPath ? activeRoadPath[0] : selectedRoute.startPoint;
+        const endPt   = hasPath ? activeRoadPath[activeRoadPath.length - 1] : selectedRoute.endPoint;
         const startLatLon = startPt?.lat != null ? [startPt.lat, startPt.lon] : (Array.isArray(startPt) ? startPt : null);
         const endLatLon   = endPt?.lat != null ? [endPt.lat, endPt.lon] : (Array.isArray(endPt) ? endPt : null);
         const positions = hasPath
-          ? selectedRoute.path.map(p => (p.lat != null ? [p.lat, p.lon] : p))
+          ? activeRoadPath.map(p => (p.lat != null ? [p.lat, p.lon] : p))
           : (startLatLon && endLatLon ? [startLatLon, endLatLon] : []);
 
         const base = Math.max(1, (zoom - 7) * 0.35 + 1.2);

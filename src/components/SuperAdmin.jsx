@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { ShieldAlert, Building2, Plus, Server, Activity, Trash2, Key, Edit2, PauseCircle, PlayCircle, Users, Truck, Check, X, AlertOctagon, LogIn, Download, Database } from 'lucide-react';
+import { ShieldAlert, Building2, Plus, Server, Activity, Trash2, Key, Edit2, PauseCircle, PlayCircle, Users, Truck, Check, X, AlertOctagon, LogIn, Download, Database, Shield } from 'lucide-react';
 import { db } from '../services/firebaseConfig';
 import { collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, writeBatch, where, getDocs } from 'firebase/firestore';
 import { useCompany } from '../context/CompanyContext';
 import { DataContext } from '../context/DataContext';
 import { sendDiscordAlert } from '../services/discordWebhook';
+import AdminLog from './AdminLog';
 
 const SuperAdmin = () => {
     const { activeCompanyId, setActiveCompanyId } = useCompany();
@@ -15,7 +16,7 @@ const SuperAdmin = () => {
     const [compAdmin, setCompAdmin] = useState('');
     const [compPassword, setCompPassword] = useState('');
 
-    const [activeTab, setActiveTab] = useState('companies'); // 'companies' or 'users'
+    const [activeTab, setActiveTab] = useState('companies'); // 'companies', 'users' or 'logs'
     const [allUsers, setAllUsers] = useState([]);
     const [editingUserId, setEditingUserId] = useState(null);
     const [editUserForm, setEditUserForm] = useState({ password: '' });
@@ -293,6 +294,12 @@ const SuperAdmin = () => {
                 >
                     <div className="flex items-center"><Users size={16} className="mr-2" /> Sistem Kullanıcıları ({allUsers.length})</div>
                 </button>
+                <button
+                    onClick={() => setActiveTab('logs')}
+                    className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'logs' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                >
+                    <div className="flex items-center"><Shield size={16} className="mr-2" /> Admin Logu</div>
+                </button>
             </div>
 
             {activeTab === 'companies' && (
@@ -540,6 +547,12 @@ const SuperAdmin = () => {
                             </tbody>
                         </table>
                     </div>
+                </div>
+            )}
+
+            {activeTab === 'logs' && (
+                <div className="pt-2">
+                    <AdminLog />
                 </div>
             )}
 

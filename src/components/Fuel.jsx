@@ -376,29 +376,36 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                     <div className="relative" ref={dropdownRef}>
                         <button 
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                            className="bg-white/[0.04] hover:bg-white/[0.08] px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-300 flex items-center gap-1.5 sm:gap-2 hover:border-cyan-500/40 hover:text-white transition-all border border-white/10 shadow-sm group cursor-pointer"
+                            className="h-[36px] w-[155px] px-3 bg-[#0b0e14]/90 border border-white/10 hover:border-cyan-500/35 rounded-xl flex items-center justify-between gap-2 text-xs sm:text-sm font-semibold text-slate-200 hover:text-white transition-all shadow-lg cursor-pointer"
                         >
-                            <Calendar size={13} className="text-cyan-400 group-hover:text-cyan-300 transition-colors shrink-0" />
-                            <span className="truncate max-w-[100px] sm:max-w-none">{timeFilter === 'all' ? 'Tüm Zamanlar' : monthOptions.find(o => o.value === timeFilter)?.label}</span>
-                            <ChevronDown size={13} className={`text-slate-500 transition-transform duration-200 shrink-0 ${isDropdownOpen ? 'rotate-180 text-cyan-400' : ''}`} />
+                            <div className="flex items-center gap-2 min-w-0">
+                                <Calendar size={13} className="text-cyan-400 shrink-0" />
+                                <span className="truncate">
+                                    {timeFilter === 'all' 
+                                        ? 'Tüm Zamanlar' 
+                                        : (monthOptions.find(o => o.value === timeFilter)?.label || timeFilter)}
+                                </span>
+                            </div>
+                            <ChevronDown size={13} className={`text-slate-400 shrink-0 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180 text-cyan-400' : ''}`} />
                         </button>
                         
                         {isDropdownOpen && (
-                            <div className="absolute z-50 top-full left-0 mt-2 min-w-[190px] bg-[#0B0E14]/95 backdrop-blur-2xl border border-white/10 rounded-xl overflow-hidden shadow-2xl shadow-black/80 animate-in fade-in slide-in-from-top-2 duration-200">
-                                <div className="max-h-[300px] overflow-y-auto custom-scrollbar flex flex-col p-1.5 gap-0.5">
-                                    <button 
-                                        onClick={() => { setTimeFilter('all'); setIsDropdownOpen(false); }}
-                                        className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors cursor-pointer ${timeFilter === 'all' ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-                                    >
-                                        Tüm Zamanlar
-                                    </button>
+                            <div className="absolute z-50 top-full left-0 mt-1.5 w-44 bg-[#0c1017]/95 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl p-1.5 animate-in fade-in zoom-in-95 duration-150">
+                                <button 
+                                    onClick={() => { setTimeFilter('all'); setIsDropdownOpen(false); }}
+                                    className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors cursor-pointer ${timeFilter === 'all' ? 'bg-cyan-500/15 text-cyan-300 font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                                >
+                                    <span>Tüm Zamanlar</span>
+                                </button>
+                                <div className="my-1 border-t border-white/5" />
+                                <div className="max-h-56 overflow-y-auto [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                                     {monthOptions.map(opt => (
                                         <button 
                                             key={opt.value}
                                             onClick={() => { setTimeFilter(opt.value); setIsDropdownOpen(false); }}
-                                            className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors cursor-pointer ${timeFilter === opt.value ? 'bg-cyan-500/10 text-cyan-400' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                                            className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors cursor-pointer ${timeFilter === opt.value ? 'bg-cyan-500/15 text-cyan-300 font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                                         >
-                                            {opt.label}
+                                            <span className="truncate">{opt.label}</span>
                                         </button>
                                     ))}
                                 </div>
@@ -410,7 +417,7 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                 {/* Sağ Aksiyon: Yeni Fiş Butonu */}
                 <button 
                     onClick={() => openAddModal()}
-                    className="bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-white px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-[0_0_20px_rgba(6,182,212,0.25)] hover:shadow-[0_0_25px_rgba(6,182,212,0.45)] hover:-translate-y-0.5 flex items-center justify-center shrink-0 cursor-pointer"
+                    className="bg-gradient-to-r from-cyan-600 to-teal-500 hover:from-cyan-500 hover:to-teal-400 border border-cyan-400/40 text-white px-3.5 h-[36px] sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-[0_0_20px_rgba(6,182,212,0.35)] hover:shadow-[0_0_25px_rgba(6,182,212,0.5)] hover:-translate-y-0.5 flex items-center justify-center shrink-0 cursor-pointer"
                 >
                     <Plus size={15} className="mr-1 sm:mr-1.5" /> 
                     <span className="whitespace-nowrap">Yeni Fiş</span>
@@ -536,171 +543,183 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
 
             </div>
 
-            {/* Tablo */}
-            <div className="glass-panel overflow-hidden">
-                <div className="overflow-x-auto -mx-0 md:mx-0">
+            {/* ─── MAZOT FİŞLERİ LİSTESİ / TABLOSU ─── */}
+            <div className="bg-[#0c1017]/90 backdrop-blur-xl border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
                     <table className="w-full table-fixed text-left border-collapse hidden md:table" style={{ minWidth: '600px' }}>
                         <thead>
-                            <tr className="bg-white/5 border-b border-[var(--border-color)] text-[var(--text-secondary)] text-xs uppercase tracking-wide">
-                                <th className="p-3 pl-4 w-[16%]">Tarih</th>
-                                <th className="p-3 w-[42%]">İstasyon</th>
-                                <th className="p-3 text-center w-[18%]">Litre</th>
-                                <th className="p-3 text-right w-[16%]">Tutar</th>
-                                <th className="p-3 text-center w-[8%]"></th>
+                            <tr className="bg-white/[0.03] border-b border-white/[0.06] text-slate-400 text-[11px] uppercase font-bold tracking-wider">
+                                <th className="p-3 pl-4 whitespace-nowrap w-36">Tarih</th>
+                                <th className="p-3 whitespace-nowrap">İstasyon</th>
+                                <th className="p-3 text-center whitespace-nowrap w-36">Litre</th>
+                                <th className="p-3 text-right whitespace-nowrap w-36">Tutar</th>
+                                <th className="p-3 text-center whitespace-nowrap w-24">İşlemler</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/5">
+                        <tbody className="divide-y divide-white/[0.04]">
                             {filteredRecords.length > 0 ? filteredRecords.map((record) => (
-                                <tr key={record.id} className="hover:bg-white/5 transition-colors group">
-                                    <td className="p-3 pl-4 text-[var(--text-primary)] text-sm whitespace-nowrap">
-                                        {new Date(record.date).toLocaleDateString('tr-TR')}
+                                <tr key={record.id} className="hover:bg-white/[0.02] transition-colors group">
+                                    <td className="p-3 pl-4 whitespace-nowrap">
+                                        <div className="text-white text-sm font-semibold">{new Date(record.date).toLocaleDateString('tr-TR')}</div>
                                     </td>
-                                    <td className="p-3 overflow-hidden">
-                                        <div className="flex items-center gap-1.5 min-w-0">
-                                            <MapPin size={10} className="text-cyan-400 flex-shrink-0" />
-                                            <span className="text-[var(--text-primary)] text-sm font-medium truncate">{record.station}</span>
+                                    <td className="p-3">
+                                        <div className="text-sm font-bold text-white whitespace-nowrap flex items-center gap-1.5">
+                                            <MapPin size={13} className="text-cyan-400 shrink-0" />
+                                            <span>{record.station}</span>
                                         </div>
                                         {(record.notes || record.odometer) && (
-                                            <div className="flex flex-col gap-0.5 mt-0.5 min-w-0">
+                                            <div className="flex flex-wrap items-center gap-2 mt-1">
                                                 {record.odometer && (
-                                                    <div className="flex items-center gap-1 text-emerald-400/80">
-                                                        <span className="text-[10px] font-bold tracking-wide">KM:</span>
-                                                        <span className="text-xs font-medium">{record.odometer.toLocaleString('tr-TR')}</span>
-                                                    </div>
+                                                    <span className="text-[10px] text-slate-500 font-medium font-mono">
+                                                        KM: {record.odometer.toLocaleString('tr-TR')}
+                                                    </span>
                                                 )}
                                                 {record.notes && (
-                                                    <div className="flex items-center gap-1 min-w-0">
-                                                        <StickyNote size={9} className="text-slate-500 flex-shrink-0" />
-                                                        <span className="text-xs text-slate-500 truncate max-w-full">{record.notes}</span>
+                                                    <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                                                        <StickyNote size={10} className="text-slate-500 shrink-0" />
+                                                        <span className="truncate max-w-[220px]">{record.notes}</span>
                                                     </div>
                                                 )}
                                             </div>
                                         )}
                                     </td>
                                     <td className="p-3 text-center whitespace-nowrap">
-                                        <div className="text-[var(--text-primary)] font-medium text-sm">{record.liters} Lt</div>
-                                        {record.isPartial && (
-                                            <div className="text-[10px] text-cyan-500 bg-cyan-500/10 inline-block px-1.5 py-0.5 rounded font-bold mt-1 border border-cyan-500/20">
-                                                Kısmi Dolum
-                                            </div>
-                                        )}
-                                        {record.consumptionStats && (
-                                            <div className="text-[10px] text-emerald-400 bg-emerald-400/10 inline-block px-1.5 py-0.5 rounded font-medium mt-1">
-                                                {record.consumptionStats.ltPer100km.toFixed(1)} L/100km
-                                            </div>
-                                        )}
+                                        <div className="text-white font-bold text-sm">{record.liters} Lt</div>
+                                        <div className="flex items-center justify-center gap-1 mt-1">
+                                            {record.isPartial && (
+                                                <span className="text-[10px] bg-cyan-500/10 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-500/20 font-bold whitespace-nowrap">
+                                                    Kısmi Dolum
+                                                </span>
+                                            )}
+                                            {record.consumptionStats && (
+                                                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 font-bold whitespace-nowrap">
+                                                    {record.consumptionStats.ltPer100km.toFixed(1)} L/100km
+                                                </span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="p-3 text-right whitespace-nowrap">
-                                        <div className="text-orange-400 font-bold text-sm">₺{record.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
-                                        <div className="text-xs text-slate-500 font-normal">₺{(record.price / record.liters).toFixed(2)}/Lt</div>
+                                        <div className="text-amber-400 font-bold text-sm">₺{record.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
+                                        <div className="text-[11px] text-slate-500 font-medium font-mono">₺{(record.price / record.liters).toFixed(2)}/Lt</div>
                                         {record.consumptionStats && (
-                                            <div className="text-[10px] text-orange-400 mt-0.5 font-medium">
+                                            <div className="text-[10px] text-amber-400/80 font-medium font-mono mt-0.5">
                                                 ₺{record.consumptionStats.costPerKm.toFixed(2)} / km
                                             </div>
                                         )}
                                     </td>
-                                    <td className="p-2 text-center">
-                                        <div className="flex items-center justify-center gap-0.5">
+                                    <td className="p-3 text-center whitespace-nowrap">
+                                        <div className="flex items-center justify-center gap-1">
                                             {record.files && record.files.length > 0 && (
-                                                <button onClick={() => setViewFiles({ title: record.station, files: record.files })}
-                                                    title={`${record.files.length} ek`}
-                                                    className="p-1.5 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer">
+                                                <button 
+                                                    onClick={() => setViewFiles({ title: record.station, files: record.files })}
+                                                    title={`${record.files.length} Ek Dosya`}
+                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 transition-colors cursor-pointer"
+                                                >
                                                     <Paperclip size={14} />
                                                 </button>
                                             )}
-                                            <button onClick={() => openEditModal(record)}
-                                                className="p-1.5 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/10 cursor-pointer">
+                                            <button 
+                                                onClick={() => openEditModal(record)}
+                                                title="Fişi Düzenle"
+                                                className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 transition-colors cursor-pointer"
+                                            >
                                                 <Pencil size={14} />
                                             </button>
                                         </div>
                                     </td>
                                 </tr>
                             )) : (
-                                <tr><td colSpan="5" className="p-8 text-center text-slate-500">
-                                    <Droplet size={32} className="mx-auto mb-3 opacity-30" />
-                                    <p className="text-[var(--text-secondary)] font-medium">Henüz Kayıtlı Fiş Yok</p>
-                                </td></tr>
+                                <tr>
+                                    <td colSpan="5" className="p-12 text-center text-slate-500">
+                                        <Droplet size={36} className="mx-auto mb-3 opacity-20 text-cyan-400" />
+                                        <p className="text-base font-semibold text-slate-300">Kayıtlı Fiş Bulunamadı</p>
+                                        <p className="text-xs text-slate-500 mt-1">Seçili dönemde mazot fişi kaydı yok.</p>
+                                    </td>
+                                </tr>
                             )}
                         </tbody>
                     </table>
 
                     {/* Mobil Kart Görünümü */}
-                    <div className="md:hidden flex flex-col gap-3 p-2">
+                    <div className="md:hidden flex flex-col gap-2.5 p-3">
                         {filteredRecords.length > 0 ? (
                             filteredRecords.map((record) => (
-                                <div key={record.id} className="bg-[var(--bg-panel)] border border-[var(--border-color)] rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                                <div key={record.id} className="bg-[#0b0e14]/90 border border-white/[0.08] hover:border-cyan-500/30 rounded-xl p-3.5 shadow-md relative transition-all">
                                     <div className="flex justify-between items-start mb-2">
-                                        <div className="flex flex-col">
-                                            <div className="font-bold text-[var(--text-primary)] leading-tight flex items-center gap-1.5 text-[13px]">
-                                                <MapPin size={14} className="text-cyan-500" />
-                                                {record.station}
+                                        <div className="flex flex-col min-w-0 pr-2">
+                                            <div className="font-bold text-white leading-tight flex items-center gap-1.5 text-sm truncate">
+                                                <MapPin size={14} className="text-cyan-400 shrink-0" />
+                                                <span className="truncate">{record.station}</span>
                                             </div>
                                             {(record.notes || record.odometer) && (
-                                                <div className="flex flex-col gap-1 mt-1">
+                                                <div className="flex flex-wrap items-center gap-2 mt-1">
                                                     {record.odometer && (
-                                                        <div className="flex items-center gap-1 text-emerald-400/80">
-                                                            <span className="text-[10px] font-bold tracking-wide">KM:</span>
-                                                            <span className="text-xs font-medium">{record.odometer.toLocaleString('tr-TR')}</span>
-                                                        </div>
+                                                        <span className="text-[10px] text-slate-500 font-medium font-mono">
+                                                            KM: {record.odometer.toLocaleString('tr-TR')}
+                                                        </span>
                                                     )}
                                                     {record.notes && (
-                                                        <div className="flex items-center gap-1">
-                                                            <StickyNote size={9} className="text-slate-500" />
-                                                            <span className="text-[10px] text-slate-500 truncate max-w-[160px]">{record.notes}</span>
+                                                        <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                                                            <StickyNote size={10} className="text-slate-500 shrink-0" />
+                                                            <span className="truncate max-w-[160px]">{record.notes}</span>
                                                         </div>
                                                     )}
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <div className="text-[10px] text-slate-500 font-medium">
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <div className="text-xs font-bold text-slate-400">
                                                 {new Date(record.date).toLocaleDateString('tr-TR')}
                                             </div>
                                             {record.files && record.files.length > 0 && (
-                                                <button onClick={() => setViewFiles({ title: `Fiş Eki`, files: record.files })}
-                                                    className="p-1 bg-cyan-500/10 hover:bg-cyan-500/20 rounded-md text-cyan-400 transition-colors flex items-center">
+                                                <button 
+                                                    onClick={() => setViewFiles({ title: `Fiş Eki`, files: record.files })}
+                                                    className="p-1 bg-cyan-500/10 hover:bg-cyan-500/20 rounded-lg text-cyan-400 transition-colors flex items-center cursor-pointer"
+                                                >
                                                     <Paperclip size={12} />
                                                 </button>
                                             )}
-                                            <button onClick={() => openEditModal(record)}
-                                                className="p-1.5 bg-white/5 hover:bg-white/10 rounded-md text-[var(--text-secondary)] hover:text-cyan-400 transition-colors">
-                                                <Pencil size={14} />
+                                            <button 
+                                                onClick={() => openEditModal(record)}
+                                                className="p-1 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer"
+                                            >
+                                                <Pencil size={13} />
                                             </button>
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-3 gap-2 bg-white/5 rounded-xl p-2.5 items-center mt-3">
+                                    <div className="grid grid-cols-3 gap-2 bg-white/[0.02] border border-white/5 rounded-xl p-2.5 items-center mt-3">
                                         <div className="flex flex-col">
                                             <div className="text-[9px] text-slate-500 uppercase font-semibold mb-0.5">LİTRE</div>
                                             <div className="flex items-center gap-1">
-                                                <span className="text-[var(--text-primary)] font-medium text-xs">{record.liters} Lt</span>
-                                                {record.isPartial && <span className="text-[8px] bg-cyan-500/10 text-cyan-500 px-1 py-0.5 rounded font-bold border border-cyan-500/20">KISMİ</span>}
+                                                <span className="text-white font-bold text-xs">{record.liters} Lt</span>
+                                                {record.isPartial && <span className="text-[8px] bg-cyan-500/10 text-cyan-400 px-1 py-0.5 rounded font-bold border border-cyan-500/20">KISMİ</span>}
                                             </div>
                                         </div>
                                         <div className="flex flex-col border-l border-white/10 pl-2">
                                             <div className="text-[9px] text-slate-500 uppercase font-semibold mb-0.5">BİRİM</div>
-                                            <div className="text-[var(--text-secondary)] font-medium text-xs">₺{(record.price / record.liters).toFixed(2)}</div>
+                                            <div className="text-slate-400 font-medium text-xs font-mono">₺{(record.price / record.liters).toFixed(2)}</div>
                                         </div>
                                         <div className="flex flex-col items-end border-l border-white/10 pl-2 relative">
                                             <div className="text-[9px] text-slate-500 uppercase font-semibold mb-0.5 w-full text-right">TUTAR</div>
-                                            <div className="text-orange-400 font-bold text-sm w-full text-right">₺{parseFloat(record.price).toLocaleString('tr-TR')}</div>
+                                            <div className="text-amber-400 font-bold text-sm w-full text-right">₺{parseFloat(record.price).toLocaleString('tr-TR')}</div>
                                         </div>
                                     </div>
                                     
                                     {/* Mobil Tüketim Performans Satırı */}
                                     {record.consumptionStats && (
-                                        <div className="mt-2.5 grid grid-cols-3 gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-2.5 items-center">
+                                        <div className="mt-2 grid grid-cols-3 gap-2 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-2.5 items-center">
                                             <div className="flex flex-col">
-                                                <div className="text-[9px] text-emerald-500/70 uppercase font-bold mb-0.5">Menzil</div>
-                                                <div className="text-emerald-400 font-medium text-xs">{record.consumptionStats.distance.toLocaleString('tr-TR')} km</div>
+                                                <div className="text-[9px] text-emerald-400/70 uppercase font-bold mb-0.5">Menzil</div>
+                                                <div className="text-emerald-400 font-medium text-xs font-mono">{record.consumptionStats.distance.toLocaleString('tr-TR')} km</div>
                                             </div>
                                             <div className="flex flex-col border-l border-emerald-500/20 pl-2">
-                                                <div className="text-[9px] text-emerald-500/70 uppercase font-bold mb-0.5">Tüketim</div>
-                                                <div className="text-emerald-400 font-medium text-xs">{record.consumptionStats.ltPer100km.toFixed(1)} L/100</div>
+                                                <div className="text-[9px] text-emerald-400/70 uppercase font-bold mb-0.5">Tüketim</div>
+                                                <div className="text-emerald-400 font-medium text-xs font-mono">{record.consumptionStats.ltPer100km.toFixed(1)} L/100</div>
                                             </div>
                                             <div className="flex flex-col items-end border-l border-emerald-500/20 pl-2">
-                                                <div className="text-[9px] text-emerald-500/70 uppercase font-bold mb-0.5 w-full text-right">Maliyet</div>
-                                                <div className="text-orange-400 font-bold text-xs w-full text-right">₺{record.consumptionStats.costPerKm.toFixed(2)}/km</div>
+                                                <div className="text-[9px] text-emerald-400/70 uppercase font-bold mb-0.5 w-full text-right">Maliyet</div>
+                                                <div className="text-amber-400 font-bold text-xs w-full text-right font-mono">₺{record.consumptionStats.costPerKm.toFixed(2)}/km</div>
                                             </div>
                                         </div>
                                     )}
@@ -708,8 +727,8 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                             ))
                         ) : (
                             <div className="p-8 text-center text-slate-500">
-                                <Droplet size={32} className="mx-auto mb-3 opacity-30" />
-                                <p className="text-[var(--text-secondary)] font-medium">Henüz Kayıtlı Fiş Yok</p>
+                                <Droplet size={32} className="mx-auto mb-3 opacity-20 text-cyan-400" />
+                                <p className="text-sm font-semibold text-slate-300">Kayıtlı Fiş Bulunamadı</p>
                             </div>
                         )}
                     </div>
@@ -719,9 +738,9 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
             {/* ─── DÜZENLE MODAL ─── */}
             {editingFuel && createPortal(
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto">
-                        <button onClick={() => setEditingFuel(null)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={20} /></button>
-                        <h3 className="text-lg font-bold text-[var(--text-primary)] mb-5 flex items-center gap-2">
+                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto border-cyan-500/30">
+                        <button onClick={() => setEditingFuel(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer"><X size={20} /></button>
+                        <h3 className="text-lg font-bold text-white mb-5 flex items-center gap-2">
                             <Pencil size={16} className="text-cyan-400" /> Fişi Düzenle
                         </h3>
                         <div className="space-y-4">
@@ -737,7 +756,7 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                                     <button
                                         type="button"
                                         onClick={() => setEditShowExtra(!editShowExtra)}
-                                        className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 ${editShowExtra ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-lg shadow-cyan-500/10' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                                        className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${editShowExtra ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-lg shadow-cyan-500/10' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                                     >
                                         <StickyNote size={14} className={editShowExtra ? "animate-pulse" : ""} />
                                         Ek Bilgiler {editShowExtra ? <ChevronDown size={14} className="rotate-180" /> : <ChevronDown size={14} />}
@@ -745,7 +764,6 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                                 </div>
                             </div>
                             
-                            {/* İstasyon */}
                             {/* İstasyon */}
                             <div className="relative z-[100]">
                                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">İstasyon / Konum</label>
@@ -762,7 +780,7 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                                         {uniqueStations.filter(s => s.toLowerCase('tr-TR').includes((editForm.station || '').toLowerCase('tr-TR'))).map(station => (
                                             <li 
                                                 key={station}
-                                                className="px-4 py-2 hover:bg-white/10 cursor-pointer text-sm text-[var(--text-secondary)] hover:text-white transition-colors"
+                                                className="px-4 py-2 hover:bg-white/10 cursor-pointer text-sm text-slate-300 hover:text-white transition-colors"
                                                 onMouseDown={() => {
                                                     setEditForm({...editForm, station});
                                                     setShowEditSuggestions(false);
@@ -841,14 +859,14 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                                             <button
                                                 type="button"
                                                 onClick={() => setEditForm({ ...editForm, isPartial: false })}
-                                                className={`py-2 rounded-lg text-xs font-bold transition-all ${!editForm.isPartial ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/30' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                                                className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${!editForm.isPartial ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/30' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                                             >
                                                 Depo Fullendi
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setEditForm({ ...editForm, isPartial: true })}
-                                                className={`py-2 rounded-lg text-xs font-bold transition-all ${editForm.isPartial ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                                                className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${editForm.isPartial ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                                             >
                                                 Kısmi Dolum
                                             </button>
@@ -858,7 +876,7 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                                         <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">📝 Not (İsteğe Bağlı)</label>
                                         <textarea
                                             rows={2}
-                                            className="w-full glass-input px-3 py-2 text-sm resize-none text-[var(--text-primary)]"
+                                            className="w-full glass-input px-3 py-2 text-sm resize-none text-white"
                                             placeholder="Not ekleyin..."
                                             value={editForm.notes}
                                             onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
@@ -874,12 +892,12 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                             {/* Aksiyon Butonları */}
                             <div className="flex gap-3 mt-4">
                                 <button onClick={handleEdit}
-                                    className="flex-1 bg-gradient-to-r from-cyan-500 to-cyan-500 hover:from-cyan-400 hover:to-cyan-400 text-white py-3.5 rounded-2xl font-black transition-all shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:-translate-y-0.5 uppercase tracking-wide">
+                                    className="flex-1 bg-gradient-to-r from-cyan-600 to-teal-500 hover:from-cyan-500 hover:to-teal-400 border border-cyan-400/40 text-white py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:-translate-y-0.5 uppercase tracking-wider cursor-pointer">
                                     Kaydet
                                 </button>
                                 <button onClick={() => { handleDelete(editingFuel.id); setEditingFuel(null); }}
-                                    className="w-14 flex items-center justify-center bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 hover:border-red-500 rounded-2xl transition-all shadow-lg shadow-red-500/5 hover:shadow-red-500/30 hover:-translate-y-0.5">
-                                    <Trash2 size={20} />
+                                    className="w-14 flex items-center justify-center bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/20 hover:border-red-500 rounded-xl transition-all shadow-lg shadow-red-500/5 hover:shadow-red-500/30 hover:-translate-y-0.5 cursor-pointer">
+                                    <Trash2 size={18} />
                                 </button>
                             </div>
                         </div>
@@ -892,11 +910,11 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
             {isModalOpen && createPortal(
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="glass-panel w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto border-cyan-500/30">
-                        <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                        <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer">
                             <X size={20} />
                         </button>
-                        <h3 className="text-xl font-bold text-[var(--text-primary)] mb-6 flex items-center">
-                            <Droplet className="mr-2 text-cyan-500" /> Yeni Mazot Fişi
+                        <h3 className="text-xl font-bold text-white mb-6 flex items-center">
+                            <Droplet className="mr-2 text-cyan-400" /> Yeni Mazot Fişi
                         </h3>
                         <form onSubmit={handleAdd} className="space-y-4">
                             <div className="grid grid-cols-2 gap-3">
@@ -909,7 +927,7 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                                     <button
                                         type="button"
                                         onClick={() => setShowExtra(!showExtra)}
-                                        className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 ${showExtra ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-lg shadow-cyan-500/10' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                                        className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${showExtra ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-lg shadow-cyan-500/10' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                                     >
                                         <StickyNote size={14} className={showExtra ? "animate-pulse" : ""} />
                                         Ek Bilgiler {showExtra ? <ChevronDown size={14} className="rotate-180" /> : <ChevronDown size={14} />}
@@ -934,7 +952,7 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                                         {uniqueStations.filter(s => s.toLowerCase('tr-TR').includes((formData.station || '').toLowerCase('tr-TR'))).map(station => (
                                             <li 
                                                 key={station}
-                                                className="px-4 py-2 hover:bg-white/10 cursor-pointer text-sm text-[var(--text-secondary)] hover:text-white transition-colors"
+                                                className="px-4 py-2 hover:bg-white/10 cursor-pointer text-sm text-slate-300 hover:text-white transition-colors"
                                                 onMouseDown={() => {
                                                     setFormData({...formData, station});
                                                     setShowAddSuggestions(false);
@@ -1014,14 +1032,14 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                                             <button
                                                 type="button"
                                                 onClick={() => setFormData({ ...formData, isPartial: false })}
-                                                className={`py-2 rounded-lg text-xs font-bold transition-all ${!formData.isPartial ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/30' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                                                className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${!formData.isPartial ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/30' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                                             >
                                                 Depo Fullendi
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setFormData({ ...formData, isPartial: true })}
-                                                className={`py-2 rounded-lg text-xs font-bold transition-all ${formData.isPartial ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                                                className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${formData.isPartial ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                                             >
                                                 Kısmi Dolum
                                             </button>
@@ -1031,7 +1049,7 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                                         <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">📝 Not (İsteğe Bağlı)</label>
                                         <textarea
                                             rows={2}
-                                            className="w-full glass-input px-4 py-2 resize-none text-sm text-[var(--test-primary)]"
+                                            className="w-full glass-input px-4 py-2 resize-none text-sm text-white"
                                             placeholder="Fiş hakkında not ekleyin..."
                                             value={formData.notes}
                                             onChange={e => setFormData({ ...formData, notes: e.target.value })}
@@ -1045,7 +1063,7 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                             )}
 
                             <button type="submit"
-                                className="w-full bg-gradient-to-r from-cyan-500 to-cyan-500 hover:from-cyan-400 hover:to-cyan-400 text-white px-4 py-3.5 rounded-2xl font-black transition-all shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:-translate-y-0.5 mt-4 uppercase tracking-wider">
+                                className="w-full bg-gradient-to-r from-cyan-600 to-teal-500 hover:from-cyan-500 hover:to-teal-400 border border-cyan-400/40 text-white px-4 py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:-translate-y-0.5 mt-4 uppercase tracking-wider cursor-pointer">
                                 Fişi Kaydet
                             </button>
                         </form>
@@ -1056,34 +1074,34 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
 
             {/* ─── DOSYA GÖRÜNTÜLEYICI ─── */}
             {viewFiles && createPortal(
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-2xl p-6 relative animate-in zoom-in-95 duration-200">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setViewFiles(null)}>
+                    <div className="glass-panel w-full max-w-2xl p-6 relative animate-in zoom-in-95 duration-200 border-cyan-500/30" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-[var(--text-primary)] flex items-center gap-2">
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2">
                                 <FileText className="text-cyan-400" />
                                 {viewFiles.title} İçin Ekler
                             </h3>
-                            <button onClick={() => setViewFiles(null)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                            <button onClick={() => setViewFiles(null)} className="text-slate-400 hover:text-white transition-colors cursor-pointer">
                                 <X size={24} />
                             </button>
                         </div>
                         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
                             {viewFiles.files.map((file, idx) => (
-                                <div key={idx} className="bg-white/5 border border-[var(--border-color)] rounded-xl overflow-hidden">
+                                <div key={idx} className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
                                     {file.type && file.type.startsWith('image/') ? (
                                         <div className="bg-black/30 w-full flex justify-center p-4">
                                             <img src={file.data} alt="Belge/Makbuz" className="max-w-full max-h-[400px] object-contain rounded shadow-2xl" />
                                         </div>
                                     ) : (
                                         <div className="p-8 flex flex-col items-center justify-center bg-white/5">
-                                            <FileText size={48} className="text-[var(--text-secondary)] mb-3" />
-                                            <p className="text-[var(--text-primary)] font-medium">{file.name || 'Belge dosyası'}</p>
+                                            <FileText size={48} className="text-slate-400 mb-3" />
+                                            <p className="text-white font-medium">{file.name || 'Belge dosyası'}</p>
                                         </div>
                                     )}
-                                    <div className="p-4 bg-white/5 border-t border-[var(--border-color)] flex justify-between items-center">
-                                        <span className="text-sm text-[var(--text-secondary)] truncate max-w-[70%] font-medium">{file.name || 'Ek_Belge'}</span>
+                                    <div className="p-4 bg-white/5 border-t border-white/10 flex justify-between items-center">
+                                        <span className="text-sm text-slate-300 truncate max-w-[70%] font-medium">{file.name || 'Ek_Belge'}</span>
                                         <a href={file.data} download={file.name || 'Belge'}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-cyan-400 hover:text-[var(--text-primary)] bg-cyan-500/10 hover:bg-cyan-500/30 border border-cyan-500/20 rounded-lg transition-colors">
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold text-cyan-400 hover:text-white bg-cyan-500/10 hover:bg-cyan-500/30 border border-cyan-500/20 rounded-lg transition-colors">
                                             <Download size={14} /> İndir
                                         </a>
                                     </div>

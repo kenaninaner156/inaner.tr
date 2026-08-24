@@ -1188,6 +1188,31 @@ export const DataProvider = ({ children }) => {
         return callAdminApi('markNotificationRead', { notificationId });
     }, [callAdminApi]);
 
+    const deleteCompanyNotification = useCallback(async (notificationId) => {
+        try {
+            await deleteDoc(doc(db, 'company_notifications', notificationId));
+            return { success: true };
+        } catch (e) {
+            console.error('Error deleting company notification:', e);
+            throw e;
+        }
+    }, []);
+
+    const clearAllCompanyNotifications = useCallback(async (notificationIds = []) => {
+        try {
+            const batch = writeBatch(db);
+            const idsToDelete = notificationIds.length > 0 ? notificationIds : (companyNotifications || []).map(n => n.id);
+            idsToDelete.forEach(id => {
+                if (id) batch.delete(doc(db, 'company_notifications', id));
+            });
+            await batch.commit();
+            return { success: true };
+        } catch (e) {
+            console.error('Error clearing all company notifications:', e);
+            throw e;
+        }
+    }, [companyNotifications]);
+
     const refreshUsers = useCallback(() => { }, []);
 
     // Unified drivers list: merge manual drivers + approved şöför users
@@ -1235,7 +1260,8 @@ export const DataProvider = ({ children }) => {
             manualMerges, addManualMerge,
             manualDeletes, addManualDelete,
             customRouteNames, setCustomRouteName,
-            companyNotifications, acknowledgeNotification, markNotificationAsRead
+            companyNotifications, acknowledgeNotification, markNotificationAsRead,
+            deleteCompanyNotification, clearAllCompanyNotifications
         }}>
             {children}
         </DataContext.Provider>
