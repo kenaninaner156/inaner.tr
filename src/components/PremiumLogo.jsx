@@ -8,7 +8,7 @@ const THEME_COLORS = [
   "#06b6d4", // 2: Mazot Fişleri (Cyan)
   "#f59e0b", // 3: Araç Bakım (Amber)
   "#ef4444", // 4: Ceza & Belgeler (Red)
-  "#10b981", // 5: Fatura Durumu (Emerald)
+  "#2563eb", // 5: Fatura Durumu (Royal Blue)
   "#d946ef", // 6: SaaS Yönetimi (Fuchsia)
   "#22c55e", // 7: Ödeme Takibi (Green)
   "#6366f1", // 8: Şirket Yönetimi (Indigo)

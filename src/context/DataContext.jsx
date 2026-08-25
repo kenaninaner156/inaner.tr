@@ -49,6 +49,7 @@ export const DataProvider = ({ children }) => {
     const [mechanics, setMechanics] = useState([]);
     const [routes, setRoutes] = useState([]);
     const [savedTrackingRoutes, setSavedTrackingRoutes] = useState([]);
+    const [routeHistory, setRouteHistory] = useState({});
     const [draftInvoice, setDraftInvoice] = useState(null);
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [isDataLoading, setIsDataLoading] = useState(true);
@@ -442,7 +443,14 @@ export const DataProvider = ({ children }) => {
                         { id: 'prim_uzun', name: 'Uzun Yol Primi', type: 'fixed', amount: 600 }
                     ]);
                 }
+
+                if (data.routeHistory) {
+                    setRouteHistory(data.routeHistory);
+                } else {
+                    setRouteHistory({});
+                }
             } else {
+                setRouteHistory({});
                 const isInaner = activeCompanyId === 'inaner_logistics';
                 setDrivers([]);
                 setSparePartCategories(['Yağ', 'Filtre', 'Kayış', 'Balata', 'Aydınlatma', 'Lastik', 'Genel']);
@@ -827,6 +835,37 @@ export const DataProvider = ({ children }) => {
         const docId = `${activeCompanyId}_${activeTruckId}_draft`;
         await setDoc(doc(db, 'company_data', docId), { draftInvoice: null }, { merge: true });
     };
+
+    // Rota Birim Fiyat Hafızasını Firebase'e Kaydetme
+    const saveRouteHistory = async (newHistory) => {
+        if (!activeCompanyId) return;
+        const docId = activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`;
+        await setDoc(doc(db, 'company_data', docId), { routeHistory: newHistory }, { merge: true });
+        try {
+            localStorage.setItem(`route_history_${activeCompanyId || 'default'}`, JSON.stringify(newHistory));
+        } catch (e) { /* empty */ }
+    };
+
+    // Otomatik Geçiş: Mevcut PC'deki localStorage rota geçmişini tek seferde Firebase'e aktar
+    useEffect(() => {
+        if (!activeCompanyId) return;
+        try {
+            const stored = localStorage.getItem(`route_history_${activeCompanyId || 'default'}`);
+            if (stored) {
+                const localHistory = JSON.parse(stored);
+                if (localHistory && typeof localHistory === 'object' && Object.keys(localHistory).length > 0) {
+                    const docId = activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`;
+                    const hasNewKeys = Object.keys(localHistory).some(k => !routeHistory || !routeHistory[k]);
+                    if (hasNewKeys || !routeHistory || Object.keys(routeHistory).length === 0) {
+                        const merged = { ...localHistory, ...(routeHistory || {}) };
+                        setDoc(doc(db, 'company_data', docId), { routeHistory: merged }, { merge: true }).catch(console.error);
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Rota geçmişi Firebase'e aktarılırken hata:", e);
+        }
+    }, [activeCompanyId, routeHistory]);
 
     const registerUser = async (userData) => {
         const entry = { ...userData, status: 'pending', requestedAt: new Date().toISOString(), companyId: activeCompanyId };
@@ -1250,6 +1289,7 @@ export const DataProvider = ({ children }) => {
             payouts, addPayout, deletePayout, updatePayout,
             premiums, updatePremiums,
             draftInvoice, saveDraftInvoice, clearDraftInvoice,
+            routeHistory, saveRouteHistory,
             onlineUsers,
             shoppingItems, addShoppingItem, updateShoppingItem, deleteShoppingItem, updateShoppingItemsOrder,
             updateTruckImage,

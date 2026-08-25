@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Check, ThumbsUp } from 'lucide-react';
 import { useCompany } from '../context/CompanyContext';
+import { parseTonnageInTons } from '../utils/tonnageUtils';
 
 const A4_WIDTH = 794;
 const A4_HEIGHT = 1123;
@@ -316,7 +317,7 @@ const A4PersonnelPreview = React.forwardRef(({
                                 <td className="py-1.5 px-2 text-slate-600 whitespace-nowrap">{localDate}</td>
                                 <td className="py-1.5 px-2 text-slate-700 truncate max-w-[65px]">{trip.from}</td>
                                 <td className="py-1.5 px-2 text-slate-700 truncate max-w-[65px]">{trip.to}</td>
-                                <td className="py-1.5 px-2 text-slate-800 text-center">{Number(trip.tonnage).toFixed(2)} t</td>
+                                <td className="py-1.5 px-2 text-slate-800 text-center">{parseTonnageInTons(trip.tonnage).toFixed(2)} t</td>
                                 <td className="py-1.5 px-2 text-slate-600 truncate max-w-[50px]">{trip.premiumName || 'Özel Prim'}</td>
                                 <td className="py-1.5 px-2 text-right text-slate-800 font-bold">₺{Number(trip.premiumAmount || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
                             </tr>

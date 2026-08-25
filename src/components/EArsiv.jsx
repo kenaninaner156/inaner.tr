@@ -6,9 +6,11 @@ import { useTruck } from '../context/TruckContext';
 import { auth } from '../services/firebaseConfig';
 import { doc, getDoc, setDoc, onSnapshot, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
-import { FileText, Save, Key, RefreshCw, CheckCircle, AlertTriangle, ExternalLink, HelpCircle, X, Send, BookOpen, Settings, Smartphone, Download } from 'lucide-react';
+import { FileText, Save, Key, RefreshCw, CheckCircle, AlertTriangle, ExternalLink, HelpCircle, X, Send, BookOpen, Settings, Smartphone, Download, Paperclip } from 'lucide-react';
 
 import CustomDatePicker from './CustomDatePicker';
+import FileUpload from './FileUpload';
+import { parseTonnageInTons } from '../utils/tonnageUtils';
 
 const TEVKIFAT_CODES = [
     { code: '624', rate: 20, label: '624 - Yük Taşımacılığı Hizmeti (2/10 - %20)' },
@@ -24,7 +26,7 @@ const EXEMPTION_CODES = [
 ];
 
 const EArsiv = () => {
-    const { invoices, addLog } = useContext(DataContext);
+    const { invoices, addLog, routeHistory, saveRouteHistory } = useContext(DataContext);
     const { activeCompanyId } = useCompany();
     const { trucks } = useTruck();
 
@@ -97,6 +99,12 @@ const EArsiv = () => {
     const [smsTargetInvoice, setSmsTargetInvoice] = useState(null);
     const [isApprovingSms, setIsApprovingSms] = useState(false);
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(null); // invoiceId tutar
+
+    // Belge / Manuel PDF Yükleme State'leri
+    const [pdfModalInvoice, setPdfModalInvoice] = useState(null);
+    const [modalFiles, setModalFiles] = useState([]);
+    const [modalNote, setModalNote] = useState('');
+    const [isSavingPdf, setIsSavingPdf] = useState(false);
 
     const showToast = (type, message, duration = 5000) => {
         setToast({ type, message });
@@ -233,18 +241,20 @@ const EArsiv = () => {
                         tonnage: 0
                     };
                 }
-                acc[key].tonnage += Number(trip.tonnage) || 0;
+                acc[key].tonnage += parseTonnageInTons(trip.tonnage);
                 return acc;
             }, {})
         ).sort((a, b) => b.tonnage - a.tonnage);
 
-        // Load route history for remembrance (from localStorage)
-        let history = {};
-        try {
-            const stored = localStorage.getItem(`route_history_${activeCompanyId || 'default'}`);
-            if (stored) history = JSON.parse(stored);
-        } catch (e) {
-            console.error("Güzergah hafızası yüklenirken hata:", e);
+        // Load route history for remembrance (from Firebase, fallback to localStorage)
+        let history = routeHistory && Object.keys(routeHistory).length > 0 ? routeHistory : {};
+        if (Object.keys(history).length === 0) {
+            try {
+                const stored = localStorage.getItem(`route_history_${activeCompanyId || 'default'}`);
+                if (stored) history = JSON.parse(stored);
+            } catch (e) {
+                console.error("Güzergah hafızası yüklenirken hata:", e);
+            }
         }
 
         // Map routeSummary to routeLines
@@ -342,18 +352,17 @@ const EArsiv = () => {
         updated[index] = line;
         setRouteLines(updated);
 
-        // Save route line to remembrance history immediately (localStorage)
+        // Save route line to remembrance history immediately (Firebase + localStorage)
         try {
-            const stored = localStorage.getItem(`route_history_${activeCompanyId || 'default'}`);
-            const history = stored ? JSON.parse(stored) : {};
-            
             const key = `${line.from.trim()}|||${line.to.trim()}`;
-            history[key] = {
-                name: line.name.toUpperCase(),
-                unitPrice: line.unitPrice
+            const updatedHistory = {
+                ...(routeHistory || {}),
+                [key]: {
+                    name: line.name.toUpperCase(),
+                    unitPrice: line.unitPrice
+                }
             };
-            
-            localStorage.setItem(`route_history_${activeCompanyId || 'default'}`, JSON.stringify(history));
+            if (saveRouteHistory) saveRouteHistory(updatedHistory);
         } catch (e) {
             console.error("Güzergah hafızası anlık kaydedilirken hata:", e);
         }
@@ -544,6 +553,55 @@ const EArsiv = () => {
         }
     };
 
+    const handleViewManualPdf = (file) => {
+        try {
+            if (file.url) {
+                window.open(file.url, '_blank');
+                return;
+            }
+            if (file.data) {
+                const base64Parts = file.data.split(',');
+                const mimeMatch = base64Parts[0].match(/:(.*?);/);
+                const mimeType = mimeMatch ? mimeMatch[1] : 'application/pdf';
+                const byteString = atob(base64Parts[1]);
+                const arrayBuffer = new ArrayBuffer(byteString.length);
+                const uint8Array = new Uint8Array(arrayBuffer);
+                for (let i = 0; i < byteString.length; i++) {
+                    uint8Array[i] = byteString.charCodeAt(i);
+                }
+                const blob = new Blob([arrayBuffer], { type: mimeType });
+                const url = window.URL.createObjectURL(blob);
+                window.open(url, '_blank');
+                setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+            } else {
+                showToast('error', 'Dosya verisi bulunamadı.');
+            }
+        } catch (err) {
+            console.error("PDF açılırken hata:", err);
+            showToast('error', 'Dosya açılırken bir hata oluştu.');
+        }
+    };
+
+    const handleSaveManualFiles = async () => {
+        if (!pdfModalInvoice) return;
+        setIsSavingPdf(true);
+        try {
+            const invoiceRef = doc(db, 'invoices', pdfModalInvoice.id);
+            await updateDoc(invoiceRef, {
+                files: modalFiles,
+                note: modalNote
+            });
+            showToast('success', 'Fatura belgeleri başarıyla güncellendi.');
+            if (addLog) addLog(`E-Arşiv belgesi güncellendi: ${pdfModalInvoice.docId || pdfModalInvoice.id}`, 'info');
+            setPdfModalInvoice(null);
+        } catch (err) {
+            console.error('Belge kaydedilirken hata:', err);
+            showToast('error', 'Belgeler kaydedilirken bir hata oluştu: ' + err.message);
+        } finally {
+            setIsSavingPdf(false);
+        }
+    };
+
     const handleOpenSendModal = (invoice) => {
         if (!gibUsername || !gibPassword) {
             showToast('warning', "Lütfen önce 'Bağlantı Ayarları' sekmesinden GİB Kullanıcı Kodu ve Şifrenizi kaydedin.");
@@ -669,20 +727,17 @@ const EArsiv = () => {
             const docRef = doc(db, 'company_data', docId);
             await setDoc(docRef, { gibClients: updatedClients }, { merge: true });
 
-            // Save route lines to remembrance history (localStorage)
+            // Save route lines to remembrance history (Firebase + localStorage)
             try {
-                const stored = localStorage.getItem(`route_history_${activeCompanyId || 'default'}`);
-                const history = stored ? JSON.parse(stored) : {};
-                
+                const updatedHistory = { ...(routeHistory || {}) };
                 routeLines.forEach(line => {
                     const key = `${line.from.trim()}|||${line.to.trim()}`;
-                    history[key] = {
+                    updatedHistory[key] = {
                         name: line.name,
                         unitPrice: line.unitPrice
                     };
                 });
-                
-                localStorage.setItem(`route_history_${activeCompanyId || 'default'}`, JSON.stringify(history));
+                if (saveRouteHistory) saveRouteHistory(updatedHistory);
             } catch (e) {
                 console.error("Güzergah hafızası kaydedilirken hata:", e);
             }
@@ -915,92 +970,107 @@ const EArsiv = () => {
                                                     )}
                                                 </td>
                                                 <td className="p-4 text-right">
-                                                     {isDraftOnGib ? (
-                                                         <div className="flex justify-end items-center gap-2">
-                                                             <button
-                                                                 onClick={() => handleApproveSmsInit(inv)}
-                                                                 disabled={isApprovingSms === inv.id}
-                                                                 className="inline-flex items-center gap-1.5 text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-50"
-                                                             >
-                                                                 {isApprovingSms === inv.id ? (
-                                                                     <RefreshCw size={12} className="animate-spin" />
-                                                                 ) : (
-                                                                     <Smartphone size={12} />
-                                                                 )}
-                                                                 Sistemde Onayla
-                                                             </button>
-                                                             <a
-                                                                 href={gibPortalUrl}
-                                                                 target="_blank"
-                                                                 rel="noopener noreferrer"
-                                                                 className="inline-flex items-center gap-1 text-xs font-semibold bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/30 px-3 py-1.5 rounded-lg transition"
-                                                             >
-                                                                 Portalda Onayla <ExternalLink size={12} />
-                                                             </a>
-                                                             <button
-                                                                 onClick={() => handleMarkAsSigned(inv)}
-                                                                 title="İmzalandı Olarak İşaretle"
-                                                                 className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-emerald-400 border border-slate-700 hover:border-emerald-500/30 rounded-lg transition"
-                                                             >
-                                                                 <CheckCircle size={12} />
-                                                             </button>
-                                                             <button
-                                                                 onClick={() => handleResetGibStatus(inv)}
-                                                                 title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
-                                                                 className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-500/30 rounded-lg transition"
-                                                             >
-                                                                 <RefreshCw size={12} />
-                                                             </button>
-                                                         </div>
-                                                     ) : isSignedOnGib ? (
-                                                         <div className="flex justify-end items-center gap-2">
-                                                                 <button
-                                                                     onClick={() => handleDownloadPdf(inv)}
-                                                                     disabled={!inv.gibUuid || isDownloadingPdf === inv.id}
-                                                                     title={inv.gibUuid ? "Faturayı Görüntüle / Yazdır" : "Sistem dışı onaylandığı için görüntülenemez"}
-                                                                     className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-sky-400 border border-slate-700 hover:border-sky-500/30 rounded-lg transition disabled:opacity-30 disabled:hover:bg-slate-800 disabled:hover:text-slate-400 disabled:hover:border-slate-700 disabled:cursor-not-allowed"
-                                                                 >
-                                                                     {isDownloadingPdf === inv.id ? (
-                                                                         <RefreshCw size={12} className="animate-spin" />
-                                                                     ) : (
-                                                                         <Download size={12} />
-                                                                     )}
-                                                                 </button>
-                                                             <button
-                                                                 onClick={() => handleResetGibStatus(inv)}
-                                                                 title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
-                                                                 className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-500/30 rounded-lg transition"
-                                                             >
-                                                                 <RefreshCw size={12} />
-                                                             </button>
-                                                         </div>
-                                                     ) : (
-                                                         <div className="flex justify-end items-center gap-2">
-                                                             <button
-                                                                 onClick={() => handleOpenSendModal(inv)}
-                                                                 disabled={isSending}
-                                                                 className="inline-flex items-center gap-1.5 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-50"
-                                                             >
-                                                                 {isSending ? (
-                                                                     <>
-                                                                         <RefreshCw size={12} className="animate-spin" />
-                                                                         Hazırlanıyor...
-                                                                     </>
-                                                                 ) : (
-                                                                     <>
-                                                                         GİB Taslak Hazırla
-                                                                     </>
-                                                                 )}
-                                                             </button>
-                                                             <button
-                                                                 onClick={() => handleMarkAsSigned(inv)}
-                                                                 title="İmzalandı Olarak İşaretle"
-                                                                 className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-emerald-400 border border-slate-700 hover:border-emerald-500/30 rounded-lg transition"
-                                                             >
-                                                                 <CheckCircle size={12} />
-                                                             </button>
-                                                         </div>
-                                                     )}
+                                                    <div className="flex justify-end items-center gap-2">
+                                                        {/* Belge / PDF Yönetim Modalı Butonu */}
+                                                        <button
+                                                            onClick={() => {
+                                                                setPdfModalInvoice(inv);
+                                                                setModalFiles(inv.files || []);
+                                                                setModalNote(inv.note || '');
+                                                            }}
+                                                            title={inv.files?.length > 0 ? "Fatura Belgelerini Düzenle / Görüntüle" : "Faturaya PDF / Belge Ekle"}
+                                                            className={`p-1.5 text-xs font-semibold rounded-lg transition border ${inv.files?.length > 0 ? 'bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                                                        >
+                                                            <Paperclip size={12} />
+                                                        </button>
+
+                                                        {isDraftOnGib ? (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleApproveSmsInit(inv)}
+                                                                    disabled={isApprovingSms === inv.id}
+                                                                    className="inline-flex items-center gap-1.5 text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                                                                >
+                                                                    {isApprovingSms === inv.id ? (
+                                                                        <RefreshCw size={12} className="animate-spin" />
+                                                                    ) : (
+                                                                        <Smartphone size={12} />
+                                                                    )}
+                                                                    Sistemde Onayla
+                                                                </button>
+                                                                <a
+                                                                    href={gibPortalUrl}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="inline-flex items-center gap-1 text-xs font-semibold bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/30 px-3 py-1.5 rounded-lg transition"
+                                                                >
+                                                                    Portalda Onayla <ExternalLink size={12} />
+                                                                </a>
+                                                                <button
+                                                                    onClick={() => handleMarkAsSigned(inv)}
+                                                                    title="İmzalandı Olarak İşaretle"
+                                                                    className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-emerald-400 border border-slate-700 hover:border-emerald-500/30 rounded-lg transition"
+                                                                >
+                                                                    <CheckCircle size={12} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleResetGibStatus(inv)}
+                                                                    title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
+                                                                    className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-500/30 rounded-lg transition"
+                                                                >
+                                                                    <RefreshCw size={12} />
+                                                                </button>
+                                                            </>
+                                                        ) : isSignedOnGib ? (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleDownloadPdf(inv)}
+                                                                    disabled={!inv.gibUuid || isDownloadingPdf === inv.id}
+                                                                    title={inv.gibUuid ? "Faturayı Görüntüle / Yazdır" : "Sistem dışı onaylandığı için görüntülenemez"}
+                                                                    className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-sky-400 border border-slate-700 hover:border-sky-500/30 rounded-lg transition disabled:opacity-30 disabled:hover:bg-slate-800 disabled:hover:text-slate-400 disabled:hover:border-slate-700 disabled:cursor-not-allowed"
+                                                                >
+                                                                    {isDownloadingPdf === inv.id ? (
+                                                                        <RefreshCw size={12} className="animate-spin" />
+                                                                    ) : (
+                                                                        <Download size={12} />
+                                                                    )}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleResetGibStatus(inv)}
+                                                                    title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
+                                                                    className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-500/30 rounded-lg transition"
+                                                                >
+                                                                    <RefreshCw size={12} />
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleOpenSendModal(inv)}
+                                                                    disabled={isSending}
+                                                                    className="inline-flex items-center gap-1.5 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                                                                >
+                                                                    {isSending ? (
+                                                                        <>
+                                                                            <RefreshCw size={12} className="animate-spin" />
+                                                                            Hazırlanıyor...
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            GİB Taslak Hazırla
+                                                                        </>
+                                                                    )}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleMarkAsSigned(inv)}
+                                                                    title="İmzalandı Olarak İşaretle"
+                                                                    className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-emerald-400 border border-slate-700 hover:border-emerald-500/30 rounded-lg transition"
+                                                                >
+                                                                    <CheckCircle size={12} />
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -1879,6 +1949,64 @@ const EArsiv = () => {
                 document.body
             )}
         </div>
+
+        {/* Manuel PDF / Belge Yönetimi Modalı */}
+        {pdfModalInvoice && createPortal(
+            <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => setPdfModalInvoice(null)}>
+                <div className="bg-[#0f1117] rounded-2xl border border-orange-500/20 shadow-2xl shadow-orange-900/20 w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                    <div className="flex justify-between items-center px-5 py-4 border-b border-white/5">
+                        <h3 className="font-bold flex items-center gap-2.5 text-[var(--text-primary)]">
+                            <span className="w-7 h-7 rounded-lg bg-orange-500/15 border border-orange-500/25 flex items-center justify-center flex-shrink-0">
+                                <FileText size={14} className="text-orange-400" />
+                            </span>
+                            <span>{pdfModalInvoice.docId || pdfModalInvoice.id} <span className="text-slate-500 font-normal">— E-Arşiv / Belge Yönetimi</span></span>
+                        </h3>
+                        <button onClick={() => setPdfModalInvoice(null)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-white hover:bg-white/10 transition-all text-lg">&times;</button>
+                    </div>
+                    <div className="p-5 space-y-4">
+                        <div>
+                            <p className="text-xs text-slate-400 mb-2 flex items-center gap-1">
+                                <Paperclip size={12} className="text-orange-400" /> E-Arşiv Fatura PDF'i / Belge Yükle
+                            </p>
+                            <FileUpload files={modalFiles} onChange={setModalFiles} maxSizeMB={10} />
+                        </div>
+                        <div>
+                            <p className="text-xs text-slate-400 mb-1.5">Fatura Notu (Opsiyonel)</p>
+                            <textarea
+                                value={modalNote}
+                                onChange={(e) => setModalNote(e.target.value)}
+                                className="w-full bg-white/5 border border-white/10 focus:border-orange-500/40 rounded-lg p-3 text-sm text-[var(--text-primary)] placeholder-slate-600 outline-none min-h-[80px] resize-none transition-colors"
+                                placeholder="Not ekle... (örn: GİB'den manuel kesildi, onay belgesi eklendi vb.)"
+                            />
+                        </div>
+                    </div>
+                    <div className="px-5 py-4 border-t border-white/5 flex justify-end gap-3">
+                        <button
+                            onClick={() => setPdfModalInvoice(null)}
+                            className="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-white/8 transition-colors"
+                        >
+                            İptal
+                        </button>
+                        <button
+                            onClick={handleSaveManualFiles}
+                            disabled={isSavingPdf}
+                            className="px-5 py-2 rounded-lg text-sm font-semibold bg-orange-600 hover:bg-orange-500 text-white transition-colors shadow-lg shadow-orange-900/40 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                        >
+                            {isSavingPdf ? (
+                                <>
+                                    <RefreshCw size={14} className="animate-spin" /> Kaydediliyor...
+                                </>
+                            ) : (
+                                <>
+                                    <Save size={14} /> Kaydet
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        )}
 
         {toastPortal}
         {confirmPortal}

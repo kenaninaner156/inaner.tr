@@ -6,6 +6,7 @@ import FileUpload from './FileUpload';
 import CustomSelect from './CustomSelect';
 import CustomDatePicker from './CustomDatePicker';
 import { useCompany } from '../context/CompanyContext';
+import { parseTonnageInTons } from '../utils/tonnageUtils';
 
 const Trips = ({ onOpenMenu, isMobile }) => {
     const { trips, addTrip, deleteTrip, editTrip, routes, addRoute, updateRoute, deleteRoute, premiums, allDrivers } = useContext(DataContext);
@@ -447,15 +448,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
         });
     }, [trips, timeFilter, searchTerm]);
 
-    // Tonaj değerini ton cinsine normalize et (örn: 33100 kg girilmişse 33.1 ton yap)
-    const parseTonnageInTons = (val) => {
-        const num = parseFloat(val);
-        if (isNaN(num) || num <= 0) return 0;
-        if (num > 200) {
-            return num / 1000;
-        }
-        return num;
-    };
+    // Tonaj hesaplama (tonnageUtils.js'den imported parseTonnageInTons kullanır)
 
     const summaryStats = useMemo(() => {
         let totalTrips = filteredTrips.length;

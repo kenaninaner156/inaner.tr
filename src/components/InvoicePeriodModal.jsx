@@ -114,10 +114,10 @@ const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPer
             let dotTitle = "";
             if (tripsInfo) {
                 if (tripsInfo.pending > 0) {
-                    lineStyle = "bg-cyan-300 shadow-[0_0_6px_rgba(103,232,249,0.8)]"; // Beyaz-mavi arası (Kesilecek)
+                    lineStyle = "bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.8)]"; // Açık mavi (Kesilecek)
                     dotTitle = `${tripsInfo.pending} sefer faturası bekliyor`;
                 } else if (tripsInfo.completed > 0) {
-                    lineStyle = "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]"; // Yeşil yatay çizgi (Kesilen)
+                    lineStyle = "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]"; // Zümrüt yeşili (Kesilen / Tamamlanan)
                     dotTitle = "Bu tarihin faturaları daha önce kesildi";
                 }
             }
@@ -125,11 +125,11 @@ const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPer
             // Cell Styles
             let cellStyle = "text-[var(--text-primary)] hover:bg-white/10 hover:text-[var(--text-primary)]";
             if (isFullyCompleted) {
-                cellStyle = "text-slate-500 cursor-default"; // Turuncu (tamamlanan) günler hover efektine sahip olmasın
+                cellStyle = "text-slate-500 cursor-default"; // Tamamlanan günler hover efektine sahip olmasın
             } else if (isStartDate || isEndDate) {
-                cellStyle = "bg-emerald-500 text-[var(--text-primary)] font-bold shadow-lg scale-105 z-10 rounded-lg";
+                cellStyle = "bg-gradient-to-r from-indigo-600 to-sky-500 text-white font-bold shadow-lg scale-105 z-10 rounded-lg";
             } else if (isInRange) {
-                cellStyle = "bg-emerald-500/20 text-emerald-100 rounded-none";
+                cellStyle = "bg-sky-500/20 text-sky-100 rounded-none";
             }
 
             // Make start and end bounds connect visually if within a range
@@ -166,7 +166,7 @@ const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPer
                 <div className="w-full md:w-[60%] p-3 sm:p-4 md:p-6 border-b md:border-b-0 md:border-r border-[var(--border-color)] flex flex-col overflow-y-auto md:overflow-visible min-h-[320px] md:min-h-0">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-lg font-bold text-[var(--text-primary)] flex items-center">
-                            <CalendarIcon className="mr-2 text-emerald-400" size={18} />
+                            <CalendarIcon className="mr-2 text-sky-400" size={18} />
                             Periyot Seçimi
                         </h3>
                         <div className="flex gap-2">
@@ -187,7 +187,7 @@ const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPer
                             <span className="w-3 h-[2.5px] rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)] block"></span> Tamamlanan
                         </div>
                         <div className="flex items-center gap-1.5">
-                            <span className="w-3 h-[2.5px] rounded-full bg-cyan-300 shadow-[0_0_5px_rgba(103,232,249,0.8)] block"></span> Kesilecek
+                            <span className="w-3 h-[2.5px] rounded-full bg-sky-400 shadow-[0_0_5px_rgba(56,189,248,0.8)] block"></span> Kesilecek
                         </div>
                     </div>
                 </div>
@@ -204,13 +204,13 @@ const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPer
                     <div className="flex flex-row md:flex-col gap-2 md:space-y-4 mb-3 sm:mb-6">
                         <div className="flex-1 bg-black/30 p-2 sm:p-3 rounded-lg border border-[var(--border-color)]">
                             <p className="text-[8px] sm:text-[10px] text-slate-500 mb-0.5 sm:mb-1 uppercase tracking-wider">BAŞLANGIÇ</p>
-                            <p className="text-[10px] sm:text-sm font-semibold text-emerald-300 leading-tight">
+                            <p className="text-[10px] sm:text-sm font-semibold text-sky-400 leading-tight">
                                 {startDate ? startDate.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' }) : 'Seçiniz...'}
                             </p>
                         </div>
                         <div className="flex-1 bg-black/30 p-2 sm:p-3 rounded-lg border border-[var(--border-color)]">
                             <p className="text-[8px] sm:text-[10px] text-slate-500 mb-0.5 sm:mb-1 uppercase tracking-wider">BİTİŞ</p>
-                            <p className="text-[10px] sm:text-sm font-semibold text-emerald-300 leading-tight">
+                            <p className="text-[10px] sm:text-sm font-semibold text-sky-400 leading-tight">
                                 {endDate ? endDate.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' }) : 'Seçiniz...'}
                             </p>
                         </div>
@@ -218,14 +218,14 @@ const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPer
 
                     <div className="flex-1 min-h-[100px] md:min-h-0 overflow-y-auto custom-scrollbar border border-[var(--border-color)] rounded-lg bg-black/20 p-2 sm:p-3">
                         <p className="text-[10px] sm:text-xs text-[var(--text-secondary)] mb-2 border-b border-[var(--border-color)] pb-1 sm:pb-2">
-                            Aralıkta Seçili Seferler: <strong className="text-emerald-400">{tripsInPeriod.length}</strong>
+                            Aralıkta Seçili Seferler: <strong className="text-sky-400">{tripsInPeriod.length}</strong>
                         </p>
                         <ul className="space-y-1.5 sm:space-y-2">
                             {tripsInPeriod.map(t => (
                                 <li key={t.id} className="text-[9px] sm:text-[10px] flex justify-between bg-white/5 p-1 sm:p-1.5 rounded">
                                     <span className="text-[var(--text-primary)]">{new Date(t.date).getDate()} {new Date(t.date).toLocaleDateString('tr-TR', { month: 'short' })}</span>
                                     <span className="text-[var(--text-secondary)] truncate max-w-[60px] sm:max-w-[80px]">{t.to}</span>
-                                    <span className="text-emerald-300 font-mono font-bold">{t.tonnage}t</span>
+                                    <span className="text-sky-400 font-mono font-bold">{t.tonnage}t</span>
                                 </li>
                             ))}
                             {tripsInPeriod.length === 0 && (
@@ -238,8 +238,8 @@ const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPer
                         <button
                             onClick={handleConfirm}
                             disabled={!startDate || !endDate || tripsInPeriod.length === 0}
-                            className={`w-full py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all shadow-lg ${startDate && endDate && tripsInPeriod.length > 0
-                                ? 'bg-emerald-600 hover:bg-emerald-500 text-[var(--text-primary)] shadow-emerald-500/25 border border-emerald-500'
+                            className={`w-full py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold transition-all shadow-lg cursor-pointer ${startDate && endDate && tripsInPeriod.length > 0
+                                ? 'bg-gradient-to-r from-indigo-600 to-sky-500 hover:from-indigo-500 hover:to-sky-400 text-white shadow-sky-500/25 border border-sky-400/40'
                                 : 'bg-[var(--bg-panel-hover)] text-slate-500 cursor-not-allowed border border-[var(--border-color)]'
                                 }`}
                         >

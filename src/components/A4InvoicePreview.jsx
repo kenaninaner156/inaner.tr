@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Check, ThumbsUp } from 'lucide-react';
-
-const A4_WIDTH = 794;
-const A4_HEIGHT = 1123;
+import { parseTonnageInTons } from '../utils/tonnageUtils';
 
 const A4InvoicePreview = React.forwardRef(({
     invoiceData,
@@ -10,7 +8,8 @@ const A4InvoicePreview = React.forwardRef(({
     netPrice,
     onChangeNetPrice,
     onSavePrice,
-    fuelRecords = []
+    fuelRecords = [],
+    ownerName: propOwnerName
 }, ref) => {
 
     const [localPrice, setLocalPrice] = useState('');
@@ -90,14 +89,14 @@ const A4InvoicePreview = React.forwardRef(({
 
     const { startDate, endDate, trips = [] } = invoiceData || {};
 
-    const totalTonnage = trips.reduce((acc, trip) => acc + (Number(trip.tonnage) || 0), 0);
+    const totalTonnage = trips.reduce((acc, trip) => acc + parseTonnageInTons(trip.tonnage), 0);
 
     // Güzergah bazlı özet (çok tondan az tona)
     const routeSummary = Object.values(
         trips.reduce((acc, trip) => {
             const key = `${trip.from}|||${trip.to}`;
             if (!acc[key]) acc[key] = { from: trip.from, to: trip.to, tonnage: 0 };
-            acc[key].tonnage += Number(trip.tonnage) || 0;
+            acc[key].tonnage += parseTonnageInTons(trip.tonnage);
             return acc;
         }, {})
     ).sort((a, b) => b.tonnage - a.tonnage);
@@ -129,20 +128,21 @@ const A4InvoicePreview = React.forwardRef(({
         });
     }
 
-    const containerRef = React.useRef(null);
-    const [scale, setScale] = React.useState(1);
-    const [realHeight, setRealHeight] = React.useState(A4_HEIGHT);
-    const [isMobile, setIsMobile] = React.useState(false);
+    const [docViewTab, setDocViewTab] = useState('summary'); // 'summary' | 'trips'
 
     // Editable truck owner name – persisted per plate
     const plateKey = vehicleInfo?.plate || 'default';
     const storageKey = `truck_owner_name_${plateKey}`;
-    const [ownerName, setOwnerName] = React.useState(() => localStorage.getItem(storageKey) || 'GÖKSEL İNANER');
-    const [isEditingName, setIsEditingName] = React.useState(false);
-    const [editNameValue, setEditNameValue] = React.useState(ownerName);
-    
-    const [activePage, setActivePage] = React.useState(1);
-    const isTwoPages = tableRows.length > 15;
+    const [ownerName, setOwnerName] = useState(() => propOwnerName || localStorage.getItem(storageKey) || 'GÖKSEL İNANER');
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [editNameValue, setEditNameValue] = useState(propOwnerName || ownerName);
+
+    useEffect(() => {
+        if (propOwnerName) {
+            setOwnerName(propOwnerName);
+            setEditNameValue(propOwnerName);
+        }
+    }, [propOwnerName]);
 
     const handleSaveName = () => {
         const trimmed = editNameValue.trim().toLocaleUpperCase('tr-TR') || 'GÖKSEL İNANER';
@@ -151,81 +151,12 @@ const A4InvoicePreview = React.forwardRef(({
         setIsEditingName(false);
     };
 
-    React.useLayoutEffect(() => {
-        const updateScale = () => {
-            if (!containerRef.current) return;
-            const cw = containerRef.current.clientWidth || containerRef.current.parentElement?.clientWidth || window.innerWidth;
-            if (cw === 0) return;
-
-            const mobile = cw < 768;
-            setIsMobile(mobile);
-
-            const ch = containerRef.current.clientHeight;
-            const sx = cw / A4_WIDTH;
-
-            let newScale;
-            if (!mobile && ch > 0) {
-                // Desktop: fit both width and height
-                const sy = ch / realHeight;
-                newScale = Math.min(sx, sy);
-            } else {
-                // Mobile: fit to width only, let height flow naturally
-                newScale = sx;
-            }
-            setScale(newScale);
-        };
-
-        const ro = new ResizeObserver(() => {
-            updateScale();
-            if (ref && 'current' in ref && ref.current) {
-                const sh = Math.max(ref.current.scrollHeight, A4_HEIGHT);
-                if (sh !== realHeight) setRealHeight(sh);
-            }
-        });
-
-        if (containerRef.current) ro.observe(containerRef.current);
-        if (ref && 'current' in ref && ref.current) ro.observe(ref.current);
-
-        updateScale();
-        return () => ro.disconnect();
-    }, [ref, realHeight]);
-
-    // On mobile: container height = A4 content height * scale so the page layouts correctly
-    const containerStyle = isMobile
-        ? { height: `${realHeight * scale}px`, position: 'relative' }
-        : { height: '100%', position: 'relative' };
-
-    // A4 paper positioning
-    const paperStyle = isMobile
-        ? {
-            width: `${A4_WIDTH}px`,
-            minHeight: `${realHeight}px`,
-            transformOrigin: 'top left',
-            transform: `scale(${scale})`,
-            position: 'absolute',
-            left: `calc(50% - ${(A4_WIDTH * scale) / 2}px)`,
-            top: 0,
-            fontFamily: "'Inter', sans-serif",
-            padding: '20mm 15mm 12mm 15mm',
-            boxSizing: 'border-box'
-        }
-        : {
-            width: `${A4_WIDTH}px`,
-            minHeight: `${realHeight}px`,
-            transformOrigin: 'top left',
-            transform: `scale(${scale})`,
-            position: 'absolute',
-            left: `calc(50% - ${(A4_WIDTH * scale) / 2}px)`,
-            top: `calc(50% - ${(realHeight * scale) / 2}px)`,
-            fontFamily: "'Inter', sans-serif",
-            padding: '20mm 15mm 12mm 15mm',
-            boxSizing: 'border-box'
-        };
+    const displayOwnerName = propOwnerName || ownerName;
 
     const renderHeader = () => (
-        <div className="flex justify-between items-end border-b-2 border-blue-800 pb-4 mb-6 shrink-0">
+        <div className="flex justify-between items-end border-b-2 border-blue-800 pb-3 mb-4 shrink-0">
             <div className="flex flex-col">
-                <h1 className="text-3xl font-black text-blue-900 mb-1 tracking-tight">SEFER DÖKÜMÜ</h1>
+                <h1 className="text-2xl sm:text-3xl font-black text-blue-900 mb-0.5 tracking-tight">SEFER DÖKÜMÜ</h1>
                 <p className="text-xs font-semibold text-slate-500">
                     Periyot: {startDate ? new Date(startDate).toLocaleDateString('tr-TR') : '-'} - {endDate ? new Date(endDate).toLocaleDateString('tr-TR') : '-'}
                 </p>
@@ -233,9 +164,9 @@ const A4InvoicePreview = React.forwardRef(({
             </div>
 
             <div className="flex flex-col items-end">
-                <div className="flex flex-col text-right border-r-[4px] border-[var(--border-color)] pr-3">
+                <div className="flex flex-col text-right border-r-[4px] border-blue-800 pr-3">
                     {isEditingName ? (
-                        <div className="flex items-center gap-1 mb-1.5">
+                        <div className="flex items-center gap-1 mb-1">
                             <input
                                 type="text"
                                 value={editNameValue}
@@ -247,16 +178,16 @@ const A4InvoicePreview = React.forwardRef(({
                             <button onClick={handleSaveName} className="p-0.5 hover:text-blue-600 text-slate-600 print:hidden"><Check size={13} /></button>
                         </div>
                     ) : (
-                        <div className="flex items-center gap-1 mb-1.5 justify-end">
+                        <div className="flex items-center gap-1 mb-1 justify-end">
                             <h2
-                                onDoubleClick={() => { setEditNameValue(ownerName); setIsEditingName(true); }}
-                                className="text-[18px] font-black tracking-tight text-slate-800 leading-none uppercase cursor-text select-none print:cursor-default"
+                                onDoubleClick={() => { setEditNameValue(displayOwnerName); setIsEditingName(true); }}
+                                className="text-[16px] sm:text-[18px] font-black tracking-tight text-slate-800 leading-none uppercase cursor-text select-none print:cursor-default"
                                 title="Düzenlemek için çift tıklayın"
-                            >{ownerName}</h2>
+                            >{displayOwnerName}</h2>
                         </div>
                     )}
-                    <p className="text-[10px] font-extrabold text-slate-600 uppercase tracking-[0.2em] leading-none mb-1.5">ARAÇ BİLGİSİ</p>
-                    <p className="text-[18px] font-mono text-slate-700 font-extrabold tracking-[0.05em] leading-none mb-1">{vehicleInfo?.plate || '06 FTN 692'}</p>
+                    <p className="text-[10px] font-extrabold text-slate-600 uppercase tracking-[0.2em] leading-none mb-1">ARAÇ BİLGİSİ</p>
+                    <p className="text-[16px] sm:text-[18px] font-mono text-slate-700 font-extrabold tracking-[0.05em] leading-none mb-0.5">{vehicleInfo?.plate || '06 FTN 692'}</p>
                     {vehicleInfo?.trailerPlate && (
                         <p className="text-[9px] font-mono text-slate-500 leading-none tracking-widest font-semibold">Dorse: {vehicleInfo.trailerPlate}</p>
                     )}
@@ -265,24 +196,63 @@ const A4InvoicePreview = React.forwardRef(({
         </div>
     );
 
+    const renderTabBar = () => (
+        <div className="print:hidden flex items-center justify-between bg-slate-100 p-1.5 rounded-xl mb-3 border border-slate-200 shadow-sm shrink-0">
+            <div className="flex items-center gap-1.5">
+                <button
+                    type="button"
+                    onClick={() => setDocViewTab('summary')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                        docViewTab === 'summary'
+                            ? 'bg-blue-900 text-white shadow-sm'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                    }`}
+                >
+                    <span>📊 Toplam Tonaj</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold ${docViewTab === 'summary' ? 'bg-blue-800 text-blue-100' : 'bg-slate-200 text-slate-700'}`}>
+                        {routeSummary.length}
+                    </span>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setDocViewTab('trips')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                        docViewTab === 'trips'
+                            ? 'bg-blue-900 text-white shadow-sm'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                    }`}
+                >
+                    <span>📋 Seferler</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold ${docViewTab === 'trips' ? 'bg-blue-800 text-blue-100' : 'bg-slate-200 text-slate-700'}`}>
+                        {trips.length}
+                    </span>
+                </button>
+            </div>
+            <div className="text-[11px] font-bold text-slate-600 pr-2 flex items-center gap-1">
+                <span>Toplam:</span>
+                <span className="text-blue-950 font-black text-xs">{totalTonnage.toFixed(2)} Ton</span>
+            </div>
+        </div>
+    );
+
     const renderToplamTonaj = () => (
         routeSummary.length > 0 && (
-            <div className="mb-3">
-                <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1 px-0.5">Toplam Tonaj</div>
-                <table className="w-full text-left border-collapse" style={{ fontSize: '10px' }}>
+            <div className={`mb-3 ${docViewTab === 'summary' ? 'block' : 'hidden print:block'}`}>
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 px-0.5">Toplam Tonaj İcmali</div>
+                <table className="w-full text-left border-collapse text-xs">
                     <thead>
                         <tr className="bg-slate-100 text-slate-700 border-y border-slate-200 leading-tight">
-                            <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[44%]">Alınan Yer</th>
-                            <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[44%]">Gidilen Yer</th>
-                            <th className="py-1.5 px-1 font-semibold text-right w-[12%]">Tonaj</th>
+                            <th className="py-2 px-2 font-bold border-r border-slate-200 w-[44%]">Alınan Yer</th>
+                            <th className="py-2 px-2 font-bold border-r border-slate-200 w-[44%]">Gidilen Yer</th>
+                            <th className="py-2 px-2 font-bold text-right w-[12%]">Tonaj</th>
                         </tr>
                     </thead>
                     <tbody>
                         {routeSummary.map((r, i) => (
                             <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                                <td className="py-1.5 px-1 text-slate-700 truncate max-w-[75px]">{r.from}</td>
-                                <td className="py-1.5 px-1 text-slate-700 truncate max-w-[75px]">{r.to}</td>
-                                <td className="py-1.5 px-1 text-right text-slate-800 font-bold">{r.tonnage.toFixed(2)}</td>
+                                <td className="py-2 px-2 text-slate-800 font-medium">{r.from}</td>
+                                <td className="py-2 px-2 text-slate-800 font-medium">{r.to}</td>
+                                <td className="py-2 px-2 text-right text-slate-900 font-black">{r.tonnage.toFixed(2)}</td>
                             </tr>
                         ))}
                     </tbody>
@@ -292,41 +262,43 @@ const A4InvoicePreview = React.forwardRef(({
     );
 
     const renderSeferler = () => (
-        <div className="mb-4 min-h-[50px]">
-            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1 px-0.5">Seferler</div>
-            <table className="w-full text-left border-collapse" style={{ fontSize: '10px' }}>
-                <thead>
-                    <tr className="bg-slate-100 text-slate-700 border-y border-slate-200 leading-tight">
-                        <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[12%]">Tarih</th>
-                        <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[44%]">Alınan Yer</th>
-                        <th className="py-1.5 px-1 font-semibold border-r border-slate-200 w-[32%]">Gidilen Yer</th>
-                        <th className="py-1.5 px-1 text-right font-semibold w-[12%]">Tonaj</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {tableRows.length > 0 ? tableRows.map((row, idx) => {
-                        const localDate = new Date(row.dateStr).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                        const trip = row.data;
-                        return (
-                            <tr key={trip.id || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                                <td className="py-1.5 px-1 text-slate-600 whitespace-nowrap">{localDate}</td>
-                                <td className="py-1.5 px-1 text-slate-700 truncate max-w-[75px]">{trip.from}</td>
-                                <td className="py-1.5 px-1 text-slate-700 truncate max-w-[75px]">{trip.to}</td>
-                                <td className="py-1.5 px-1 text-right text-slate-800 font-bold">{Number(trip.tonnage).toFixed(2)}</td>
-                            </tr>
-                        );
-                    }) : (
-                        <tr>
-                            <td colSpan="4" className="py-8 text-center text-slate-400 italic text-sm">Bu periyotta gösterilecek veri bulunamadı.</td>
+        <div className={`mb-3 ${docViewTab === 'trips' ? 'block' : 'hidden print:block'}`}>
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 px-0.5">Sefer Detayları</div>
+            <div className="max-h-[320px] overflow-y-auto custom-scrollbar print:max-h-none print:overflow-visible">
+                <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr className="bg-slate-100 text-slate-700 border-y border-slate-200 leading-tight sticky top-0 bg-slate-100 print:static">
+                            <th className="py-2 px-2 font-bold border-r border-slate-200 w-[14%]">Tarih</th>
+                            <th className="py-2 px-2 font-bold border-r border-slate-200 w-[42%]">Alınan Yer</th>
+                            <th className="py-2 px-2 font-bold border-r border-slate-200 w-[32%]">Gidilen Yer</th>
+                            <th className="py-2 px-2 text-right font-bold w-[12%]">Tonaj</th>
                         </tr>
-                    )}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {tableRows.length > 0 ? tableRows.map((row, idx) => {
+                            const localDate = new Date(row.dateStr).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                            const trip = row.data;
+                            return (
+                                <tr key={trip.id || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                    <td className="py-1.5 px-2 text-slate-600 whitespace-nowrap font-medium">{localDate}</td>
+                                    <td className="py-1.5 px-2 text-slate-800 font-medium truncate max-w-[120px]">{trip.from}</td>
+                                    <td className="py-1.5 px-2 text-slate-800 font-medium truncate max-w-[120px]">{trip.to}</td>
+                                    <td className="py-1.5 px-2 text-right text-slate-900 font-black">{parseTonnageInTons(trip.tonnage).toFixed(2)}</td>
+                                </tr>
+                            );
+                        }) : (
+                            <tr>
+                                <td colSpan="4" className="py-8 text-center text-slate-400 italic text-sm">Bu periyotta gösterilecek veri bulunamadı.</td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 
     const renderNetFiyat = () => (
-        <div className="print:hidden flex justify-end mt-4 pb-6">
+        <div className="print:hidden flex justify-end mt-2 pt-2 border-t border-slate-100 shrink-0">
             <style>{`
                 @keyframes btnPopIn {
                     0% { transform: scale(0) rotate(-20deg); opacity: 0; }
@@ -347,147 +319,51 @@ const A4InvoicePreview = React.forwardRef(({
                 .btn-pop-out { animation: btnPopOut 0.3s ease-in forwards; }
                 .btn-thumb   { animation: thumbPulse 0.5s ease forwards; }
             `}</style>
-            <div className="flex justify-end mt-4 pb-6 pr-10">
-                <div className="flex items-center gap-2">
-                    <span className="text-blue-900 font-black text-xs">NET FİYAT:</span>
-                    <span className="text-slate-500 text-[10px]">₺</span>
-                    <div className="relative">
-                        <input
-                            type="text"
-                            placeholder="0,00"
-                            className="w-28 text-right bg-white border border-slate-300 rounded px-2 py-1 text-blue-900 font-black text-sm focus:outline-none focus:border-blue-400"
-                            value={localPrice}
-                            onChange={handlePriceChange}
-                        />
-                        {onSavePrice && saveAnim !== 'idle' && (
-                            <button
-                                onClick={handleSaveClick}
-                                title="Fiyatı kaydet"
-                                className={`absolute -right-9 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-lg text-white flex-shrink-0
-                                    ${ saveAnim === 'saved' ? 'bg-emerald-500 btn-thumb' : 'bg-emerald-500 hover:bg-emerald-400' }
-                                    ${ saveAnim === 'entering' || saveAnim === 'visible' ? 'btn-pop-in' : '' }
-                                    ${ saveAnim === 'leaving' ? 'btn-pop-out' : '' }
-                                `}
-                            >
-                                {saveAnim === 'saved'
-                                    ? <ThumbsUp size={13} />
-                                    : <Check size={13} />
-                                }
-                            </button>
-                        )}
-                    </div>
+            <div className="flex items-center gap-2 pr-2">
+                <span className="text-blue-900 font-black text-xs">NET FİYAT:</span>
+                <span className="text-slate-500 text-[10px]">₺</span>
+                <div className="relative">
+                    <input
+                        type="text"
+                        placeholder="0,00"
+                        className="w-32 text-right bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-blue-900 font-black text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all shadow-inner"
+                        value={localPrice}
+                        onChange={handlePriceChange}
+                    />
+                    {onSavePrice && saveAnim !== 'idle' && (
+                        <button
+                            onClick={handleSaveClick}
+                            title="Fiyatı kaydet"
+                            className={`absolute -right-9 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-lg text-white flex-shrink-0
+                                ${ saveAnim === 'saved' ? 'bg-emerald-500 btn-thumb' : 'bg-emerald-500 hover:bg-emerald-400' }
+                                ${ saveAnim === 'entering' || saveAnim === 'visible' ? 'btn-pop-in' : '' }
+                                ${ saveAnim === 'leaving' ? 'btn-pop-out' : '' }
+                            `}
+                        >
+                            {saveAnim === 'saved'
+                                ? <ThumbsUp size={13} />
+                                : <Check size={13} />
+                            }
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
     );
 
     return (
-        <div
-            ref={containerRef}
-            className="w-full overflow-hidden bg-transparent print:h-auto print:overflow-visible print:p-0 relative flex justify-center"
-            style={containerStyle}
-        >
-            {isTwoPages && (
-                <div className="absolute top-3 right-3 z-50 print:hidden">
-                    {/* Glow keyframes */}
-                    <style>{`
-                        @keyframes pageGlow {
-                            0%, 100% { box-shadow: 0 0 12px rgba(99,102,241,0.4), 0 4px 24px rgba(0,0,0,0.5); }
-                            50% { box-shadow: 0 0 20px rgba(99,102,241,0.6), 0 4px 24px rgba(0,0,0,0.5); }
-                        }
-                    `}</style>
-                    <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            background: 'rgba(15, 20, 40, 0.85)',
-                            backdropFilter: 'blur(16px)',
-                            WebkitBackdropFilter: 'blur(16px)',
-                            borderRadius: '8px',
-                            padding: '3px',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            animation: 'pageGlow 3s ease-in-out infinite',
-                            position: 'relative',
-                            gap: '2px',
-                        }}
-                    >
-                        {/* Sliding highlight */}
-                        <div
-                            style={{
-                                position: 'absolute',
-                                top: '3px',
-                                left: activePage === 1 ? '3px' : 'calc(50% + 1px)',
-                                width: 'calc(50% - 4px)',
-                                height: 'calc(100% - 6px)',
-                                borderRadius: '6px',
-                                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                                transition: 'left 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
-                                boxShadow: '0 2px 10px rgba(99,102,241,0.5)',
-                            }}
-                        />
-                        {[1, 2].map(page => (
-                            <button
-                                key={page}
-                                onClick={() => setActivePage(page)}
-                                style={{
-                                    position: 'relative',
-                                    zIndex: 1,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '4px',
-                                    width: '32px',
-                                    height: '20px',
-                                    borderRadius: '5px',
-                                    border: 'none',
-                                    background: 'transparent',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.3s ease',
-                                    padding: 0,
-                                }}
-                            >
-                                <span style={{
-                                    fontSize: '9px',
-                                    fontWeight: 800,
-                                    letterSpacing: '0.02em',
-                                    color: activePage === page ? '#fff' : 'rgba(255,255,255,0.35)',
-                                    transition: 'color 0.3s ease',
-                                    fontFamily: "'Inter', sans-serif",
-                                }}>{page}</span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            <div ref={ref} className="bg-transparent print:bg-white w-full flex flex-col print:flex-col print:gap-0">
-                {/* SAYFA 1 */}
-                <div
-                    className={`bg-white text-black shrink-0 flex-col print:!scale-100 print:!min-h-0 print:!m-0 print:!shadow-none print:!static
-                        ${isTwoPages && activePage !== 1 ? 'hidden print:flex' : 'flex'}
-                        ${isTwoPages ? 'print:break-after-page' : ''}
-                    `}
-                    style={paperStyle}
-                >
-                    {renderHeader()}
-                    {renderToplamTonaj()}
-                    {!isTwoPages && renderSeferler()}
-                    {!isTwoPages && renderNetFiyat()}
-                </div>
-
-                {/* SAYFA 2 */}
-                {isTwoPages && (
-                    <div
-                        className={`bg-white text-black shrink-0 flex-col print:!scale-100 print:!min-h-0 print:!m-0 print:!shadow-none print:!static
-                            ${activePage !== 2 ? 'hidden print:flex' : 'flex'}
-                        `}
-                        style={paperStyle}
-                    >
-                        {renderHeader()}
-                        {renderSeferler()}
-                        {renderNetFiyat()}
-                    </div>
-                )}
+        <div className="w-full h-full relative overflow-hidden flex items-center justify-center p-2 sm:p-3 print:p-0 print:block print:h-auto print:overflow-visible">
+            {/* Canlı Belge Kartı (Ekranda Sıfır Scroll & Tek Ekran) */}
+            <div
+                ref={ref}
+                className="w-full max-w-[780px] bg-white rounded-2xl shadow-2xl p-5 sm:p-6 text-black border border-slate-200/90 flex flex-col justify-between print:w-full print:max-w-none print:rounded-none print:shadow-none print:border-none print:p-8"
+                style={{ fontFamily: "'Inter', sans-serif" }}
+            >
+                {renderHeader()}
+                {renderTabBar()}
+                {renderToplamTonaj()}
+                {renderSeferler()}
+                {renderNetFiyat()}
             </div>
         </div>
     );

@@ -384,7 +384,7 @@ function App() {
     { id: 'fuel', label: 'Mazot Fişleri', icon: <Droplet size={20} />, theme: 'bg-gradient-to-r from-cyan-600 to-teal-500 border-cyan-400/40 shadow-[0_0_20px_rgba(6,182,212,0.35)] text-white', hoverText: 'group-hover:text-cyan-400' },
     { id: 'maintenance', label: 'Araç Bakım', icon: <Wrench size={20} />, theme: 'bg-gradient-to-r from-amber-600 to-orange-500 border-amber-400/40 shadow-[0_0_20px_rgba(245,158,11,0.35)] text-white', hoverText: 'group-hover:text-amber-400' },
     { id: 'detaylar', label: 'Ceza & Belgeler', icon: <AlertTriangle size={20} />, badge: notifCount, theme: 'bg-gradient-to-r from-red-600 to-rose-500 border-red-400/40 shadow-[0_0_20px_rgba(239,68,68,0.35)] text-white', hoverText: 'group-hover:text-red-400' },
-    { id: 'invoices', label: 'Fatura Durumu', icon: <FileText size={20} />, theme: 'bg-gradient-to-r from-emerald-600 to-green-500 border-emerald-400/40 shadow-[0_0_20px_rgba(16,185,129,0.35)] text-white', hoverText: 'group-hover:text-emerald-400' },
+    { id: 'invoices', label: 'Fatura Durumu', icon: <FileText size={20} />, theme: 'bg-gradient-to-r from-indigo-600 to-sky-400 border-indigo-400/40 shadow-[0_0_20px_rgba(99,102,241,0.35)] text-white', hoverText: 'group-hover:text-sky-400' },
     { id: 'earsiv', label: 'E-Arşiv Fatura', icon: <Receipt size={20} />, theme: 'bg-gradient-to-r from-orange-600 to-amber-500 border-orange-400/40 shadow-[0_0_20px_rgba(249,115,22,0.35)] text-white', hoverText: 'group-hover:text-orange-400' },
     { id: 'payments', label: 'Ödeme Takibi', icon: <CreditCard size={20} />, theme: 'bg-gradient-to-r from-emerald-600 to-teal-500 border-emerald-400/40 shadow-[0_0_20px_rgba(16,185,129,0.35)] text-white', hoverText: 'group-hover:text-emerald-400' },
     { id: 'personel', label: 'Personel', icon: <Users size={20} />, theme: 'bg-gradient-to-r from-orange-600 to-amber-500 border-orange-400/40 shadow-[0_0_20px_rgba(249,115,22,0.35)] text-white', hoverText: 'group-hover:text-orange-400' },
@@ -632,8 +632,8 @@ function App() {
       </aside>
 
       {/* Main Content */}
-      <main className={`${['dashboard', 'map'].includes(activeTab) ? 'h-[100dvh] md:h-screen overflow-hidden' : 'min-h-screen'} ${mainPaddingLeft}`}>
-        <div className={`flex flex-col w-full ${['dashboard', 'map'].includes(activeTab) ? 'h-full overflow-hidden' : 'min-h-screen'}`}>
+      <main className={`${['dashboard', 'map', 'invoices'].includes(activeTab) ? 'h-[100dvh] md:h-screen overflow-hidden' : 'min-h-screen'} ${mainPaddingLeft}`}>
+        <div className={`flex flex-col w-full ${['dashboard', 'map', 'invoices'].includes(activeTab) ? 'h-full overflow-hidden' : 'min-h-screen'}`}>
 
           {/* Header - Simple & Clean (sticky) */}
           <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map', 'trips', 'dashboard', 'maintenance', 'detaylar', 'invoices'].includes(activeTab) ? 'hidden' : ''}`}
@@ -659,9 +659,11 @@ function App() {
               ? 'p-0 h-full overflow-hidden' 
               : activeTab === 'dashboard'
                 ? 'pt-3 sm:pt-4 md:pt-5 pb-3 sm:pb-4 px-3.5 sm:px-5 md:px-6 h-full overflow-hidden flex flex-col' 
-                : 'p-4 md:p-6 xl:p-8'
+                : activeTab === 'invoices'
+                  ? 'p-3 sm:p-4 md:p-5 h-full overflow-hidden flex flex-col'
+                  : 'p-4 md:p-6 xl:p-8'
           }`}>
-            <div key={activeTab} className={activeTab === 'dashboard' ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
+            <div key={activeTab} className={['dashboard', 'invoices'].includes(activeTab) ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
               {activeTab === 'dashboard' && <Dashboard onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'trips' && <Trips onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'fuel' && <Fuel onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}

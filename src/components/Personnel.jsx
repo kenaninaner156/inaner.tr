@@ -9,6 +9,7 @@ import FileUpload from './FileUpload';
 import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { sendDiscordAlert } from '../services/discordWebhook';
+import { parseTonnageInTons } from '../utils/tonnageUtils';
 
 // PDF Görüntüleme Bileşeni
 const PdfViewer = ({ files }) => {
@@ -202,7 +203,7 @@ const Personnel = () => {
             return;
         }
 
-        const totalTonnage = activePayoutState.trips.reduce((acc, t) => acc + (Number(t.tonnage) || 0), 0);
+        const totalTonnage = activePayoutState.trips.reduce((acc, t) => acc + parseTonnageInTons(t.tonnage), 0);
         const calculatedTotal = activePayoutState.trips.reduce((acc, t) => acc + (Number(t.premiumAmount) || 0), 0);
 
         const newPayoutData = {
