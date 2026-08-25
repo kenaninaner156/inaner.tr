@@ -167,6 +167,9 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
         };
     }, [activeInvoice, routeSummary, routeHistory]);
 
+    // Faturanın GİB'de imzalanıp imzalanmadığı kontrolü (İmzalanmışsa tahmini fiyat gizlenir)
+    const isInvoiceSigned = activeInvoice?.gibStatus?.toLowerCase() === 'signed' || activeInvoice?.signed === true;
+
     // Fiyat Kırılımı ve Eksik Rota Modal State'leri
     const [showPriceBreakdownModal, setShowPriceBreakdownModal] = useState(false);
     const [editingRouteKey, setEditingRouteKey] = useState(null);
@@ -382,23 +385,105 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
         }
     };
 
+    const formatFullDateRange = (startDate, endDate, fallbackDocId) => {
+        if (!startDate && !endDate) return fallbackDocId || 'Tarih Belirtilmedi';
+        const formatFull = (d) => {
+            if (!d) return '';
+            const dt = new Date(d);
+            if (isNaN(dt.getTime())) return '';
+            return dt.toLocaleDateString('tr-TR');
+        };
+        const s = formatFull(startDate);
+        const e = formatFull(endDate);
+        if (s && e) {
+            return `${s} - ${e}`;
+        }
+        return s || e || fallbackDocId;
+    };
+
+    const formatInvoicePeriodName = (startDate, endDate, fallbackDocId) => {
+        if (!startDate && !endDate) return fallbackDocId || 'Sefer Dökümü';
+        const formatShort = (d) => {
+            if (!d) return '';
+            const dt = new Date(d);
+            if (isNaN(dt.getTime())) return '';
+            const day = String(dt.getDate()).padStart(2, '0');
+            const month = String(dt.getMonth() + 1).padStart(2, '0');
+            return `${day}.${month}`;
+        };
+        const s = formatShort(startDate);
+        const e = formatShort(endDate);
+        if (s && e) {
+            return `Sefer Dökümü ${s}-${e}`;
+        }
+        return `Sefer Dökümü ${s || e}` || fallbackDocId || 'Sefer Dökümü';
+    };
+
     const handlePrintPDF = () => {
         if (!invoicePrintRef.current) return;
 
-        // Sadece A4 alanını yazdırmak için geçici bir iframe veya window.print yöntemi kullanılabilir.
-        // Tailwind classları yazıcıya geçerken bozulmasın diye modern tarayıcılarda direk body gizlenip sadece bu ref de yazdırılabilir.
-
+        const printTitle = formatInvoicePeriodName(activeInvoice?.startDate, activeInvoice?.endDate, activeInvoice?.docId);
         const printContent = invoicePrintRef.current;
 
-        // CSS in Js trick to print just the component
         const printWindow = window.open('', '', 'width=900,height=1200');
-        printWindow.document.write('<html><head><title>Fatura Yazdır</title>');
+        printWindow.document.write(`<!DOCTYPE html><html><head><title>${printTitle}</title>`);
+        printWindow.document.write(`
+            <meta charset="utf-8">
+            <style>
+                @page {
+                    size: A4 portrait;
+                    margin: 0 !important;
+                }
+                *, *::before, *::after {
+                    box-sizing: border-box;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+                html, body {
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    background: #ffffff !important;
+                    background-color: #ffffff !important;
+                    color: #000000 !important;
+                    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+                    width: 100% !important;
+                }
+                .a4-page {
+                    box-sizing: border-box !important;
+                    padding: 12mm 15mm !important;
+                    background: #ffffff !important;
+                    background-color: #ffffff !important;
+                    color: #000000 !important;
+                    width: 100% !important;
+                }
+                .page-1 {
+                    page-break-after: always !important;
+                    break-after: page !important;
+                }
+                .page-2 {
+                    page-break-before: always !important;
+                    break-before: page !important;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    background-color: #ffffff !important;
+                }
+                tr {
+                    page-break-inside: avoid !important;
+                    break-inside: avoid !important;
+                }
+                th, td {
+                    color: #000000 !important;
+                }
+            </style>
+        `);
         // Load all current stylesheets
         const styles = document.querySelectorAll('style, link[rel="stylesheet"]');
         styles.forEach(s => {
             printWindow.document.write(s.outerHTML);
         });
-        printWindow.document.write('</head><body style="background-color: white;">');
+        printWindow.document.write('</head><body style="background:#ffffff !important; background-color:#ffffff !important; color:#000000 !important; margin:0 !important; padding:0 !important;">');
         printWindow.document.write(printContent.outerHTML);
         printWindow.document.write('</body></html>');
         printWindow.document.close();
@@ -406,7 +491,7 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
         setTimeout(() => {
             printWindow.print();
             printWindow.close();
-        }, 500); // Wait for styles to load
+        }, 350);
     };
 
     return (
@@ -537,14 +622,13 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                 )}
                                 
                                 <div className="relative z-10 flex flex-col gap-1">
-                                    <div className="flex justify-between items-center mb-1">
+                                    <div className="flex justify-between items-center mb-0.5">
                                         <span 
-                                            className={`font-semibold text-sm transition-colors ${isActive ? 'text-sky-400' : 'text-slate-300 group-hover:text-sky-400'}`}
+                                            className={`font-bold text-sm tracking-tight truncate transition-colors ${isActive ? 'text-sky-400' : 'text-slate-200 group-hover:text-sky-400'}`}
                                         >
-                                            {inv.docId}
+                                            {formatFullDateRange(inv.startDate, inv.endDate, inv.docId)}
                                         </span>
-                                        <div className="flex items-center gap-1.5">
-                                            <span className={`text-xs transition-colors ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>{new Date(inv.endDate).toLocaleDateString('tr-TR')}</span>
+                                        <div className="flex items-center gap-1.5 shrink-0">
                                             <button
                                                 type="button"
                                                 onClick={(e) => handleDeleteInvoice(inv.id, inv.docId, e)}
@@ -699,43 +783,6 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                             </span>
                         </button>
                     </div>
-
-                    {/* Sağ Kısım: Tahmini Ödenecek Tutar ve Toplam Tonaj Rozetleri */}
-                    <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                        {/* Tahmini Hakediş Rozeti (Sadece taslak/kesilecek faturalarda görünür, tamamlanan/imzalanan faturalarda gizlenir) */}
-                        {activeInvoice && !isViewingOldInvoice && activeInvoice.status === 'Draft' && estimatedCalculation.totalCount > 0 && (
-                            <button 
-                                type="button"
-                                onClick={() => setShowPriceBreakdownModal(true)}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-95 ${
-                                    estimatedCalculation.allPriced 
-                                        ? 'bg-blue-50 hover:bg-blue-100/70 border-blue-200 text-blue-900 shadow-xs' 
-                                        : 'bg-amber-50 hover:bg-amber-100/70 border-amber-200 text-amber-800'
-                                }`} 
-                                title="Fiyat kırılımı ve eksik rota detaylarını görmek/düzenlemek için tıklayın"
-                            >
-                                <span className="text-[11px] font-medium text-slate-500">Tahmini:</span>
-                                <span className="font-mono font-bold tracking-tight">
-                                    {estimatedCalculation.allPriced ? (
-                                        `~₺${estimatedCalculation.totalPayable.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                    ) : (
-                                        <span className="text-[10px] font-medium text-amber-700 flex items-center gap-1">
-                                            <AlertCircle size={12} className="text-amber-600" />
-                                            Fiyat Bilgisi Eksik
-                                        </span>
-                                    )}
-                                </span>
-                            </button>
-                        )}
-
-                        {/* Toplam Tonaj Rozeti */}
-                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600">
-                            <span className="text-slate-500">Toplam:</span>
-                            <span className="font-mono font-bold text-slate-800 tracking-wide">
-                                {totalInvoiceTonnage.toFixed(2)} Ton
-                            </span>
-                        </div>
-                    </div>
                 </div>
 
                 {/* 3. ANA İÇERİK ALANI (Tablo / Liste) */}
@@ -793,6 +840,43 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                                         )}
                                                     </tbody>
                                                 </table>
+                                            </div>
+
+                                            {/* Toplam Tonaj Alt Barı (Tahmini Tutar ve Toplam Tonaj) */}
+                                            <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3 shrink-0 flex-wrap">
+                                                    {/* Tahmini Hakediş Rozeti (Sadece imzalanmamış faturalarda görünür) */}
+                                                    {activeInvoice && !isInvoiceSigned && estimatedCalculation.totalCount > 0 && (
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => setShowPriceBreakdownModal(true)}
+                                                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-95 ${
+                                                                estimatedCalculation.allPriced 
+                                                                    ? 'bg-blue-50 hover:bg-blue-100/80 border-blue-200 text-blue-900 shadow-xs' 
+                                                                    : 'bg-amber-50 hover:bg-amber-100/80 border-amber-200 text-amber-800'
+                                                            }`} 
+                                                            title="Fiyat kırılımı ve eksik rota detaylarını görmek/düzenlemek için tıklayın"
+                                                        >
+                                                            <span className="text-[11px] font-medium text-slate-500">Tahmini Tutar:</span>
+                                                            <span className="font-mono font-bold tracking-tight">
+                                                                {estimatedCalculation.allPriced ? (
+                                                                    `~₺${estimatedCalculation.totalPayable.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                                                ) : (
+                                                                    <span className="text-[10px] font-medium text-amber-700 flex items-center gap-1">
+                                                                        <AlertCircle size={12} className="text-amber-600" />
+                                                                        Fiyat Bilgisi Eksik
+                                                                    </span>
+                                                                )}
+                                                            </span>
+                                                        </button>
+                                                    )}
+
+                                                    {/* Toplam Tonaj Kutusu */}
+                                                    <div className="flex items-center gap-2 bg-white border border-slate-200 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 shadow-xs">
+                                                        <span className="text-slate-500 font-medium">Toplam Tonaj:</span>
+                                                        <span className="font-mono font-bold text-sky-600 text-sm">
+                                                            {totalInvoiceTonnage.toFixed(2)} <span className="text-[11px] font-normal text-slate-500">Ton</span>
+                                                        </span>
+                                                    </div>
                                             </div>
                                         </div>
                                     )}
@@ -901,52 +985,58 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                 </div>
             )}
 
-            {/* Tahmini Fiyat Kırılımı ve Eksik Fiyat Düzenleme Modalı */}
+            {/* Tahmini Fiyat Kırılımı ve Eksik Fiyat Düzenleme Modalı (Obsidian Glass Tasarım) */}
             {showPriceBreakdownModal && activeInvoice && createPortal(
-                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => setShowPriceBreakdownModal(false)}>
-                    <div className="bg-[#0f1117] rounded-2xl border border-sky-500/25 shadow-2xl shadow-sky-950/50 w-full max-w-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-                        {/* Header */}
-                        <div className="flex justify-between items-center px-6 py-4 border-b border-white/5 bg-slate-900/40">
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200" onClick={() => setShowPriceBreakdownModal(false)}>
+                    <div 
+                        className="relative bg-gradient-to-b from-[#0e1422] to-[#070a10] rounded-3xl border border-white/10 shadow-[0_25px_70px_rgba(0,0,0,0.9)] w-full max-w-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Arka Plan Ambient Işık Efektleri */}
+                        <div className="absolute -top-12 -right-12 w-64 h-64 bg-sky-500/10 blur-3xl rounded-full pointer-events-none" />
+                        <div className="absolute -bottom-12 -left-12 w-64 h-64 bg-indigo-500/10 blur-3xl rounded-full pointer-events-none" />
+
+                        {/* Modal Header */}
+                        <div className="flex justify-between items-center px-6 py-4 border-b border-white/[0.08] bg-white/[0.02] relative z-10">
                             <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center flex-shrink-0">
-                                    <FileText size={18} className="text-sky-400" />
+                                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sky-500/20 to-blue-600/20 border border-sky-500/30 flex items-center justify-center shadow-inner text-sky-400">
+                                    <FileText size={20} />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-base text-[var(--text-primary)] flex items-center gap-2">
-                                        Tahmini Fiyat Hesaplama Detayı
+                                    <h3 className="font-extrabold text-base text-white tracking-tight flex items-center gap-2">
+                                        Tahmini Hakediş & Rota Detayları
                                     </h3>
-                                    <p className="text-xs text-slate-400 mt-0.5">
-                                        {activeInvoice.startDate && activeInvoice.endDate ? `${activeInvoice.startDate} - ${activeInvoice.endDate}` : 'Seçili Dönem'}
-                                        <span className="mx-2 text-slate-600">•</span>
-                                        <span className={estimatedCalculation.allPriced ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-semibold'}>
-                                            {estimatedCalculation.knownCount} / {estimatedCalculation.totalCount} Rota Fiyatlandırıldı
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-xs font-mono text-slate-400">
+                                            {formatFullDateRange(activeInvoice.startDate, activeInvoice.endDate, 'Seçili Dönem')}
                                         </span>
-                                    </p>
+                                        <span className="text-slate-600">•</span>
+                                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+                                            estimatedCalculation.allPriced 
+                                                ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400' 
+                                                : 'bg-amber-500/10 border-amber-500/25 text-amber-400'
+                                        }`}>
+                                            {estimatedCalculation.knownCount} / {estimatedCalculation.totalCount} Rota Kayıtlı
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                             <button 
                                 onClick={() => setShowPriceBreakdownModal(false)} 
-                                className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                                className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                             >
                                 <X size={18} />
                             </button>
                         </div>
 
-                        {/* Body */}
-                        <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                            {/* Bilgilendirme Bannerı */}
-                            {estimatedCalculation.hasMissingPrice ? (
-                                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-3">
-                                    <AlertCircle size={18} className="text-amber-400 shrink-0 mt-0.5" />
-                                    <p className="text-xs text-amber-200/90 leading-relaxed">
-                                        Aşağıda <strong className="text-amber-300">birim fiyatı eksik</strong> olan rotalar için doğrudan birim fiyat (TL / Ton) girip kaydedebilirsiniz. Girdiğiniz fiyat Firebase hafızasına işlenir ve tüm cihazlarınızda anında geçerli olur.
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center gap-2.5">
-                                    <CheckCircle size={16} className="text-emerald-400 shrink-0" />
-                                    <p className="text-xs text-emerald-300">
-                                        Bu dönemdeki tüm rotaların birim fiyatları kayıtlıdır. Hesaplama Tevkifatlı (2/10 KDV dahil) taşımacılık standartlarına göre yapılmıştır.
+                        {/* Modal Body */}
+                        <div className="p-6 space-y-3.5 max-h-[60vh] overflow-y-auto custom-scrollbar relative z-10">
+                            {/* Eksik Fiyat Uyarısı (Sadece fiyat eksikse görünür) */}
+                            {estimatedCalculation.hasMissingPrice && (
+                                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-3">
+                                    <AlertCircle size={17} className="text-amber-400 shrink-0 mt-0.5" />
+                                    <p className="text-xs text-amber-200/90 leading-relaxed font-medium">
+                                        Eksik birim fiyatları (TL/Ton) aşağıdan girip kaydedebilirsiniz. Kaydedilen fiyatlar sisteme işlenir ve tüm cihazlarınızda otomatik güncellenir.
                                     </p>
                                 </div>
                             )}
@@ -954,34 +1044,38 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                             {/* Rota Listesi */}
                             <div className="space-y-2.5">
                                 {estimatedCalculation.routeDetails.map((r, idx) => {
-                                    const isEditing = editingRouteKey === r.key || (!r.isPriced && editingRouteKey === null);
                                     return (
                                         <div 
                                             key={idx}
-                                            className={`p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                                            className={`p-3.5 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                                                 r.isPriced 
-                                                    ? 'bg-white/[0.02] border-white/5 hover:border-white/10' 
-                                                    : 'bg-amber-500/5 border-amber-500/20'
+                                                    ? 'bg-white/[0.025] hover:bg-white/[0.05] border-white/[0.08] hover:border-sky-500/30' 
+                                                    : 'bg-amber-500/[0.06] border-amber-500/25'
                                             }`}
                                         >
+                                            {/* Sol: Güzergah Bilgisi */}
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-sm text-[var(--text-primary)]">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="font-bold text-sm text-slate-100">
                                                         {r.from}
                                                     </span>
-                                                    <span className="text-slate-500 text-xs">➔</span>
+                                                    <span className="text-sky-400 text-xs font-mono">➔</span>
                                                     <span className="font-bold text-sm text-sky-400">
                                                         {r.to}
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center gap-3 text-xs text-slate-400 mt-1 font-mono">
-                                                    <span>{r.count} Sefer</span>
-                                                    <span>•</span>
-                                                    <span>{r.tonnage.toFixed(2)} Ton</span>
+                                                <div className="flex items-center gap-2.5 text-xs text-slate-400 mt-1 font-mono">
+                                                    <span className="bg-white/5 border border-white/10 px-2 py-0.5 rounded-md text-[11px] text-slate-300">
+                                                        {r.count} Sefer
+                                                    </span>
+                                                    <span className="text-slate-600">•</span>
+                                                    <span className="text-slate-300 font-semibold">
+                                                        {r.tonnage.toFixed(2)} Ton
+                                                    </span>
                                                 </div>
                                             </div>
 
-                                            {/* Fiyat ve Aksiyon Alanı */}
+                                            {/* Sağ: Fiyat & Düzenleme */}
                                             <div className="flex items-center gap-2 shrink-0 justify-end">
                                                 {editingRouteKey === r.key ? (
                                                     <div className="flex items-center gap-2">
@@ -990,39 +1084,39 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                                                 type="number"
                                                                 step="0.01"
                                                                 autoFocus
-                                                                placeholder="Fiyat (TL/Ton)"
+                                                                placeholder="TL/Ton"
                                                                 value={editingPriceInput}
                                                                 onChange={e => setEditingPriceInput(e.target.value)}
                                                                 onKeyDown={e => {
                                                                     if (e.key === 'Enter') handleSaveRoutePrice(r.from, r.to, editingPriceInput);
                                                                     if (e.key === 'Escape') setEditingRouteKey(null);
                                                                 }}
-                                                                className="w-32 bg-white/10 border border-sky-500/40 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white text-right focus:outline-none focus:ring-1 focus:ring-sky-400"
+                                                                className="w-32 bg-slate-900 border border-sky-500/50 rounded-xl px-2.5 py-1.5 text-xs font-mono text-white text-right focus:outline-none focus:ring-2 focus:ring-sky-400 shadow-inner"
                                                             />
-                                                            <span className="absolute left-2 top-1.5 text-slate-400 text-xs font-mono">₺</span>
+                                                            <span className="absolute left-2.5 top-1.5 text-slate-400 text-xs font-mono">₺</span>
                                                         </div>
                                                         <button
                                                             onClick={() => handleSaveRoutePrice(r.from, r.to, editingPriceInput)}
                                                             disabled={isSavingRoutePrice || !editingPriceInput}
-                                                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                                                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-md shadow-emerald-950/50"
                                                         >
                                                             <Check size={13} /> Kaydet
                                                         </button>
                                                         <button
                                                             onClick={() => { setEditingRouteKey(null); setEditingPriceInput(''); }}
-                                                            className="p-1.5 text-slate-400 hover:text-white rounded-lg transition"
+                                                            className="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer"
                                                         >
                                                             <X size={14} />
                                                         </button>
                                                     </div>
                                                 ) : r.isPriced ? (
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="text-right font-mono">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="text-right font-mono bg-white/[0.03] border border-white/5 px-3 py-1.5 rounded-xl">
                                                             <div className="text-xs font-bold text-emerald-400">
-                                                                ₺{r.unitPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} <span className="text-[10px] text-slate-400 font-normal">/ Ton</span>
+                                                                ₺{r.unitPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} <span className="text-[10px] text-slate-500 font-normal">/ Ton</span>
                                                             </div>
-                                                            <div className="text-[11px] text-slate-400">
-                                                                ~₺{r.linePayable.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-[9px] text-slate-500">KDV dahil</span>
+                                                            <div className="text-[11px] text-slate-300 font-semibold">
+                                                                ~₺{r.linePayable.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                             </div>
                                                         </div>
                                                         <button
@@ -1030,10 +1124,10 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                                                 setEditingRouteKey(r.key);
                                                                 setEditingPriceInput(String(r.unitPrice));
                                                             }}
-                                                            className="p-1.5 rounded-lg text-slate-500 hover:text-sky-400 hover:bg-white/5 transition"
+                                                            className="p-2 rounded-xl text-slate-400 hover:text-sky-400 hover:bg-white/5 transition cursor-pointer"
                                                             title="Birim Fiyatı Güncelle"
                                                         >
-                                                            <Edit2 size={13} />
+                                                            <Edit2 size={14} />
                                                         </button>
                                                     </div>
                                                 ) : (
@@ -1055,14 +1149,14 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                                                 onKeyDown={e => {
                                                                     if (e.key === 'Enter') handleSaveRoutePrice(r.from, r.to, editingPriceInput);
                                                                 }}
-                                                                className="w-28 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white text-right focus:outline-none focus:border-amber-400 placeholder:text-slate-500"
+                                                                className="w-28 bg-slate-900 border border-amber-500/40 rounded-xl px-2.5 py-1.5 text-xs font-mono text-white text-right focus:outline-none focus:ring-1 focus:ring-amber-400 placeholder:text-slate-500 shadow-inner"
                                                             />
-                                                            <span className="absolute left-2 top-1.5 text-amber-400/60 text-xs font-mono">₺</span>
+                                                            <span className="absolute left-2.5 top-1.5 text-amber-400/60 text-xs font-mono">₺</span>
                                                         </div>
                                                         <button
                                                             onClick={() => handleSaveRoutePrice(r.from, r.to, editingPriceInput)}
                                                             disabled={isSavingRoutePrice || !editingPriceInput}
-                                                            className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                                                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-md shadow-amber-950/50"
                                                         >
                                                             <Check size={12} /> Ekle
                                                         </button>
@@ -1075,36 +1169,42 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                             </div>
                         </div>
 
-                        {/* Footer / Özet */}
-                        <div className="px-6 py-4 border-t border-white/5 bg-slate-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="flex items-center gap-4 text-xs font-mono">
-                                <div>
-                                    <span className="text-slate-500">Matrah:</span>
-                                    <span className="ml-1.5 font-bold text-slate-300">
+                        {/* Modal Footer / Hesaplama Kartları */}
+                        <div className="px-6 py-4 border-t border-white/[0.08] bg-black/40 relative z-10 flex flex-col gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                {/* 1. Matrah */}
+                                <div className="bg-white/[0.03] border border-white/[0.07] rounded-xl px-3 py-2 flex flex-col">
+                                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Matrah (Net)</span>
+                                    <span className="font-mono text-sm font-bold text-slate-200 mt-0.5">
                                         ₺{estimatedCalculation.totalNet.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
                                 </div>
-                                <div className="text-slate-600">•</div>
-                                <div>
-                                    <span className="text-slate-500">KDV (%16 Net):</span>
-                                    <span className="ml-1.5 font-bold text-slate-300">
+
+                                {/* 2. KDV (2/10 Tevkifat) */}
+                                <div className="bg-white/[0.03] border border-white/[0.07] rounded-xl px-3 py-2 flex flex-col">
+                                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Net KDV (%16)</span>
+                                    <span className="font-mono text-sm font-bold text-slate-200 mt-0.5">
                                         ₺{(estimatedCalculation.totalNet * 0.16).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
                                 </div>
-                                <div className="text-slate-600">•</div>
-                                <div>
-                                    <span className="text-sky-400 font-medium">Tahmini Toplam:</span>
-                                    <span className="ml-1.5 font-bold text-white text-sm">
+
+                                {/* 3. Tahmini Toplam */}
+                                <div className="bg-gradient-to-br from-sky-500/20 via-blue-600/15 to-indigo-600/20 border border-sky-500/30 rounded-xl px-3.5 py-2 flex flex-col justify-center shadow-lg shadow-sky-950/40">
+                                    <span className="text-[10px] text-sky-400 font-extrabold uppercase tracking-wider">Tahmini Hakediş</span>
+                                    <span className="font-mono text-base font-black text-white mt-0.5">
                                         ~₺{estimatedCalculation.totalPayable.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </span>
                                 </div>
                             </div>
-                            <button
-                                onClick={() => setShowPriceBreakdownModal(false)}
-                                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white transition-colors cursor-pointer self-end sm:self-auto"
-                            >
-                                Kapat
-                            </button>
+
+                            <div className="flex justify-end pt-1">
+                                <button
+                                    onClick={() => setShowPriceBreakdownModal(false)}
+                                    className="px-5 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/15 text-white transition-all cursor-pointer border border-white/10 hover:scale-[1.02] active:scale-95"
+                                >
+                                    Kapat
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>,

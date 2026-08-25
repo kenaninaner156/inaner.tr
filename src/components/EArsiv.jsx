@@ -1,12 +1,23 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { motion } from 'framer-motion';
 import { DataContext } from '../context/DataContext';
 import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
 import { auth } from '../services/firebaseConfig';
 import { doc, getDoc, setDoc, onSnapshot, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
-import { FileText, Save, Key, RefreshCw, CheckCircle, AlertTriangle, ExternalLink, HelpCircle, X, Send, BookOpen, Settings, Smartphone, Download, Paperclip } from 'lucide-react';
+import { FileText, Save, Key, RefreshCw, CheckCircle, AlertTriangle, ExternalLink, HelpCircle, X, Send, BookOpen, Settings, Smartphone, Download, Paperclip, Clock, Menu, Globe, Coins, TrendingUp, ArrowUpRight, ArrowRight } from 'lucide-react';
+import {
+    ResponsiveContainer,
+    ComposedChart,
+    Area,
+    Line,
+    XAxis,
+    YAxis,
+    Tooltip,
+    CartesianGrid
+} from 'recharts';
 
 import CustomDatePicker from './CustomDatePicker';
 import FileUpload from './FileUpload';
@@ -25,10 +36,67 @@ const EXEMPTION_CODES = [
     { code: '301', label: '301 - Mal İhracatı (KDV Md. 11/1-a)' }
 ];
 
-const EArsiv = () => {
-    const { invoices, addLog, routeHistory, saveRouteHistory } = useContext(DataContext);
+const TURKISH_MONTHS = [
+    'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+];
+
+const formatInvoicePeriod = (startDateStr, endDateStr) => {
+    if (!startDateStr || !endDateStr) {
+        return { primary: `${startDateStr || ''} – ${endDateStr || ''}`.trim() || '—', sub: '' };
+    }
+
+    try {
+        const [sy, sm, sd] = startDateStr.split('-').map(Number);
+        const [ey, em, ed] = endDateStr.split('-').map(Number);
+
+        if (!sy || !sm || !sd || !ey || !em || !ed) {
+            return { primary: `${startDateStr} – ${endDateStr}`, sub: '' };
+        }
+
+        const sDay = String(sd).padStart(2, '0');
+        const eDay = String(ed).padStart(2, '0');
+        const sMonth = TURKISH_MONTHS[sm - 1] || '';
+        const eMonth = TURKISH_MONTHS[em - 1] || '';
+
+        // Aynı gün ise
+        if (sy === ey && sm === em && sd === ed) {
+            return {
+                primary: `${sDay} ${sMonth}`,
+                sub: `${sy} Dönemi`
+            };
+        }
+
+        // Aynı ay ve aynı yıl (Örn: 01 – 08 Ağustos | 2026 Dönemi)
+        if (sy === ey && sm === em) {
+            return {
+                primary: `${sDay} – ${eDay} ${sMonth}`,
+                sub: `${sy} Dönemi`
+            };
+        }
+
+        // Farklı aylar ama aynı yıl (Örn: 25 Temmuz – 05 Ağustos | 2026 Dönemi)
+        if (sy === ey) {
+            return {
+                primary: `${sDay} ${sMonth} – ${eDay} ${eMonth}`,
+                sub: `${sy} Dönemi`
+            };
+        }
+
+        // Farklı yıllar (Örn: 28 Aralık 2026 – 04 Ocak 2027 | 2026 – 2027 Dönemi)
+        return {
+            primary: `${sDay} ${sMonth} ${sy} – ${eDay} ${eMonth} ${ey}`,
+            sub: `${sy} – ${ey} Dönemi`
+        };
+    } catch {
+        return { primary: `${startDateStr} – ${endDateStr}`, sub: '' };
+    }
+};
+
+const EArsiv = ({ onOpenMenu, isMobile }) => {
+    const { invoices, addLog, routeHistory, saveRouteHistory, fuelRecords } = useContext(DataContext);
     const { activeCompanyId } = useCompany();
-    const { trucks } = useTruck();
+    const { trucks, activeTruckData } = useTruck();
 
     // Tab state: 'list' | 'settings'
     const [activeSubTab, setActiveSubTab] = useState('list');
@@ -42,7 +110,6 @@ const EArsiv = () => {
     // Default preferences state
     const [defaultInvoiceType, setDefaultInvoiceType] = useState('SATIS');
     const [defaultVatRate, setDefaultVatRate] = useState(20);
-    const [defaultIsVatIncluded, setDefaultIsVatIncluded] = useState(true);
     const [defaultTevkifatKodu, setDefaultTevkifatKodu] = useState('624');
     const [defaultKdvMuafiyetKodu, setDefaultKdvMuafiyetKodu] = useState('350');
     const [defaultKdvMuafiyetNedeni, setDefaultKdvMuafiyetNedeni] = useState('');
@@ -74,7 +141,6 @@ const EArsiv = () => {
     const [buyerCity, setBuyerCity] = useState('');
     const [buyerDistrict, setBuyerDistrict] = useState('');
     const [vatRate, setVatRate] = useState(20);
-    const [isVatIncluded, setIsVatIncluded] = useState(false);
     const [tevkifatKodu, setTevkifatKodu] = useState('624');
     const [kdvMuafiyetKodu, setKdvMuafiyetKodu] = useState('350');
     const [kdvMuafiyetNedeni, setKdvMuafiyetNedeni] = useState('');
@@ -147,7 +213,6 @@ const EArsiv = () => {
                 setDefaultIbanName(data.defaultIbanName || '');
                 setDefaultInvoiceType(data.defaultInvoiceType || 'SATIS');
                 setDefaultVatRate(data.defaultVatRate ?? 20);
-                setDefaultIsVatIncluded(data.defaultIsVatIncluded ?? true);
                 setDefaultTevkifatKodu(data.defaultTevkifatKodu || '624');
                 setDefaultKdvMuafiyetKodu(data.defaultKdvMuafiyetKodu || '350');
                 setDefaultKdvMuafiyetNedeni(data.defaultKdvMuafiyetNedeni || '');
@@ -185,7 +250,6 @@ const EArsiv = () => {
                 defaultIbanName: defaultIbanName.trim(),
                 defaultInvoiceType,
                 defaultVatRate: Number(defaultVatRate),
-                defaultIsVatIncluded,
                 defaultTevkifatKodu,
                 defaultKdvMuafiyetKodu,
                 defaultKdvMuafiyetNedeni: defaultKdvMuafiyetNedeni.trim(),
@@ -246,7 +310,7 @@ const EArsiv = () => {
             }, {})
         ).sort((a, b) => b.tonnage - a.tonnage);
 
-        // Load route history for remembrance (from Firebase, fallback to localStorage)
+        // Load route history for remembrance (from DataContext, fallback to localStorage)
         let history = routeHistory && Object.keys(routeHistory).length > 0 ? routeHistory : {};
         if (Object.keys(history).length === 0) {
             try {
@@ -257,36 +321,24 @@ const EArsiv = () => {
             }
         }
 
-        // Map routeSummary to routeLines
+        // Map routeSummary to routeLines (Standart KDV Hariç)
         const initialLines = routeSummary.map(r => {
             const key = `${r.from.trim()}|||${r.to.trim()}`;
             const existingLine = routeLines.find(l => l.from === r.from && l.to === r.to);
             const cached = history[key] || {};
             
-            const name = existingLine?.name || cached.name || `${r.from} ${r.to} UÇUCU KÜL NAKLİYESİ.`.toUpperCase();
+            const name = existingLine?.name || cached.name || `${r.from} ${r.to} NAKLİYESİ`.toUpperCase();
             const unitPrice = existingLine !== undefined ? existingLine.unitPrice : (cached.unitPrice || 0);
             
             const quantity = Number(r.tonnage.toFixed(2));
-            let price = 0;
-            let vatAmount = 0;
-            let vatAmountOfTax = 0;
-            let totalAmount = 0;
-
             const lineRate = invoiceType === 'ISTISNA' ? 0 : Number(vatRate);
             const activeTevkifat = TEVKIFAT_CODES.find(t => t.code === tevkifatKodu);
             const tRate = activeTevkifat ? activeTevkifat.rate : 20;
 
-            if (isVatIncluded) {
-                totalAmount = Number((quantity * unitPrice).toFixed(2));
-                price = Number((totalAmount / (1 + (lineRate / 100))).toFixed(2));
-                vatAmount = Number((totalAmount - price).toFixed(2));
-                vatAmountOfTax = invoiceType === 'TEVKIFAT' ? Number((vatAmount * (tRate / 100)).toFixed(2)) : 0;
-            } else {
-                price = Number((quantity * unitPrice).toFixed(2));
-                vatAmount = Number((price * (lineRate / 100)).toFixed(2));
-                vatAmountOfTax = invoiceType === 'TEVKIFAT' ? Number((vatAmount * (tRate / 100)).toFixed(2)) : 0;
-                totalAmount = Number((price + vatAmount).toFixed(2));
-            }
+            const price = Number((quantity * unitPrice).toFixed(2));
+            const vatAmount = Number((price * (lineRate / 100)).toFixed(2));
+            const vatAmountOfTax = invoiceType === 'TEVKIFAT' ? Number((vatAmount * (tRate / 100)).toFixed(2)) : 0;
+            const totalAmount = Number((price + vatAmount).toFixed(2));
 
             return {
                 from: r.from,
@@ -322,26 +374,15 @@ const EArsiv = () => {
             
             const quantity = line.quantity;
             const uPrice = line.unitPrice;
-            let price = 0;
-            let vatAmount = 0;
-            let vatAmountOfTax = 0;
-            let totalAmount = 0;
 
             const lineRate = invoiceType === 'ISTISNA' ? 0 : Number(vatRate);
             const activeTevkifat = TEVKIFAT_CODES.find(t => t.code === tevkifatKodu);
             const tRate = activeTevkifat ? activeTevkifat.rate : 20;
 
-            if (isVatIncluded) {
-                totalAmount = Number((quantity * uPrice).toFixed(2));
-                price = Number((totalAmount / (1 + (lineRate / 100))).toFixed(2));
-                vatAmount = Number((totalAmount - price).toFixed(2));
-                vatAmountOfTax = invoiceType === 'TEVKIFAT' ? Number((vatAmount * (tRate / 100)).toFixed(2)) : 0;
-            } else {
-                price = Number((quantity * uPrice).toFixed(2));
-                vatAmount = Number((price * (lineRate / 100)).toFixed(2));
-                vatAmountOfTax = invoiceType === 'TEVKIFAT' ? Number((vatAmount * (tRate / 100)).toFixed(2)) : 0;
-                totalAmount = Number((price + vatAmount).toFixed(2));
-            }
+            const price = Number((quantity * uPrice).toFixed(2));
+            const vatAmount = Number((price * (lineRate / 100)).toFixed(2));
+            const vatAmountOfTax = invoiceType === 'TEVKIFAT' ? Number((vatAmount * (tRate / 100)).toFixed(2)) : 0;
+            const totalAmount = Number((price + vatAmount).toFixed(2));
 
             line.price = price;
             line.vatAmount = vatAmount;
@@ -352,7 +393,7 @@ const EArsiv = () => {
         updated[index] = line;
         setRouteLines(updated);
 
-        // Save route line to remembrance history immediately (Firebase + localStorage)
+        // Save route line to central remembrance history immediately (Firebase + localStorage)
         try {
             const key = `${line.from.trim()}|||${line.to.trim()}`;
             const updatedHistory = {
@@ -618,7 +659,6 @@ const EArsiv = () => {
         setBuyerCity(defaultBuyerCity || '');
         setBuyerDistrict(defaultBuyerDistrict || '');
         setVatRate(defaultVatRate);
-        setIsVatIncluded(defaultIsVatIncluded);
         setTevkifatKodu(defaultTevkifatKodu);
         setKdvMuafiyetKodu(defaultKdvMuafiyetKodu);
         setKdvMuafiyetNedeni(defaultKdvMuafiyetNedeni);
@@ -685,7 +725,7 @@ const EArsiv = () => {
                     invoiceType,
                     buyer: buyerPayload,
                     vatRate: Number(vatRate),
-                    isVatIncluded,
+                    isVatIncluded: false,
                     tevkifatKodu: invoiceType === 'TEVKIFAT' ? tevkifatKodu : null,
                     tevkifatRate: invoiceType === 'TEVKIFAT' ? tevkifatRate : 0,
                     kdvMuafiyetKodu: invoiceType === 'ISTISNA' ? kdvMuafiyetKodu : null,
@@ -779,6 +819,228 @@ const EArsiv = () => {
         return { base, vat, vatOfTax, withTaxes, payment };
     }, [routeLines]);
 
+    // Helper: Fatura resmi tutarı veya güzergah hafızasından tahmini hakediş tutarı
+    const getInvoiceEstimate = (inv) => {
+        if (inv.grandTotal && Number(inv.grandTotal) > 0) {
+            return { isActual: true, amount: Number(inv.grandTotal) };
+        }
+        const trips = inv.trips || [];
+        if (trips.length === 0) return null;
+        
+        const history = routeHistory || {};
+        let totalNet = 0;
+        let hasAnyPrice = false;
+
+        const groups = {};
+        trips.forEach(t => {
+            const fromStr = (t.from || '').trim();
+            const toStr = (t.to || '').trim();
+            const key = `${fromStr}|||${toStr}`;
+            if (!groups[key]) {
+                groups[key] = { tonnage: 0, from: fromStr, to: toStr };
+            }
+            groups[key].tonnage += parseTonnageInTons(t.tonnage);
+        });
+
+        Object.entries(groups).forEach(([key, grp]) => {
+            const historyItem = history[key] || {};
+            const unitPrice = historyItem.unitPrice || 0;
+            if (unitPrice > 0) {
+                hasAnyPrice = true;
+                totalNet += (grp.tonnage * unitPrice);
+            }
+        });
+
+        if (!hasAnyPrice || totalNet <= 0) return null;
+
+        // Taşımacılık 2/10 Tevkifatlı Net KDV (%16): Matrah * 1.16
+        const totalPayable = totalNet * 1.16;
+        return { isActual: false, amount: totalPayable };
+    };
+
+    // GİB Health State & Real Login Handshake Probe
+    const [gibHealth, setGibHealth] = useState({ status: 'checking', latencyMs: 0, lastChecked: null });
+    const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+
+    const checkGibHealth = async () => {
+        setIsCheckingHealth(true);
+        setGibHealth(prev => ({ ...prev, status: 'checking' }));
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+            const res = await fetch('/api/check-gib-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    gibUsername,
+                    gibPassword,
+                    gibTestMode
+                }),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
+            const data = await res.json();
+            if (data && data.status) {
+                setGibHealth(data);
+            } else {
+                setGibHealth({ status: 'down', latencyMs: 0, lastChecked: new Date().toISOString() });
+            }
+        } catch {
+            setGibHealth({ status: 'down', latencyMs: 0, lastChecked: new Date().toISOString() });
+        } finally {
+            setIsCheckingHealth(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!isLoadingSettings) {
+            checkGibHealth();
+        }
+    }, [isLoadingSettings, gibTestMode]);
+
+    // Yıllık Finansal Özet Hesaplamaları (2026)
+    const currentYear = 2026;
+    const currentYearInvoices = useMemo(() => {
+        return activeInvoices.filter(inv => {
+            const d = inv.startDate || inv.periodStart || inv.date || '';
+            return d.startsWith(String(currentYear));
+        });
+    }, [activeInvoices, currentYear]);
+
+    const totalYearRevenue = useMemo(() => {
+        return currentYearInvoices.reduce((sum, inv) => {
+            const est = getInvoiceEstimate(inv);
+            return sum + (est?.amount || 0);
+        }, 0);
+    }, [currentYearInvoices, routeHistory]);
+
+    const totalYearFuel = useMemo(() => {
+        return (fuelRecords || [])
+            .filter(f => {
+                if (f.deleted) return false;
+                if (activeTruckData?.id && f.truckId && f.truckId !== activeTruckData.id) return false;
+                if (!f.date) return false;
+                const d = new Date(f.date);
+                return d.getFullYear() === currentYear;
+            })
+            .reduce((sum, f) => sum + (Number(f.price) || Number(f.totalAmount) || 0), 0);
+    }, [fuelRecords, activeTruckData, currentYear]);
+
+    const yearlyProfitMargin = useMemo(() => {
+        if (totalYearRevenue <= 0) return 0;
+        const net = totalYearRevenue - totalYearFuel;
+        return Math.max(0, Math.min(100, (net / totalYearRevenue) * 100));
+    }, [totalYearRevenue, totalYearFuel]);
+
+    // Haftalık Finansal Performans Grafiği Verisi (Eskiden yeniye kronolojik sıralı)
+    // 2026 Yılı Aylık Konsolide Finansal Performans Grafiği (Ocak - Aralık)
+    const chartData = useMemo(() => {
+        const monthsShort = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+        const monthsFull = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+
+        return monthsShort.map((mShort, mIndex) => {
+            // 1. Bu aya ait faturaları bul
+            const monthInvoices = (activeInvoices || []).filter(inv => {
+                const dStr = inv.startDate || inv.periodStart || inv.date || '';
+                if (!dStr) return false;
+                const d = new Date(dStr);
+                return d.getFullYear() === currentYear && d.getMonth() === mIndex;
+            });
+
+            // Aylık Toplam Hakediş
+            const monthIncome = monthInvoices.reduce((sum, inv) => {
+                const est = getInvoiceEstimate(inv);
+                return sum + (est?.amount || 0);
+            }, 0);
+
+            // Aylık Toplam Sefer & Tonaj
+            const monthTripsCount = monthInvoices.reduce((sum, inv) => sum + (inv.trips?.length || 0), 0);
+            const monthTotalTons = monthInvoices.reduce((sum, inv) => {
+                const t = (inv.trips && inv.trips.length > 0) ? inv.trips.reduce((acc, trip) => acc + parseTonnageInTons(trip.tonnage), 0) : (inv.totalTonnage || 0);
+                return sum + t;
+            }, 0);
+
+            // 2. Bu aya ait akaryakıt fişlerini bul
+            const monthFuel = (fuelRecords || [])
+                .filter(f => {
+                    if (f.deleted) return false;
+                    if (activeTruckData?.id && f.truckId && f.truckId !== activeTruckData.id) return false;
+                    if (!f.date) return false;
+                    const d = new Date(f.date);
+                    return d.getFullYear() === currentYear && d.getMonth() === mIndex;
+                })
+                .reduce((sum, f) => sum + (Number(f.price) || Number(f.totalAmount) || 0), 0);
+
+            return {
+                name: mShort,
+                fullName: monthsFull[mIndex],
+                income: Math.round(monthIncome),
+                fuel: Math.round(monthFuel),
+                net: Math.round(monthIncome - monthFuel),
+                invoiceCount: monthInvoices.length,
+                tripsCount: monthTripsCount,
+                totalTons: monthTotalTons.toFixed(1)
+            };
+        }).filter(m => m.income > 0 || m.fuel > 0);
+    }, [activeInvoices, currentYear, routeHistory, fuelRecords, activeTruckData]);
+
+    // FINANCIA / Tasks Overview tarzı lüks siyah cam tooltip (Sadece Turuncu, Siyah, Gri, Beyaz - Ultra Kompakt)
+    const CustomChartTooltip = ({ active, payload }) => {
+        if (!active || !payload || !payload.length) return null;
+        const data = payload[0]?.payload;
+        const income = data?.income || 0;
+        const fuel = data?.fuel || 0;
+        const net = income - fuel;
+        const profitMargin = income > 0 ? ((net / income) * 100).toFixed(1) : '0';
+
+        return (
+            <div className="bg-[#0a0d16]/95 backdrop-blur-2xl border border-white/[0.12] px-3.5 py-2.5 rounded-xl shadow-[0_15px_35px_rgba(0,0,0,0.9)] text-left pointer-events-none min-w-[148px] animate-in zoom-in-95 duration-150">
+                {/* Gelir & Mazot Değerleri */}
+                <div className="space-y-1 text-[11px]">
+                    <div className="flex items-center justify-between gap-3">
+                        <span className="text-orange-400 font-semibold flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shadow-[0_0_6px_rgba(249,115,22,0.8)]" />
+                            Gelir:
+                        </span>
+                        <span className="font-mono font-bold text-white">
+                            {income.toLocaleString('tr-TR')} ₺
+                        </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                        <span className="text-slate-300 font-medium flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300 shadow-[0_0_6px_rgba(226,232,240,0.6)]" />
+                            Mazot:
+                        </span>
+                        <span className="font-mono font-semibold text-slate-200">
+                            {fuel.toLocaleString('tr-TR')} ₺
+                        </span>
+                    </div>
+                </div>
+
+                {/* Net Kalan & Kâr Payı */}
+                {income > 0 && (
+                    <div className="pt-1.5 mt-1.5 border-t border-white/[0.08] space-y-0.5 text-[10.5px]">
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-400 font-medium">Net Kalan:</span>
+                            <span className="font-mono font-bold text-white">
+                                {net.toLocaleString('tr-TR')} ₺
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-400 font-medium">Kâr Payı:</span>
+                            <span className="font-mono font-bold text-orange-400">
+                                %{profitMargin}
+                            </span>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     // Pre-compute portals - rendered at document.body level to escape parent CSS transforms
     const toastEl = toast ? (
         <div
@@ -823,7 +1085,7 @@ const EArsiv = () => {
                     >İptal</button>
                     <button
                         onClick={() => { confirmDialog.onConfirm(true); setConfirmDialog(null); }}
-                        className="px-5 py-2 text-sm font-semibold rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition shadow-lg shadow-orange-500/20"
+                        className="px-5 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white transition shadow-lg shadow-orange-500/25"
                     >Onayla</button>
                 </div>
             </div>
@@ -833,275 +1095,492 @@ const EArsiv = () => {
 
     return (
         <>
+            {confirmPortal}
+            <div className="flex flex-col lg:flex-row h-full w-full gap-4 lg:gap-5 overflow-hidden animate-in fade-in duration-500 pb-2 lg:pb-0">
 
-            <div className="space-y-6 animate-in fade-in duration-500 max-w-5xl mx-auto">
+                {/* SOL PANEL: KONTROL MERKEZİ (Executive Hub) */}
+                <div className="w-full lg:w-[320px] xl:w-[340px] shrink-0 lg:h-full flex flex-col gap-3.5 overflow-y-auto custom-scrollbar pr-1">
+                    
+                    {/* Error Message */}
+                    {syncError && (
+                        <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-2xl text-sm shrink-0">
+                            <AlertTriangle size={18} className="shrink-0" />
+                            <div>
+                                <span className="font-semibold">Aktarım Hatası:</span> {syncError}
+                            </div>
+                        </div>
+                    )}
 
-            {/* Header */}
-            <div className="glass-panel p-6 border-l-4 border-l-orange-500">
-                <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2 flex items-center">
-                    <FileText className="mr-2 text-orange-500" size={24} />
-                    GİB e-Arşiv Fatura Entegrasyonu
-                </h3>
-                <p className="text-[var(--text-secondary)] text-sm">
-                    Bu ekrandan sistemde onaylanan faturalarınızı GİB e-Arşiv Portalına tek tıkla **Taslak** olarak aktarabilirsiniz. Aktarım sonrası faturalarınızı portalda imzalayarak resmiyet kazandırabilirsiniz.
-                </p>
-            </div>
-
-            {/* Sub-tabs */}
-            <div className="flex gap-2 border-b border-[var(--border-color)] pb-px">
-                <button
-                    onClick={() => setActiveSubTab('list')}
-                    className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all ${
-                        activeSubTab === 'list'
-                            ? 'border-orange-500 text-orange-500'
-                            : 'border-transparent text-slate-400 hover:text-slate-200'
-                    }`}
-                >
-                    Faturaları Yönet
-                </button>
-                <button
-                    onClick={() => setActiveSubTab('settings')}
-                    className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all ${
-                        activeSubTab === 'settings'
-                            ? 'border-orange-500 text-orange-500'
-                            : 'border-transparent text-slate-400 hover:text-slate-200'
-                    }`}
-                >
-                    Bağlantı Ayarları
-                </button>
-            </div>
-
-            {/* Error Message */}
-            {syncError && (
-                <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl text-sm">
-                    <AlertTriangle size={18} className="shrink-0" />
-                    <div>
-                        <span className="font-semibold">Aktarım Hatası:</span> {syncError}
+                    {/* 1. Başlık & Araç Kimlik Kartı */}
+                    <div className="bg-[#0c1017]/85 backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-xl p-4 flex items-center justify-between shrink-0">
+                        <div className="flex items-center gap-3">
+                            {isMobile && onOpenMenu && (
+                                <button 
+                                    onClick={onOpenMenu} 
+                                    className="p-1.5 -ml-1 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors md:hidden cursor-pointer"
+                                    title="Menüyü Aç"
+                                >
+                                    <Menu size={20} />
+                                </button>
+                            )}
+                            <div>
+                                <h2 className="text-base font-bold text-white tracking-tight">E-Arşiv Fatura</h2>
+                                <span className="text-[11px] text-slate-400 font-medium">Finans & GİB Merkezi</span>
+                            </div>
+                        </div>
+                        {activeTruckData?.plate && (
+                            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.15)]">
+                                {activeTruckData.plate}
+                            </span>
+                        )}
                     </div>
-                </div>
-            )}
 
-            {/* List Tab */}
-            {activeSubTab === 'list' && (
-                <div className="glass-panel overflow-hidden">
-                    <div className="p-4 bg-slate-900/40 border-b border-[var(--border-color)] flex items-center justify-between">
-                        <span className="text-sm font-bold text-[var(--text-primary)]">
-                            Gönderilebilir Faturalar ({activeInvoices.length})
-                        </span>
+                    {/* 2. GİB e-Fatura Canlı Hizmet Durumu */}
+                    <div className="bg-[#0c1017]/85 backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-xl p-4 flex flex-col gap-3 shrink-0">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Globe size={14} className="text-amber-400" />
+                                <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">GİB Hizmet Durumu</span>
+                            </div>
+                            <button
+                                onClick={checkGibHealth}
+                                disabled={isCheckingHealth}
+                                title="GİB Bağlantısını Şimdi Test Et"
+                                className="p-1 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer disabled:opacity-50"
+                            >
+                                <RefreshCw size={13} className={isCheckingHealth ? "animate-spin text-amber-400" : ""} />
+                            </button>
+                        </div>
+
+                        {/* Canlı Durum Rozeti */}
+                        <div className={`p-2.5 rounded-xl border flex items-center justify-between transition-colors ${
+                            gibHealth.status === 'optimal' 
+                                ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400' 
+                                : gibHealth.status === 'slow'
+                                    ? 'bg-amber-500/10 border-amber-500/25 text-amber-400'
+                                    : gibHealth.status === 'down'
+                                        ? 'bg-red-500/10 border-red-500/25 text-red-400'
+                                        : 'bg-slate-800/80 border-slate-700 text-slate-400'
+                        }`}>
+                            <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${
+                                    gibHealth.status === 'optimal' 
+                                        ? 'bg-emerald-400 animate-pulse' 
+                                        : gibHealth.status === 'slow'
+                                            ? 'bg-amber-400 animate-pulse'
+                                            : gibHealth.status === 'down'
+                                                ? 'bg-red-500'
+                                                : 'bg-slate-500'
+                                }`} />
+                                <span className="text-xs font-semibold">
+                                    {gibHealth.status === 'optimal' && "GİB Aktif"}
+                                    {gibHealth.status === 'slow' && "GİB Yoğunluk Var"}
+                                    {gibHealth.status === 'down' && "GİB Kapalı (Erişilemez)"}
+                                    {gibHealth.status === 'unconfigured' && "Giriş Yapılandırılmadı"}
+                                    {gibHealth.status === 'checking' && "Kontrol Ediliyor..."}
+                                </span>
+                            </div>
+                            {gibHealth.latencyMs > 0 && (
+                                <span className="text-[11px] font-mono opacity-80">{gibHealth.latencyMs}ms</span>
+                            )}
+                        </div>
+
                         <a 
                             href={gibPortalUrl}
                             target="_blank" 
                             rel="noopener noreferrer" 
-                            className="flex items-center gap-1.5 text-xs text-orange-400 hover:text-orange-300 font-semibold transition"
+                            className="w-full flex items-center justify-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-semibold py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 transition drop-shadow cursor-pointer"
                         >
-                            GİB e-Arşiv Portalına Git <ExternalLink size={12} />
+                            <span>GİB e-Arşiv Portalına Git</span>
+                            <ExternalLink size={12} />
                         </a>
                     </div>
-
-                    {isLoadingSettings ? (
-                        <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
-                            <RefreshCw size={24} className="animate-spin text-orange-500" />
-                            <span>Veriler yükleniyor...</span>
-                        </div>
-                    ) : activeInvoices.length === 0 ? (
-                        <div className="p-12 text-center text-slate-500">
-                            Gönderilmeyi bekleyen veya onaylanmış fatura bulunmamaktadır.
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-950/20 text-[var(--text-secondary)] text-xs uppercase tracking-wider border-b border-[var(--border-color)]">
-                                        <th className="p-4 font-semibold">Fatura No</th>
-                                        <th className="p-4 font-semibold">Araç / Plaka</th>
-                                        <th className="p-4 font-semibold">Dönem</th>
-                                        <th className="p-4 font-semibold">Tutar</th>
-                                        <th className="p-4 font-semibold">GİB e-Arşiv Durumu</th>
-                                        <th className="p-4 font-semibold text-right">İşlem</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-[var(--border-color)]">
-                                    {activeInvoices.map((inv) => {
-                                        const isDraftOnGib = inv.gibStatus === 'Draft';
-                                        const isSignedOnGib = inv.gibStatus === 'Signed' || inv.gibStatus === 'Approved';
-                                        const isSending = sendingInvoiceId === inv.id;
-                                        const invTruck = trucksMap.get(inv.truckId);
-                                        const plate = invTruck?.plate || '—';
-
-                                        return (
-                                            <tr key={inv.id} className="hover:bg-white/[0.01] transition-colors">
-                                                <td className="p-4 font-semibold text-[var(--text-primary)]">
-                                                    {inv.docId || inv.id}
-                                                </td>
-                                                <td className="p-4 text-[var(--text-secondary)] font-mono font-bold">
-                                                    {plate}
-                                                </td>
-                                                <td className="p-4 text-[var(--text-secondary)] text-xs">
-                                                    {inv.startDate} - {inv.endDate}
-                                                </td>
-                                                <td className="p-4 text-emerald-400 font-bold">
-                                                    {inv.grandTotal?.toLocaleString('tr-TR')} ₺
-                                                </td>
-                                                <td className="p-4">
-                                                    {isDraftOnGib ? (
-                                                        <div className="flex flex-col gap-0.5">
-                                                            <span className="inline-flex items-center gap-1 text-xs bg-orange-500/10 border border-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full font-medium w-fit">
-                                                                <CheckCircle size={12} /> GİB'de Taslak {inv.gibTestMode && "(TEST)"}
-                                                            </span>
-                                                            <span className="text-[10px] text-slate-500 font-mono select-all">
-                                                                UUID: {inv.gibUuid}
-                                                            </span>
-                                                        </div>
-                                                    ) : isSignedOnGib ? (
-                                                        <div className="flex flex-col gap-0.5">
-                                                            <span className="inline-flex items-center gap-1 text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-medium w-fit">
-                                                                <CheckCircle size={12} /> GİB'de İmzalandı {inv.gibTestMode && "(TEST)"}
-                                                            </span>
-                                                            {inv.gibUuid && (
-                                                                <span className="text-[10px] text-slate-500 font-mono select-all">
-                                                                    UUID: {inv.gibUuid}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    ) : (
-                                                        <span className="inline-flex items-center text-xs bg-slate-800 border border-slate-700 text-slate-400 px-2 py-0.5 rounded-full font-medium">
-                                                            GİB'e Gönderilmedi
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="p-4 text-right">
-                                                    <div className="flex justify-end items-center gap-2">
-                                                        {/* Belge / PDF Yönetim Modalı Butonu */}
-                                                        <button
-                                                            onClick={() => {
-                                                                setPdfModalInvoice(inv);
-                                                                setModalFiles(inv.files || []);
-                                                                setModalNote(inv.note || '');
-                                                            }}
-                                                            title={inv.files?.length > 0 ? "Fatura Belgelerini Düzenle / Görüntüle" : "Faturaya PDF / Belge Ekle"}
-                                                            className={`p-1.5 text-xs font-semibold rounded-lg transition border ${inv.files?.length > 0 ? 'bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700'}`}
-                                                        >
-                                                            <Paperclip size={12} />
-                                                        </button>
-
-                                                        {isDraftOnGib ? (
-                                                            <>
-                                                                <button
-                                                                    onClick={() => handleApproveSmsInit(inv)}
-                                                                    disabled={isApprovingSms === inv.id}
-                                                                    className="inline-flex items-center gap-1.5 text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-50"
-                                                                >
-                                                                    {isApprovingSms === inv.id ? (
-                                                                        <RefreshCw size={12} className="animate-spin" />
-                                                                    ) : (
-                                                                        <Smartphone size={12} />
-                                                                    )}
-                                                                    Sistemde Onayla
-                                                                </button>
-                                                                <a
-                                                                    href={gibPortalUrl}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="inline-flex items-center gap-1 text-xs font-semibold bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/30 px-3 py-1.5 rounded-lg transition"
-                                                                >
-                                                                    Portalda Onayla <ExternalLink size={12} />
-                                                                </a>
-                                                                <button
-                                                                    onClick={() => handleMarkAsSigned(inv)}
-                                                                    title="İmzalandı Olarak İşaretle"
-                                                                    className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-emerald-400 border border-slate-700 hover:border-emerald-500/30 rounded-lg transition"
-                                                                >
-                                                                    <CheckCircle size={12} />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleResetGibStatus(inv)}
-                                                                    title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
-                                                                    className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-500/30 rounded-lg transition"
-                                                                >
-                                                                    <RefreshCw size={12} />
-                                                                </button>
-                                                            </>
-                                                        ) : isSignedOnGib ? (
-                                                            <>
-                                                                <button
-                                                                    onClick={() => handleDownloadPdf(inv)}
-                                                                    disabled={!inv.gibUuid || isDownloadingPdf === inv.id}
-                                                                    title={inv.gibUuid ? "Faturayı Görüntüle / Yazdır" : "Sistem dışı onaylandığı için görüntülenemez"}
-                                                                    className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-sky-400 border border-slate-700 hover:border-sky-500/30 rounded-lg transition disabled:opacity-30 disabled:hover:bg-slate-800 disabled:hover:text-slate-400 disabled:hover:border-slate-700 disabled:cursor-not-allowed"
-                                                                >
-                                                                    {isDownloadingPdf === inv.id ? (
-                                                                        <RefreshCw size={12} className="animate-spin" />
-                                                                    ) : (
-                                                                        <Download size={12} />
-                                                                    )}
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleResetGibStatus(inv)}
-                                                                    title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
-                                                                    className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-red-400 border border-slate-700 hover:border-red-500/30 rounded-lg transition"
-                                                                >
-                                                                    <RefreshCw size={12} />
-                                                                </button>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <button
-                                                                    onClick={() => handleOpenSendModal(inv)}
-                                                                    disabled={isSending}
-                                                                    className="inline-flex items-center gap-1.5 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg transition disabled:opacity-50"
-                                                                >
-                                                                    {isSending ? (
-                                                                        <>
-                                                                            <RefreshCw size={12} className="animate-spin" />
-                                                                            Hazırlanıyor...
-                                                                        </>
-                                                                    ) : (
-                                                                        <>
-                                                                            GİB Taslak Hazırla
-                                                                        </>
-                                                                    )}
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleMarkAsSigned(inv)}
-                                                                    title="İmzalandı Olarak İşaretle"
-                                                                    className="p-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-emerald-400 border border-slate-700 hover:border-emerald-500/30 rounded-lg transition"
-                                                                >
-                                                                    <CheckCircle size={12} />
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
                 </div>
-            )}
+
+                {/* SAĞ PANEL: TAB BAR & İÇERİK (İçeriden Kayan Tablo) */}
+                <div className="flex-1 w-full min-w-0 flex flex-col gap-3 h-full overflow-hidden">
+                    {/* Üst Sekme Barı (Faturaları Yönet / Bağlantı Ayarları) */}
+                    <div className="flex bg-[#0c1017]/90 backdrop-blur-xl p-1.5 rounded-2xl shadow-xl border border-white/[0.08] items-center w-full sm:w-auto self-start shrink-0">
+                        <button
+                            onClick={() => setActiveSubTab('list')}
+                            className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm transition-all duration-200 justify-center whitespace-nowrap outline-none cursor-pointer group ${
+                                activeSubTab === 'list' ? 'text-white font-bold' : 'text-slate-400 font-medium hover:text-white hover:bg-white/5'
+                            }`}
+                        >
+                            {activeSubTab === 'list' && (
+                                <motion.div
+                                    layoutId="earsiv-active-tab"
+                                    className="absolute inset-0 bg-gradient-to-r from-orange-600 to-amber-500 rounded-xl border border-orange-400/40 shadow-[0_0_15px_rgba(249,115,22,0.35)]"
+                                    style={{ zIndex: 0 }}
+                                    initial={false}
+                                    transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                                />
+                            )}
+                            <FileText size={14} className={`relative z-10 transition-colors ${activeSubTab === 'list' ? 'text-white' : 'text-slate-400 group-hover:text-amber-400'}`} />
+                            <span className="relative z-10">Faturaları Yönet</span>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveSubTab('settings')}
+                            className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm transition-all duration-200 justify-center whitespace-nowrap outline-none cursor-pointer group ${
+                                activeSubTab === 'settings' ? 'text-white font-bold' : 'text-slate-400 font-medium hover:text-white hover:bg-white/5'
+                            }`}
+                        >
+                            {activeSubTab === 'settings' && (
+                                <motion.div
+                                    layoutId="earsiv-active-tab"
+                                    className="absolute inset-0 bg-gradient-to-r from-orange-600 to-amber-500 rounded-xl border border-orange-400/40 shadow-[0_0_15px_rgba(249,115,22,0.35)]"
+                                    style={{ zIndex: 0 }}
+                                    initial={false}
+                                    transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                                />
+                            )}
+                            <Key size={14} className={`relative z-10 transition-colors ${activeSubTab === 'settings' ? 'text-white' : 'text-slate-400 group-hover:text-amber-400'}`} />
+                            <span className="relative z-10">Bağlantı Ayarları</span>
+                        </button>
+                    </div>
+
+                    {/* List Tab: Üstte FINANCIA Tarzı Performans Grafiği + Altta Kayan Fatura Listesi */}
+                    {activeSubTab === 'list' && (
+                        <>
+                            {/* 1. Üst Grafik Kartı (FINANCIA / Tasks Overview Birebir Tasarımı) */}
+                            <div 
+                                className="relative overflow-hidden rounded-3xl border border-[#1e2230] p-5 shadow-2xl shadow-black/90 shrink-0 flex flex-col justify-between" 
+                                style={{ 
+                                    height: '240px',
+                                    backgroundColor: '#080a12',
+                                    backgroundImage: 'radial-gradient(ellipse 65% 55% at 0% 100%, rgba(249,115,22,0.28) 0%, transparent 70%), radial-gradient(ellipse 65% 55% at 100% 100%, rgba(249,115,22,0.28) 0%, transparent 70%)'
+                                }}
+                            >
+                                {/* Sol En Alttan Yükselen Işık Hüzmesi (Bottom-Left Corner Flare) */}
+                                <div className="absolute -bottom-20 -left-16 w-72 h-72 bg-gradient-to-tr from-orange-500/35 via-orange-500/15 to-transparent blur-[55px] pointer-events-none rounded-full" />
+                                
+                                {/* Sağ En Alttan Yükselen Işık Hüzmesi (Bottom-Right Corner Flare) */}
+                                <div className="absolute -bottom-20 -right-16 w-72 h-72 bg-gradient-to-tl from-orange-500/35 via-orange-500/15 to-transparent blur-[55px] pointer-events-none rounded-full" />
+
+                                {/* Alt Eksen Zemin Yumuşak Parıltı Şeridi */}
+                                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-orange-500/10 to-transparent pointer-events-none" />
+
+                                {/* Başlık (Minimalist & Temiz) */}
+                                <div className="flex items-center justify-between mb-2 shrink-0 relative z-10">
+                                    <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">Finansal Performans</h3>
+                                </div>
+
+                                {/* Grafik Gövdesi */}
+                                <div className="w-full flex-1 min-h-0 relative select-none z-10">
+                                    {chartData.length === 0 ? (
+                                        <div className="h-full flex items-center justify-center text-xs text-slate-500">
+                                            Henüz dönem hakediş verisi bulunamadı.
+                                        </div>
+                                    ) : (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <ComposedChart data={chartData} margin={{ top: 15, right: 15, left: -20, bottom: 0 }}>
+                                                <defs>
+                                                    {/* Dikey İğne / Barkod Dokusu (Fotoğraftaki Dikey Eşitleyici Çizgileri) */}
+                                                    <pattern id="verticalNeedlesOrange" width="4" height="1000" patternUnits="userSpaceOnUse">
+                                                        <line x1="2" y1="0" x2="2" y2="1000" stroke="#f97316" strokeWidth="1" strokeOpacity="0.40" />
+                                                    </pattern>
+                                                    
+                                                    <pattern id="verticalNeedlesFuel" width="4" height="1000" patternUnits="userSpaceOnUse">
+                                                        <line x1="2" y1="0" x2="2" y2="1000" stroke="#cbd5e1" strokeWidth="1" strokeOpacity="0.25" />
+                                                    </pattern>
+
+                                                    {/* Yumuşak Cam Gradyanı */}
+                                                    <linearGradient id="financiaIncomeGlow" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="0%" stopColor="#f97316" stopOpacity="0.40" />
+                                                        <stop offset="65%" stopColor="#f97316" stopOpacity="0.10" />
+                                                        <stop offset="100%" stopColor="#f97316" stopOpacity="0.0" />
+                                                    </linearGradient>
+                                                </defs>
+
+                                                {/* İnce Şeffaf Yatay Kılavuz Çizgileri */}
+                                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.04)" vertical={false} />
+                                                
+                                                <XAxis 
+                                                    dataKey="name" 
+                                                    stroke="#94a3b8" 
+                                                    fontSize={11} 
+                                                    tickLine={false} 
+                                                    axisLine={false} 
+                                                    dy={6}
+                                                    padding={{ left: 30, right: 30 }}
+                                                />
+                                                <YAxis 
+                                                    stroke="#64748b" 
+                                                    fontSize={10} 
+                                                    tickLine={false} 
+                                                    axisLine={false} 
+                                                    tickFormatter={(v) => v === 0 ? '0' : `${Math.round(v / 1000)}K`}
+                                                    domain={[0, 'auto']}
+                                                    dx={-4}
+                                                />
+                                                <Tooltip 
+                                                    content={<CustomChartTooltip />} 
+                                                    cursor={{ stroke: 'rgba(249, 115, 22, 0.7)', strokeWidth: 1.5, strokeDasharray: '3 3' }} 
+                                                    isAnimationActive={false}
+                                                    wrapperStyle={{ outline: 'none', pointerEvents: 'none' }}
+                                                />
+                                                
+                                                {/* 1. Dalga: Ana Hakediş & Dikey İğne Dokulu Neon Turuncu Çizgi (Fotoğraftaki Kalın Dalga) */}
+                                                <Area 
+                                                    type="monotone" 
+                                                    dataKey="income" 
+                                                    stroke="#fb923c" 
+                                                    strokeWidth={3.2} 
+                                                    fill="url(#verticalNeedlesOrange)" 
+                                                    dot={false} 
+                                                    activeDot={{ r: 5, fill: '#fb923c', stroke: '#07090e', strokeWidth: 2 }} 
+                                                    isAnimationActive={false}
+                                                />
+
+                                                {/* 2. Dalga: Mazot Gideri Düz ve Parlak Çizgi */}
+                                                <Line 
+                                                    type="monotone" 
+                                                    dataKey="fuel" 
+                                                    stroke="#e2e8f0" 
+                                                    strokeWidth={2.2} 
+                                                    dot={false} 
+                                                    activeDot={{ r: 4, fill: '#e2e8f0', stroke: '#07090e', strokeWidth: 2 }} 
+                                                    isAnimationActive={false}
+                                                />
+                                            </ComposedChart>
+                                        </ResponsiveContainer>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* 2. Alt Tablo Kartı (İçeriden Kayan Fatura Listesi) */}
+                            <div className="bg-[#0c1017]/85 backdrop-blur-xl border border-[#1e2230] rounded-2xl shadow-xl flex-1 flex flex-col overflow-hidden p-0 min-h-0">
+
+                                {isLoadingSettings ? (
+                                    <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center gap-2 m-auto">
+                                        <RefreshCw size={24} className="animate-spin text-orange-500" />
+                                        <span>Veriler yükleniyor...</span>
+                                    </div>
+                                ) : activeInvoices.length === 0 ? (
+                                    <div className="p-12 text-center text-slate-500 m-auto">
+                                        Gönderilmeyi bekleyen veya onaylanmış fatura bulunmamaktadır.
+                                    </div>
+                                ) : (
+                                    <div className="overflow-y-auto flex-1 custom-scrollbar">
+                                        <table className="w-full text-left text-sm border-collapse">
+                                            <thead className="bg-[#0b101b]/95 sticky top-0 z-10 border-b border-white/[0.06] text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                                <tr>
+                                                    <th className="py-3 px-4 font-semibold">Dönem & Operasyon</th>
+                                                    <th className="py-3 px-4 font-semibold">Hakediş Tutarı</th>
+                                                    <th className="py-3 px-4 font-semibold hidden md:table-cell">GİB Durumu</th>
+                                                    <th className="py-3 px-4 font-semibold text-right">İşlemler</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/[0.04]">
+                                                {activeInvoices.map((inv) => {
+                                                    const isDraftOnGib = inv.gibStatus === 'Draft';
+                                                    const isSignedOnGib = inv.gibStatus === 'Signed' || inv.gibStatus === 'Approved';
+                                                    const isSending = sendingInvoiceId === inv.id;
+
+                                                    return (
+                                                        <tr key={inv.id} className="hover:bg-white/[0.02] transition-colors">
+                                                            {/* 1. Sütun: Dönem & Operasyon */}
+                                                            <td className="p-4">
+                                                                {(() => {
+                                                                    const period = formatInvoicePeriod(inv.startDate, inv.endDate);
+                                                                    const tripCount = inv.trips?.length || 0;
+                                                                    const totalTon = ((inv.trips && inv.trips.length > 0) ? inv.trips.reduce((acc, t) => acc + parseTonnageInTons(t.tonnage), 0) : (inv.totalTonnage || 0)).toFixed(2);
+                                                                    return (
+                                                                        <div className="flex flex-col">
+                                                                            <span className="text-white text-sm font-bold tracking-tight">
+                                                                                {period.primary}
+                                                                            </span>
+                                                                            <span className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                                                                {tripCount > 0 ? `${tripCount} Sefer • ${totalTon} Ton` : (period.sub || '2026 Dönemi')}
+                                                                            </span>
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                            </td>
+
+                                                            {/* 2. Sütun: Hakediş Tutarı */}
+                                                            <td className="p-4">
+                                                                {(() => {
+                                                                    const est = getInvoiceEstimate(inv);
+                                                                    if (!est) {
+                                                                        return <span className="text-slate-600 font-mono text-sm">—</span>;
+                                                                    }
+                                                                    if (est.isActual) {
+                                                                        return (
+                                                                            <span className="text-white font-bold font-mono text-sm">
+                                                                                {est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                                                                            </span>
+                                                                        );
+                                                                    }
+                                                                    return (
+                                                                        <div className="flex flex-col">
+                                                                            <span className="text-slate-300 font-semibold font-mono text-sm">
+                                                                                {est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                                                                            </span>
+                                                                            <span className="text-[10px] text-slate-500 font-medium tracking-tight">
+                                                                                (Tahmini Tutar)
+                                                                            </span>
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                            </td>
+
+                                                            {/* 3. Sütun: GİB Durumu Rozeti */}
+                                                            <td className="p-4 hidden md:table-cell">
+                                                                {isDraftOnGib ? (
+                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-300 border border-orange-500/20 text-xs font-semibold">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+                                                                        GİB'de Taslak {inv.gibTestMode && "(TEST)"}
+                                                                    </span>
+                                                                ) : isSignedOnGib ? (
+                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] text-slate-200 border border-white/[0.08] text-xs font-semibold">
+                                                                        <CheckCircle size={12} className="text-slate-400" />
+                                                                        Resmi Onaylı {inv.gibTestMode && "(TEST)"}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/20 text-xs font-semibold">
+                                                                        <Clock size={12} className="text-orange-400" />
+                                                                        Taslak Bekliyor
+                                                                    </span>
+                                                                )}
+                                                            </td>
+
+                                                            {/* 4. Sütun: İşlemler & Butonlar */}
+                                                            <td className="p-4 text-right">
+                                                                <div className="flex justify-end items-center gap-2">
+                                                                    {/* Belge / PDF Yönetim Modalı Butonu */}
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setPdfModalInvoice(inv);
+                                                                            setModalFiles(inv.files || []);
+                                                                            setModalNote(inv.note || '');
+                                                                        }}
+                                                                        title={inv.files?.length > 0 ? "Fatura Belgelerini Düzenle / Görüntüle" : "Faturaya PDF / Belge Ekle"}
+                                                                        className={`p-1.5 text-xs font-semibold rounded-lg transition border cursor-pointer ${inv.files?.length > 0 ? 'bg-orange-500/15 border-orange-500/30 text-orange-400 hover:bg-orange-500/25' : 'bg-slate-800/80 border-slate-700/60 text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                                                                    >
+                                                                        <Paperclip size={13} />
+                                                                    </button>
+
+                                                                    {isDraftOnGib ? (
+                                                                        <>
+                                                                            <button
+                                                                                onClick={() => handleApproveSmsInit(inv)}
+                                                                                disabled={isApprovingSms === inv.id}
+                                                                                className="inline-flex items-center gap-1.5 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white px-3 py-1.5 rounded-xl transition disabled:opacity-50 cursor-pointer shadow-md shadow-orange-950/40"
+                                                                            >
+                                                                                {isApprovingSms === inv.id ? (
+                                                                                    <RefreshCw size={12} className="animate-spin" />
+                                                                                ) : (
+                                                                                    <Smartphone size={12} />
+                                                                                )}
+                                                                                Sistemde Onayla
+                                                                            </button>
+                                                                            <a
+                                                                                href={gibPortalUrl}
+                                                                                target="_blank" 
+                                                                                rel="noopener noreferrer" 
+                                                                                className="inline-flex items-center gap-1 text-xs font-semibold bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 px-3 py-1.5 rounded-xl transition cursor-pointer"
+                                                                            >
+                                                                                Portalda Onayla <ExternalLink size={12} />
+                                                                            </a>
+                                                                            <button
+                                                                                onClick={() => handleMarkAsSigned(inv)}
+                                                                                title="İmzalandı Olarak İşaretle"
+                                                                                className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 hover:border-orange-500/30 rounded-xl transition cursor-pointer"
+                                                                            >
+                                                                                <CheckCircle size={13} />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleResetGibStatus(inv)}
+                                                                                title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
+                                                                                className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 hover:border-slate-500 rounded-xl transition cursor-pointer"
+                                                                            >
+                                                                                <RefreshCw size={13} />
+                                                                            </button>
+                                                                        </>
+                                                                    ) : isSignedOnGib ? (
+                                                                        <>
+                                                                            <button
+                                                                                onClick={() => handleDownloadPdf(inv)}
+                                                                                disabled={!inv.gibUuid || isDownloadingPdf === inv.id}
+                                                                                title={inv.gibUuid ? "Faturayı Görüntüle / Yazdır" : "Sistem dışı onaylandığı için görüntülenemez"}
+                                                                                className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 hover:border-orange-500/30 rounded-xl transition disabled:opacity-30 disabled:hover:bg-slate-800 disabled:hover:text-slate-400 disabled:hover:border-slate-700 disabled:cursor-not-allowed cursor-pointer"
+                                                                            >
+                                                                                {isDownloadingPdf === inv.id ? (
+                                                                                    <RefreshCw size={12} className="animate-spin" />
+                                                                                ) : (
+                                                                                    <Download size={13} />
+                                                                                )}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleResetGibStatus(inv)}
+                                                                                title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
+                                                                                className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 hover:border-slate-500 rounded-xl transition cursor-pointer"
+                                                                            >
+                                                                                <RefreshCw size={13} />
+                                                                            </button>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <button
+                                                                                onClick={() => handleOpenSendModal(inv)}
+                                                                                disabled={isSending}
+                                                                                className="inline-flex items-center gap-1.5 text-xs font-bold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white px-3.5 py-1.5 rounded-xl transition disabled:opacity-50 shadow-md shadow-orange-500/25 active:scale-95 cursor-pointer"
+                                                                            >
+                                                                                {isSending ? (
+                                                                                    <>
+                                                                                        <RefreshCw size={12} className="animate-spin" />
+                                                                                        Hazırlanıyor...
+                                                                                    </>
+                                                                                ) : (
+                                                                                    <>
+                                                                                        GİB Taslak Hazırla
+                                                                                    </>
+                                                                                )}
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleMarkAsSigned(inv)}
+                                                                                title="İmzalandı Olarak İşaretle"
+                                                                                className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 hover:border-orange-500/30 rounded-xl transition cursor-pointer"
+                                                                            >
+                                                                                <CheckCircle size={13} />
+                                                                            </button>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
 
             {/* Settings Tab */}
             {activeSubTab === 'settings' && (
-                <div className="glass-panel p-6 space-y-6">
+                <div className="glass-panel flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 border border-white/[0.08] shadow-xl">
                     <div>
                         <h4 className="text-lg font-bold text-[var(--text-primary)] mb-4 flex items-center">
-                            <Key className="mr-2 text-orange-500" size={20} />
+                            <Key className="mr-2 text-amber-400" size={20} />
                             GİB Portal Giriş Bilgileri
                         </h4>
                         
                         <form onSubmit={handleSaveSettings} className="max-w-xl space-y-5">
-                            <div className="bg-orange-500/10 border border-orange-500/20 text-orange-400 p-4 rounded-xl text-xs space-y-1">
-                                <span className="font-bold flex items-center gap-1 mb-1">
-                                    <HelpCircle size={14} /> Önemli Bilgilendirme
+                            <div className="bg-amber-500/10 border border-amber-500/25 text-amber-300 p-4 rounded-2xl text-xs space-y-1 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
+                                <span className="font-bold flex items-center gap-1.5 mb-1 text-amber-400">
+                                    <HelpCircle size={15} /> Önemli Bilgilendirme
                                 </span>
                                 <p>GİB e-Arşiv şifreniz İnteraktif Vergi Dairesi (İVD) giriş şifrenizdir. Bu bilgiler SSL ile korunmakta ve fatura taslağı oluşturmak haricinde hiçbir amaçla kullanılmamaktadır.</p>
-                                <p className="mt-1 font-semibold">Lütfen canlı ortamda resmi fatura kesmeden önce **Test Modu**'nu aktif ederek deneme yapın.</p>
+                                <p className="mt-1 font-semibold text-amber-200">Lütfen canlı ortamda resmi fatura kesmeden önce **Test Modu**'nu aktif ederek deneme yapın.</p>
                             </div>
 
                             <div>
-                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
                                     Kullanıcı Kodu (VKN / TCKN)
                                 </label>
                                 <input
@@ -1109,13 +1588,13 @@ const EArsiv = () => {
                                     required
                                     value={gibUsername}
                                     onChange={(e) => setGibUsername(e.target.value)}
-                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2.5 text-sm focus:border-orange-500 outline-none"
+                                    className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 outline-none"
                                     placeholder="GİB Kullanıcı Kodunuz veya VKN/TCKN"
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
                                     GİB Portal Şifresi
                                 </label>
                                 <input
@@ -1123,26 +1602,26 @@ const EArsiv = () => {
                                     required
                                     value={gibPassword}
                                     onChange={(e) => setGibPassword(e.target.value)}
-                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2.5 text-sm focus:border-orange-500 outline-none"
+                                    className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 outline-none"
                                     placeholder="GİB / İnteraktif Vergi Dairesi Şifreniz"
                                 />
                             </div>
 
                             {/* Test Mode Switcher */}
-                            <div className="flex items-center justify-between p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-xl">
+                            <div className="flex items-center justify-between p-4 bg-slate-900/40 border border-white/[0.08] rounded-2xl">
                                 <div className="space-y-0.5">
-                                    <div className="text-sm font-semibold text-[var(--text-primary)]">GİB Test Portalı Modu</div>
+                                    <div className="text-sm font-bold text-[var(--text-primary)]">GİB Test Portalı Modu</div>
                                     <div className="text-xs text-[var(--text-secondary)]">Açık olduğunda earsivportaltest.efatura.gov.tr üzerinde işlem yapar (Resmi fatura kesilmez).</div>
                                 </div>
                                 <button
                                     type="button"
                                     onClick={() => setGibTestMode(!gibTestMode)}
-                                    className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 outline-none flex items-center ${
-                                        gibTestMode ? 'bg-orange-500' : 'bg-slate-800 border border-[var(--border-color)]'
+                                    className={`w-10 h-6 rounded-full p-0.5 transition-colors duration-200 outline-none flex items-center cursor-pointer ${
+                                        gibTestMode ? 'bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.5)]' : 'bg-slate-800 border border-[var(--border-color)]'
                                     }`}
                                 >
                                     <div
-                                        className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 ${
+                                        className={`w-5 h-5 rounded-full bg-white transition-transform duration-200 ${
                                             gibTestMode ? 'translate-x-4' : 'translate-x-0'
                                         }`}
                                     />
@@ -1152,7 +1631,7 @@ const EArsiv = () => {
                             {/* PREFERRED DEFAULTS SECTION */}
                             <div className="border-t border-[var(--border-color)] pt-6 mt-6">
                                 <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 flex items-center">
-                                    <Settings className="mr-2 text-orange-500" size={18} />
+                                    <Settings className="mr-2 text-amber-400" size={18} />
                                     Varsayılan Fatura Tercihleri
                                 </h4>
                                 
@@ -1165,7 +1644,7 @@ const EArsiv = () => {
                                             <select
                                                 value={defaultInvoiceType}
                                                 onChange={(e) => setDefaultInvoiceType(e.target.value)}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
                                             >
                                                 <option value="SATIS">SATIŞ FATURASI</option>
                                                 <option value="TEVKIFAT">TEVKİFATLI FATURA</option>
@@ -1179,7 +1658,7 @@ const EArsiv = () => {
                                             <select
                                                 value={defaultVatRate}
                                                 onChange={(e) => setDefaultVatRate(Number(e.target.value))}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
                                             >
                                                 <option value={20}>%20</option>
                                                 <option value={10}>%10</option>
@@ -1188,55 +1667,25 @@ const EArsiv = () => {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {defaultInvoiceType === 'TEVKIFAT' && (
                                         <div>
                                             <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                                Hesaplama Türü
+                                                Varsayılan Tevkifat Kodu
                                             </label>
-                                            <div className="flex gap-2 mt-1">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setDefaultIsVatIncluded(false)}
-                                                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition ${
-                                                        !defaultIsVatIncluded 
-                                                            ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' 
-                                                            : 'bg-transparent text-slate-400 border-[var(--border-color)]'
-                                                    }`}
-                                                >
-                                                    KDV Hariç
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setDefaultIsVatIncluded(true)}
-                                                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition ${
-                                                        defaultIsVatIncluded 
-                                                            ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' 
-                                                            : 'bg-transparent text-slate-400 border-[var(--border-color)]'
-                                                    }`}
-                                                >
-                                                    KDV Dahil
-                                                </button>
-                                            </div>
+                                            <select
+                                                value={defaultTevkifatKodu}
+                                                onChange={(e) => setDefaultTevkifatKodu(e.target.value)}
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
+                                            >
+                                                {TEVKIFAT_CODES.map(t => (
+                                                    <option key={t.code} value={t.code}>{t.label}</option>
+                                                ))}
+                                            </select>
                                         </div>
+                                    )}
 
-                                        {defaultInvoiceType === 'TEVKIFAT' && (
-                                            <div>
-                                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                                    Varsayılan Tevkifat Kodu
-                                                </label>
-                                                <select
-                                                    value={defaultTevkifatKodu}
-                                                    onChange={(e) => setDefaultTevkifatKodu(e.target.value)}
-                                                    className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
-                                                >
-                                                    {TEVKIFAT_CODES.map(t => (
-                                                        <option key={t.code} value={t.code}>{t.label}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        )}
-
-                                        {defaultInvoiceType === 'ISTISNA' && (
+                                    {defaultInvoiceType === 'ISTISNA' && (
+                                        <div className="space-y-4">
                                             <div>
                                                 <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
                                                     Varsayılan Muafiyet Kodu
@@ -1244,28 +1693,25 @@ const EArsiv = () => {
                                                 <select
                                                     value={defaultKdvMuafiyetKodu}
                                                     onChange={(e) => setDefaultKdvMuafiyetKodu(e.target.value)}
-                                                    className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
+                                                    className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
                                                 >
                                                     {EXEMPTION_CODES.map(e => (
                                                         <option key={e.code} value={e.code}>{e.label}</option>
                                                     ))}
                                                 </select>
                                             </div>
-                                        )}
-                                    </div>
-
-                                    {defaultInvoiceType === 'ISTISNA' && (
-                                        <div>
-                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                                Varsayılan Muafiyet Nedeni Açıklaması
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={defaultKdvMuafiyetNedeni}
-                                                onChange={(e) => setDefaultKdvMuafiyetNedeni(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2.5 text-sm focus:border-orange-500 outline-none"
-                                                placeholder="Örn: 306/1-a Maddesi Kapsamında Uluslararası Nakliye..."
-                                            />
+                                            <div>
+                                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                                                    Varsayılan Muafiyet Nedeni Açıklaması
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={defaultKdvMuafiyetNedeni}
+                                                    onChange={(e) => setDefaultKdvMuafiyetNedeni(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                    className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 outline-none"
+                                                    placeholder="Örn: 306/1-a Maddesi Kapsamında Uluslararası Nakliye..."
+                                                />
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -1274,7 +1720,7 @@ const EArsiv = () => {
                             {/* DEFAULT IBAN INFORMATION SECTION */}
                             <div className="border-t border-[var(--border-color)] pt-6 mt-6">
                                 <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 flex items-center">
-                                    <FileText className="mr-2 text-orange-500" size={18} />
+                                    <FileText className="mr-2 text-amber-400" size={18} />
                                     Fatura Notuna Eklenecek Bilgiler (İBAN & İsim)
                                 </h4>
                                 <div className="space-y-4">
@@ -1287,7 +1733,7 @@ const EArsiv = () => {
                                                 type="text"
                                                 value={defaultIban}
                                                 onChange={(e) => setDefaultIban(e.target.value)}
-                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2.5 text-sm focus:border-orange-500 outline-none"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 outline-none"
                                                 placeholder="Örn: TR86 0004 ..."
                                             />
                                         </div>
@@ -1299,7 +1745,7 @@ const EArsiv = () => {
                                                 type="text"
                                                 value={defaultIbanName}
                                                 onChange={(e) => setDefaultIbanName(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2.5 text-sm focus:border-orange-500 outline-none"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 outline-none"
                                                 placeholder="Örn: AHMET YILMAZ veya ŞİRKET UNVANI"
                                             />
                                         </div>
@@ -1313,7 +1759,7 @@ const EArsiv = () => {
                             {/* DEFAULT BUYER INFORMATION SECTION */}
                             <div className="border-t border-[var(--border-color)] pt-6 mt-6">
                                 <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 flex items-center">
-                                    <BookOpen className="mr-2 text-orange-500" size={18} />
+                                    <BookOpen className="mr-2 text-amber-400" size={18} />
                                     Varsayılan Alıcı (Müşteri) Bilgileri
                                 </h4>
                                 
@@ -1328,7 +1774,7 @@ const EArsiv = () => {
                                                 maxLength={11}
                                                 value={defaultBuyerVkn}
                                                 onChange={(e) => setDefaultBuyerVkn(e.target.value.replace(/\s/g, ''))}
-                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2.5 text-sm focus:border-orange-500 outline-none"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
                                                 placeholder="10 veya 11 haneli numara"
                                             />
                                         </div>
@@ -1340,7 +1786,7 @@ const EArsiv = () => {
                                                 type="text"
                                                 value={defaultBuyerTitle}
                                                 onChange={(e) => setDefaultBuyerTitle(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2.5 text-sm focus:border-orange-500 outline-none"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
                                                 placeholder="Şirket unvanı veya ad soyad"
                                             />
                                         </div>
@@ -1355,7 +1801,7 @@ const EArsiv = () => {
                                                 type="text"
                                                 value={defaultBuyerTaxOffice}
                                                 onChange={(e) => setDefaultBuyerTaxOffice(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2.5 text-sm focus:border-orange-500 outline-none"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
                                                 placeholder="Vergi Dairesi"
                                             />
                                         </div>
@@ -1367,7 +1813,7 @@ const EArsiv = () => {
                                                 type="text"
                                                 value={defaultBuyerDistrict}
                                                 onChange={(e) => setDefaultBuyerDistrict(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2.5 text-sm focus:border-orange-500 outline-none"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
                                                 placeholder="İlçe"
                                             />
                                         </div>
@@ -1379,7 +1825,7 @@ const EArsiv = () => {
                                                 type="text"
                                                 value={defaultBuyerCity}
                                                 onChange={(e) => setDefaultBuyerCity(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2.5 text-sm focus:border-orange-500 outline-none"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
                                                 placeholder="Şehir"
                                             />
                                         </div>
@@ -1393,7 +1839,7 @@ const EArsiv = () => {
                                             value={defaultBuyerAddress}
                                             onChange={(e) => setDefaultBuyerAddress(e.target.value.toLocaleUpperCase('tr-TR'))}
                                             rows={2}
-                                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2.5 text-sm focus:border-orange-500 outline-none resize-none"
+                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none resize-none"
                                             placeholder="Detaylı adres..."
                                         />
                                     </div>
@@ -1401,7 +1847,7 @@ const EArsiv = () => {
                             </div>
 
                             {settingsStatus.message && (
-                                <div className={`flex items-center gap-2 text-sm p-3 rounded-md border ${
+                                <div className={`flex items-center gap-2 text-sm p-3.5 rounded-xl border ${
                                     settingsStatus.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
                                 }`}>
                                     {settingsStatus.type === 'error' ? <AlertTriangle size={16}/> : <CheckCircle size={16}/>}
@@ -1412,7 +1858,7 @@ const EArsiv = () => {
                             <button
                                 type="submit"
                                 disabled={isSavingSettings}
-                                className="w-full bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/30 py-2.5 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 disabled:opacity-50"
+                                className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white py-3 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-orange-500/25 active:scale-[0.99] cursor-pointer"
                             >
                                 {isSavingSettings ? (
                                     <>
@@ -1472,6 +1918,8 @@ const EArsiv = () => {
                     </div>
                 </div>
             )}
+                    </div>
+                </div>
 
             {smsModalOpen && smsTargetInvoice && createPortal(
                 <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -1524,27 +1972,34 @@ const EArsiv = () => {
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
                     <div className="glass-panel w-full max-w-3xl max-h-[95vh] overflow-hidden shadow-2xl grid grid-rows-[auto_minmax(0,1fr)]">
                         {/* Header */}
-                        <div className="p-5 sm:p-6 border-b border-[var(--border-color)] flex items-center justify-between bg-slate-900/40 shrink-0">
-                            <div className="flex items-center gap-2">
-                                <FileText className="text-orange-500" size={20} />
-                                <span className="font-bold text-md text-[var(--text-primary)] font-mono">
-                                    GİB Taslak Hazırla - {modalStep === 1 ? "1. Adım: Bilgileri Kontrol Et" : "2. Adım: Güzergahlar ve Fiyatlar"} ({selectedInvoice.docId || selectedInvoice.id})
-                                </span>
+                        <div className="p-5 sm:p-6 border-b border-[var(--border-color)] flex items-center justify-between bg-slate-900/60 shrink-0">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                                    <FileText size={18} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-sm sm:text-base text-[var(--text-primary)]">
+                                        GİB Taslak Hazırla <span className="text-amber-400 font-normal">({modalStep === 1 ? "1. Adım: Bilgileri Kontrol Et" : "2. Adım: Güzergahlar ve Fiyatlar"})</span>
+                                    </h3>
+                                    <p className="text-[11px] text-[var(--text-secondary)] font-medium">
+                                        {trucksMap.get(selectedInvoice.truckId)?.plate || 'Araç'} • {formatInvoicePeriod(selectedInvoice.startDate, selectedInvoice.endDate).primary} ({formatInvoicePeriod(selectedInvoice.startDate, selectedInvoice.endDate).sub})
+                                    </p>
+                                </div>
                             </div>
                             <button 
                                 onClick={() => setIsModalOpen(false)}
-                                className="text-slate-400 hover:text-slate-200 p-1 bg-[var(--bg-panel-hover)] rounded-md transition"
+                                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition cursor-pointer"
                             >
-                                <X size={16} />
+                                <X size={18} />
                             </button>
                         </div>
 
                         {/* Step 1 Form */}
                         {modalStep === 1 && (
                             <form onSubmit={(e) => { e.preventDefault(); handleNextStep(); }} className="grid grid-rows-[minmax(0,1fr)_auto] overflow-hidden h-full">
-                                <div className="overflow-y-auto p-5 space-y-3 custom-scrollbar">
-                                    {/* Invoice Type and Calculation Type */}
-                                    <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_0.8fr_1.2fr] gap-4 bg-slate-900/20 p-4 border border-[var(--border-color)] rounded-xl">
+                                <div className="overflow-y-auto p-5 space-y-4 custom-scrollbar">
+                                    {/* Invoice Type, Date, VAT Rate in clean 3-col grid */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-900/30 p-4 border border-white/[0.08] rounded-2xl">
                                         <div>
                                             <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
                                                 Fatura Tarihi
@@ -1552,7 +2007,7 @@ const EArsiv = () => {
                                             <CustomDatePicker
                                                 value={invoiceDate}
                                                 onChange={setInvoiceDate}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg text-xs focus:border-orange-500 outline-none uppercase"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl text-xs focus:border-amber-500 outline-none uppercase"
                                                 placeholder="Tarih Seçin"
                                             />
                                         </div>
@@ -1563,7 +2018,7 @@ const EArsiv = () => {
                                             <select
                                                 value={invoiceType}
                                                 onChange={(e) => setInvoiceType(e.target.value)}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs focus:border-orange-500 outline-none"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs focus:border-amber-500 outline-none"
                                             >
                                                 <option value="SATIS">SATIŞ</option>
                                                 <option value="TEVKIFAT">TEVKİFAT</option>
@@ -1577,63 +2032,25 @@ const EArsiv = () => {
                                             <select
                                                 value={vatRate}
                                                 onChange={(e) => setVatRate(Number(e.target.value))}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs focus:border-orange-500 outline-none"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs focus:border-amber-500 outline-none"
                                             >
                                                 <option value={20}>%20</option>
                                                 <option value={10}>%10</option>
                                                 <option value={0}>%0</option>
                                             </select>
                                         </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                                Hesaplama Türü
-                                            </label>
-                                            <div className="flex gap-2 mt-1">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setIsVatIncluded(false)}
-                                                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition ${
-                                                        !isVatIncluded
-                                                            ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
-                                                            : 'bg-transparent text-slate-400 border-[var(--border-color)]'
-                                                    }`}
-                                                >
-                                                    KDV Hariç
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setIsVatIncluded(true)}
-                                                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition ${
-                                                        isVatIncluded
-                                                            ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
-                                                            : 'bg-transparent text-slate-400 border-[var(--border-color)]'
-                                                    }`}
-                                                >
-                                                    KDV Dahil
-                                                </button>
-                                            </div>
-                                        </div>
                                     </div>
-                                    
-                                    {isVatIncluded && (
-                                        <div className="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5 flex items-start gap-2">
-                                            <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                                            <span>
-                                                <strong>Dikkat:</strong> Asıl kullanılması gereken yöntem <strong>KDV Hariç</strong> hesaplamadır. KDV Dahil seçildiğinde girdiğiniz birim fiyatların KDV eklenmiş son tutarlar olduğunu onaylamış olursunuz.
-                                            </span>
-                                        </div>
-                                    )}
 
                                     {/* Conditionally render Tevkifat parameters */}
                                     {invoiceType === 'TEVKIFAT' && (
-                                        <div className="p-4 bg-indigo-500/5 border border-indigo-500/20 rounded-xl space-y-2">
-                                            <label className="block text-xs font-semibold text-indigo-400">
+                                        <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-2">
+                                            <label className="block text-xs font-semibold text-amber-400">
                                                 Tevkifat Kodu ve Oranı
                                             </label>
                                             <select
                                                 value={tevkifatKodu}
                                                 onChange={(e) => setTevkifatKodu(e.target.value)}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm focus:border-amber-500 outline-none"
                                             >
                                                 {TEVKIFAT_CODES.map(t => (
                                                     <option key={t.code} value={t.code}>{t.label}</option>
@@ -1644,15 +2061,15 @@ const EArsiv = () => {
 
                                     {/* Conditionally render Exemption parameters */}
                                     {invoiceType === 'ISTISNA' && (
-                                        <div className="p-4 bg-orange-500/5 border border-orange-500/20 rounded-xl space-y-3">
+                                        <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-3">
                                             <div>
-                                                <label className="block text-xs font-semibold text-orange-400 mb-1">
+                                                <label className="block text-xs font-semibold text-amber-400 mb-1">
                                                     KDV İstisna Kodu
                                                 </label>
                                                 <select
                                                     value={kdvMuafiyetKodu}
                                                     onChange={(e) => setKdvMuafiyetKodu(e.target.value)}
-                                                    className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-3 py-2 text-sm focus:border-orange-500 outline-none"
+                                                    className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm focus:border-amber-500 outline-none"
                                                 >
                                                     {EXEMPTION_CODES.map(e => (
                                                         <option key={e.code} value={e.code}>{e.label}</option>
@@ -1660,7 +2077,7 @@ const EArsiv = () => {
                                                 </select>
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-semibold text-orange-400 mb-1">
+                                                <label className="block text-xs font-semibold text-amber-400 mb-1">
                                                     KDV İstisna Nedeni Açıklaması
                                                 </label>
                                                 <input
@@ -1668,7 +2085,7 @@ const EArsiv = () => {
                                                     required
                                                     value={kdvMuafiyetNedeni}
                                                     onChange={(e) => setKdvMuafiyetNedeni(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                    className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
+                                                    className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2 text-sm focus:border-amber-500 outline-none"
                                                     placeholder="Örn: 306/1-a Maddesi Kapsamında Uluslararası Nakliye..."
                                                 />
                                             </div>
@@ -1689,7 +2106,7 @@ const EArsiv = () => {
                                                                 handleVknChange(e.target.value);
                                                             }
                                                         }}
-                                                        className="text-[10px] bg-slate-950 border border-[var(--border-color)] text-orange-400 rounded px-1.5 py-0.5 outline-none max-w-[180px] font-medium"
+                                                        className="text-[10px] bg-slate-950 border border-[var(--border-color)] text-amber-400 rounded-lg px-2 py-0.5 outline-none max-w-[180px] font-medium"
                                                         defaultValue=""
                                                     >
                                                         <option value="" disabled>Kayıtlı Müşteri Seç</option>
@@ -1708,10 +2125,10 @@ const EArsiv = () => {
                                                     maxLength={11}
                                                     value={buyerVkn}
                                                     onChange={(e) => handleVknChange(e.target.value)}
-                                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg pl-9 pr-4 py-2 text-sm focus:border-orange-500 outline-none font-mono"
+                                                    className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl pl-9 pr-4 py-2.5 text-sm focus:border-amber-500 outline-none font-mono"
                                                     placeholder="11 haneli TCKN veya 10 haneli VKN"
                                                 />
-                                                <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                                                <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={15} />
                                             </div>
                                             {buyerVkn && gibClients[buyerVkn] && (
                                                 <span className="text-[10px] text-emerald-400 mt-1 block">
@@ -1728,7 +2145,7 @@ const EArsiv = () => {
                                                 required
                                                 value={buyerTitle}
                                                 onChange={(e) => setBuyerTitle(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 outline-none"
                                                 placeholder="Şirket unvanı veya şahıs adı soyadı"
                                             />
                                         </div>
@@ -1744,7 +2161,7 @@ const EArsiv = () => {
                                                 type="text"
                                                 value={buyerTaxOffice}
                                                 onChange={(e) => setBuyerTaxOffice(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2 text-sm focus:border-amber-500 outline-none"
                                                 placeholder="Vergi Dairesi adı"
                                             />
                                         </div>
@@ -1756,7 +2173,7 @@ const EArsiv = () => {
                                                 type="text"
                                                 value={buyerDistrict}
                                                 onChange={(e) => setBuyerDistrict(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2 text-sm focus:border-amber-500 outline-none"
                                                 placeholder="İlçe veya mahalle"
                                             />
                                         </div>
@@ -1768,7 +2185,7 @@ const EArsiv = () => {
                                                 type="text"
                                                 value={buyerCity}
                                                 onChange={(e) => setBuyerCity(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none"
+                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2 text-sm focus:border-amber-500 outline-none"
                                                 placeholder="Şehir"
                                             />
                                         </div>
@@ -1782,7 +2199,7 @@ const EArsiv = () => {
                                             value={buyerAddress}
                                             onChange={(e) => setBuyerAddress(e.target.value.toLocaleUpperCase('tr-TR'))}
                                             rows={2}
-                                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none resize-none"
+                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2 text-sm focus:border-amber-500 outline-none resize-none"
                                             placeholder="Sokak, bulvar, apartman no ve detaylı adres..."
                                         />
                                     </div>
@@ -1795,24 +2212,24 @@ const EArsiv = () => {
                                             value={invoiceNote}
                                             onChange={(e) => setInvoiceNote(e.target.value)}
                                             rows={2}
-                                            className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2 text-sm focus:border-orange-500 outline-none resize-none font-mono"
+                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2 text-sm focus:border-amber-500 outline-none resize-none font-mono"
                                             placeholder="Faturaya eklenecek notlar..."
                                         />
                                     </div>
                                 </div>
 
                                 {/* Footer Buttons inside Modal - Step 1 */}
-                                <div className="p-5 sm:p-6 border-t border-[var(--border-color)] flex gap-3 bg-slate-900/20 shrink-0">
+                                <div className="p-5 sm:p-6 border-t border-[var(--border-color)] flex gap-3 bg-slate-900/40 shrink-0">
                                     <button
                                         type="button"
                                         onClick={() => setIsModalOpen(false)}
-                                        className="flex-1 bg-[var(--bg-panel-hover)] hover:bg-[var(--bg-panel-hover)]/80 text-[var(--text-secondary)] border border-[var(--border-color)] py-2.5 rounded-lg text-sm font-semibold transition"
+                                        className="flex-1 bg-white/[0.04] hover:bg-white/[0.08] text-[var(--text-secondary)] border border-white/[0.08] py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer"
                                     >
                                         Vazgeç
                                     </button>
                                     <button
                                         type="submit"
-                                        className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2"
+                                        className="flex-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 active:scale-95 cursor-pointer"
                                     >
                                         Onayla ve Devam Et
                                     </button>
@@ -1824,51 +2241,51 @@ const EArsiv = () => {
                         {modalStep === 2 && (
                             <form onSubmit={handleSendInvoiceSubmit} className="grid grid-rows-[minmax(0,1fr)_auto] overflow-hidden h-full">
                                 <div className="overflow-y-auto p-6 space-y-4 custom-scrollbar">
-                                    <div className="overflow-x-auto border border-[var(--border-color)] rounded-xl">
+                                    <div className="overflow-x-auto border border-white/[0.08] rounded-2xl">
                                         <table className="w-full text-left text-xs border-collapse">
                                             <thead>
-                                                <tr className="bg-slate-950/20 text-[var(--text-secondary)] uppercase border-b border-[var(--border-color)]">
-                                                    <th className="p-3 font-semibold">Hizmet Adı / Açıklama</th>
-                                                    <th className="p-3 font-semibold text-right">Miktar (Ton)</th>
-                                                    <th className="p-3 font-semibold text-right">Birim Fiyat (TL)</th>
-                                                    <th className="p-3 font-semibold text-right">Tutar (Matrah)</th>
+                                                <tr className="bg-slate-950/40 text-[var(--text-secondary)] uppercase border-b border-[var(--border-color)]">
+                                                    <th className="p-3 font-bold">Hizmet Adı / Açıklama</th>
+                                                    <th className="p-3 font-bold text-right">Miktar (Ton)</th>
+                                                    <th className="p-3 font-bold text-right">Birim Fiyat (TL)</th>
+                                                    <th className="p-3 font-bold text-right">Tutar (Matrah)</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-[var(--border-color)]">
                                                 {routeLines.map((line, idx) => (
-                                                    <tr key={idx} className="hover:bg-white/[0.01]">
-                                                        <td className="p-2 min-w-[320px]">
+                                                    <tr key={idx} className="hover:bg-white/[0.02]">
+                                                        <td className="p-2.5 min-w-[320px]">
                                                             <input
                                                                 type="text"
                                                                 required
                                                                 value={line.name}
                                                                 onChange={(e) => handleLineChange(idx, 'name', e.target.value)}
-                                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:border-orange-500 outline-none uppercase"
+                                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-1.5 text-xs focus:border-amber-500 outline-none uppercase font-semibold"
                                                             />
                                                         </td>
-                                                        <td className="p-2 text-right">
+                                                        <td className="p-2.5 text-right">
                                                             <input
                                                                 type="number"
                                                                 step="0.001"
                                                                 required
                                                                 value={line.quantity || ''}
                                                                 onChange={(e) => handleLineChange(idx, 'quantity', e.target.value)}
-                                                                className="w-24 bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:border-orange-500 outline-none text-right font-mono"
+                                                                className="w-24 bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-2.5 py-1.5 text-xs focus:border-amber-500 outline-none text-right font-mono font-bold"
                                                                 placeholder="0.00"
                                                             />
                                                         </td>
-                                                        <td className="p-2 text-right">
+                                                        <td className="p-2.5 text-right">
                                                             <input
                                                                 type="number"
                                                                 step="0.01"
                                                                 required
                                                                 value={line.unitPrice || ''}
                                                                 onChange={(e) => handleLineChange(idx, 'unitPrice', e.target.value)}
-                                                                className="w-24 bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-2 py-1.5 text-xs focus:border-orange-500 outline-none text-right font-mono"
+                                                                className="w-24 bg-slate-900 border border-amber-500/30 text-amber-400 rounded-xl px-2.5 py-1.5 text-xs focus:border-amber-500 outline-none text-right font-mono font-bold"
                                                                 placeholder="0.00"
                                                             />
                                                         </td>
-                                                        <td className="p-2 text-right text-emerald-400 font-bold font-mono whitespace-nowrap">
+                                                        <td className="p-2.5 text-right text-emerald-400 font-bold font-mono whitespace-nowrap">
                                                             {line.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
                                                         </td>
                                                     </tr>
@@ -1878,57 +2295,57 @@ const EArsiv = () => {
                                     </div>
 
                                     {/* Dynamic calculations summary card */}
-                                    <div className="bg-slate-900/30 p-4 border border-[var(--border-color)] rounded-xl space-y-2 text-xs">
+                                    <div className="bg-slate-900/40 p-5 border border-white/[0.08] rounded-2xl space-y-2 text-xs">
                                         <div className="flex justify-between">
                                             <span className="text-[var(--text-secondary)]">Mal Hizmet Toplam Tutarı:</span>
-                                            <span className="font-bold text-[var(--text-primary)]">{totals.base.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                            <span className="font-bold text-[var(--text-primary)] font-mono">{totals.base.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="text-[var(--text-secondary)]">Hesaplanan KDV (%{vatRate}):</span>
-                                            <span className="font-bold text-[var(--text-primary)]">{totals.vat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                            <span className="font-bold text-[var(--text-primary)] font-mono">{totals.vat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
                                         </div>
                                         
                                         {invoiceType === 'TEVKIFAT' && (
                                             <>
-                                                <div className="flex justify-between border-t border-[var(--border-color)]/30 pt-1.5 text-indigo-400">
+                                                <div className="flex justify-between border-t border-white/[0.05] pt-2 text-amber-400">
                                                     <span>Hesaplanan KDV Tevkifatı (%{TEVKIFAT_CODES.find(t => t.code === tevkifatKodu)?.rate}%):</span>
-                                                    <span className="font-bold">{totals.vatOfTax.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                                    <span className="font-bold font-mono">{totals.vatOfTax.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
                                                 </div>
                                                 <div className="flex justify-between text-slate-400">
                                                     <span>Tevkifata Tabi İşlem Tutarı:</span>
-                                                    <span className="font-semibold">{totals.base.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                                    <span className="font-semibold font-mono">{totals.base.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
                                                 </div>
                                                 <div className="flex justify-between text-slate-400">
                                                     <span>Tevkifata Tabi İşlem Üzerinden Hes. KDV:</span>
-                                                    <span className="font-semibold">{totals.vat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                                    <span className="font-semibold font-mono">{totals.vat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
                                                 </div>
                                             </>
                                         )}
                                         
-                                        <div className="flex justify-between border-t border-[var(--border-color)] pt-2">
+                                        <div className="flex justify-between border-t border-white/[0.08] pt-2.5">
                                             <span className="text-[var(--text-secondary)]">Vergiler Dahil Toplam Tutar:</span>
-                                            <span className="font-bold text-[var(--text-primary)]">{totals.withTaxes.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                            <span className="font-bold text-[var(--text-primary)] font-mono">{totals.withTaxes.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
                                         </div>
-                                        <div className="flex justify-between border-t-2 border-orange-500/30 pt-2 text-sm text-orange-400">
-                                            <span className="font-bold">Ödenecek Tutar:</span>
-                                            <span className="font-black text-md">{totals.payment.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                        <div className="flex justify-between items-center border-t-2 border-amber-500/30 pt-3 text-sm text-amber-400 bg-amber-500/5 -mx-5 -mb-5 p-4 rounded-b-2xl">
+                                            <span className="font-bold">Ödenecek Tutar (Net):</span>
+                                            <span className="font-black text-base font-mono text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]">{totals.payment.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Footer buttons inside Step 2 */}
-                                <div className="p-6 border-t border-[var(--border-color)] flex gap-3 bg-slate-900/20 shrink-0">
+                                <div className="p-5 sm:p-6 border-t border-[var(--border-color)] flex gap-3 bg-slate-900/40 shrink-0">
                                     <button
                                         type="button"
                                         onClick={() => setModalStep(1)}
-                                        className="flex-1 bg-[var(--bg-panel-hover)] hover:bg-[var(--bg-panel-hover)]/80 text-[var(--text-secondary)] border border-[var(--border-color)] py-2.5 rounded-lg text-sm font-semibold transition"
+                                        className="flex-1 bg-white/[0.04] hover:bg-white/[0.08] text-[var(--text-secondary)] border border-white/[0.08] py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer"
                                     >
                                         Geri Dön
                                     </button>
                                     <button
                                         type="submit"
                                         disabled={sendingInvoiceId === selectedInvoice.id}
-                                        className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2.5 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2"
+                                        className="flex-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 active:scale-95 disabled:opacity-50 cursor-pointer"
                                     >
                                         {sendingInvoiceId === selectedInvoice.id ? (
                                             <>
@@ -1948,49 +2365,48 @@ const EArsiv = () => {
                 </div>,
                 document.body
             )}
-        </div>
 
         {/* Manuel PDF / Belge Yönetimi Modalı */}
         {pdfModalInvoice && createPortal(
-            <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => setPdfModalInvoice(null)}>
-                <div className="bg-[#0f1117] rounded-2xl border border-orange-500/20 shadow-2xl shadow-orange-900/20 w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-                    <div className="flex justify-between items-center px-5 py-4 border-b border-white/5">
+            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[100] p-4" onClick={() => setPdfModalInvoice(null)}>
+                <div className="bg-[#0b1120] rounded-2xl border border-white/[0.08] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                    <div className="flex justify-between items-center px-5 py-4 border-b border-white/[0.08]">
                         <h3 className="font-bold flex items-center gap-2.5 text-[var(--text-primary)]">
-                            <span className="w-7 h-7 rounded-lg bg-orange-500/15 border border-orange-500/25 flex items-center justify-center flex-shrink-0">
-                                <FileText size={14} className="text-orange-400" />
+                            <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500/20 to-amber-500/20 border border-orange-500/30 flex items-center justify-center flex-shrink-0 text-amber-400 shadow-[0_0_10px_rgba(249,115,22,0.2)]">
+                                <FileText size={16} />
                             </span>
-                            <span>{pdfModalInvoice.docId || pdfModalInvoice.id} <span className="text-slate-500 font-normal">— E-Arşiv / Belge Yönetimi</span></span>
+                            <span>{pdfModalInvoice.docId || pdfModalInvoice.id} <span className="text-slate-500 font-normal text-xs">— Belge Yönetimi</span></span>
                         </h3>
-                        <button onClick={() => setPdfModalInvoice(null)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-white hover:bg-white/10 transition-all text-lg">&times;</button>
+                        <button onClick={() => setPdfModalInvoice(null)} className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all text-xl cursor-pointer">&times;</button>
                     </div>
                     <div className="p-5 space-y-4">
                         <div>
-                            <p className="text-xs text-slate-400 mb-2 flex items-center gap-1">
-                                <Paperclip size={12} className="text-orange-400" /> E-Arşiv Fatura PDF'i / Belge Yükle
+                            <p className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
+                                <Paperclip size={13} className="text-amber-400" /> E-Arşiv Fatura PDF'i / Belge Yükle
                             </p>
                             <FileUpload files={modalFiles} onChange={setModalFiles} maxSizeMB={10} />
                         </div>
                         <div>
-                            <p className="text-xs text-slate-400 mb-1.5">Fatura Notu (Opsiyonel)</p>
+                            <p className="text-xs font-semibold text-slate-300 mb-1.5">Fatura Notu (Opsiyonel)</p>
                             <textarea
                                 value={modalNote}
                                 onChange={(e) => setModalNote(e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 focus:border-orange-500/40 rounded-lg p-3 text-sm text-[var(--text-primary)] placeholder-slate-600 outline-none min-h-[80px] resize-none transition-colors"
+                                className="w-full bg-slate-900 border border-white/[0.08] focus:border-amber-500/40 rounded-xl p-3 text-sm text-[var(--text-primary)] placeholder-slate-600 outline-none min-h-[80px] resize-none transition-colors"
                                 placeholder="Not ekle... (örn: GİB'den manuel kesildi, onay belgesi eklendi vb.)"
                             />
                         </div>
                     </div>
-                    <div className="px-5 py-4 border-t border-white/5 flex justify-end gap-3">
+                    <div className="px-5 py-4 border-t border-white/[0.08] flex justify-end gap-3 bg-slate-900/40">
                         <button
                             onClick={() => setPdfModalInvoice(null)}
-                            className="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-white/8 transition-colors"
+                            className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
                         >
                             İptal
                         </button>
                         <button
                             onClick={handleSaveManualFiles}
                             disabled={isSavingPdf}
-                            className="px-5 py-2 rounded-lg text-sm font-semibold bg-orange-600 hover:bg-orange-500 text-white transition-colors shadow-lg shadow-orange-900/40 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                            className="px-5 py-2 rounded-xl text-sm font-bold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white transition-all shadow-lg shadow-orange-500/25 active:scale-95 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
                         >
                             {isSavingPdf ? (
                                 <>
