@@ -702,8 +702,8 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
 
                     {/* Sağ Kısım: Tahmini Ödenecek Tutar ve Toplam Tonaj Rozetleri */}
                     <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                        {/* Tahmini Hakediş Rozeti */}
-                        {activeInvoice && estimatedCalculation.totalCount > 0 && (
+                        {/* Tahmini Hakediş Rozeti (Sadece taslak/kesilecek faturalarda görünür, tamamlanan/imzalanan faturalarda gizlenir) */}
+                        {activeInvoice && !isViewingOldInvoice && activeInvoice.status === 'Draft' && estimatedCalculation.totalCount > 0 && (
                             <button 
                                 type="button"
                                 onClick={() => setShowPriceBreakdownModal(true)}
