@@ -636,7 +636,7 @@ function App() {
         <div className={`flex flex-col w-full ${['dashboard', 'map'].includes(activeTab) ? 'h-full overflow-hidden' : 'min-h-screen'}`}>
 
           {/* Header - Simple & Clean (sticky) */}
-          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map', 'trips', 'dashboard', 'maintenance', 'detaylar'].includes(activeTab) ? 'hidden' : ''}`}
+          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map', 'trips', 'dashboard', 'maintenance', 'detaylar', 'invoices'].includes(activeTab) ? 'hidden' : ''}`}
             style={{
               paddingTop: 'calc(0.5rem + env(safe-area-inset-top))'
             }}
@@ -667,7 +667,7 @@ function App() {
               {activeTab === 'fuel' && <Fuel onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'maintenance' && <Maintenance onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'detaylar' && <Detaylar onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'invoices' && <Invoices />}
+              {activeTab === 'invoices' && <Invoices onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'earsiv' && <EArsiv />}
               {activeTab === 'payments' && <Payments />}
               {activeTab === 'personel' && <Personnel />}
