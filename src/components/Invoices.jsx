@@ -312,23 +312,23 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                 </button>
             </div>
 
-            {/* ─── İKİ SÜTÜN DÜZEN (Sol: Kontrol & Liste, Sağ: A4 Önizleme) ─── */}
-            <div className="flex flex-col md:flex-row md:h-[calc(100vh-140px)] gap-4 md:gap-6 overflow-y-auto md:overflow-hidden">
-                {/* Sol Panel: Kontrol Merkezi & Liste */}
-                <div className="w-full md:w-[42%] lg:w-[38%] flex flex-col gap-3 md:overflow-y-auto custom-scrollbar md:pr-1">
+            {/* ─── İKİ SÜTÜN DÜZEN (Sol: Kompakt Kontrol & Liste, Sağ: Dev A4 Canvas) ─── */}
+            <div className="flex flex-col md:flex-row md:h-[calc(100vh-130px)] gap-4 md:gap-5 overflow-y-auto md:overflow-hidden">
+                {/* Sol Panel: Kompakt Kontrol Merkezi & Liste */}
+                <div className="w-full md:w-[310px] lg:w-[340px] shrink-0 flex flex-col gap-3 md:overflow-y-auto custom-scrollbar md:pr-1">
                     
                     {/* Aktif Fatura & Taslak Bilgi Kartı */}
                     {activeInvoice && (
                         <div className="p-3.5 rounded-2xl border border-white/[0.07] bg-white/[0.02] backdrop-blur-md relative overflow-hidden space-y-2.5">
                             {activeInvoice.status === 'Draft' ? (
-                                <div className="flex justify-between items-center bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl">
-                                    <div className="flex items-center gap-2">
-                                        <Clock size={14} className="text-amber-400 animate-spin" />
+                                <div className="flex justify-between items-center bg-amber-500/10 border border-amber-500/20 p-2 rounded-xl">
+                                    <div className="flex items-center gap-1.5">
+                                        <Clock size={13} className="text-amber-400 animate-spin" />
                                         <span className="text-xs font-bold text-amber-300">İşlem Bekleyen Taslak</span>
                                     </div>
                                     <button
                                         onClick={() => setShowCancelConfirm(true)}
-                                        className="text-[11px] px-2 py-0.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors font-medium cursor-pointer"
+                                        className="text-[10px] px-2 py-0.5 rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors font-medium cursor-pointer"
                                     >
                                         İptal Et
                                     </button>
@@ -337,8 +337,8 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <span className="text-xs font-mono font-bold text-emerald-400">{activeInvoice.docId}</span>
-                                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300 font-bold border border-emerald-500/20">
-                                            Aktif Seçim
+                                        <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-500/10 text-emerald-300 font-bold border border-emerald-500/20">
+                                            Aktif
                                         </span>
                                     </div>
                                     <span className="text-[11px] text-slate-400 font-mono">
@@ -350,15 +350,15 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                             {/* Tutar & Sefer Özeti */}
                             <div className="flex items-baseline justify-between pt-1">
                                 <div>
-                                    <p className="text-[11px] text-slate-400 font-medium">Fatura Tutarı</p>
-                                    <p className="text-lg font-bold font-mono text-white">
+                                    <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Fatura Tutarı</p>
+                                    <p className="text-base font-bold font-mono text-white">
                                         ₺{(netPrice || activeInvoice.grandTotal || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                                     </p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[11px] text-slate-400 font-medium">Hacim</p>
+                                    <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Hacim</p>
                                     <p className="text-xs font-mono text-slate-200">
-                                        {activeInvoice.trips?.length || 0} Sefer · {(activeInvoice.totalTonnage || 0).toFixed(2)} Ton
+                                        {activeInvoice.trips?.length || 0} Sefer · {(activeInvoice.totalTonnage || 0).toFixed(2)} T
                                     </p>
                                 </div>
                             </div>
@@ -368,14 +368,14 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                 <button
                                     type="button"
                                     onClick={handlePrintPDF}
-                                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-white/[0.04] hover:bg-white/10 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-white/10 transition-colors cursor-pointer"
+                                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-white/[0.04] hover:bg-white/10 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-white/10 transition-colors cursor-pointer"
                                 >
                                     <Printer size={13} />
-                                    <span>PDF İndir</span>
+                                    <span>Yazdır / PDF</span>
                                 </button>
 
                                 {activeInvoice.status === 'Sent' ? (
-                                    <button disabled type="button" className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-emerald-500/10 text-emerald-400 rounded-xl text-xs font-semibold border border-emerald-500/20 opacity-90 cursor-default">
+                                    <button disabled type="button" className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-emerald-500/10 text-emerald-400 rounded-xl text-xs font-semibold border border-emerald-500/20 opacity-90 cursor-default">
                                         <CheckCircle size={13} />
                                         <span>Onaylandı</span>
                                     </button>
@@ -383,7 +383,7 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                     <button
                                         type="button"
                                         onClick={handleSaveInvoice}
-                                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all border border-emerald-400/30 shadow-md shadow-emerald-600/20 cursor-pointer"
+                                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all border border-emerald-400/30 shadow-md shadow-emerald-600/20 cursor-pointer"
                                     >
                                         <Save size={13} />
                                         <span>Kes & Onayla</span>
@@ -394,56 +394,56 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                     )}
 
                     {/* Geçmiş Faturalar Listesi */}
-                    <div className="p-3 sm:p-4 rounded-2xl border border-white/[0.07] bg-white/[0.015] backdrop-blur-md flex-1 min-h-0 flex flex-col space-y-2">
+                    <div className="p-3 sm:p-3.5 rounded-2xl border border-white/[0.07] bg-white/[0.015] backdrop-blur-md flex-1 min-h-0 flex flex-col space-y-2">
                         <div className="flex items-center justify-between pb-2 border-b border-white/[0.05]">
                             <div className="flex items-center gap-2">
-                                <CheckCircle size={15} className="text-emerald-400" />
-                                <h4 className="font-bold text-xs sm:text-sm text-slate-200">Tamamlanan Faturalar</h4>
+                                <CheckCircle size={14} className="text-emerald-400" />
+                                <h4 className="font-bold text-xs text-slate-200">Tamamlanan Faturalar</h4>
                             </div>
-                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.04] text-slate-400 font-mono">
-                                {(invoices || []).filter(inv => !inv.deleted).length} Fatura
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/[0.04] text-slate-400 font-mono">
+                                {(invoices || []).filter(inv => !inv.deleted).length}
                             </span>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-1">
+                        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-0.5">
                             {(invoices || []).length > 0 ? (invoices || []).filter(inv => !inv.deleted).map((inv) => {
                                 const isActive = activeInvoice?.id === inv.id && isViewingOldInvoice;
                                 return (
                                     <div
                                         key={inv.id}
                                         onClick={() => handleViewInvoice(inv)}
-                                        className={`p-3 rounded-xl border transition-all duration-150 cursor-pointer ${
+                                        className={`p-2.5 rounded-xl border transition-all duration-150 cursor-pointer ${
                                             isActive
                                                 ? 'bg-white/[0.06] border-white/20 shadow-md shadow-white/5'
                                                 : 'bg-white/[0.015] border-white/[0.05] hover:bg-white/[0.03] hover:border-white/10'
                                         }`}
                                     >
-                                        <div className="flex items-start justify-between gap-2">
+                                        <div className="flex items-start justify-between gap-1.5">
                                             <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-2 flex-wrap">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
                                                     <span className={`text-xs font-bold font-mono ${isActive ? 'text-emerald-400' : 'text-slate-200'}`}>
                                                         {inv.docId}
                                                     </span>
-                                                    <span className="text-[11px] font-mono text-slate-500">
+                                                    <span className="text-[10px] font-mono text-slate-500">
                                                         {inv.endDate ? new Date(inv.endDate).toLocaleDateString('tr-TR') : ''}
                                                     </span>
                                                 </div>
 
-                                                <div className="flex items-baseline gap-2 mt-1">
-                                                    <span className="text-sm font-bold font-mono text-white">
+                                                <div className="flex items-baseline gap-1.5 mt-0.5">
+                                                    <span className="text-xs font-bold font-mono text-white">
                                                         ₺{(inv.grandTotal || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                                                     </span>
-                                                    <span className="text-[11px] text-slate-400 font-mono">
-                                                        · {inv.trips?.length || 0} Sefer ({(inv.totalTonnage || 0).toFixed(2)} Ton)
+                                                    <span className="text-[10px] text-slate-400 font-mono">
+                                                        · {inv.trips?.length || 0} Sefer ({(inv.totalTonnage || 0).toFixed(1)} T)
                                                     </span>
                                                 </div>
                                             </div>
 
                                             {/* Aksiyon İkonları */}
-                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                            <div className="flex items-center gap-0.5 flex-shrink-0">
                                                 {inv.files?.length > 0 && (
                                                     <span className="p-1 text-emerald-400" title="PDF Belgesi Var">
-                                                        <Paperclip size={13} />
+                                                        <Paperclip size={12} />
                                                     </span>
                                                 )}
                                                 <button
@@ -454,26 +454,26 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                                         setModalNote(inv.note || '');
                                                         setModalFiles(inv.files || []);
                                                     }}
-                                                    className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                                                    className="p-1 text-slate-400 hover:text-white rounded-md hover:bg-white/10 transition-colors cursor-pointer"
                                                     title="Düzenle / Not & Belge"
                                                 >
-                                                    <StickyNote size={14} />
+                                                    <StickyNote size={13} />
                                                 </button>
                                                 <button
                                                     type="button"
                                                     onClick={(e) => handleDeleteInvoice(inv.id, inv.docId, e)}
-                                                    className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
+                                                    className="p-1 text-slate-500 hover:text-red-400 rounded-md hover:bg-red-500/10 transition-colors cursor-pointer"
                                                     title="Faturayı Sil"
                                                 >
-                                                    <Trash2 size={14} />
+                                                    <Trash2 size={13} />
                                                 </button>
                                             </div>
                                         </div>
                                     </div>
                                 );
                             }) : (
-                                <div className="text-center py-10 text-slate-500 text-xs">
-                                    <FileText size={28} className="mx-auto mb-2 opacity-30 text-slate-400" />
+                                <div className="text-center py-8 text-slate-500 text-xs">
+                                    <FileText size={24} className="mx-auto mb-2 opacity-30 text-slate-400" />
                                     Henüz kesilmiş fatura yok.
                                 </div>
                             )}
@@ -481,8 +481,8 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                     </div>
                 </div>
 
-                {/* Sağ Panel: A4 Sefer Dökümü veya PDF İzleyici */}
-                <div className="w-full md:w-[58%] lg:w-[62%] p-3 sm:p-4 rounded-2xl border border-white/[0.07] bg-white/[0.01] backdrop-blur-md relative flex flex-col items-center justify-center min-h-[500px] md:min-h-0 overflow-hidden">
+                {/* Sağ Panel: Dev Odaklı A4 Tuvali (Canvas) */}
+                <div className="flex-1 w-full h-[calc(100vh-140px)] rounded-2xl border border-white/[0.07] bg-[#07090e]/80 backdrop-blur-md relative flex flex-col items-center justify-center overflow-hidden p-1 sm:p-2 shadow-2xl">
                     {activeInvoice ? (
                         viewMode === 'pdf' && activeInvoice.files && activeInvoice.files.length > 0 ? (
                             <div className="w-full h-full">
@@ -511,10 +511,10 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                         )
                     ) : (
                         <div className="text-center flex flex-col items-center justify-center text-slate-500 py-16">
-                            <FileText size={40} className="mb-3 opacity-25 text-slate-400" />
-                            <p className="text-sm font-semibold text-slate-300 mb-1">Fatura Önizlemesi Yok</p>
+                            <FileText size={48} className="mb-3 opacity-20 text-slate-400" />
+                            <p className="text-sm font-semibold text-slate-300 mb-1">A4 Fatura Dökümü Önizlemesi</p>
                             <p className="text-xs text-slate-500 max-w-xs">
-                                Sol menüden geçmiş bir faturaya tıklayın veya "Yeni Fatura Periyodu Seç" butonundan yeni periyot başlatın.
+                                Sol menüden geçmiş bir faturaya tıklayın veya "Yeni Fatura Periyodu Seç" butonundan yeni döküm oluşturun.
                             </p>
                         </div>
                     )}
