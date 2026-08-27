@@ -383,7 +383,11 @@ export default async function handler(req, res) {
             gibStatusDate: new Date().toISOString(),
             gibTestMode: gibTestMode,
             buyerVkn: cleanBuyerVkn,
-            buyerTitle: (buyer.buyerTitle || '').trim()
+            buyerTitle: (buyer.buyerTitle || '').trim(),
+            grandTotal: paymentPrice,
+            netAmount: basePrice,
+            vatAmount: vatAmount,
+            includedTaxesTotalPrice: includedTaxesTotalPrice
         };
         // Save the invoiceDate so sign-gib-invoice knows exactly what date to search around!
         if (date) {
