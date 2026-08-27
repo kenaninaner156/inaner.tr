@@ -79,8 +79,57 @@ export default async function handler(req, res) {
             await api.initAccessToken();
 
             const isSigned = invoiceData.gibStatus === 'Signed' || invoiceData.gibStatus === 'Approved';
+            let realUuid = invoiceData.gibUuid;
 
-            const htmlString = await api.getInvoiceHtml(invoiceData.gibUuid, isSigned, true);
+            let htmlString;
+            try {
+                htmlString = await api.getInvoiceHtml(realUuid, isSigned, true);
+            } catch (err) {
+                console.warn("[download-gib-pdf] Direct getInvoiceHtml failed, attempting fallback UUID lookup...", err.message);
+                let targetDate;
+                if (invoiceData.invoiceDate) targetDate = new Date(invoiceData.invoiceDate);
+                else if (invoiceData.date) targetDate = new Date(invoiceData.date);
+                else if (invoiceData.endDate) targetDate = new Date(invoiceData.endDate);
+                else if (invoiceData.startDate) targetDate = new Date(invoiceData.startDate);
+                else if (invoiceData.createdAt) targetDate = new Date(invoiceData.createdAt);
+                else targetDate = new Date();
+
+                const startDate = new Date(targetDate);
+                startDate.setDate(startDate.getDate() - 14);
+                const endDate = new Date(targetDate);
+                endDate.setDate(endDate.getDate() + 14);
+
+                let drafts = [];
+                try {
+                    drafts = await api.getBasicInvoices({ startDate, endDate });
+                } catch (dErr) {}
+
+                if (!drafts || drafts.length === 0) {
+                    try {
+                        const today = new Date();
+                        const past28 = new Date(today);
+                        past28.setDate(past28.getDate() - 28);
+                        drafts = await api.getBasicInvoices({ startDate: past28, endDate: today });
+                    } catch (dErr2) {}
+                }
+
+                const buyerVkn = (invoiceData.buyerVkn || invoiceData.buyer?.taxOrIdentityNumber || invoiceData.taxOrIdentityNumber || '').replace(/\s/g, '').trim();
+                let found = (drafts || []).find(d => (d.uuid === realUuid || d.ettn === realUuid));
+                if (!found && buyerVkn) {
+                    found = (drafts || []).find(d => (d.taxOrIdentityNumber || d.aliciVknTckn || '').replace(/\s/g, '').trim() === buyerVkn);
+                }
+                if (!found && drafts && drafts.length === 1) {
+                    found = drafts[0];
+                }
+
+                if (found && (found.uuid || found.ettn)) {
+                    realUuid = found.uuid || found.ettn;
+                    await invoiceRef.update({ gibUuid: realUuid });
+                    htmlString = await api.getInvoiceHtml(realUuid, isSigned, true);
+                } else {
+                    throw err;
+                }
+            }
             
             try { await api.logout(); } catch (e) {}
 

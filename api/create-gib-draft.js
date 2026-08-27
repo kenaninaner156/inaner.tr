@@ -335,44 +335,61 @@ export default async function handler(req, res) {
         try {
             const targetDate = date ? new Date(date) : new Date();
             const sDate = new Date(targetDate);
-            sDate.setDate(sDate.getDate() - 2);
+            sDate.setDate(sDate.getDate() - 14);
             const eDate = new Date(targetDate);
-            eDate.setDate(eDate.getDate() + 2);
+            eDate.setDate(eDate.getDate() + 14);
             
-            // Search the recent drafts around the invoice date
+            // Search the recent drafts around the invoice date (28-day window)
             const recentDrafts = await api.getBasicInvoices({ startDate: sDate, endDate: eDate });
             
-            // Match the newly created draft by VKN and Status (Onaylanmadı).
-            // NOTE: GIB's basic list API does NOT return odenecekTutar!
-            // We use .reverse().find() to get the MOST RECENTLY CREATED draft in case there are multiple unsigned drafts.
-            const matchedDraft = [...recentDrafts].reverse().find(draft => 
-                draft.aliciVknTckn === buyer.taxOrIdentityNumber.trim() &&
-                draft.onayDurumu === 'Onaylanmadı'
-            );
+            const cleanBuyerVkn = (buyer.taxOrIdentityNumber || '').replace(/\s/g, '').trim();
+
+            // Match the newly created draft by VKN and Status (Onaylanmadı / UNAPPROVED).
+            // Support both camelCase mapped keys (taxOrIdentityNumber, approvalStatus, uuid)
+            // and raw Turkish keys (aliciVknTckn, onayDurumu, ettn).
+            const matchedDraft = [...recentDrafts].reverse().find(draft => {
+                const draftVkn = (draft.taxOrIdentityNumber || draft.aliciVknTckn || '').replace(/\s/g, '').trim();
+                const draftStatus = draft.approvalStatus || draft.onayDurumu || '';
+                return draftVkn === cleanBuyerVkn && (draftStatus === 'Onaylanmadı' || draftStatus.toLowerCase().includes('onaylanma'));
+            });
             
-            if (matchedDraft && matchedDraft.ettn) {
-                realGibUuid = matchedDraft.ettn;
+            if (matchedDraft && (matchedDraft.uuid || matchedDraft.ettn)) {
+                realGibUuid = matchedDraft.uuid || matchedDraft.ettn;
                 console.log("[GIB] Real UUID found for newly created draft:", realGibUuid);
+            } else if (recentDrafts.length > 0) {
+                // If VKN matching failed, check if there's an unapproved draft
+                const unapproved = [...recentDrafts].reverse().find(draft => {
+                    const draftStatus = draft.approvalStatus || draft.onayDurumu || '';
+                    return draftStatus === 'Onaylanmadı' || draftStatus.toLowerCase().includes('onaylanma');
+                });
+                if (unapproved && (unapproved.uuid || unapproved.ettn)) {
+                    realGibUuid = unapproved.uuid || unapproved.ettn;
+                    console.log("[GIB] Unapproved draft UUID matched:", realGibUuid);
+                } else {
+                    console.warn("[GIB] Could not match newly created draft to get real UUID. Using fallback.");
+                }
             } else {
-                console.warn("[GIB] Could not match newly created draft to get real UUID. Using fallback.");
+                console.warn("[GIB] No drafts returned in date window. Using fallback UUID.");
             }
         } catch (fetchErr) {
             console.error("[GIB] Error fetching real UUID after creation:", fetchErr);
         }
 
         // 8. Fatura Belgesini Firestore'da Guncelle
+        const cleanBuyerVkn = (buyer.taxOrIdentityNumber || '').replace(/\s/g, '').trim();
         const updateData = {
             gibUuid: realGibUuid,
             gibStatus: 'Draft',
             gibStatusDate: new Date().toISOString(),
-            gibTestMode: gibTestMode
+            gibTestMode: gibTestMode,
+            buyerVkn: cleanBuyerVkn,
+            buyerTitle: (buyer.buyerTitle || '').trim()
         };
         // Save the invoiceDate so sign-gib-invoice knows exactly what date to search around!
         if (date) {
-            updateData.invoiceDate = new Date(date).toISOString();
+            updateData.invoiceDate = date;
         } else {
-            // If no date was provided, it defaulted to today
-            updateData.invoiceDate = new Date().toISOString();
+            updateData.invoiceDate = new Date().toISOString().split('T')[0];
         }
 
         await db.collection('invoices').doc(invoiceId).update(updateData);

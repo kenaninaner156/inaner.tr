@@ -1,112 +1,60 @@
 import { db } from './api/firebaseAdmin.js';
 import { EInvoiceApi } from 'e-fatura';
-import fs from 'fs';
 
 async function run() {
+    let api = null;
     try {
-        console.log("Fetching invoice from Firestore...");
+        console.log("=== FIRESTORE INVOICES ===");
+        const snap = await db.collection('invoices').get();
+        console.log(`Total invoices in Firestore: ${snap.docs.length}`);
         
-        // Find the most recent draft invoice without ordering to avoid index errors
-        const invoicesSnapshot = await db.collection('invoices')
-            .where('gibStatus', '==', 'Draft')
-            .get();
-            
-        if (invoicesSnapshot.empty) {
-            console.log("No draft invoices found in Firestore.");
-            return;
+        let targetInvoiceDoc = null;
+        for (const doc of snap.docs) {
+            const data = doc.data();
+            if (data.gibStatus || data.startDate?.includes('08') || data.endDate?.includes('08') || Number(data.grandTotal) > 300000) {
+                console.log(`Invoice Doc ID: ${doc.id}`);
+                console.log(`  gibStatus: ${data.gibStatus}`);
+                console.log(`  gibUuid: ${data.gibUuid}`);
+                console.log(`  invoiceDate: ${data.invoiceDate}`);
+                console.log(`  startDate: ${data.startDate}, endDate: ${data.endDate}`);
+                console.log(`  grandTotal: ${data.grandTotal}`);
+                console.log(`  companyId: ${data.companyId}`);
+                console.log(`  buyerVkn: ${data.buyerVkn}`);
+                if (data.gibStatus === 'Draft' || !targetInvoiceDoc) {
+                    targetInvoiceDoc = doc;
+                }
+            }
         }
 
-        console.log(`Found ${invoicesSnapshot.docs.length} draft invoices in Firestore:`);
-        invoicesSnapshot.docs.forEach(doc => {
-            console.log(`- ${doc.id}: gibUuid=${doc.data().gibUuid}, date=${doc.data().invoiceDate}`);
-        });
-
-        const invoiceDoc = invoicesSnapshot.docs[0];
-        const invoiceData = invoiceDoc.data();
-        console.log("Found invoice:", invoiceDoc.id);
-        console.log("gibUuid:", invoiceData.gibUuid);
-        console.log("invoiceDate:", invoiceData.invoiceDate);
-        console.log("createdAt:", invoiceData.createdAt);
-        console.log("companyId:", invoiceData.companyId);
-
-        console.log("\nFetching company credentials...");
-        // Fallback checks for company info
-        const companySettingsDocId = invoiceData.companyId === 'inaner_logistics' ? 'info' : `${invoiceData.companyId}_info`;
-        const settingsDoc = await db.collection('company_data').doc(companySettingsDocId).get();
-
-        if (!settingsDoc.exists) {
-            console.log("Company settings not found.");
+        const infoDoc = await db.collection('company_data').doc('info').get();
+        if (!infoDoc.exists) {
+            console.log("No info doc found.");
             return;
         }
-        
-        console.log("Settings data:", settingsDoc.data());
+        const settings = infoDoc.data();
+        console.log("\n=== GIB SETTINGS ===");
+        console.log("gibUsername:", settings.gibUsername);
+        console.log("gibTestMode:", settings.gibTestMode);
 
-        const gibUsername = settingsDoc.data().gibUsername;
-        const gibPassword = settingsDoc.data().gibPassword;
-        const gibTestMode = settingsDoc.data().gibTestMode || false;
-        
-        console.log("Test mode:", gibTestMode);
+        api = new EInvoiceApi();
+        api.setCredentials({ username: settings.gibUsername, password: settings.gibPassword });
+        api.setTestMode(settings.gibTestMode || false);
 
-        const api = new EInvoiceApi();
-        api.setCredentials({ username: gibUsername, password: gibPassword });
-        api.setTestMode(gibTestMode);
-        
         console.log("\nLogging in to GIB...");
         await api.initAccessToken();
-        console.log("Logged in!");
+        console.log("Logged in to GIB! Token:", api.token);
 
-        // Try getting ALL basic invoices for the last 30 days
-        let eDate = new Date();
-        let sDate = new Date();
-        sDate.setDate(eDate.getDate() - 30);
-        
-        console.log("\nQuerying basic invoices from", sDate.toISOString(), "to", eDate.toISOString());
-        
-        const invoices = await api.getBasicInvoices({
-            startDate: sDate,
-            endDate: eDate
+        console.log("\nPatching invoice A8qd8cfhH7aT4VUoK8xh with real GIB UUID 1d14eeb9-2967-4649-a946-f471ba70e451...");
+        await db.collection('invoices').doc('A8qd8cfhH7aT4VUoK8xh').update({
+            gibUuid: '1d14eeb9-2967-4649-a946-f471ba70e451',
+            buyerVkn: '7720698422',
+            invoiceDate: '2026-08-21T00:00:00.000Z'
         });
-        
-        console.log(`Found ${invoices.length} invoices on GIB!`);
-        for (const inv of invoices) {
-            console.log(` - UUID: ${inv.uuid}, Date: ${inv.date}, Buyer: ${inv.buyerTitle}, Status: ${inv.approvalStatus}, Amount: ${inv.odenecekTutar}`);
-            // Let's also print the raw object mapping to see odenecekTutar format
-        }
-        
-        // Let's fetch basic invoices again without mapping to see raw output
-        const uuidModule = await import('uuid');
-        const rawInvoices = await api.sendRequest(api.constructor.DISPATCH_PATH, {
-            cmd: 'EARSIV_PORTAL_TASLAKLARI_GETIR',
-            callid: uuidModule.v1(),
-            pageName: 'RG_BASITTASLAKLAR',
-            token: api.token,
-            jp: JSON.stringify({
-                baslangic: '01/07/2026',
-                bitis: '07/08/2026',
-                hangiTip: '5000/30000',
-                table: []
-            })
-        });
-        
-        if (rawInvoices && rawInvoices.data) {
-            const draft = rawInvoices.data.find(d => d.ettn === '1be09b37-ef8b-4f8d-af7a-1363c22b660f');
-            console.log("RAW DRAFT FROM GIB:");
-            console.dir(draft, { depth: null });
-        }
-        
-        console.log("\nPatching the stuck invoice in Firestore with the real UUID...");
-        try {
-            await invoiceDoc.ref.update({
-                gibUuid: '6fc95e44-0e52-4a4b-bc7b-4212ed28a1f2'
-            });
-            console.log("SUCCESS! Invoice gibUuid updated to the real UUID!");
-        } catch (err) {
-            console.error("FAILED to patch invoice:", err.message);
-        }
-
+        console.log("SUCCESS! Firestore updated!");
     } catch (err) {
-        console.error("Script error:", err);
+        console.error("Inspect error:", err);
     }
 }
 
 run();
+

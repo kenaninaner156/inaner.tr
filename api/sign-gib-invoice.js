@@ -80,12 +80,16 @@ export default async function handler(req, res) {
         await api.initAccessToken();
 
         // 3. Find BasicInvoice
-        // e-fatura library defaults to today's date if no filter is provided.
-        // GIB portal REJECTS queries larger than 1 month, returning an empty list!
-        // We must query a narrow window around the invoice's actual date.
+        // Determine target date from invoiceDate, date, endDate, startDate, or createdAt
         let targetDate;
         if (invoiceData.invoiceDate) {
             targetDate = new Date(invoiceData.invoiceDate);
+        } else if (invoiceData.date) {
+            targetDate = new Date(invoiceData.date);
+        } else if (invoiceData.endDate) {
+            targetDate = new Date(invoiceData.endDate);
+        } else if (invoiceData.startDate) {
+            targetDate = new Date(invoiceData.startDate);
         } else if (invoiceData.createdAt) {
             targetDate = new Date(invoiceData.createdAt);
         } else {
@@ -93,19 +97,88 @@ export default async function handler(req, res) {
         }
         
         // GIB portal REJECTS queries larger than 1 month, returning an empty list!
-        // So we query a safe 30-day window ending a few days after targetDate.
+        // We query a safe 28-day window around targetDate.
         let startDate = new Date(targetDate);
-        startDate.setDate(startDate.getDate() - 25); // 25 days before
+        startDate.setDate(startDate.getDate() - 14);
         
         let endDate = new Date(targetDate);
-        endDate.setDate(endDate.getDate() + 5); // 5 days after
-        
-        const basicInvoice = await api.findBasicInvoice(invoiceData.gibUuid, {
-            startDate: startDate,
-            endDate: endDate
-        });
+        endDate.setDate(endDate.getDate() + 14);
+
+        let basicInvoice = null;
+
+        // Try direct findBasicInvoice first
+        if (invoiceData.gibUuid) {
+            try {
+                basicInvoice = await api.findBasicInvoice(invoiceData.gibUuid, {
+                    startDate: startDate,
+                    endDate: endDate
+                });
+            } catch (findErr) {
+                console.warn("[sign-gib-invoice] Direct UUID search failed, attempting fallback resolution...", findErr.message);
+            }
+        }
+
+        // Fallback: If not found directly, search drafts in targetDate window and current window
         if (!basicInvoice) {
-            throw new Error("GIB portalinda fatura bulunamadi.");
+            let drafts = [];
+            try {
+                drafts = await api.getBasicInvoices({ startDate: startDate, endDate: endDate });
+            } catch (dErr) {
+                console.warn("[sign-gib-invoice] Error getting drafts around targetDate:", dErr.message);
+            }
+
+            // If empty, also try the last 28 days from today
+            if (!drafts || drafts.length === 0) {
+                try {
+                    const today = new Date();
+                    const past28 = new Date(today);
+                    past28.setDate(past28.getDate() - 28);
+                    drafts = await api.getBasicInvoices({ startDate: past28, endDate: today });
+                } catch (dErr2) {
+                    console.warn("[sign-gib-invoice] Error getting drafts from last 28 days:", dErr2.message);
+                }
+            }
+
+            if (drafts && drafts.length > 0) {
+                // 1. Try matching by UUID (stored gibUuid)
+                let found = drafts.find(d => (d.uuid === invoiceData.gibUuid || d.ettn === invoiceData.gibUuid));
+                
+                // 2. Try matching by Buyer VKN for unapproved drafts
+                if (!found) {
+                    const buyerVkn = (invoiceData.buyerVkn || invoiceData.buyer?.taxOrIdentityNumber || invoiceData.taxOrIdentityNumber || '').replace(/\s/g, '').trim();
+                    if (buyerVkn) {
+                        found = [...drafts].reverse().find(d => {
+                            const dVkn = (d.taxOrIdentityNumber || d.aliciVknTckn || '').replace(/\s/g, '').trim();
+                            const dStatus = d.approvalStatus || d.onayDurumu || '';
+                            return dVkn === buyerVkn && (dStatus === 'Onaylanmadı' || dStatus.toLowerCase().includes('onaylanma'));
+                        });
+                    }
+                }
+
+                // 3. If there is only one unapproved draft in total, pick it
+                if (!found) {
+                    const unapprovedDrafts = drafts.filter(d => {
+                        const dStatus = d.approvalStatus || d.onayDurumu || '';
+                        return dStatus === 'Onaylanmadı' || dStatus.toLowerCase().includes('onaylanma');
+                    });
+                    if (unapprovedDrafts.length === 1) {
+                        found = unapprovedDrafts[0];
+                    }
+                }
+
+                if (found) {
+                    basicInvoice = found;
+                    const realUuid = found.uuid || found.ettn;
+                    if (realUuid && realUuid !== invoiceData.gibUuid) {
+                        console.log(`[sign-gib-invoice] Successfully recovered real UUID: ${realUuid}`);
+                        await invoiceRef.update({ gibUuid: realUuid });
+                    }
+                }
+            }
+        }
+
+        if (!basicInvoice) {
+            throw new Error("GİB portalında onaylanacak taslak fatura bulunamadı. Lütfen faturanın GİB portalında mevcut olduğundan ve henüz onaylanmadığından emin olun.");
         }
 
         // 4. Sign Invoice
