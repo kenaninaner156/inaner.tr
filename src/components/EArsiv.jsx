@@ -327,10 +327,18 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         // Map routeSummary to routeLines (Standart KDV Hariç)
         const initialLines = routeSummary.map(r => {
             const key = `${r.from.trim()}|||${r.to.trim()}`;
-            const existingLine = routeLines.find(l => l.from === r.from && l.to === r.to);
-            const cached = history[key] || {};
+            const defaultOldName = `${r.from} ${r.to} NAKLİYESİ`.toUpperCase();
+            const defaultNewName = `${r.from} ${r.to} UÇUCU KÜL NAKLİYESİ`.toUpperCase();
             
-            const name = existingLine?.name || cached.name || `${r.from} ${r.to} NAKLİYESİ`.toUpperCase();
+            let name;
+            if (existingLine?.name) {
+                name = existingLine.name;
+            } else if (cached.name && cached.name.trim() !== defaultOldName.trim()) {
+                name = cached.name;
+            } else {
+                name = defaultNewName;
+            }
+
             const unitPrice = existingLine !== undefined ? existingLine.unitPrice : (cached.unitPrice || 0);
             
             const quantity = Number(r.tonnage.toFixed(2));

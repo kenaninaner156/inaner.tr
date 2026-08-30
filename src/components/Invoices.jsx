@@ -182,10 +182,19 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
         setIsSavingRoutePrice(true);
         try {
             const key = `${(from || '').trim()}|||${(to || '').trim()}`;
+            const existingName = routeHistory?.[key]?.name;
+            const defaultOldName = `${from} ${to} NAKLİYESİ`.toUpperCase();
+            const defaultNewName = `${from} ${to} UÇUCU KÜL NAKLİYESİ`.toUpperCase();
+
+            let targetName = defaultNewName;
+            if (existingName && existingName.trim() !== defaultOldName.trim()) {
+                targetName = existingName;
+            }
+
             const updatedHistory = {
                 ...(routeHistory || {}),
                 [key]: {
-                    name: `${from} ${to} NAKLİYESİ`.toUpperCase(),
+                    name: targetName,
                     unitPrice: numPrice
                 }
             };
