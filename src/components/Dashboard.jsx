@@ -1,4 +1,4 @@
-import React, { useContext, useState, useMemo } from 'react';
+import React, { useContext, useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -920,9 +920,13 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                     <div className="space-y-2">
                         {recentTrips.map((trip, idx) => {
                             const dateObj = trip.date ? new Date(trip.date) : null;
-                            const dateFormatted = dateObj ? `${dateObj.getDate()} ${MONTHS_SHORT[dateObj.getMonth()]}` : '—';
+                            const isValidDate = dateObj && !isNaN(dateObj.getTime());
+                            const dateFormatted = isValidDate ? `${dateObj.getDate()} ${MONTHS_SHORT[dateObj.getMonth()] || ''}` : '—';
                             const routeText = (trip.from && trip.to) ? `${trip.from} → ${trip.to}` : (trip.route || trip.from || trip.to || 'Bölgesel Sefer');
                             const tonnageVal = trip.tonnage ? parseTonnageInTons(trip.tonnage) : null;
+                            const rawPrice = trip.price ?? trip.freightPrice;
+                            const priceNum = rawPrice !== undefined && rawPrice !== null && rawPrice !== '' ? Number(rawPrice) : null;
+                            const validPrice = priceNum !== null && !isNaN(priceNum) && priceNum > 0 ? priceNum : null;
 
                             return (
                                 <div 
@@ -950,9 +954,9 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                                                 {tonnageVal.toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} <span className="text-[10px] text-slate-400 font-normal">Ton</span>
                                             </p>
                                         ) : null}
-                                        {trip.price || trip.freightPrice ? (
+                                        {validPrice !== null ? (
                                             <p className="text-[10px] font-semibold text-emerald-400">
-                                                ₺{Number(trip.price || trip.freightPrice).toLocaleString('tr-TR')}
+                                                ₺{validPrice.toLocaleString('tr-TR')}
                                             </p>
                                         ) : null}
                                     </div>
