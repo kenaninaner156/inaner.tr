@@ -553,7 +553,7 @@
 
 /* iOS Safe Area */
 .pb-ios-nav {
-  padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
 }
 
 /* Number input okları gizle */

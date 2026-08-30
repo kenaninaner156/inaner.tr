@@ -488,14 +488,14 @@ function App() {
         }}>
         {/* Header - Premium Logo */}
         <div className="pb-2 flex flex-col"
-          style={{ paddingTop: 'calc(2rem + env(safe-area-inset-top))' }}>
+          style={{ paddingTop: 'calc(1.25rem + env(safe-area-inset-top, 0px))' }}>
 
           <PremiumLogo />
 
         </div>
 
         {/* Nav Links */}
-        <nav className="flex-1 px-4 pt-10 pb-4 space-y-1.5 overflow-y-auto relative custom-scrollbar">
+        <nav className="flex-1 px-4 pt-3 sm:pt-6 pb-6 space-y-1.5 overflow-y-auto relative custom-scrollbar">
           {filteredMenuItems.map((item) => {
             const isActive = activeTab === item.id;
 
@@ -614,7 +614,7 @@ function App() {
         {/* Footer: User & Theme */}
         <div className="p-4 pl-10 pr-6 pb-6 flex items-center justify-between"
           style={{ 
-            paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))'
+            paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))'
           }}>
           <button 
             onClick={() => setActiveTab('settings')}
@@ -636,7 +636,7 @@ function App() {
         <div className={`flex flex-col w-full ${['dashboard', 'map', 'invoices', 'earsiv'].includes(activeTab) ? 'h-full overflow-hidden' : 'min-h-screen'}`}>
 
           {/* Header - Simple & Clean (sticky) */}
-          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map', 'trips', 'dashboard', 'maintenance', 'detaylar', 'invoices', 'earsiv', 'payments'].includes(activeTab) ? 'hidden' : ''}`}
+          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map', 'trips', 'dashboard', 'maintenance', 'detaylar', 'invoices', 'earsiv', 'payments', 'personel', 'settings', 'company_admin', 'super_admin'].includes(activeTab) ? 'hidden' : ''}`}
             style={{
               paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
             }}
@@ -672,10 +672,10 @@ function App() {
               {activeTab === 'invoices' && <Invoices onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'earsiv' && <EArsiv onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'payments' && <Payments onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'personel' && <Personnel />}
-              {activeTab === 'settings' && <SettingsPage />}
-              {activeTab === 'company_admin' && <CompanyAdmin />}
-              {activeTab === 'super_admin' && <SuperAdmin />}
+              {activeTab === 'personel' && <Personnel onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
+              {activeTab === 'settings' && <SettingsPage onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
+              {activeTab === 'company_admin' && <CompanyAdmin onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
+              {activeTab === 'super_admin' && <SuperAdmin onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'map' && userRole === 'super_admin' && <MapPage onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
             </div>
           </div>

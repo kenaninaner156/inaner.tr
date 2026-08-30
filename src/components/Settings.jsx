@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import { Settings as SettingsIcon, Database, Save, Server, ShieldCheck, Camera, UploadCloud, Truck, Loader2, Globe, Key, AlertCircle, Link2, Unlink, CheckCircle2 } from 'lucide-react';
+import { Settings as SettingsIcon, Database, Save, Server, ShieldCheck, Camera, UploadCloud, Truck, Loader2, Globe, Key, AlertCircle, Link2, Unlink, CheckCircle2, Menu } from 'lucide-react';
 import WipeData from './WipeData';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
 import { auth, googleProvider } from '../services/firebaseConfig';
 import { linkWithPopup, unlink } from 'firebase/auth';
 
-const Settings = () => {
+const Settings = ({ onOpenMenu, isMobile } = {}) => {
     const { updateTruckImage, currentSession, approvedUsers, editUser, addLog } = useContext(DataContext);
     const { activeTruckId, activeTruckData } = useTruck();
     const [profilePic, setProfilePic] = useState(activeTruckData?.imageUrl || null);
@@ -148,15 +148,33 @@ const Settings = () => {
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500 max-w-4xl mx-auto">
-            <div className="glass-panel p-6 border-l-4 border-l-zinc-500">
-                <h3 className="text-xl font-bold text-[var(--text-primary)] mb-2 flex items-center">
-                    <SettingsIcon className="mr-2" size={24} />
-                    Sistem Ayarları
-                </h3>
-                <p className="text-[var(--text-secondary)] text-sm">
-                    Bu ekrandan profil resmini değiştirebilir ve uygulamanın veritabanı bağlantısını yönetebilirsiniz.
-                </p>
+        <div 
+            className="space-y-4 sm:space-y-6 animate-in fade-in duration-500 max-w-4xl mx-auto pb-ios-nav"
+            style={{
+                paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+            }}
+        >
+            <div className="glass-panel p-4 sm:p-6 border-l-4 border-l-zinc-500">
+                <div className="flex items-center gap-3">
+                    {isMobile && onOpenMenu && (
+                        <button 
+                            onClick={onOpenMenu} 
+                            className="p-1.5 -ml-1 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors md:hidden cursor-pointer shrink-0"
+                            title="Menüyü Aç"
+                        >
+                            <Menu size={20} />
+                        </button>
+                    )}
+                    <div>
+                        <h3 className="text-lg sm:text-xl font-bold text-[var(--text-primary)] mb-1 flex items-center">
+                            <SettingsIcon className="mr-2 text-zinc-400 shrink-0" size={22} />
+                            Sistem Ayarları
+                        </h3>
+                        <p className="text-[var(--text-secondary)] text-xs sm:text-sm">
+                            Bu ekrandan profil resmini değiştirebilir ve uygulamanın veritabanı bağlantısını yönetebilirsiniz.
+                        </p>
+                    </div>
+                </div>
             </div>
 
             {/* Profil Resmi Ayarı */}

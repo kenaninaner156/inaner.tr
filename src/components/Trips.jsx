@@ -474,7 +474,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
             <div 
                 className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-white/[0.06] relative"
                 style={{
-                    paddingTop: 'calc(0.2rem + env(safe-area-inset-top, 0px))'
+                    paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
                 }}
             >
                 {/* Sol Grup: Hamburger (Mobil) + Başlık + Ay Seçici + INLINE STAT KAPSÜLLERİ */}

@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
 import { DataContext } from '../context/DataContext';
-import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key, BarChart3, Award, User, Bell, Send, Image, FileText, Navigation, MapPin, Activity, CheckCircle, XCircle, Clock, Sparkles, Radio, Volume2, VolumeX, Smartphone, Fuel, Wrench, Receipt, CreditCard, Shield, ExternalLink, RefreshCw, Eye, UploadCloud } from 'lucide-react';
+import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key, BarChart3, Award, User, Bell, Send, Image, FileText, Navigation, MapPin, Activity, CheckCircle, XCircle, Clock, Sparkles, Radio, Volume2, VolumeX, Smartphone, Fuel, Wrench, Receipt, CreditCard, Shield, ExternalLink, RefreshCw, Eye, UploadCloud, Menu } from 'lucide-react';
 import { db, auth } from '../services/firebaseConfig';
 import { collection, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { requestAndSaveNotificationToken } from '../services/notificationService';
@@ -125,7 +125,7 @@ const QUICK_TEMPLATES = [
     }
 ];
 
-const CompanyAdmin = () => {
+const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
     const { activeCompanyId, companyData } = useCompany();
     const { trucks, activeTruckId, setActiveTruckId } = useTruck();
     const { approvedUsers, pendingUsers, approveUser, rejectUser, premiums, updatePremiums, editUser, deleteUser, drivers, updateDrivers, callAdminApi, companyNotifications } = useContext(DataContext);
@@ -141,39 +141,76 @@ const CompanyAdmin = () => {
         { id: '1', label: 'Onayladım', icon: 'thumbs_up', actionType: 'ack_approved', style: 'emerald' },
         { id: '2', label: 'Sorun Var', icon: 'x', actionType: 'ack_rejected', style: 'red' }
     ]);
-    const [notifSending, setNotifSending] = useState(false);
-    const [notifResult, setNotifResult] = useState(null);
-    const [registeringDevice, setRegisteringDevice] = useState(false);
+    const [isSendingNotif, setIsSendingNotif] = useState(false);
+    const [notifSuccess, setNotifSuccess] = useState(false);
+    const [notifError, setNotifError] = useState(null);
 
-    // Yeni: Kullanıcı Silme Onay Modalı
-    const [userToDelete, setUserToDelete] = useState(null);
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    // Özel İkon Seçici Modalı
+    const [iconPickerIndex, setIconPickerIndex] = useState(null); // hangi butonun ikonu seçiliyor (0, 1 vs.)
 
-    // Yeni: Şifre Düzenleme
-    const [editingUserId, setEditingUserId] = useState(null);
-    const [newUserPassword, setNewUserPassword] = useState('');
+    // Resim Yükleme Durumu
+    const [notifImage, setNotifImage] = useState(null);
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
 
+    // Gelişmiş Bildirim Ayarları
+    const [notifPriority, setNotifPriority] = useState('high'); // 'normal' | 'high'
+    const [notifSound, setNotifSound] = useState(true);
+    const [notifAutoDismiss, setNotifAutoDismiss] = useState(false);
+    const [notifAutoDismissSec, setNotifAutoDismissSec] = useState(15);
+    const [notifVibration, setNotifVibration] = useState(true);
 
-    // Truck Form
+    // Önceden Tanımlı Şablonlar
+    const handleApplyPreset = (preset) => {
+        setNotifTitle(preset.title);
+        setNotifBody(preset.body);
+        setNotifTargetTab(preset.tab);
+        setNotifButtons(preset.buttons.map(b => ({ ...b })));
+    };
+
+    // Buton Şablonları Hızlı Seçim
+    const handleApplyButtonPreset = (btnPreset) => {
+        setNotifButtons(btnPreset.buttons.map(b => ({ ...b })));
+    };
+
+    // Trucks state
     const [showTruckForm, setShowTruckForm] = useState(false);
     const [truckPlate, setTruckPlate] = useState('');
     const [truckBrand, setTruckBrand] = useState('');
-
     const [editingTruckId, setEditingTruckId] = useState(null);
     const [editTruckForm, setEditTruckForm] = useState({ plate: '', brand: '', status: 'active' });
 
-    // Premiums Management State
+    // Premiums state
     const [showPremiumForm, setShowPremiumForm] = useState(false);
-    const [editingPremiumId, setEditingPremiumId] = useState(null);
     const [premName, setPremName] = useState('');
     const [premType, setPremType] = useState('fixed');
     const [premAmount, setPremAmount] = useState('');
+    const [editingPremiumId, setEditingPremiumId] = useState(null);
 
-    // Offline Drivers state
-    const [showOfflineDriverForm, setShowOfflineDriverForm] = useState(false);
-    const [newOfflineDriverName, setNewOfflineDriverName] = useState('');
-    const [newOfflineDriverPhone, setNewOfflineDriverPhone] = useState('');
-    const [editingOfflineDriverId, setEditingOfflineDriverId] = useState(null);
+    // Drivers state
+    const [showDriverModal, setShowDriverModal] = useState(false);
+    const [selectedUserForDriver, setSelectedUserForDriver] = useState(null);
+    const [driverTcNo, setDriverTcNo] = useState('');
+    const [driverPhone, setDriverPhone] = useState('');
+    const [driverAddress, setDriverAddress] = useState('');
+    const [driverEmergencyContact, setDriverEmergencyContact] = useState('');
+    const [driverBloodType, setDriverBloodType] = useState('');
+    const [driverLicenseDate, setDriverLicenseDate] = useState('');
+    const [driverSrcDate, setDriverSrcDate] = useState('');
+    const [driverPsychotechnicDate, setDriverPsychotechnicDate] = useState('');
+    const [driverSalaryType, setDriverSalaryType] = useState('monthly');
+    const [driverBaseSalary, setDriverBaseSalary] = useState('');
+    const [driverDefaultPremiumId, setDriverDefaultPremiumId] = useState('');
+    const [driverFiles, setDriverFiles] = useState([]);
+    const [driverNotes, setDriverNotes] = useState('');
+    const [driverPlate, setDriverPlate] = useState('');
+    const [driverIban, setDriverIban] = useState('');
+
+    // Offline / Harici Şoför Ekleme
+    const [isOfflineDriverMode, setIsOfflineDriverMode] = useState(false);
+    const [offlineDriverName, setOfflineDriverName] = useState('');
+
+    // Şoför Arama ve Filtreleme
+    const [driverSearch, setDriverSearch] = useState('');
 
     const resetPremiumForm = () => {
         setPremName('');
@@ -227,44 +264,89 @@ const CompanyAdmin = () => {
         }
     };
 
-    const handleSaveOfflineDriver = async (e) => {
-        e.preventDefault();
-        if (!newOfflineDriverName.trim()) return;
-
-        const newDriver = {
-            id: editingOfflineDriverId || `manual_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`,
-            name: newOfflineDriverName.trim(),
-            phone: newOfflineDriverPhone.trim()
-        };
-
-        let updatedDrivers;
-        if (editingOfflineDriverId) {
-            updatedDrivers = (drivers || []).map(d => d.id === editingOfflineDriverId ? newDriver : d);
+    const handleOpenDriverModal = (user) => {
+        setSelectedUserForDriver(user);
+        setIsOfflineDriverMode(false);
+        setOfflineDriverName('');
+        const existingDriver = (drivers || []).find(d => d.userId === user.id);
+        if (existingDriver) {
+            setDriverTcNo(existingDriver.tcNo || '');
+            setDriverPhone(existingDriver.phone || user.phone || '');
+            setDriverAddress(existingDriver.address || '');
+            setDriverEmergencyContact(existingDriver.emergencyContact || '');
+            setDriverBloodType(existingDriver.bloodType || '');
+            setDriverLicenseDate(existingDriver.licenseDate || '');
+            setDriverSrcDate(existingDriver.srcDate || '');
+            setDriverPsychotechnicDate(existingDriver.psychotechnicDate || '');
+            setDriverSalaryType(existingDriver.salaryType || 'monthly');
+            setDriverBaseSalary(existingDriver.baseSalary || '');
+            setDriverDefaultPremiumId(existingDriver.defaultPremiumId || '');
+            setDriverFiles(existingDriver.files || []);
+            setDriverNotes(existingDriver.notes || '');
+            setDriverPlate(existingDriver.assignedPlate || '');
+            setDriverIban(existingDriver.iban || '');
         } else {
-            const exists = (drivers || []).some(d => d.name.toLowerCase() === newOfflineDriverName.trim().toLowerCase());
-            if (exists) {
-                alert("Bu isimde bir şoför zaten kayıtlı!");
-                return;
-            }
-            updatedDrivers = [...(drivers || []), newDriver];
+            setDriverTcNo('');
+            setDriverPhone(user.phone || '');
+            setDriverAddress('');
+            setDriverEmergencyContact('');
+            setDriverBloodType('');
+            setDriverLicenseDate('');
+            setDriverSrcDate('');
+            setDriverPsychotechnicDate('');
+            setDriverSalaryType('monthly');
+            setDriverBaseSalary('');
+            setDriverDefaultPremiumId('');
+            setDriverFiles([]);
+            setDriverNotes('');
+            setDriverPlate('');
+            setDriverIban('');
         }
-
-        try {
-            await updateDrivers(updatedDrivers);
-            setNewOfflineDriverName('');
-            setNewOfflineDriverPhone('');
-            setEditingOfflineDriverId(null);
-            setShowOfflineDriverForm(false);
-        } catch {
-            alert("Şoför kaydedilirken hata oluştu.");
-        }
+        setShowDriverModal(true);
     };
 
-    const handleEditOfflineDriver = (driver) => {
-        setEditingOfflineDriverId(driver.id);
-        setNewOfflineDriverName(driver.name);
-        setNewOfflineDriverPhone(driver.phone || '');
-        setShowOfflineDriverForm(true);
+    const handleOpenOfflineDriverModal = () => {
+        setSelectedUserForDriver(null);
+        setIsOfflineDriverMode(true);
+        setOfflineDriverName('');
+        setDriverTcNo('');
+        setDriverPhone('');
+        setDriverAddress('');
+        setDriverEmergencyContact('');
+        setDriverBloodType('');
+        setDriverLicenseDate('');
+        setDriverSrcDate('');
+        setDriverPsychotechnicDate('');
+        setDriverSalaryType('monthly');
+        setDriverBaseSalary('');
+        setDriverDefaultPremiumId('');
+        setDriverFiles([]);
+        setDriverNotes('');
+        setDriverPlate('');
+        setDriverIban('');
+        setShowDriverModal(true);
+    };
+
+    const handleEditOfflineDriverModal = (driver) => {
+        setSelectedUserForDriver(null);
+        setIsOfflineDriverMode(true);
+        setOfflineDriverName(driver.name || '');
+        setDriverTcNo(driver.tcNo || '');
+        setDriverPhone(driver.phone || '');
+        setDriverAddress(driver.address || '');
+        setDriverEmergencyContact(driver.emergencyContact || '');
+        setDriverBloodType(driver.bloodType || '');
+        setDriverLicenseDate(driver.licenseDate || '');
+        setDriverSrcDate(driver.srcDate || '');
+        setDriverPsychotechnicDate(driver.psychotechnicDate || '');
+        setDriverSalaryType(driver.salaryType || 'monthly');
+        setDriverBaseSalary(driver.baseSalary || '');
+        setDriverDefaultPremiumId(driver.defaultPremiumId || '');
+        setDriverFiles(driver.files || []);
+        setDriverNotes(driver.notes || '');
+        setDriverPlate(driver.assignedPlate || '');
+        setDriverIban(driver.iban || '');
+        setShowDriverModal(true);
     };
 
     const handleDeleteOfflineDriver = async (driverId, driverName) => {
@@ -314,22 +396,38 @@ const CompanyAdmin = () => {
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
+        <div 
+            className="space-y-4 sm:space-y-6 animate-in fade-in duration-500 pb-ios-nav"
+            style={{
+                paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+            }}
+        >
             {/* Header */}
-            <div className="glass-panel p-6 border-l-4 border-l-indigo-500 flex justify-between items-center">
-                <div>
-                    <h3 className="text-xl font-bold flex items-center mb-1 text-[var(--text-primary)]">
-                        <Building2 className="mr-3 text-indigo-400" size={24} />
-                        Şirket Yönetimi: {companyData?.name || 'Yükleniyor...'}
-                    </h3>
-                    <p className="text-[var(--text-secondary)] text-sm">
-                        Şirketinize ait araçları ve şoförleri buradan yönetebilirsiniz.
-                    </p>
+            <div className="glass-panel p-4 sm:p-6 border-l-4 border-l-indigo-500 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                    {isMobile && onOpenMenu && (
+                        <button 
+                            onClick={onOpenMenu} 
+                            className="p-1.5 -ml-1 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors md:hidden cursor-pointer shrink-0"
+                            title="Menüyü Aç"
+                        >
+                            <Menu size={20} />
+                        </button>
+                    )}
+                    <div>
+                        <h3 className="text-lg sm:text-xl font-bold flex items-center mb-1 text-[var(--text-primary)]">
+                            <Building2 className="mr-2 sm:mr-3 text-indigo-400 shrink-0" size={22} />
+                            Şirket Yönetimi: {companyData?.name || 'Yükleniyor...'}
+                        </h3>
+                        <p className="text-[var(--text-secondary)] text-xs sm:text-sm">
+                            Şirketinize ait araçları ve şoförleri buradan yönetebilirsiniz.
+                        </p>
+                    </div>
                 </div>
             </div>
 
             {/* Tabs */}
-            <div className="flex space-x-2 border-b border-[var(--border-color)] pb-px">
+            <div className="flex space-x-2 border-b border-[var(--border-color)] pb-px overflow-x-auto no-scrollbar whitespace-nowrap">
                 <button
                     onClick={() => setActiveTab('trucks')}
                     className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'trucks' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}

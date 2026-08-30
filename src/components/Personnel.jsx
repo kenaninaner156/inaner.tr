@@ -1,6 +1,6 @@
 import React, { useContext, useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Printer, Save, PlusCircle, CheckCircle, Clock, Trash2, StickyNote, Paperclip, FileText } from 'lucide-react';
+import { Users, Printer, Save, PlusCircle, CheckCircle, Clock, Trash2, StickyNote, Paperclip, FileText, Menu } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
 import PersonnelPeriodModal from './PersonnelPeriodModal';
@@ -51,7 +51,7 @@ const PdfViewer = ({ files }) => {
     );
 };
 
-const Personnel = () => {
+const Personnel = ({ onOpenMenu, isMobile } = {}) => {
     const { trips, payouts, addPayout, deletePayout, updatePayout, addLog, allDrivers } = useContext(DataContext);
     const { activeTruckData } = useTruck();
     const payoutPrintRef = useRef(null);
@@ -309,14 +309,29 @@ const Personnel = () => {
     };
 
     return (
-        <div className="flex flex-col md:flex-row md:h-[calc(100vh-64px)] gap-6 md:gap-8 animate-in fade-in duration-500 overflow-y-auto md:overflow-hidden pb-4 md:pb-0">
-
+        <div 
+            className="flex flex-col md:flex-row md:h-[calc(100vh-64px)] gap-4 md:gap-8 animate-in fade-in duration-500 overflow-y-auto md:overflow-hidden pb-4 md:pb-0"
+            style={{
+                paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+            }}
+        >
             {/* Sol Panel: Kontrol Merkezi */}
-            <div className="w-full md:w-[45%] lg:w-[40%] flex flex-col gap-4 md:gap-6 md:overflow-y-auto custom-scrollbar md:pr-2">
+            <div className="w-full md:w-[45%] lg:w-[40%] flex flex-col gap-3 md:gap-6 md:overflow-y-auto custom-scrollbar md:pr-2">
 
-                {/* Masaüstü İzole Başlık */}
-                <div className="hidden md:flex glass-panel px-4 py-3 items-center justify-between shadow-sm border-b border-[var(--border-color)] backdrop-blur-md rounded-2xl shrink-0">
-                    <h2 className="text-lg font-bold tracking-tight text-[var(--text-primary)]">Personel Prim Hak Edişi</h2>
+                {/* Panel Başlık (Masaüstü & Mobil) */}
+                <div className="flex glass-panel px-4 py-3 items-center justify-between shadow-sm border border-[var(--border-color)] backdrop-blur-md rounded-2xl shrink-0">
+                    <div className="flex items-center gap-2.5">
+                        {isMobile && onOpenMenu && (
+                            <button 
+                                onClick={onOpenMenu} 
+                                className="p-1.5 -ml-1 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors md:hidden cursor-pointer"
+                                title="Menüyü Aç"
+                            >
+                                <Menu size={20} />
+                            </button>
+                        )}
+                        <h2 className="text-base sm:text-lg font-bold tracking-tight text-[var(--text-primary)]">Personel Prim Hak Edişi</h2>
+                    </div>
                 </div>
 
                 <div className="glass-panel p-4 overflow-hidden relative">

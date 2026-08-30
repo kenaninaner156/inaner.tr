@@ -1192,7 +1192,12 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             <div className="flex flex-col h-full w-full gap-3 sm:gap-4 overflow-hidden animate-in fade-in duration-500 pb-2">
 
                 {/* ÜST KONTROL & NAVİGASYON BARI */}
-                <div className="relative overflow-hidden bg-[#07090e] border border-white/[0.06] rounded-2xl shadow-xl px-4 py-3 sm:px-5 sm:py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+                <div 
+                    className="relative overflow-hidden bg-[#07090e] border border-white/[0.06] rounded-2xl shadow-xl px-4 py-3 sm:px-5 sm:py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0"
+                    style={{
+                        paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+                    }}
+                >
                     {/* Top hairline specular glow */}
                     <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent pointer-events-none" />
                     

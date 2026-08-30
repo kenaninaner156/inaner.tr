@@ -411,9 +411,14 @@ const Login = () => {
             </div>
 
             {/* Sol Alttaki Login Kutusu */}
-            <div className="absolute bottom-6 left-6 md:bottom-10 md:left-10 z-10 w-[280px]">
-                <div style={{ background: 'rgba(15,23,42,0.7)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(16px)' }}
-                    className="rounded-xl p-5 shadow-2xl relative overflow-hidden">
+            <div 
+                className="absolute bottom-4 left-4 right-4 sm:right-auto sm:bottom-10 sm:left-10 z-10 w-auto sm:w-[290px] max-w-sm"
+                style={{
+                    marginBottom: 'env(safe-area-inset-bottom, 0px)'
+                }}
+            >
+                <div style={{ background: 'rgba(15,23,42,0.75)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(16px)' }}
+                    className="rounded-2xl p-5 shadow-2xl relative overflow-hidden">
 
                     <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
 

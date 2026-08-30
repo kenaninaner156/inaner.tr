@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { ShieldAlert, Building2, Plus, Server, Activity, Trash2, Key, Edit2, PauseCircle, PlayCircle, Users, Truck, Check, X, AlertOctagon, LogIn, Download, Database, Shield } from 'lucide-react';
+import { ShieldAlert, Building2, Plus, Server, Activity, Trash2, Key, Edit2, PauseCircle, PlayCircle, Users, Truck, Check, X, AlertOctagon, LogIn, Download, Database, Shield, Menu } from 'lucide-react';
 import { db } from '../services/firebaseConfig';
 import { collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, writeBatch, where, getDocs } from 'firebase/firestore';
 import { useCompany } from '../context/CompanyContext';
@@ -7,7 +7,7 @@ import { DataContext } from '../context/DataContext';
 import { sendDiscordAlert } from '../services/discordWebhook';
 import AdminLog from './AdminLog';
 
-const SuperAdmin = () => {
+const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
     const { activeCompanyId, setActiveCompanyId } = useCompany();
     const { editUser, deleteUser, addApprovedUser } = useContext(DataContext);
     const [companies, setCompanies] = useState([]);;
@@ -259,29 +259,45 @@ const SuperAdmin = () => {
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto">
-            <div className="glass-panel p-6 border-l-4 border-l-indigo-500 mb-6 flex justify-between items-center">
-                <div>
-                    <h3 className="text-xl font-bold flex items-center mb-1 text-[var(--text-primary)]">
-                        <ShieldAlert className="mr-3 text-indigo-400" size={24} />
-                        Super Admin Paneli (SaaS Yönetimi)
-                    </h3>
-                    <p className="text-[var(--text-secondary)] text-sm">
-                        Sistemdeki tüm şirketleri görebilir ve yeni sistem müşterileri oluşturabilirsiniz.
-                    </p>
+        <div 
+            className="space-y-4 sm:space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto pb-ios-nav"
+            style={{
+                paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+            }}
+        >
+            <div className="glass-panel p-4 sm:p-6 border-l-4 border-l-indigo-500 mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div className="flex items-center gap-3">
+                    {isMobile && onOpenMenu && (
+                        <button 
+                            onClick={onOpenMenu} 
+                            className="p-1.5 -ml-1 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors md:hidden cursor-pointer shrink-0"
+                            title="Menüyü Aç"
+                        >
+                            <Menu size={20} />
+                        </button>
+                    )}
+                    <div>
+                        <h3 className="text-lg sm:text-xl font-bold flex items-center mb-1 text-[var(--text-primary)]">
+                            <ShieldAlert className="mr-2 sm:mr-3 text-indigo-400 shrink-0" size={22} />
+                            Super Admin Paneli (SaaS Yönetimi)
+                        </h3>
+                        <p className="text-[var(--text-secondary)] text-xs sm:text-sm">
+                            Sistemdeki tüm şirketleri görebilir ve yeni sistem müşterileri oluşturabilirsiniz.
+                        </p>
+                    </div>
                 </div>
-                <div className="flex bg-[var(--bg-panel-hover)] rounded-xl border border-[var(--border-color)] p-3 items-center space-x-3">
-                    <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400">
-                        <Server size={20} />
+                <div className="flex bg-[var(--bg-panel-hover)] rounded-xl border border-[var(--border-color)] p-2.5 sm:p-3 items-center space-x-3 self-end sm:self-auto">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
+                        <Server size={18} />
                     </div>
                     <div>
-                        <p className="text-xs text-[var(--text-secondary)] font-medium tracking-wide">TOPLAM MÜŞTERİ</p>
-                        <p className="text-lg font-bold text-[var(--text-primary)] leading-none mt-1">{companies.length}</p>
+                        <p className="text-[10px] sm:text-xs text-[var(--text-secondary)] font-medium tracking-wide">TOPLAM MÜŞTERİ</p>
+                        <p className="text-base sm:text-lg font-bold text-[var(--text-primary)] leading-none mt-1">{companies.length}</p>
                     </div>
                 </div>
             </div>
 
-            <div className="flex space-x-2 border-b border-[var(--border-color)] mb-6 pb-px">
+            <div className="flex space-x-2 border-b border-[var(--border-color)] mb-4 sm:mb-6 pb-px overflow-x-auto no-scrollbar whitespace-nowrap">
                 <button
                     onClick={() => setActiveTab('companies')}
                     className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'companies' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
