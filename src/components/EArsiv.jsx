@@ -1974,7 +1974,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             {/* SENDING MODAL OVERLAY */}
             {isModalOpen && selectedInvoice && createPortal(
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
-                    <div className="glass-panel w-full max-w-3xl max-h-[95vh] overflow-hidden shadow-2xl grid grid-rows-[auto_minmax(0,1fr)]">
+                    <div className="glass-panel w-full max-w-4xl lg:max-w-5xl max-h-[95vh] overflow-hidden shadow-2xl grid grid-rows-[auto_minmax(0,1fr)]">
                         {/* Header */}
                         <div className="p-5 sm:p-6 border-b border-[var(--border-color)] flex items-center justify-between bg-slate-900/60 shrink-0">
                             <div className="flex items-center gap-2.5">
@@ -2250,46 +2250,46 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                             <thead>
                                                 <tr className="bg-slate-950/40 text-[var(--text-secondary)] uppercase border-b border-[var(--border-color)]">
                                                     <th className="p-3 font-bold">Hizmet Adı / Açıklama</th>
-                                                    <th className="p-3 font-bold text-right">Miktar (Ton)</th>
-                                                    <th className="p-3 font-bold text-right">Birim Fiyat (TL)</th>
-                                                    <th className="p-3 font-bold text-right">Tutar (Matrah)</th>
+                                                    <th className="p-3 font-bold text-right w-24 whitespace-nowrap">Miktar (Ton)</th>
+                                                    <th className="p-3 font-bold text-right w-28 whitespace-nowrap">Birim Fiyat (₺)</th>
+                                                    <th className="p-3 font-bold text-right w-32 whitespace-nowrap">Tutar (Matrah)</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-[var(--border-color)]">
                                                 {routeLines.map((line, idx) => (
                                                     <tr key={idx} className="hover:bg-white/[0.02]">
-                                                        <td className="p-2.5 min-w-[320px]">
+                                                        <td className="p-2">
                                                             <input
                                                                 type="text"
                                                                 required
                                                                 value={line.name}
                                                                 onChange={(e) => handleLineChange(idx, 'name', e.target.value)}
-                                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-1.5 text-xs focus:border-amber-500 outline-none uppercase font-semibold"
+                                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-1.5 text-xs sm:text-[13px] focus:border-amber-500 outline-none uppercase font-semibold tracking-tight"
                                                             />
                                                         </td>
-                                                        <td className="p-2.5 text-right">
+                                                        <td className="p-2 text-right w-24 whitespace-nowrap">
                                                             <input
                                                                 type="number"
                                                                 step="0.001"
                                                                 required
                                                                 value={line.quantity || ''}
                                                                 onChange={(e) => handleLineChange(idx, 'quantity', e.target.value)}
-                                                                className="w-24 bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-2.5 py-1.5 text-xs focus:border-amber-500 outline-none text-right font-mono font-bold"
+                                                                className="w-20 bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-2 py-1.5 text-xs focus:border-amber-500 outline-none text-right font-mono font-bold"
                                                                 placeholder="0.00"
                                                             />
                                                         </td>
-                                                        <td className="p-2.5 text-right">
+                                                        <td className="p-2 text-right w-28 whitespace-nowrap">
                                                             <input
                                                                 type="number"
                                                                 step="0.01"
                                                                 required
                                                                 value={line.unitPrice || ''}
                                                                 onChange={(e) => handleLineChange(idx, 'unitPrice', e.target.value)}
-                                                                className="w-24 bg-slate-900 border border-amber-500/30 text-amber-400 rounded-xl px-2.5 py-1.5 text-xs focus:border-amber-500 outline-none text-right font-mono font-bold"
+                                                                className="w-20 bg-slate-900 border border-amber-500/30 text-amber-400 rounded-xl px-2 py-1.5 text-xs focus:border-amber-500 outline-none text-right font-mono font-bold"
                                                                 placeholder="0.00"
                                                             />
                                                         </td>
-                                                        <td className="p-2.5 text-right text-emerald-400 font-bold font-mono whitespace-nowrap">
+                                                        <td className="p-2 text-right text-emerald-400 font-bold font-mono whitespace-nowrap w-32 text-xs sm:text-sm">
                                                             {line.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
                                                         </td>
                                                     </tr>
