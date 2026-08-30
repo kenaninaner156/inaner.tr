@@ -1174,11 +1174,11 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                 <div className="flex gap-3 justify-end">
                     <button
                         onClick={() => { confirmDialog.onConfirm(false); setConfirmDialog(null); }}
-                        className="px-5 py-2 text-sm font-semibold rounded-lg bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition"
+                        className="px-5 py-2 text-sm font-semibold rounded-lg bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition cursor-pointer"
                     >İptal</button>
                     <button
                         onClick={() => { confirmDialog.onConfirm(true); setConfirmDialog(null); }}
-                        className="px-5 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white transition shadow-lg shadow-orange-500/25"
+                        className="px-5 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white transition shadow-lg shadow-orange-500/25 cursor-pointer"
                     >Onayla</button>
                 </div>
             </div>
@@ -1193,36 +1193,41 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
 
                 {/* ─── ENTEGRE TEK SATIR HEADER BAR ─── */}
                 <div 
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 pb-2 border-b border-white/[0.06] shrink-0"
+                    className="flex items-center justify-between gap-2 pb-2.5 border-b border-white/[0.06] shrink-0"
                     style={{
                         paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
                     }}
                 >
                     {/* Sol: Hamburger + Başlık + TR Plaka */}
-                    <div className="flex items-center justify-between sm:justify-start gap-2.5 sm:gap-4 min-w-0">
-                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                            {isMobile && onOpenMenu && (
-                                <button 
-                                    onClick={onOpenMenu} 
-                                    className="p-1.5 -ml-1 text-slate-400 hover:text-slate-100 transition-colors flex items-center justify-center cursor-pointer rounded-lg hover:bg-white/5"
-                                    title="Menüyü Aç"
-                                >
-                                    <Menu size={22} />
-                                </button>
-                            )}
-                            <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white whitespace-nowrap">
-                                E-Arşiv Fatura
-                            </h2>
-                            {activeTruckData?.plate && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs font-mono font-bold text-slate-200 shadow-sm">
-                                    <span className="text-[9px] font-black text-orange-400 tracking-tighter">TR</span>
-                                    <span className="tracking-wide text-white">{activeTruckData.plate}</span>
-                                </span>
-                            )}
-                        </div>
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        {isMobile && onOpenMenu && (
+                            <button 
+                                onClick={onOpenMenu} 
+                                className="p-1.5 -ml-1 text-slate-400 hover:text-slate-100 transition-colors flex items-center justify-center cursor-pointer rounded-lg hover:bg-white/5 shrink-0"
+                                title="Menüyü Aç"
+                            >
+                                <Menu size={22} />
+                            </button>
+                        )}
+                        <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white whitespace-nowrap">
+                            E-Arşiv Fatura
+                        </h2>
+                        {activeTruckData?.plate && (
+                            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs font-mono font-bold text-slate-200 shadow-sm whitespace-nowrap shrink-0">
+                                <span className="text-[9px] font-black text-orange-400 tracking-tighter">TR</span>
+                                <span className="tracking-wide text-white">{activeTruckData.plate}</span>
+                            </span>
+                        )}
+                    </div>
 
-                        {/* Mobilde Sağ GİB Canlı Durum Kapsülü */}
-                        <div className="sm:hidden flex items-center gap-1.5 px-2 py-1 rounded-xl bg-black/40 border border-white/[0.08] text-xs">
+                    {/* Sağ: GİB Canlı Durum, GİB Portal & Bağlantı Ayarları */}
+                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                        {/* Canlı GİB Durum Kapsülü */}
+                        <div 
+                            onClick={checkGibHealth}
+                            title="GİB Bağlantı Durumu (Yenilemek için tıklayın)"
+                            className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-xs transition-colors cursor-pointer select-none"
+                        >
                             <span className="relative flex h-2 w-2 shrink-0">
                                 {gibHealth.status === 'optimal' && (
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -1237,7 +1242,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                                 : 'bg-slate-500'
                                 }`} />
                             </span>
-                            <span className="font-semibold text-slate-200 text-[11px]">
+                            <span className="font-semibold text-slate-200 text-[11px] sm:text-xs whitespace-nowrap">
                                 {gibHealth.status === 'optimal' && "GİB Aktif"}
                                 {gibHealth.status === 'slow' && "GİB Yoğun"}
                                 {gibHealth.status === 'down' && "GİB Kapalı"}
@@ -1245,85 +1250,36 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                 {gibHealth.status === 'checking' && "..."}
                             </span>
                             {gibHealth.latencyMs > 0 && (
-                                <span className="text-[10px] font-mono text-slate-400 border-l border-white/10 pl-1">
+                                <span className="hidden md:inline-block text-[10px] font-mono text-slate-400 border-l border-white/10 pl-1.5 whitespace-nowrap">
                                     {gibHealth.latencyMs}ms
                                 </span>
                             )}
-                            <button
-                                onClick={checkGibHealth}
-                                disabled={isCheckingHealth}
-                                title="Bağlantıyı Yenile"
-                                className="text-slate-400 hover:text-white transition-colors cursor-pointer ml-0.5 disabled:opacity-50"
-                            >
-                                <RefreshCw size={10} className={isCheckingHealth ? "animate-spin text-orange-400" : ""} />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Sağ: GİB Canlı Durum, GİB Portal & Bağlantı Ayarları */}
-                    <div className="flex items-center justify-end gap-2 shrink-0">
-                        {/* Masaüstü GİB Health Live Capsule */}
-                        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/40 border border-white/[0.08] text-xs">
-                            <span className="relative flex h-2 w-2 shrink-0">
-                                {gibHealth.status === 'optimal' && (
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                )}
-                                <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                                    gibHealth.status === 'optimal' 
-                                        ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' 
-                                        : gibHealth.status === 'slow'
-                                            ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]'
-                                            : gibHealth.status === 'down'
-                                                ? 'bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.8)]'
-                                                : 'bg-slate-500'
-                                }`} />
-                            </span>
-                            <span className="font-semibold text-slate-200">
-                                {gibHealth.status === 'optimal' && "GİB Aktif"}
-                                {gibHealth.status === 'slow' && "GİB Yoğun"}
-                                {gibHealth.status === 'down' && "GİB Kapalı"}
-                                {gibHealth.status === 'unconfigured' && "Giriş Yapılmadı"}
-                                {gibHealth.status === 'checking' && "Kontrol..."}
-                            </span>
-                            {gibHealth.latencyMs > 0 && (
-                                <span className="text-[10px] font-mono text-slate-400 border-l border-white/10 pl-1.5">
-                                    {gibHealth.latencyMs}ms
-                                </span>
-                            )}
-                            <button
-                                onClick={checkGibHealth}
-                                disabled={isCheckingHealth}
-                                title="Bağlantıyı Yenile"
-                                className="text-slate-400 hover:text-white transition-colors cursor-pointer ml-0.5 disabled:opacity-50"
-                            >
-                                <RefreshCw size={11} className={isCheckingHealth ? "animate-spin text-orange-400" : ""} />
-                            </button>
+                            <RefreshCw size={10} className={`text-slate-400 ml-0.5 ${isCheckingHealth ? "animate-spin text-orange-400" : ""}`} />
                         </div>
 
-                        {/* GİB Portal Link Button */}
+                        {/* GİB Portal Link Butonu */}
                         <a 
                             href={gibPortalUrl}
                             target="_blank" 
                             rel="noopener noreferrer" 
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/20 text-xs font-semibold text-slate-300 hover:text-white transition-all shadow-sm cursor-pointer"
+                            className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/20 text-xs font-semibold text-slate-300 hover:text-white transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
                             title="GİB e-Arşiv Portalına Git"
                         >
-                            <span>GİB Portal</span>
-                            <ExternalLink size={12} className="text-slate-400" />
+                            <span className="hidden md:inline">GİB Portal</span>
+                            <ExternalLink size={13} className="text-slate-400" />
                         </a>
 
-                        {/* Bağlantı Ayarları Primary Button */}
+                        {/* Bağlantı Ayarları Butonu */}
                         <button
                             type="button"
                             onClick={() => setIsSettingsModalOpen(true)}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-orange-500/20 active:scale-95 cursor-pointer"
+                            className="p-1.5 sm:px-3 sm:py-1.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-orange-500/20 active:scale-95 flex items-center gap-1.5 cursor-pointer"
                             title="GİB Giriş ve Fatura Ayarları"
                         >
                             <Settings size={13} />
-                            <span>Bağlantı Ayarları</span>
+                            <span className="hidden sm:inline">Ayarlar</span>
                         </button>
                     </div>
-
                 </div>
 
                 {/* Error Message */}
