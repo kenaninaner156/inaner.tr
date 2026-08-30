@@ -1191,48 +1191,79 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             {confirmPortal}
             <div className="flex flex-col h-full w-full gap-3 sm:gap-4 overflow-hidden animate-in fade-in duration-500 pb-2">
 
-                {/* ÜST KONTROL & NAVİGASYON BARI */}
+                {/* ─── ENTEGRE TEK SATIR HEADER BAR ─── */}
                 <div 
-                    className="relative overflow-hidden bg-[#07090e] border border-white/[0.06] rounded-2xl shadow-xl px-4 py-3 sm:px-5 sm:py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 pb-2 border-b border-white/[0.06] shrink-0"
                     style={{
                         paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
                     }}
                 >
-                    {/* Top hairline specular glow */}
-                    <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent pointer-events-none" />
-                    
-                    {/* Sol: Başlık, İkon & TR Plaka */}
-                    <div className="flex items-center gap-3">
-                        {isMobile && onOpenMenu && (
-                            <button 
-                                onClick={onOpenMenu} 
-                                className="p-1.5 -ml-1 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors md:hidden cursor-pointer"
-                                title="Menüyü Aç"
-                            >
-                                <Menu size={20} />
-                            </button>
-                        )}
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500/15 to-amber-500/5 border border-orange-500/20 flex items-center justify-center text-orange-400 shrink-0 shadow-inner">
-                            <FileText size={18} />
+                    {/* Sol: Hamburger + Başlık + TR Plaka */}
+                    <div className="flex items-center justify-between sm:justify-start gap-2.5 sm:gap-4 min-w-0">
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                            {isMobile && onOpenMenu && (
+                                <button 
+                                    onClick={onOpenMenu} 
+                                    className="p-1.5 -ml-1 text-slate-400 hover:text-slate-100 transition-colors flex items-center justify-center cursor-pointer rounded-lg hover:bg-white/5"
+                                    title="Menüyü Aç"
+                                >
+                                    <Menu size={22} />
+                                </button>
+                            )}
+                            <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white whitespace-nowrap">
+                                E-Arşiv Fatura
+                            </h2>
+                            {activeTruckData?.plate && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs font-mono font-bold text-slate-200 shadow-sm">
+                                    <span className="text-[9px] font-black text-orange-400 tracking-tighter">TR</span>
+                                    <span className="tracking-wide text-white">{activeTruckData.plate}</span>
+                                </span>
+                            )}
                         </div>
-                        <div>
-                            <div className="flex items-center gap-2.5">
-                                <h2 className="text-base font-bold text-white tracking-tight">E-Arşiv Fatura</h2>
-                                {activeTruckData?.plate && (
-                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs font-mono font-bold text-slate-200 shadow-sm">
-                                        <span className="text-[9px] font-black text-orange-400 tracking-tighter">TR</span>
-                                        <span className="tracking-wide text-white">{activeTruckData.plate}</span>
-                                    </span>
+
+                        {/* Mobilde Sağ GİB Canlı Durum Kapsülü */}
+                        <div className="sm:hidden flex items-center gap-1.5 px-2 py-1 rounded-xl bg-black/40 border border-white/[0.08] text-xs">
+                            <span className="relative flex h-2 w-2 shrink-0">
+                                {gibHealth.status === 'optimal' && (
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                                 )}
-                            </div>
-                            <p className="text-[11px] text-slate-500 font-normal mt-0.5">GİB Entegrasyonu & Resmi Fatura Yönetimi</p>
+                                <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                                    gibHealth.status === 'optimal' 
+                                        ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' 
+                                        : gibHealth.status === 'slow'
+                                            ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]'
+                                            : gibHealth.status === 'down'
+                                                ? 'bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.8)]'
+                                                : 'bg-slate-500'
+                                }`} />
+                            </span>
+                            <span className="font-semibold text-slate-200 text-[11px]">
+                                {gibHealth.status === 'optimal' && "GİB Aktif"}
+                                {gibHealth.status === 'slow' && "GİB Yoğun"}
+                                {gibHealth.status === 'down' && "GİB Kapalı"}
+                                {gibHealth.status === 'unconfigured' && "Girişsiz"}
+                                {gibHealth.status === 'checking' && "..."}
+                            </span>
+                            {gibHealth.latencyMs > 0 && (
+                                <span className="text-[10px] font-mono text-slate-400 border-l border-white/10 pl-1">
+                                    {gibHealth.latencyMs}ms
+                                </span>
+                            )}
+                            <button
+                                onClick={checkGibHealth}
+                                disabled={isCheckingHealth}
+                                title="Bağlantıyı Yenile"
+                                className="text-slate-400 hover:text-white transition-colors cursor-pointer ml-0.5 disabled:opacity-50"
+                            >
+                                <RefreshCw size={10} className={isCheckingHealth ? "animate-spin text-orange-400" : ""} />
+                            </button>
                         </div>
                     </div>
 
-                    {/* Sağ: GİB Canlı Durum Kapsülü, Portal Linki & Bağlantı Ayarları */}
-                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                        {/* GİB Health Live Capsule */}
-                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/40 border border-white/[0.08] text-xs">
+                    {/* Sağ: GİB Canlı Durum, GİB Portal & Bağlantı Ayarları */}
+                    <div className="flex items-center justify-end gap-2 shrink-0">
+                        {/* Masaüstü GİB Health Live Capsule */}
+                        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/40 border border-white/[0.08] text-xs">
                             <span className="relative flex h-2 w-2 shrink-0">
                                 {gibHealth.status === 'optimal' && (
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -1318,7 +1349,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                     >
                         <div className="overflow-hidden min-h-0">
                             <div 
-                                className="h-[240px] relative overflow-hidden rounded-3xl border border-[#1e2230] shadow-2xl shadow-black/90 flex flex-col justify-between p-5"
+                                className="h-[180px] sm:h-[210px] md:h-[240px] relative overflow-hidden rounded-3xl border border-[#1e2230] shadow-2xl shadow-black/90 flex flex-col justify-between p-3.5 sm:p-5"
                                 style={{ 
                                     backgroundColor: '#080a12',
                                     backgroundImage: 'radial-gradient(ellipse 65% 55% at 0% 100%, rgba(249,115,22,0.28) 0%, transparent 70%), radial-gradient(ellipse 65% 55% at 100% 100%, rgba(249,115,22,0.28) 0%, transparent 70%)'
@@ -1334,8 +1365,8 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                 <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-orange-500/10 to-transparent pointer-events-none" />
 
                                 {/* Başlık (Minimalist & Temiz) */}
-                                <div className="flex items-center justify-between mb-2 shrink-0 relative z-10">
-                                    <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">Finansal Performans</h3>
+                                <div className="flex items-center justify-between mb-1.5 sm:mb-2 shrink-0 relative z-10">
+                                    <h3 className="text-sm sm:text-base md:text-lg font-bold text-white tracking-tight">Finansal Performans</h3>
                                 </div>
 
                                 {/* Grafik Gövdesi */}
@@ -2249,200 +2280,397 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                         Gönderilmeyi bekleyen veya onaylanmış fatura bulunmamaktadır.
                                     </div>
                                 ) : (
-                                    <div className="overflow-y-auto flex-1 custom-scrollbar">
-                                        <table className="w-full text-left text-sm border-collapse">
-                                            <thead className="bg-[#07090e] sticky top-0 z-10 border-b border-white/[0.06] text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                                <tr>
-                                                    <th className="py-3 px-4 font-semibold">Dönem & Operasyon</th>
-                                                    <th className="py-3 px-4 font-semibold">Hakediş Tutarı</th>
-                                                    <th className="py-3 px-4 font-semibold hidden md:table-cell">GİB Durumu</th>
-                                                    <th className="py-3 px-4 font-semibold text-right">İşlemler</th>
-                                                </tr>
-                                            </thead>
-                                                    <tbody className="divide-y divide-white/[0.04]">
-                                                        {activeInvoices.map((inv) => {
-                                                            const isDraftOnGib = inv.gibStatus === 'Draft';
-                                                            const isSignedOnGib = inv.gibStatus === 'Signed' || inv.gibStatus === 'Approved';
-                                                            const isSending = sendingInvoiceId === inv.id;
+                                    <>
+                                        {/* ─── MASAÜSTÜ TABLO GÖRÜNÜMÜ (hidden md:block) ─── */}
+                                        <div className="hidden md:block overflow-y-auto flex-1 custom-scrollbar">
+                                            <table className="w-full text-left text-sm border-collapse">
+                                                <thead className="bg-[#07090e] sticky top-0 z-10 border-b border-white/[0.06] text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                                    <tr>
+                                                        <th className="py-3 px-4 font-semibold">Dönem & Operasyon</th>
+                                                        <th className="py-3 px-4 font-semibold">Hakediş Tutarı</th>
+                                                        <th className="py-3 px-4 font-semibold">GİB Durumu</th>
+                                                        <th className="py-3 px-4 font-semibold text-right">İşlemler</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-white/[0.04]">
+                                                    {activeInvoices.map((inv) => {
+                                                        const isDraftOnGib = inv.gibStatus === 'Draft';
+                                                        const isSignedOnGib = inv.gibStatus === 'Signed' || inv.gibStatus === 'Approved';
+                                                        const isSending = sendingInvoiceId === inv.id;
 
-                                                            return (
-                                                                <tr key={inv.id} className="hover:bg-white/[0.02] transition-colors">
-                                                                    {/* 1. Sütun: Dönem & Operasyon */}
-                                                                    <td className="p-4">
-                                                                        {(() => {
-                                                                            const period = formatInvoicePeriod(inv.startDate, inv.endDate);
-                                                                            const tripCount = inv.trips?.length || 0;
-                                                                            const totalTon = ((inv.trips && inv.trips.length > 0) ? inv.trips.reduce((acc, t) => acc + parseTonnageInTons(t.tonnage), 0) : (inv.totalTonnage || 0)).toFixed(2);
+                                                        return (
+                                                            <tr key={inv.id} className="hover:bg-white/[0.02] transition-colors">
+                                                                {/* 1. Sütun: Dönem & Operasyon */}
+                                                                <td className="p-4">
+                                                                    {(() => {
+                                                                        const period = formatInvoicePeriod(inv.startDate, inv.endDate);
+                                                                        const tripCount = inv.trips?.length || 0;
+                                                                        const totalTon = ((inv.trips && inv.trips.length > 0) ? inv.trips.reduce((acc, t) => acc + parseTonnageInTons(t.tonnage), 0) : (inv.totalTonnage || 0)).toFixed(2);
+                                                                        return (
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-white text-sm font-bold tracking-tight">
+                                                                                    {period.primary}
+                                                                                </span>
+                                                                                <span className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                                                                    {tripCount > 0 ? `${tripCount} Sefer • ${totalTon} Ton` : (period.sub || '2026 Dönemi')}
+                                                                                </span>
+                                                                            </div>
+                                                                        );
+                                                                    })()}
+                                                                </td>
+
+                                                                {/* 2. Sütun: Hakediş Tutarı */}
+                                                                <td className="p-4">
+                                                                    {(() => {
+                                                                        const est = getInvoiceEstimate(inv);
+                                                                        if (!est) {
+                                                                            return <span className="text-slate-600 font-mono text-sm">—</span>;
+                                                                        }
+                                                                        if (est.isActual) {
                                                                             return (
-                                                                                <div className="flex flex-col">
-                                                                                    <span className="text-white text-sm font-bold tracking-tight">
-                                                                                        {period.primary}
-                                                                                    </span>
-                                                                                    <span className="text-[11px] text-slate-400 font-medium mt-0.5">
-                                                                                        {tripCount > 0 ? `${tripCount} Sefer • ${totalTon} Ton` : (period.sub || '2026 Dönemi')}
-                                                                                    </span>
-                                                                                </div>
+                                                                                <span className="text-white font-bold font-mono text-sm">
+                                                                                    {est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                                                                                </span>
                                                                             );
-                                                                        })()}
-                                                                    </td>
+                                                                        }
+                                                                        return (
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-slate-300 font-semibold font-mono text-sm">
+                                                                                    {est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                                                                                </span>
+                                                                                <span className="text-[10px] text-slate-500 font-medium tracking-tight">
+                                                                                    (Tahmini Tutar)
+                                                                                </span>
+                                                                            </div>
+                                                                        );
+                                                                    })()}
+                                                                </td>
 
-                                                                    {/* 2. Sütun: Hakediş Tutarı */}
-                                                                    <td className="p-4">
-                                                                        {(() => {
-                                                                            const est = getInvoiceEstimate(inv);
-                                                                            if (!est) {
-                                                                                return <span className="text-slate-600 font-mono text-sm">—</span>;
-                                                                            }
-                                                                            if (est.isActual) {
-                                                                                return (
-                                                                                    <span className="text-white font-bold font-mono text-sm">
-                                                                                        {est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
-                                                                                    </span>
-                                                                                );
-                                                                            }
-                                                                            return (
-                                                                                <div className="flex flex-col">
-                                                                                    <span className="text-slate-300 font-semibold font-mono text-sm">
-                                                                                        {est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
-                                                                                    </span>
-                                                                                    <span className="text-[10px] text-slate-500 font-medium tracking-tight">
-                                                                                        (Tahmini Tutar)
-                                                                                    </span>
-                                                                                </div>
-                                                                            );
-                                                                        })()}
-                                                                    </td>
+                                                                {/* 3. Sütun: GİB Durumu Rozeti */}
+                                                                <td className="p-4">
+                                                                    {isDraftOnGib ? (
+                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-300 border border-orange-500/20 text-xs font-semibold">
+                                                                            <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+                                                                            GİB'de Taslak {inv.gibTestMode && "(TEST)"}
+                                                                        </span>
+                                                                    ) : isSignedOnGib ? (
+                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] text-slate-200 border border-white/[0.08] text-xs font-semibold">
+                                                                            <CheckCircle size={12} className="text-slate-400" />
+                                                                            Resmi Onaylı {inv.gibTestMode && "(TEST)"}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/20 text-xs font-semibold">
+                                                                            <Clock size={12} className="text-orange-400" />
+                                                                            Taslak Bekliyor
+                                                                        </span>
+                                                                    )}
+                                                                </td>
 
-                                                                    {/* 3. Sütun: GİB Durumu Rozeti */}
-                                                                    <td className="p-4 hidden md:table-cell">
+                                                                {/* 4. Sütun: İşlemler & Butonlar */}
+                                                                <td className="p-4 text-right">
+                                                                    <div className="flex justify-end items-center gap-2">
+                                                                        {/* Belge / PDF Yönetim Modalı Butonu */}
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setPdfModalInvoice(inv);
+                                                                                setModalFiles(inv.files || []);
+                                                                                setModalNote(inv.note || '');
+                                                                            }}
+                                                                            title={inv.files?.length > 0 ? "Fatura Belgelerini Düzenle / Görüntüle" : "Faturaya PDF / Belge Ekle"}
+                                                                            className={`p-1.5 text-xs font-semibold rounded-lg transition border cursor-pointer ${inv.files?.length > 0 ? 'bg-orange-500/15 border-orange-500/30 text-orange-400 hover:bg-orange-500/25' : 'bg-slate-800/80 border-slate-700/60 text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                                                                        >
+                                                                            <Paperclip size={13} />
+                                                                        </button>
+
                                                                         {isDraftOnGib ? (
-                                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-300 border border-orange-500/20 text-xs font-semibold">
-                                                                                <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
-                                                                                GİB'de Taslak {inv.gibTestMode && "(TEST)"}
-                                                                            </span>
+                                                                            <>
+                                                                                <button
+                                                                                    onClick={() => handleApproveSmsInit(inv)}
+                                                                                    disabled={isApprovingSms === inv.id}
+                                                                                    className="inline-flex items-center gap-1.5 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white px-3 py-1.5 rounded-xl transition disabled:opacity-50 cursor-pointer shadow-md shadow-orange-950/40"
+                                                                                >
+                                                                                    {isApprovingSms === inv.id ? (
+                                                                                        <RefreshCw size={12} className="animate-spin" />
+                                                                                    ) : (
+                                                                                        <Smartphone size={12} />
+                                                                                    )}
+                                                                                    Sistemde Onayla
+                                                                                </button>
+                                                                                <a
+                                                                                    href={gibPortalUrl}
+                                                                                    target="_blank" 
+                                                                                    rel="noopener noreferrer" 
+                                                                                    className="inline-flex items-center gap-1 text-xs font-semibold bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 px-3 py-1.5 rounded-xl transition cursor-pointer"
+                                                                                >
+                                                                                    Portalda Onayla <ExternalLink size={12} />
+                                                                                </a>
+                                                                                <button
+                                                                                    onClick={() => handleMarkAsSigned(inv)}
+                                                                                    title="İmzalandı Olarak İşaretle"
+                                                                                    className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 hover:border-orange-500/30 rounded-xl transition cursor-pointer"
+                                                                                >
+                                                                                    <CheckCircle size={13} />
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => handleResetGibStatus(inv)}
+                                                                                    title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
+                                                                                    className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 hover:border-slate-500 rounded-xl transition cursor-pointer"
+                                                                                >
+                                                                                    <RefreshCw size={13} />
+                                                                                </button>
+                                                                            </>
                                                                         ) : isSignedOnGib ? (
-                                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] text-slate-200 border border-white/[0.08] text-xs font-semibold">
-                                                                                <CheckCircle size={12} className="text-slate-400" />
-                                                                                Resmi Onaylı {inv.gibTestMode && "(TEST)"}
-                                                                            </span>
+                                                                            <>
+                                                                                <button
+                                                                                    onClick={() => handleDownloadPdf(inv)}
+                                                                                    disabled={!inv.gibUuid || isDownloadingPdf === inv.id}
+                                                                                    title={inv.gibUuid ? "Faturayı Görüntüle / Yazdır" : "Sistem dışı onaylandığı için görüntülenemez"}
+                                                                                    className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 hover:border-orange-500/30 rounded-xl transition disabled:opacity-30 disabled:hover:bg-slate-800 disabled:hover:text-slate-400 disabled:hover:border-slate-700 disabled:cursor-not-allowed cursor-pointer"
+                                                                                >
+                                                                                    {isDownloadingPdf === inv.id ? (
+                                                                                        <RefreshCw size={12} className="animate-spin" />
+                                                                                    ) : (
+                                                                                        <Download size={13} />
+                                                                                    )}
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => handleResetGibStatus(inv)}
+                                                                                    title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
+                                                                                    className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 hover:border-slate-500 rounded-xl transition cursor-pointer"
+                                                                                >
+                                                                                    <RefreshCw size={13} />
+                                                                                </button>
+                                                                            </>
                                                                         ) : (
-                                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/20 text-xs font-semibold">
-                                                                                <Clock size={12} className="text-orange-400" />
-                                                                                Taslak Bekliyor
+                                                                            <>
+                                                                                <button
+                                                                                    onClick={() => handleOpenSendModal(inv)}
+                                                                                    disabled={isSending}
+                                                                                    className="inline-flex items-center gap-1.5 text-xs font-bold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white px-3.5 py-1.5 rounded-xl transition disabled:opacity-50 shadow-md shadow-orange-500/25 active:scale-95 cursor-pointer"
+                                                                                >
+                                                                                    {isSending ? (
+                                                                                        <>
+                                                                                            <RefreshCw size={12} className="animate-spin" />
+                                                                                            Hazırlanıyor...
+                                                                                        </>
+                                                                                    ) : (
+                                                                                        <>
+                                                                                            GİB Taslak Hazırla
+                                                                                        </>
+                                                                                    )}
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => handleMarkAsSigned(inv)}
+                                                                                    title="İmzalandı Olarak İşaretle"
+                                                                                    className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 hover:border-orange-500/30 rounded-xl transition cursor-pointer"
+                                                                                >
+                                                                                    <CheckCircle size={13} />
+                                                                                </button>
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {/* ─── MOBİL GÖRÜNÜM: DOKUNMATİK DOSTU KARTLAR (md:hidden) ─── */}
+                                        <div className="md:hidden overflow-y-auto flex-1 custom-scrollbar p-3 space-y-2.5">
+                                            {activeInvoices.map((inv) => {
+                                                const isDraftOnGib = inv.gibStatus === 'Draft';
+                                                const isSignedOnGib = inv.gibStatus === 'Signed' || inv.gibStatus === 'Approved';
+                                                const isSending = sendingInvoiceId === inv.id;
+                                                const period = formatInvoicePeriod(inv.startDate, inv.endDate);
+                                                const tripCount = inv.trips?.length || 0;
+                                                const totalTon = ((inv.trips && inv.trips.length > 0) ? inv.trips.reduce((acc, t) => acc + parseTonnageInTons(t.tonnage), 0) : (inv.totalTonnage || 0)).toFixed(2);
+                                                const est = getInvoiceEstimate(inv);
+
+                                                return (
+                                                    <div 
+                                                        key={inv.id}
+                                                        className="bg-white/[0.03] hover:bg-white/[0.05] border border-white/[0.07] hover:border-white/[0.12] rounded-2xl p-3.5 flex flex-col gap-2.5 transition-all shadow-sm relative overflow-hidden"
+                                                    >
+                                                        {/* 1. Üst Satır: Dönem Tarihi & GİB Durum Rozeti */}
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <div className="flex flex-col min-w-0">
+                                                                <span className="text-white text-sm font-bold tracking-tight truncate">
+                                                                    {period.primary}
+                                                                </span>
+                                                                <span className="text-[10px] text-slate-400 font-medium">
+                                                                    {period.sub || '2026 Dönemi'}
+                                                                </span>
+                                                            </div>
+
+                                                            {/* GİB Durum Rozeti */}
+                                                            <div className="shrink-0">
+                                                                {isDraftOnGib ? (
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-orange-500/15 text-orange-300 border border-orange-500/25 text-[10px] font-semibold">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+                                                                        GİB Taslak {inv.gibTestMode && "(TEST)"}
+                                                                    </span>
+                                                                ) : isSignedOnGib ? (
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 text-[10px] font-semibold">
+                                                                        <CheckCircle size={10} className="text-emerald-400" />
+                                                                        Resmi Onaylı {inv.gibTestMode && "(TEST)"}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/[0.04] text-slate-300 border border-white/[0.08] text-[10px] font-semibold">
+                                                                        <Clock size={10} className="text-amber-400" />
+                                                                        Taslak Bekliyor
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* 2. Orta Bilgi: Sefer / Tonaj ve Hakediş Tutarı */}
+                                                        <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/[0.04]">
+                                                            <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
+                                                                <span className="inline-block bg-white/[0.05] border border-white/[0.08] px-2 py-0.5 rounded-md text-[11px] font-semibold text-slate-300">
+                                                                    {tripCount} Sefer
+                                                                </span>
+                                                                <span className="text-slate-500">•</span>
+                                                                <span className="font-mono text-slate-300 text-xs">
+                                                                    {totalTon} Ton
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Tutar */}
+                                                            <div className="text-right">
+                                                                {est ? (
+                                                                    <div className="flex flex-col items-end">
+                                                                        <span className="text-sm font-bold font-mono text-orange-400">
+                                                                            ₺{est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                                        </span>
+                                                                        {!est.isActual && (
+                                                                            <span className="text-[9px] text-slate-500 font-medium leading-none mt-0.5">
+                                                                                (Tahmini Tutar)
                                                                             </span>
                                                                         )}
-                                                                    </td>
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-slate-600 font-mono text-xs">—</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
 
-                                                                    {/* 4. Sütun: İşlemler & Butonlar */}
-                                                                    <td className="p-4 text-right">
-                                                                        <div className="flex justify-end items-center gap-2">
-                                                                            {/* Belge / PDF Yönetim Modalı Butonu */}
-                                                                            <button
-                                                                                onClick={() => {
-                                                                                    setPdfModalInvoice(inv);
-                                                                                    setModalFiles(inv.files || []);
-                                                                                    setModalNote(inv.note || '');
-                                                                                }}
-                                                                                title={inv.files?.length > 0 ? "Fatura Belgelerini Düzenle / Görüntüle" : "Faturaya PDF / Belge Ekle"}
-                                                                                className={`p-1.5 text-xs font-semibold rounded-lg transition border cursor-pointer ${inv.files?.length > 0 ? 'bg-orange-500/15 border-orange-500/30 text-orange-400 hover:bg-orange-500/25' : 'bg-slate-800/80 border-slate-700/60 text-slate-400 hover:text-white hover:bg-slate-700'}`}
-                                                                            >
-                                                                                <Paperclip size={13} />
-                                                                            </button>
+                                                        {/* 3. Alt Satır: Aksiyon Butonları */}
+                                                        <div className="flex items-center gap-2 pt-2 border-t border-white/[0.04] flex-wrap">
+                                                            {/* Belge / PDF Yönetimi */}
+                                                            <button
+                                                                onClick={() => {
+                                                                    setPdfModalInvoice(inv);
+                                                                    setModalFiles(inv.files || []);
+                                                                    setModalNote(inv.note || '');
+                                                                }}
+                                                                title={inv.files?.length > 0 ? "Fatura Belgelerini Düzenle" : "Faturaya PDF / Belge Ekle"}
+                                                                className={`p-2 text-xs font-semibold rounded-xl transition border cursor-pointer flex items-center gap-1 shrink-0 ${
+                                                                    inv.files?.length > 0 
+                                                                        ? 'bg-orange-500/15 border-orange-500/30 text-orange-400 hover:bg-orange-500/25' 
+                                                                        : 'bg-slate-800/80 border-slate-700/60 text-slate-400 hover:text-white'
+                                                                }`}
+                                                            >
+                                                                <Paperclip size={13} />
+                                                                <span className="text-[11px]">{inv.files?.length > 0 ? `${inv.files.length} Belge` : 'Ekler'}</span>
+                                                            </button>
 
-                                                                            {isDraftOnGib ? (
-                                                                                <>
-                                                                                    <button
-                                                                                        onClick={() => handleApproveSmsInit(inv)}
-                                                                                        disabled={isApprovingSms === inv.id}
-                                                                                        className="inline-flex items-center gap-1.5 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white px-3 py-1.5 rounded-xl transition disabled:opacity-50 cursor-pointer shadow-md shadow-orange-950/40"
-                                                                                    >
-                                                                                        {isApprovingSms === inv.id ? (
-                                                                                            <RefreshCw size={12} className="animate-spin" />
-                                                                                        ) : (
-                                                                                            <Smartphone size={12} />
-                                                                                        )}
-                                                                                        Sistemde Onayla
-                                                                                    </button>
-                                                                                    <a
-                                                                                        href={gibPortalUrl}
-                                                                                        target="_blank" 
-                                                                                        rel="noopener noreferrer" 
-                                                                                        className="inline-flex items-center gap-1 text-xs font-semibold bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 px-3 py-1.5 rounded-xl transition cursor-pointer"
-                                                                                    >
-                                                                                        Portalda Onayla <ExternalLink size={12} />
-                                                                                    </a>
-                                                                                    <button
-                                                                                        onClick={() => handleMarkAsSigned(inv)}
-                                                                                        title="İmzalandı Olarak İşaretle"
-                                                                                        className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 hover:border-orange-500/30 rounded-xl transition cursor-pointer"
-                                                                                    >
-                                                                                        <CheckCircle size={13} />
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={() => handleResetGibStatus(inv)}
-                                                                                        title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
-                                                                                        className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 hover:border-slate-500 rounded-xl transition cursor-pointer"
-                                                                                    >
-                                                                                        <RefreshCw size={13} />
-                                                                                    </button>
-                                                                                </>
-                                                                            ) : isSignedOnGib ? (
-                                                                                <>
-                                                                                    <button
-                                                                                        onClick={() => handleDownloadPdf(inv)}
-                                                                                        disabled={!inv.gibUuid || isDownloadingPdf === inv.id}
-                                                                                        title={inv.gibUuid ? "Faturayı Görüntüle / Yazdır" : "Sistem dışı onaylandığı için görüntülenemez"}
-                                                                                        className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 hover:border-orange-500/30 rounded-xl transition disabled:opacity-30 disabled:hover:bg-slate-800 disabled:hover:text-slate-400 disabled:hover:border-slate-700 disabled:cursor-not-allowed cursor-pointer"
-                                                                                    >
-                                                                                        {isDownloadingPdf === inv.id ? (
-                                                                                            <RefreshCw size={12} className="animate-spin" />
-                                                                                        ) : (
-                                                                                            <Download size={13} />
-                                                                                        )}
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={() => handleResetGibStatus(inv)}
-                                                                                        title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
-                                                                                        className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 hover:border-slate-500 rounded-xl transition cursor-pointer"
-                                                                                    >
-                                                                                        <RefreshCw size={13} />
-                                                                                    </button>
-                                                                                </>
-                                                                            ) : (
-                                                                                <>
-                                                                                    <button
-                                                                                        onClick={() => handleOpenSendModal(inv)}
-                                                                                        disabled={isSending}
-                                                                                        className="inline-flex items-center gap-1.5 text-xs font-bold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white px-3.5 py-1.5 rounded-xl transition disabled:opacity-50 shadow-md shadow-orange-500/25 active:scale-95 cursor-pointer"
-                                                                                    >
-                                                                                        {isSending ? (
-                                                                                            <>
-                                                                                                <RefreshCw size={12} className="animate-spin" />
-                                                                                                Hazırlanıyor...
-                                                                                            </>
-                                                                                        ) : (
-                                                                                            <>
-                                                                                                GİB Taslak Hazırla
-                                                                                            </>
-                                                                                        )}
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={() => handleMarkAsSigned(inv)}
-                                                                                        title="İmzalandı Olarak İşaretle"
-                                                                                        className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 hover:border-orange-500/30 rounded-xl transition cursor-pointer"
-                                                                                    >
-                                                                                        <CheckCircle size={13} />
-                                                                                    </button>
-                                                                                </>
-                                                                            )}
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
-                                                            );
-                                                        })}
-                                                    </tbody>
-                                                </table>
-                                            </div>
+                                                            {/* Duruma Göre Ana Butonlar */}
+                                                            {isDraftOnGib ? (
+                                                                <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0">
+                                                                    <button
+                                                                        onClick={() => handleApproveSmsInit(inv)}
+                                                                        disabled={isApprovingSms === inv.id}
+                                                                        className="flex-1 min-w-[110px] inline-flex items-center justify-center gap-1.5 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white px-2.5 py-1.5 rounded-xl transition disabled:opacity-50 cursor-pointer shadow-sm"
+                                                                    >
+                                                                        {isApprovingSms === inv.id ? (
+                                                                            <RefreshCw size={12} className="animate-spin" />
+                                                                        ) : (
+                                                                            <Smartphone size={12} />
+                                                                        )}
+                                                                        <span>Sistemde Onayla</span>
+                                                                    </button>
+                                                                    <a
+                                                                        href={gibPortalUrl}
+                                                                        target="_blank" 
+                                                                        rel="noopener noreferrer" 
+                                                                        className="p-2 text-xs font-semibold bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 rounded-xl transition cursor-pointer shrink-0"
+                                                                        title="GİB Portalında Onayla"
+                                                                    >
+                                                                        <ExternalLink size={13} />
+                                                                    </a>
+                                                                    <button
+                                                                        onClick={() => handleMarkAsSigned(inv)}
+                                                                        title="İmzalandı Olarak İşaretle"
+                                                                        className="p-2 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 rounded-xl transition cursor-pointer shrink-0"
+                                                                    >
+                                                                        <CheckCircle size={13} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleResetGibStatus(inv)}
+                                                                        title="GİB Durumunu Sıfırla"
+                                                                        className="p-2 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 rounded-xl transition cursor-pointer shrink-0"
+                                                                    >
+                                                                        <RefreshCw size={13} />
+                                                                    </button>
+                                                                </div>
+                                                            ) : isSignedOnGib ? (
+                                                                <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0">
+                                                                    <button
+                                                                        onClick={() => handleDownloadPdf(inv)}
+                                                                        disabled={!inv.gibUuid || isDownloadingPdf === inv.id}
+                                                                        className="flex-1 min-w-[100px] inline-flex items-center justify-center gap-1.5 text-xs font-semibold bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 hover:text-white border border-white/10 px-3 py-1.5 rounded-xl transition disabled:opacity-30 cursor-pointer shadow-sm"
+                                                                    >
+                                                                        {isDownloadingPdf === inv.id ? (
+                                                                            <RefreshCw size={12} className="animate-spin" />
+                                                                        ) : (
+                                                                            <Download size={13} />
+                                                                        )}
+                                                                        <span>PDF İndir</span>
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleResetGibStatus(inv)}
+                                                                        title="GİB Durumunu Sıfırla"
+                                                                        className="p-2 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 rounded-xl transition cursor-pointer shrink-0"
+                                                                    >
+                                                                        <RefreshCw size={13} />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0">
+                                                                    <button
+                                                                        onClick={() => handleOpenSendModal(inv)}
+                                                                        disabled={isSending}
+                                                                        className="flex-1 min-w-[130px] inline-flex items-center justify-center gap-1.5 text-xs font-bold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white px-3 py-1.5 rounded-xl transition disabled:opacity-50 shadow-md shadow-orange-500/25 active:scale-95 cursor-pointer"
+                                                                    >
+                                                                        {isSending ? (
+                                                                            <>
+                                                                                <RefreshCw size={12} className="animate-spin" />
+                                                                                <span>Hazırlanıyor...</span>
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <Sparkles size={12} />
+                                                                                <span>GİB Taslak Hazırla</span>
+                                                                            </>
+                                                                        )}
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleMarkAsSigned(inv)}
+                                                                        title="İmzalandı Olarak İşaretle"
+                                                                        className="p-2 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 rounded-xl transition cursor-pointer shrink-0"
+                                                                    >
+                                                                        <CheckCircle size={13} />
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </>
                                         )}
                                     </div>
                                 )}
