@@ -231,6 +231,13 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     const activeInvoices = useMemo(() => invoices ? invoices.filter(inv => !inv.deleted) : [], [invoices]);
     const activeFuel = useMemo(() => fuelRecords ? fuelRecords.filter(f => !f.deleted) : [], [fuelRecords]);
 
+    const recentTrips = useMemo(() => {
+        return (activeTrips || [])
+            .filter(t => t.date)
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .slice(0, 3);
+    }, [activeTrips]);
+
     const lastHistDay = useMemo(() => {
         const todayDate = now.getDate();
         const todayMonth = now.getMonth();
