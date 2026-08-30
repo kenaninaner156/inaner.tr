@@ -135,6 +135,16 @@ function App() {
         setIsMenuOpen(false);
       }
     };
+    // iOS Standalone (PWA) tespiti
+    try {
+      const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+      if (isIos && isStandalone) {
+        document.documentElement.classList.add('ios-pwa');
+        document.body.classList.add('ios-pwa');
+      }
+    } catch (_) {}
+
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', handleResize);
 
@@ -481,6 +491,15 @@ function App() {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
+
+      {/* ── Global iOS PWA Status Bar Shield (Prevents iOS translucent status bar from blurring map & scrolling lists) ── */}
+      <div 
+        className="fixed top-0 left-0 right-0 z-[9980] pointer-events-none transition-colors duration-300"
+        style={{ 
+          height: 'var(--safe-top, 0px)', 
+          backgroundColor: 'var(--bg-base)' 
+        }} 
+      />
 
       {/* 💣 BOM Easter Egg Bildirimi */}
       {bomPhase === 'fall' && (

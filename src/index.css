@@ -59,8 +59,10 @@
   --safe-top: env(safe-area-inset-top, 0px);
 }
 
-body.ios-pwa {
-  --safe-top: max(env(safe-area-inset-top, 0px), 24px);
+html.ios-pwa,
+body.ios-pwa,
+.ios-pwa {
+  --safe-top: max(env(safe-area-inset-top, 0px), 28px);
 }
 
 /* === Tema 2: KREM (Avant-Garde Light) === */

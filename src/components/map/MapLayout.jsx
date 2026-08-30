@@ -386,12 +386,18 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
       data-map-module 
       className="relative w-full h-[100dvh] md:h-screen overflow-hidden flex flex-col select-none bg-[#07090e]"
     >
+      {/* ── PWA / iOS STATUS BAR SOLID STRIP (ELIMINATES SATELLITE MAP BLUR) ── */}
+      <div 
+        className="w-full bg-[#07090e] shrink-0 z-[1900]" 
+        style={{ height: 'var(--safe-top, 0px)' }} 
+      />
+
       {/* ── ÜST YÜZEN KONTROL PANELİ (ORİJİNAL MERKEZLİ TASARIM) ── */}
       <div 
         ref={navBarCallbackRef} 
-        className="absolute top-3 sm:top-5 left-1/2 -translate-x-1/2 z-[2000] pointer-events-auto w-[96%] sm:w-11/12 max-w-2xl"
+        className="absolute left-1/2 -translate-x-1/2 z-[2000] pointer-events-auto w-[96%] sm:w-11/12 max-w-2xl"
         style={{
-          paddingTop: 'var(--safe-top)'
+          top: 'calc(var(--safe-top, 0px) + 0.75rem)'
         }}
       >
         <div className="flex bg-[#0D1219] p-1 sm:p-1.5 rounded-2xl shadow-xl w-full border border-white/10 items-center select-none gap-0.5 sm:gap-1 ring-1 ring-black/40">

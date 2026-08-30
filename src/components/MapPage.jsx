@@ -3,7 +3,7 @@ import MapLayout from './map/MapLayout';
 
 const MapPage = ({ onOpenMenu, isMobile }) => {
     return (
-        <div className="w-full h-[100dvh] md:h-screen relative overflow-hidden bg-[#07090E]">
+        <div className="w-full h-full relative overflow-hidden bg-[#07090E]">
             <MapLayout onOpenMenu={onOpenMenu} isMobile={isMobile} />
         </div>
     );
