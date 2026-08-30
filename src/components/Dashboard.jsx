@@ -421,24 +421,39 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
     const PerfIcon = perfDelta === null ? Minus : perfDelta >= 0 ? TrendingUp : TrendingDown;
     const perfColor = perfDelta === null ? '#64748b' : perfDelta >= 0 ? '#10b981' : '#ef4444';
 
+    const maxTrips = useMemo(() => {
+        const mx = Math.max(...chartData.map(d => d['Sefer Sayısı'] || 0), 1);
+        return mx;
+    }, [chartData]);
+
+    const maxTonnage = useMemo(() => {
+        const mx = Math.max(...chartData.map(d => d['Taşınan Tonaj'] || 0), 50);
+        return mx;
+    }, [chartData]);
+
     // ─── YATAY (LANDSCAPE) MOD: SADECE GENİŞLETİLMİŞ TAM EKRAN GRAFİK ───
     if (isLandscape) {
         return (
-            <div className="h-screen w-screen fixed inset-0 z-50 bg-[#07090e] p-2 sm:p-3 flex flex-col justify-between overflow-hidden select-none">
+            <div 
+                className="h-screen w-screen fixed inset-0 z-50 bg-[#07090e] p-2.5 sm:p-4 flex flex-col justify-between overflow-hidden select-none"
+                style={{
+                    paddingLeft: 'calc(0.75rem + env(safe-area-inset-left, 0px))',
+                    paddingRight: 'calc(0.75rem + env(safe-area-inset-right, 0px))',
+                    paddingTop: 'calc(0.5rem + env(safe-area-inset-top, 0px))',
+                    paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))',
+                }}
+            >
                 {/* Yatay Mod Üst Kontrol Çubuğu */}
-                <div className="flex items-center justify-between gap-3 px-2 py-1 bg-[#0d1117] border border-white/[0.08] rounded-xl shrink-0">
-                    <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
-                        <h3 className="font-bold text-xs sm:text-sm text-white tracking-tight flex items-center gap-2">
-                            <span>Aylık Operasyon Grafiği</span>
-                            <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
-                                ({MONTHS_TR[selectedMonth]} {selectedYear})
-                            </span>
+                <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-[#0d1117] border border-white/[0.08] rounded-xl shrink-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-2 h-2 rounded-full bg-sky-400 animate-pulse shrink-0" />
+                        <h3 className="font-bold text-xs sm:text-sm text-white tracking-tight truncate">
+                            Aylık Operasyon Grafiği
                         </h3>
                     </div>
 
-                    {/* Metrik Özet Rozetleri (Yatayda Tek Satır) */}
-                    <div className="flex items-center gap-2 text-[10px] font-semibold text-slate-300">
+                    {/* Metrik Özet Rozetleri */}
+                    <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-300 shrink-0">
                         <span className="bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700">
                             Aktif: <strong className="text-white">{activeDays}</strong> Gün
                         </span>
@@ -453,11 +468,11 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                     </div>
 
                     {/* Zaman Navigasyonu */}
-                    <div className="flex items-center bg-[#07090e] border border-white/10 p-0.5 rounded-lg">
+                    <div className="flex items-center bg-[#07090e] border border-white/10 p-0.5 rounded-lg shrink-0">
                         <button onClick={goToPrev} className="p-1 rounded text-slate-400 hover:text-white transition cursor-pointer">
                             <ChevronLeft size={14} />
                         </button>
-                        <span className="text-[11px] font-bold text-white px-2 min-w-[70px] text-center">
+                        <span className="text-[11px] font-bold text-white px-2 min-w-[70px] text-center whitespace-nowrap">
                             {MONTHS_SHORT[selectedMonth]} {selectedYear}
                         </span>
                         <button onClick={goToNext} className="p-1 rounded text-slate-400 hover:text-white transition cursor-pointer">
@@ -467,7 +482,7 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                 </div>
 
                 {/* Tam Ekran Geniş Grafik */}
-                <div className="flex-1 w-full min-h-0 pt-2 pb-1">
+                <div className="flex-1 w-full min-h-0 pt-2 pb-2">
                     {chartData.every(d => (d['Sefer Sayısı'] || 0) === 0 && (d['Taşınan Tonaj'] || 0) === 0) ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-500">
                             <Activity size={28} className="mb-1 opacity-30 animate-pulse" />
@@ -477,7 +492,7 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                         <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart
                                 data={chartData}
-                                margin={{ top: 5, right: 10, left: -25, bottom: 0 }}
+                                margin={{ top: 10, right: 15, left: -25, bottom: 20 }}
                                 onDoubleClick={(state) => {
                                     if (!isAllTime && state && state.activeLabel) {
                                         const dayStr = state.activeLabel;
@@ -496,17 +511,31 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" strokeOpacity={0.15} vertical={false} />
-                                <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} dy={4} interval={0} />
+                                <XAxis 
+                                    dataKey="name" 
+                                    stroke="#64748b" 
+                                    fontSize={10} 
+                                    tickLine={false} 
+                                    axisLine={false} 
+                                    dy={8} 
+                                    interval={0} 
+                                />
                                 <YAxis 
                                     yAxisId="left" 
                                     stroke="#64748b" 
                                     fontSize={10} 
                                     tickLine={false} 
                                     axisLine={false} 
-                                    domain={[0, dataMax => Math.max(4, Math.ceil(dataMax * 1.35))]}
+                                    domain={[0, maxTrips <= 2 ? 3 : Math.ceil(maxTrips * 1.15)]}
+                                    ticks={maxTrips <= 2 ? [0, 1, 2, 3] : undefined}
                                     allowDecimals={false}
                                 />
-                                <YAxis yAxisId="right" orientation="right" hide={true} domain={[0, dataMax => Math.max(140, Math.ceil(dataMax * 1.35))]} />
+                                <YAxis 
+                                    yAxisId="right" 
+                                    orientation="right" 
+                                    hide={true} 
+                                    domain={[0, Math.max(100, Math.ceil(maxTonnage * 1.15))]} 
+                                />
                                 <Tooltip content={<CustomTooltip isAllTime={isAllTime} theme={activeTheme} />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
                                 
                                 <Area 
@@ -595,14 +624,14 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
     // ─── DİKEY (PORTRAIT) MOD: KOMPAKT 2x2 KARTLAR VE TAM EKRAN DOLDURAN GRAFİK ───
     return (
         <div 
-            className="flex-1 flex flex-col h-full w-full p-2.5 sm:p-4 lg:p-6 overflow-hidden gap-2 sm:gap-3 max-w-[1920px] mx-auto pb-1 sm:pb-2"
+            className="flex-1 flex flex-col h-full w-full p-2.5 sm:p-4 lg:p-6 overflow-hidden gap-2 sm:gap-2.5 max-w-[1920px] mx-auto pb-1 sm:pb-2"
             style={{
                 paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
             }}
         >
             {/* Mobilde Şık Başlık & Menü Çubuğu */}
             {isMobile && onOpenMenu && (
-                <div className="flex items-center justify-between gap-3 pb-1.5 border-b border-white/[0.06] shrink-0">
+                <div className="flex items-center justify-between gap-3 pb-1 border-b border-white/[0.06] shrink-0">
                     <div className="flex items-center gap-2.5 min-w-0">
                         <button 
                             onClick={onOpenMenu} 
@@ -624,7 +653,7 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                 {/* 1. KART: Toplam Gelir (Ciro - Tüm Zamanlar) */}
                 <div 
                     onClick={() => setIsProfitModalOpen(true)}
-                    className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3.5 rounded-2xl cursor-pointer transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm"
+                    className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3 rounded-2xl cursor-pointer transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm"
                 >
                     <div className="flex justify-between items-center mb-1">
                         <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors">
@@ -642,7 +671,7 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                 </div>
 
                 {/* 2. KART: Aylık Yakıt Gideri (Seçili Ay) */}
-                <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3.5 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
+                <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
                     <div className="flex justify-between items-center mb-1">
                         <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors truncate pr-1">
                             Yakıt <span className="text-[9px] text-slate-500 lowercase">({MONTHS_SHORT[selectedMonth]})</span>
@@ -659,7 +688,7 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                 </div>
 
                 {/* 3. KART: Ortalama Tüketim (Seçili Ay) */}
-                <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3.5 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
+                <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
                     <div className="flex justify-between items-center mb-1">
                         <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors truncate pr-1">
                             Ort. Tüketim
@@ -683,7 +712,7 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                 </div>
 
                 {/* 4. KART: Güncel Motorin Fiyatı */}
-                <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3.5 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
+                <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
                     <div className="flex justify-between items-center mb-1">
                         <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors truncate pr-1">
                             Güncel Motorin
@@ -702,7 +731,7 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
 
             </div>
 
-            {/* ─── GRAFİK PANELİ (TAM DOLDURAN FLEX-1 CONTAINER) ─── */}
+            {/* ─── GRAFİK PANELİ (TAM DOLDURAN VE MÜKEMMEL ORANLANMIŞ CONTAINER) ─── */}
             <div className="bg-[#07090e] border border-white/[0.08] p-3 sm:p-4 rounded-2xl flex-1 min-h-0 flex flex-col justify-between shadow-sm overflow-hidden">
 
                 {/* Başlık ve Ay Seçici */}
@@ -727,7 +756,7 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                     </div>
                 </div>
 
-                {/* Grafik - flex-1 min-h-0 ile Tüm Boşluğu Doldurur */}
+                {/* Grafik - Dengeli Y-Eksen Ölçeği */}
                 <div className="w-full flex-1 min-h-0 relative select-none outline-none focus:outline-none my-1">
                     {chartData.every(d => (d['Sefer Sayısı'] || 0) === 0 && (d['Taşınan Tonaj'] || 0) === 0) ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-500">
@@ -739,7 +768,7 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                         <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart
                                 data={chartData}
-                                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                                margin={{ top: 10, right: 10, left: -20, bottom: 12 }}
                                 style={{ outline: 'none' }}
                                 onDoubleClick={(state) => {
                                     if (!isAllTime && state && state.activeLabel) {
@@ -759,7 +788,15 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" strokeOpacity={0.12} vertical={false} />
-                                <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} dy={4} interval={isAllTime ? 'preserveStartEnd' : Math.floor(chartData.length / 8)} />
+                                <XAxis 
+                                    dataKey="name" 
+                                    stroke="#64748b" 
+                                    fontSize={10} 
+                                    tickLine={false} 
+                                    axisLine={false} 
+                                    dy={5} 
+                                    interval={isAllTime ? 'preserveStartEnd' : Math.floor(chartData.length / 8)} 
+                                />
                                 <YAxis 
                                     yAxisId="left" 
                                     stroke="#64748b" 
@@ -767,14 +804,15 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                                     tickLine={false} 
                                     axisLine={false} 
                                     dx={-4} 
-                                    domain={[0, dataMax => Math.max(4, Math.ceil(dataMax * 1.35))]}
+                                    domain={[0, maxTrips <= 2 ? 3 : Math.ceil(maxTrips * 1.15)]}
+                                    ticks={maxTrips <= 2 ? [0, 1, 2, 3] : undefined}
                                     allowDecimals={false}
                                 />
                                 <YAxis 
                                     yAxisId="right" 
                                     orientation="right" 
                                     hide={true} 
-                                    domain={[0, dataMax => Math.max(140, Math.ceil(dataMax * 1.35))]}
+                                    domain={[0, Math.max(100, Math.ceil(maxTonnage * 1.15))]}
                                 />
                                 <Tooltip content={<CustomTooltip isAllTime={isAllTime} theme={activeTheme} />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
 
@@ -822,46 +860,25 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                     )}
                 </div>
 
-                {/* Verimlilik Metrikleri */}
+                {/* Verimlilik Metrikleri: Kesintisiz ve Hizalı Mini Widget'lar */}
                 {!isAllTime && activeDays > 0 && (
                     <div className="pt-2 border-t border-white/[0.06] grid grid-cols-3 gap-2 shrink-0">
-                        <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04]">
-                            <div className="p-1.5 rounded-lg bg-slate-800 text-slate-300 shrink-0">
-                                <CalendarDays size={13} />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider truncate">Aktif Gün</p>
-                                <p className="text-xs sm:text-sm font-bold text-white truncate">{activeDays} <span className="text-[10px] text-slate-400 font-normal">gün</span></p>
-                            </div>
+                        <div className="flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04] text-center">
+                            <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Aktif Gün</span>
+                            <span className="text-xs sm:text-sm font-bold text-white mt-0.5">{activeDays} <span className="text-[10px] text-slate-400 font-normal">gün</span></span>
                         </div>
-                        <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04]">
-                            <div className="p-1.5 rounded-lg bg-slate-800 text-slate-300 shrink-0">
-                                <Weight size={13} />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider truncate">Ort. Tonaj</p>
-                                <p className="text-xs sm:text-sm font-bold text-white truncate">
-                                    {currentDailyTonnage.toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                                    <span className="text-[10px] text-slate-400 font-normal"> T</span>
-                                </p>
-                            </div>
+                        <div className="flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04] text-center">
+                            <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Günlük Ort.</span>
+                            <span className="text-xs sm:text-sm font-bold text-white mt-0.5">
+                                {currentDailyTonnage.toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                                <span className="text-[10px] text-slate-400 font-normal"> Ton</span>
+                            </span>
                         </div>
-                        <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04]">
-                            <div className="p-1.5 rounded-lg bg-slate-800 text-slate-300 shrink-0">
-                                <PerfIcon size={13} />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider truncate">Geçen Ay</p>
-                                <p className="text-xs sm:text-sm font-bold text-white truncate">
-                                    {perfDelta === null ? (
-                                        <span className="text-slate-400 text-[10px] font-normal">Veri Yok</span>
-                                    ) : (
-                                        <span className={perfDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                                            %{Math.abs(perfDelta).toFixed(1)}
-                                        </span>
-                                    )}
-                                </p>
-                            </div>
+                        <div className="flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04] text-center">
+                            <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Geçen Aya</span>
+                            <span className={`text-xs sm:text-sm font-bold mt-0.5 ${perfDelta === null ? 'text-slate-400' : perfDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {perfDelta === null ? 'Veri Yok' : `${perfDelta >= 0 ? '+' : ''}%${Math.abs(perfDelta).toFixed(1)}`}
+                            </span>
                         </div>
                     </div>
                 )}
