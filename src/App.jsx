@@ -487,7 +487,7 @@ function App() {
         <div className="bom-notification">💣 B O M !</div>
       )}
       {isMenuOpen && isMobile && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40" onClick={handleOverlayClick} />
+        <div className="fixed inset-0 bg-black/75 z-40" onClick={handleOverlayClick} />
       )}
 
       {/* Sidebar - Avant Garde Minimalist Layout */}

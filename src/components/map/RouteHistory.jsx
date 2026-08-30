@@ -81,9 +81,7 @@ const truckPlayIcon = L.divIcon({
     <div style="
       width: 36px;
       height: 36px;
-      background: rgba(12, 16, 24, 0.95);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      background: #0c1018;
       border: 1.5px solid rgba(245, 158, 11, 0.85);
       border-radius: 50%;
       box-shadow: 0 4px 16px rgba(0,0,0,0.8), 0 0 10px rgba(245, 158, 11, 0.35), inset 0 1px 0 rgba(255,255,255,0.2);
@@ -198,9 +196,8 @@ function MobileRouteHistoryCard({
   return (
     <div
       ref={cardRef}
-      className="absolute bottom-3 left-3 right-3 z-[1500] pointer-events-auto rounded-[28px] p-3.5 flex flex-col gap-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.85)] border border-white/10 backdrop-blur-3xl md:hidden overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+      className="absolute bottom-3 left-3 right-3 z-[1500] pointer-events-auto rounded-[28px] p-3.5 flex flex-col gap-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.85)] border border-white/10 bg-[#0d1219] md:hidden overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
       style={{
-        background: 'rgba(13, 18, 25, 0.96)',
         marginBottom: 'env(safe-area-inset-bottom, 0px)'
       }}
     >
@@ -337,7 +334,7 @@ function MobileRouteHistoryCard({
 
             {/* ── DİĞER'E BASILINCA AÇILAN TAM BOYUT AY TAKVİMİ ── */}
             {showCalendar && (
-              <div className="mt-2.5 rounded-2xl bg-black/70 border border-white/[0.08] p-3 flex flex-col gap-2 backdrop-blur-xl">
+              <div className="mt-2.5 rounded-2xl bg-[#090d14] border border-white/[0.08] p-3 flex flex-col gap-2">
                 <div className="flex items-center justify-between px-1">
                   <button 
                     type="button"
@@ -1154,15 +1151,15 @@ export default function RouteHistory({
         {isVisible && showSidebar && (
           <motion.div
             ref={sidebarCallbackRef}
-            initial={{ x: -10, opacity: 0, scale: 0.99, filter: 'blur(4px)' }}
-            animate={{ x: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
-            exit={{ x: -10, opacity: 0, scale: 0.99, filter: 'blur(4px)' }}
+            initial={{ x: -10, opacity: 0, scale: 0.99 }}
+            animate={{ x: 0, opacity: 1, scale: 1 }}
+            exit={{ x: -10, opacity: 0, scale: 0.99 }}
             transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-            className="hidden md:flex absolute left-4 w-[330px] z-[1500] flex-col rounded-3xl overflow-hidden border border-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.85)] backdrop-blur-3xl"
+            className="hidden md:flex absolute left-4 w-[330px] z-[1500] flex-col rounded-3xl overflow-hidden border border-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.85)]"
             style={{
               top: 'calc(4.75rem + env(safe-area-inset-top, 0px))',
               maxHeight: 'calc(100vh - 6rem - env(safe-area-inset-top, 0px))',
-              background: 'rgba(13, 18, 25, 0.96)',
+              background: '#0D1219',
             }}
           >
         {/* Başlık */}
@@ -1180,7 +1177,7 @@ export default function RouteHistory({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.05] rounded-xl transition-all"
+            className="p-1.5 text-slate-400 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.05] rounded-xl transition-all cursor-pointer"
           >
             <X size={14} />
           </button>
@@ -1188,7 +1185,7 @@ export default function RouteHistory({
 
         {/* ── Akıllı Tarih Filtresi (Bugün & Geçmiş) ── */}
         <div className="px-3 py-2.5 border-b border-white/[0.06] space-y-2">
-          <div className="flex backdrop-blur-xl p-1 rounded-xl items-center gap-1 bg-[#090d14]/70 border border-white/[0.06]">
+          <div className="flex p-1 rounded-xl items-center gap-1 bg-[#090d14] border border-white/[0.06]">
             {/* Bugün */}
             {(() => {
               const todayStr = new Date().toISOString().slice(0, 10);
@@ -1670,7 +1667,7 @@ export default function RouteHistory({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.8, opacity: 0 }}
             onClick={() => setShowSidebar(true)}
-            className="hidden md:block absolute left-4 z-[1500] p-3.5 bg-[#0e131b]/90 hover:bg-[#121822] text-amber-400 rounded-2xl border border-white/10 transition-all backdrop-blur-md shadow-xl cursor-pointer"
+            className="hidden md:block absolute left-4 z-[1500] p-3.5 bg-[#0e131b] hover:bg-[#121822] text-amber-400 rounded-2xl border border-white/10 transition-all shadow-xl cursor-pointer"
             style={{
               top: 'calc(4.75rem + env(safe-area-inset-top, 0px))'
             }}
@@ -1685,16 +1682,15 @@ export default function RouteHistory({
         {isVisible && selectedSession && showPlayer && (
           <motion.div 
             ref={playerCallbackRef}
-            initial={{ y: 20, opacity: 0, x: '-50%', scale: 0.96, filter: 'blur(8px)' }}
-            animate={{ y: 0, opacity: 1, x: '-50%', scale: 1, filter: 'blur(0px)' }}
-            exit={{ y: 20, opacity: 0, x: '-50%', scale: 0.96, filter: 'blur(8px)' }}
+            initial={{ y: 20, opacity: 0, x: '-50%', scale: 0.96 }}
+            animate={{ y: 0, opacity: 1, x: '-50%', scale: 1 }}
+            exit={{ y: 20, opacity: 0, x: '-50%', scale: 0.96 }}
             transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
             className="hidden md:block absolute bottom-6 z-[2000] w-11/12 max-w-[420px] pointer-events-auto transition-all duration-300 ease-out"
             style={{ left: (showSidebar && window.innerWidth >= 768) ? 'calc(50% + 158px)' : '50%' }}
           >
           <div
-            className="px-4 py-3 rounded-3xl flex items-center gap-4 border border-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.85)] backdrop-blur-3xl"
-            style={{ background: 'rgba(13,18,25,0.97)' }}
+            className="px-4 py-3 rounded-3xl flex items-center gap-4 border border-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.85)] bg-[#0D1219]"
           >
             {/* Play / Pause */}
             <button

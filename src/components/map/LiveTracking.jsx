@@ -38,9 +38,7 @@ const createVehicleIcon = (isOnline, isMapped, speedKmh = 0, isFollowed = false)
       <div style="
         width: 38px;
         height: 38px;
-        background: rgba(12, 16, 24, 0.95);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
+        background: #0c1018;
         border: 1.5px solid ${borderColor};
         border-radius: 50%;
         box-shadow: ${shadow};
@@ -392,7 +390,7 @@ function MobileMapActions({ vehicleList, followedVehicle, setFollowedDriverId, s
       {/* 1. Üçgen: Seçili Aracı Ortala */}
       <button
         onClick={handleCenterFollowed}
-        className="w-11 h-11 bg-[#0d1219]/95 backdrop-blur-2xl border border-emerald-500/40 text-emerald-400 rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.75)] active:scale-90 transition-all flex items-center justify-center"
+        className="w-11 h-11 bg-[#0d1219] border border-emerald-500/40 text-emerald-400 rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.75)] active:scale-90 transition-all flex items-center justify-center"
         title="Seçili Aracı Ortala"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-emerald-400 transform -rotate-45 translate-x-0.5">
@@ -403,7 +401,7 @@ function MobileMapActions({ vehicleList, followedVehicle, setFollowedDriverId, s
       {/* 2. 3 Tane Yuvarlak: Bütün Araçları Göster */}
       <button
         onClick={handleFitAll}
-        className="w-11 h-11 bg-[#0d1219]/95 backdrop-blur-2xl border border-white/15 text-slate-200 hover:text-white rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.75)] active:scale-90 transition-all flex items-center justify-center"
+        className="w-11 h-11 bg-[#0d1219] border border-white/15 text-slate-200 hover:text-white rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.75)] active:scale-90 transition-all flex items-center justify-center"
         title="Bütün Araçları Göster"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-slate-200">
@@ -439,9 +437,8 @@ function MobileFollowedCard({
   return (
     <div
       ref={cardRef}
-      className="absolute bottom-3 left-3 right-3 z-[1500] pointer-events-auto rounded-[28px] p-3.5 flex flex-col gap-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.85)] border border-white/10 backdrop-blur-3xl md:hidden overflow-hidden transition-all duration-200"
+      className="absolute bottom-3 left-3 right-3 z-[1500] pointer-events-auto rounded-[28px] p-3.5 flex flex-col gap-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.85)] border border-white/10 md:hidden overflow-hidden transition-all duration-200 bg-[#0d1219]"
       style={{
-        background: 'rgba(13, 18, 25, 0.96)',
         marginBottom: 'env(safe-area-inset-bottom, 0px)'
       }}
     >
@@ -731,18 +728,17 @@ export default function LiveTracking({
         {isVisible && showSidebar && (
             <motion.div 
             ref={sidebarCallbackRef}
-            initial={{ x: -10, opacity: 0, scale: 0.99, filter: 'blur(4px)' }}
-            animate={{ x: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
-            exit={{ x: -10, opacity: 0, scale: 0.99, filter: 'blur(4px)' }}
+            initial={{ x: -10, opacity: 0, scale: 0.99 }}
+            animate={{ x: 0, opacity: 1, scale: 1 }}
+            exit={{ x: -10, opacity: 0, scale: 0.99 }}
             transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
             className="hidden md:flex absolute left-4 w-[300px] z-[1500] flex-col rounded-3xl" 
             style={{
               top: 'calc(4.75rem + env(safe-area-inset-top, 0px))',
               maxHeight: 'calc(100vh - 6rem - env(safe-area-inset-top, 0px))',
-              background: 'rgba(13,18,25,0.96)',
+              background: '#0D1219',
               border: PANEL_BORDER,
               boxShadow: '0 8px 40px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.03)',
-              backdropFilter: 'blur(24px)',
               overflow: 'hidden'
             }}
           >
@@ -789,7 +785,7 @@ export default function LiveTracking({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.8, opacity: 0 }}
             onClick={() => setShowSidebar(true)}
-            className="hidden md:flex absolute left-4 z-[1500] p-3.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-2xl border border-emerald-500/20 transition-all backdrop-blur-md cursor-pointer"
+            className="hidden md:flex absolute left-4 z-[1500] p-3.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-2xl border border-emerald-500/20 transition-all cursor-pointer"
             style={{
               top: 'calc(4.75rem + env(safe-area-inset-top, 0px))'
             }}

@@ -463,7 +463,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
               {showLayerMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowLayerMenu(false)} />
-                  <div className="absolute right-0 top-full mt-2 w-40 bg-[#0D1219]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.9)] z-20 flex flex-col gap-1">
+                  <div className="absolute right-0 top-full mt-2 w-40 bg-[#0D1219] border border-white/10 rounded-2xl p-1.5 shadow-2xl z-20 flex flex-col gap-1">
                     {[
                       { id: 'voyager',    name: 'Açık Harita' },
                       { id: 'darkmatter', name: 'Koyu Harita' },

@@ -19,8 +19,8 @@ export default function MapSettingsModal({ onClose, onStartAddGeofence, onStartE
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-      {/* Arka plan bulanıklığı */}
-      <div className="absolute inset-0 bg-[#0a0c10]/70 backdrop-blur-md" onClick={onClose}></div>
+      {/* Arka plan */}
+      <div className="absolute inset-0 bg-[#0a0c10]/80" onClick={onClose}></div>
       
       {/* Modal Kartı */}
       <div className="relative w-full max-w-md animate-in zoom-in-95 duration-300">

@@ -223,7 +223,7 @@ export function InteractiveGeofencePanel({ draftZone, setDraftZone, onSave, onCa
       exit={{ y: 80, opacity: 0, scale: 0.95 }}
       className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[2500] w-[94%] max-w-md pointer-events-auto select-none"
     >
-      <div className="bg-[#090d14]/95 backdrop-blur-2xl p-4 sm:p-5 border border-white/10 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.85)] flex flex-col gap-3.5 ring-1 ring-black/40">
+      <div className="bg-[#090d14] p-4 sm:p-5 border border-white/10 rounded-2xl shadow-2xl flex flex-col gap-3.5 ring-1 ring-black/40">
         
         {/* Başlık & Nokta Sayacı */}
         <div className="flex items-center justify-between">
