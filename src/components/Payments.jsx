@@ -239,14 +239,16 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
 
     return (
         <div 
-            className="flex-1 flex flex-col min-h-[100dvh] md:h-[calc(100dvh-4rem)] p-3 sm:p-4 lg:p-6 overflow-x-hidden md:overflow-hidden gap-3 max-w-[1920px] mx-auto w-full pb-ios-nav"
-            style={{
-                paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
-            }}
+            className="flex-1 flex flex-col h-full w-full p-2.5 sm:p-4 lg:p-6 overflow-hidden gap-2.5 sm:gap-3 max-w-[1920px] mx-auto pb-1 sm:pb-2"
         >
             {/* Mobilde Şık Başlık & Menü Çubuğu */}
             {isMobile && onOpenMenu && (
-                <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/[0.06] shrink-0">
+                <div 
+                    className="flex items-center justify-between gap-3 pb-2 border-b border-white/[0.06] shrink-0"
+                    style={{
+                        paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+                    }}
+                >
                     <div className="flex items-center gap-2.5 min-w-0">
                         <button 
                             onClick={onOpenMenu} 
@@ -272,28 +274,28 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                 }}
             >
                 <div className="overflow-hidden min-h-0">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 pb-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 pb-1">
                         {/* 1. KART: Toplam Tahsilat (Giriş - Zümrüt Yeşili) */}
                         <div 
-                            className="relative overflow-hidden rounded-3xl border border-[#1b2f28] shadow-2xl shadow-black/80 flex flex-col justify-between p-4 sm:p-5"
+                            className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#1b2f28] shadow-lg sm:shadow-2xl shadow-black/80 flex flex-col justify-between p-3 sm:p-5"
                             style={{ 
                                 backgroundColor: '#070f0c',
                                 backgroundImage: 'radial-gradient(ellipse 70% 60% at 100% 0%, rgba(16,185,129,0.22) 0%, transparent 70%), radial-gradient(ellipse 70% 60% at 0% 100%, rgba(16,185,129,0.10) 0%, transparent 70%)'
                             }}
                         >
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs sm:text-sm font-bold text-emerald-400 tracking-wide flex items-center gap-1.5">
-                                    <ArrowDownRight size={16} /> Toplam Tahsilat (Giriş)
+                            <div className="flex items-center justify-between mb-1 sm:mb-2">
+                                <span className="text-[11px] sm:text-sm font-bold text-emerald-400 tracking-wide flex items-center gap-1 sm:gap-1.5">
+                                    <ArrowDownRight size={14} className="sm:w-4 sm:h-4" /> Toplam Tahsilat (Giriş)
                                 </span>
-                                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                                    <TrendingUp size={16} />
+                                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                    <TrendingUp size={13} className="sm:w-4 sm:h-4" />
                                 </div>
                             </div>
                             <div>
-                                <h3 className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight">
+                                <h3 className="text-xl sm:text-3xl font-black text-white font-mono tracking-tight">
                                     {formatCurrency(totalIncome)}
                                 </h3>
-                                <p className="text-[11px] text-emerald-400/80 mt-1 font-medium">
+                                <p className="text-[10px] sm:text-[11px] text-emerald-400/80 mt-0.5 sm:mt-1 font-medium">
                                     {activeForBalance.filter(r => r.type === 'Tahsilat').length} adet tahsilat işlemi
                                 </p>
                             </div>
@@ -301,25 +303,25 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
 
                         {/* 2. KART: Toplam Ödeme (Çıkış - Okyanus Cyan / Teal) */}
                         <div 
-                            className="relative overflow-hidden rounded-3xl border border-[#162933] shadow-2xl shadow-black/80 flex flex-col justify-between p-4 sm:p-5"
+                            className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#162933] shadow-lg sm:shadow-2xl shadow-black/80 flex flex-col justify-between p-3 sm:p-5"
                             style={{ 
                                 backgroundColor: '#070f14',
                                 backgroundImage: 'radial-gradient(ellipse 70% 60% at 100% 0%, rgba(6,182,212,0.22) 0%, transparent 70%), radial-gradient(ellipse 70% 60% at 0% 100%, rgba(6,182,212,0.08) 0%, transparent 70%)'
                             }}
                         >
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs sm:text-sm font-bold text-cyan-400 tracking-wide flex items-center gap-1.5">
-                                    <ArrowUpRight size={16} /> Toplam Ödeme (Çıkış)
+                            <div className="flex items-center justify-between mb-1 sm:mb-2">
+                                <span className="text-[11px] sm:text-sm font-bold text-cyan-400 tracking-wide flex items-center gap-1 sm:gap-1.5">
+                                    <ArrowUpRight size={14} className="sm:w-4 sm:h-4" /> Toplam Ödeme (Çıkış)
                                 </span>
-                                <div className="w-8 h-8 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-                                    <TrendingDown size={16} />
+                                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                                    <TrendingDown size={13} className="sm:w-4 sm:h-4" />
                                 </div>
                             </div>
                             <div>
-                                <h3 className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight">
+                                <h3 className="text-xl sm:text-3xl font-black text-white font-mono tracking-tight">
                                     {formatCurrency(totalExpense)}
                                 </h3>
-                                <p className="text-[11px] text-cyan-400/80 mt-1 font-medium">
+                                <p className="text-[10px] sm:text-[11px] text-cyan-400/80 mt-0.5 sm:mt-1 font-medium">
                                     {activeForBalance.filter(r => r.type === 'Ödeme').length} adet ödeme işlemi
                                 </p>
                             </div>
@@ -327,25 +329,25 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
 
                         {/* 3. KART: Net Kasa (Bakiye - Lüks Zümrüt Obsidian) */}
                         <div 
-                            className="relative overflow-hidden rounded-3xl border border-[#1b2f28] shadow-2xl shadow-black/80 flex flex-col justify-between p-4 sm:p-5"
+                            className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#1b2f28] shadow-lg sm:shadow-2xl shadow-black/80 flex flex-col justify-between p-3 sm:p-5"
                             style={{ 
                                 backgroundColor: '#070f0c',
                                 backgroundImage: 'radial-gradient(ellipse 70% 60% at 100% 0%, rgba(16,185,129,0.25) 0%, transparent 70%), radial-gradient(ellipse 70% 60% at 0% 100%, rgba(16,185,129,0.12) 0%, transparent 70%)'
                             }}
                         >
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs sm:text-sm font-bold text-emerald-400 tracking-wide flex items-center gap-1.5">
-                                    <Wallet size={16} /> Net Kasa (Bakiye)
+                            <div className="flex items-center justify-between mb-1 sm:mb-2">
+                                <span className="text-[11px] sm:text-sm font-bold text-emerald-400 tracking-wide flex items-center gap-1 sm:gap-1.5">
+                                    <Wallet size={14} className="sm:w-4 sm:h-4" /> Net Kasa (Bakiye)
                                 </span>
-                                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                                    <Coins size={16} />
+                                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                    <Coins size={13} className="sm:w-4 sm:h-4" />
                                 </div>
                             </div>
                             <div>
-                                <h3 className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white">
+                                <h3 className="text-xl sm:text-3xl font-black font-mono tracking-tight text-white">
                                     {formatCurrency(netBalance, true)}
                                 </h3>
-                                <p className="text-[11px] mt-1 font-medium text-emerald-400/80">
+                                <p className="text-[10px] sm:text-[11px] mt-0.5 sm:mt-1 font-medium text-emerald-400/80">
                                     {filterMonth && filterMonth !== 'all' 
                                         ? `${monthOptions.find(o => o.value === filterMonth)?.label || 'Dönem'} Net Dengesi`
                                         : 'Tüm Zamanlar Net Dengesi'}
@@ -565,25 +567,25 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                     /* TABLO VE FİLTRE GÖRÜNÜMÜ */
                     <div className="flex-1 flex flex-col h-full min-h-0">
                         {/* Filtre & Aksiyon Barı */}
-                        <div className="h-14 shrink-0 bg-[#07090e] border-b border-white/[0.06] px-4 sm:px-6 flex flex-wrap items-center justify-between gap-3 z-10">
+                        <div className="min-h-12 py-2.5 sm:py-2 shrink-0 bg-[#07090e] border-b border-white/[0.06] px-3 sm:px-6 flex flex-col md:flex-row md:items-center justify-between gap-2.5 z-10">
                             
                             {/* Sol Filtreler (Canlı Arama + Tür Seçici + Ay/Dönem Filtresi) */}
-                            <div className="flex items-center gap-2.5 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
                                 {/* Canlı Arama Input */}
-                                <div className="relative flex items-center">
+                                <div className="relative flex items-center flex-1 sm:flex-initial min-w-[140px]">
                                     <Search size={13} className="absolute left-3 text-slate-400 pointer-events-none" />
                                     <input
                                         type="text"
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        placeholder="İşlem veya tutar ara..."
-                                        className="h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl pl-8 pr-7 text-xs focus:border-emerald-500 outline-none w-40 sm:w-52 transition placeholder:text-slate-500"
+                                        placeholder="İşlem / tutar ara..."
+                                        className="h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl pl-8 pr-7 text-xs focus:border-emerald-500 outline-none w-full sm:w-48 transition placeholder:text-slate-500"
                                     />
                                     {searchTerm && (
                                         <button
                                             type="button"
                                             onClick={() => setSearchTerm('')}
-                                            className="absolute right-2 text-slate-400 hover:text-white"
+                                            className="absolute right-2 text-slate-400 hover:text-white cursor-pointer"
                                         >
                                             <X size={12} />
                                         </button>
@@ -591,7 +593,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                                 </div>
 
                                 {/* Tür Filtresi */}
-                                <div className="w-36">
+                                <div className="w-[calc(50%-4px)] sm:w-32">
                                     <CustomSelect
                                         value={filterType}
                                         onChange={setFilterType}
@@ -606,7 +608,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                                 </div>
 
                                 {/* Şık Tarih / Dönem Filtresi (Tüm Zamanlar / Ağustos 2026 vb.) */}
-                                <div className="w-44">
+                                <div className="w-[calc(50%-4px)] sm:w-36">
                                     <CustomSelect
                                         value={filterMonth || 'all'}
                                         onChange={(val) => setFilterMonth(val === 'all' ? '' : val)}
@@ -621,16 +623,16 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                             <button
                                 type="button"
                                 onClick={handleOpenAddForm}
-                                className="h-8 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-md shadow-emerald-500/25 active:scale-95 cursor-pointer shrink-0"
+                                className="h-8 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-md shadow-emerald-500/25 active:scale-95 cursor-pointer shrink-0 w-full sm:w-auto"
                             >
                                 <Plus size={14} /> Yeni İşlem Ekle
                             </button>
                         </div>
 
-                        {/* Ödemeler Tablosu (Liste) */}
-                        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+                        {/* Ödemeler İçeriği (Masaüstü Tablo + Mobil Kart Görünümü) */}
+                        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                             {activePaymentRecords.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center p-8 text-center text-slate-500">
+                                <div className="h-full flex flex-col items-center justify-center p-8 text-center text-slate-500 m-auto">
                                     <div className="w-14 h-14 rounded-2xl bg-white/[0.02] border border-white/[0.06] flex items-center justify-center text-slate-600 mb-3">
                                         <Wallet size={26} />
                                     </div>
@@ -642,43 +644,156 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                                     </p>
                                 </div>
                             ) : (
-                                <table className="w-full text-left border-collapse">
-                                    <thead className="sticky top-0 bg-[#07090e] border-b border-white/[0.06] text-[11px] font-bold text-slate-400 uppercase tracking-wider z-10">
-                                        <tr>
-                                            <th className="py-3 px-4 sm:px-6">Tarih</th>
-                                            <th className="py-3 px-4">Tür</th>
-                                            <th className="py-3 px-4">Açıklama (Kime / Kimden)</th>
-                                            <th className="py-3 px-4 text-right">Tutar</th>
-                                            <th className="py-3 px-4 sm:px-6 text-center w-24">İşlem</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-white/[0.04] text-xs">
+                                <>
+                                    {/* ─── MASAÜSTÜ TABLO GÖRÜNÜMÜ (hidden md:block) ─── */}
+                                    <div className="hidden md:block overflow-y-auto flex-1 custom-scrollbar">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead className="sticky top-0 bg-[#07090e] border-b border-white/[0.06] text-[11px] font-bold text-slate-400 uppercase tracking-wider z-10">
+                                                <tr>
+                                                    <th className="py-3 px-4 sm:px-6">Tarih</th>
+                                                    <th className="py-3 px-4">Tür</th>
+                                                    <th className="py-3 px-4">Açıklama (Kime / Kimden)</th>
+                                                    <th className="py-3 px-4 text-right">Tutar</th>
+                                                    <th className="py-3 px-4 sm:px-6 text-center w-24">İşlem</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/[0.04] text-xs">
+                                                {activePaymentRecords.map((record) => {
+                                                    const isIncome = record.type === 'Tahsilat';
+                                                    const isExpense = record.type === 'Ödeme';
+
+                                                    return (
+                                                        <tr 
+                                                            key={record.id} 
+                                                            className="hover:bg-white/[0.02] transition-colors group"
+                                                        >
+                                                            <td className="py-3 px-4 sm:px-6 font-mono text-slate-300 font-medium">
+                                                                {record.date ? new Date(record.date).toLocaleDateString('tr-TR') : '-'}
+                                                            </td>
+                                                            <td className="py-3 px-4">
+                                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                                                                    isIncome
+                                                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                                                                        : isExpense
+                                                                        ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/25'
+                                                                        : 'bg-slate-500/10 text-slate-400 border-slate-500/25'
+                                                                }`}>
+                                                                    {record.type}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-3 px-4 text-white font-medium">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span>{record.description}</span>
+                                                                    {record.files?.length > 0 && (
+                                                                        <button 
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                if (record.files.length === 1) {
+                                                                                    openFile(record.files[0]);
+                                                                                } else {
+                                                                                    setViewingFilesRecord(record);
+                                                                                }
+                                                                            }}
+                                                                            className="text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-lg text-[10px] font-bold cursor-pointer hover:bg-emerald-500/20"
+                                                                            title="Belgeyi Gör"
+                                                                        >
+                                                                            <Paperclip size={10} />
+                                                                            <span>{record.files.length}</span>
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                            <td className={`py-3 px-4 text-right font-mono font-bold text-xs sm:text-sm ${
+                                                                isIncome ? 'text-emerald-400' : isExpense ? 'text-cyan-300' : 'text-slate-400'
+                                                            }`}>
+                                                                {isIncome ? '+' : isExpense ? '-' : ''}₺{(record.amount || 0).toLocaleString('tr-TR', {
+                                                                    minimumFractionDigits: 2,
+                                                                    maximumFractionDigits: 2
+                                                                })}
+                                                            </td>
+                                                            <td className="py-3 px-4 sm:px-6 text-center">
+                                                                <div className="flex items-center justify-center gap-1">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleOpenEditForm(record)}
+                                                                        className="w-7 h-7 rounded-lg transition text-slate-400 hover:text-emerald-400 hover:bg-white/5 flex items-center justify-center cursor-pointer"
+                                                                        title="Kaydı Düzenle"
+                                                                    >
+                                                                        <Pencil size={14} />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleDelete(record.id)}
+                                                                        className="w-7 h-7 rounded-lg transition text-slate-400 hover:text-red-400 hover:bg-white/10 flex items-center justify-center cursor-pointer"
+                                                                        title="Kaydı Sil"
+                                                                    >
+                                                                        <Trash2 size={14} />
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* ─── MOBİL GÖRÜNÜM: DOKUNMATİK KARTLAR (md:hidden) ─── */}
+                                    <div className="md:hidden overflow-y-auto flex-1 custom-scrollbar p-3 space-y-2.5">
                                         {activePaymentRecords.map((record) => {
                                             const isIncome = record.type === 'Tahsilat';
                                             const isExpense = record.type === 'Ödeme';
 
                                             return (
-                                                <tr 
-                                                    key={record.id} 
-                                                    className="hover:bg-white/[0.02] transition-colors group"
+                                                <div 
+                                                    key={record.id}
+                                                    className="bg-white/[0.03] hover:bg-white/[0.05] border border-white/[0.07] rounded-2xl p-3.5 flex flex-col gap-2.5 transition-all shadow-sm relative overflow-hidden"
                                                 >
-                                                    <td className="py-3 px-4 sm:px-6 font-mono text-slate-300 font-medium">
-                                                        {record.date ? new Date(record.date).toLocaleDateString('tr-TR') : '-'}
-                                                    </td>
-                                                    <td className="py-3 px-4">
-                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
-                                                            isIncome
-                                                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
-                                                                : isExpense
-                                                                ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/25'
-                                                                : 'bg-slate-500/10 text-slate-400 border-slate-500/25'
-                                                        }`}>
-                                                            {record.type}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-3 px-4 text-white font-medium">
+                                                    {/* 1. Üst Satır: Tarih & Tür Rozeti & Aksiyonlar */}
+                                                    <div className="flex items-center justify-between gap-2">
                                                         <div className="flex items-center gap-2">
-                                                            <span>{record.description}</span>
+                                                            <span className="font-mono text-xs text-slate-300 font-semibold">
+                                                                {record.date ? new Date(record.date).toLocaleDateString('tr-TR') : '-'}
+                                                            </span>
+                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                                                isIncome
+                                                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                                                                    : isExpense
+                                                                    ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/25'
+                                                                    : 'bg-slate-500/10 text-slate-400 border-slate-500/25'
+                                                            }`}>
+                                                                {record.type}
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Aksiyon Butonları */}
+                                                        <div className="flex items-center gap-1">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenEditForm(record)}
+                                                                className="w-7 h-7 rounded-lg transition text-slate-400 hover:text-emerald-400 hover:bg-white/5 flex items-center justify-center cursor-pointer"
+                                                                title="Düzenle"
+                                                            >
+                                                                <Pencil size={13} />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDelete(record.id)}
+                                                                className="w-7 h-7 rounded-lg transition text-slate-400 hover:text-red-400 hover:bg-white/5 flex items-center justify-center cursor-pointer"
+                                                                title="Sil"
+                                                            >
+                                                                <Trash2 size={13} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* 2. Orta & Alt Satır: Açıklama, Belge ve Tutar */}
+                                                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/[0.04]">
+                                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                            <span className="text-white text-xs font-semibold truncate">
+                                                                {record.description}
+                                                            </span>
                                                             {record.files?.length > 0 && (
                                                                 <button 
                                                                     type="button"
@@ -690,48 +805,30 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                                                                             setViewingFilesRecord(record);
                                                                         }
                                                                     }}
-                                                                    className="text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-lg text-[10px] font-bold cursor-pointer hover:bg-emerald-500/20"
-                                                                    title="Belgeyi Gör"
+                                                                    className="text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md text-[10px] font-bold cursor-pointer shrink-0"
+                                                                    title="Belgeleri Görüntüle"
                                                                 >
                                                                     <Paperclip size={10} />
                                                                     <span>{record.files.length}</span>
                                                                 </button>
                                                             )}
                                                         </div>
-                                                    </td>
-                                                    <td className={`py-3 px-4 text-right font-mono font-bold text-xs sm:text-sm ${
-                                                        isIncome ? 'text-emerald-400' : isExpense ? 'text-cyan-300' : 'text-slate-400'
-                                                    }`}>
-                                                        {isIncome ? '+' : isExpense ? '-' : ''}₺{(record.amount || 0).toLocaleString('tr-TR', {
-                                                            minimumFractionDigits: 2,
-                                                            maximumFractionDigits: 2
-                                                        })}
-                                                    </td>
-                                                    <td className="py-3 px-4 sm:px-6 text-center">
-                                                        <div className="flex items-center justify-center gap-1">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleOpenEditForm(record)}
-                                                                className="w-7 h-7 rounded-lg transition text-slate-400 hover:text-emerald-400 hover:bg-white/5 flex items-center justify-center cursor-pointer"
-                                                                title="Kaydı Düzenle"
-                                                            >
-                                                                <Pencil size={14} />
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleDelete(record.id)}
-                                                                className="w-7 h-7 rounded-lg transition text-slate-400 hover:text-white hover:bg-white/10 flex items-center justify-center cursor-pointer"
-                                                                title="Kaydı Sil"
-                                                            >
-                                                                <Trash2 size={14} />
-                                                            </button>
+
+                                                        {/* Tutar */}
+                                                        <div className={`text-right font-mono font-bold text-sm shrink-0 ${
+                                                            isIncome ? 'text-emerald-400' : isExpense ? 'text-cyan-300' : 'text-slate-300'
+                                                        }`}>
+                                                            {isIncome ? '+' : isExpense ? '-' : ''}₺{(record.amount || 0).toLocaleString('tr-TR', {
+                                                                minimumFractionDigits: 2,
+                                                                maximumFractionDigits: 2
+                                                            })}
                                                         </div>
-                                                    </td>
-                                                </tr>
+                                                    </div>
+                                                </div>
                                             );
                                         })}
-                                    </tbody>
-                                </table>
+                                    </div>
+                                </>
                             )}
                         </div>
                     </div>
