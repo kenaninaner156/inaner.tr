@@ -360,10 +360,10 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
     return Object.keys(sessionsByDriver).filter(id => !deviceMappings[id] && id !== 'Bilinmeyen');
   }, [sessionsByDriver, deviceMappings]);
 
-  // ── Harita Tabanları (Yazısız / Saf Minimalist Rota Tabanları) ──
+  // ── Harita Tabanları (Google Full Roads & ESRI Uydu) ──
   const mapUrls = {
-    voyager: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-    darkmatter: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    voyager: 'https://mt{s}.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}',
+    darkmatter: 'https://mt{s}.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}',
     satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     traffic: 'https://mt{s}.google.com/vt/lyrs=y,traffic&hl=tr&x={x}&y={y}&z={z}',
   };
@@ -529,9 +529,9 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
               key={mapStyle}
               url={mapUrls[mapStyle] || mapUrls.voyager}
               className={mapStyle === 'darkmatter' ? 'dark-map-tiles' : ''}
-              subdomains={mapStyle === 'traffic' ? ['0', '1', '2', '3'] : ['a', 'b', 'c', 'd']}
+              subdomains={['traffic', 'voyager', 'darkmatter'].includes(mapStyle) ? ['0', '1', '2', '3'] : ['a', 'b', 'c', 'd']}
               maxZoom={20}
-              maxNativeZoom={mapStyle === 'satellite' ? 18 : mapStyle === 'traffic' ? 20 : 16}
+              maxNativeZoom={mapStyle === 'satellite' ? 18 : 20}
               keepBuffer={4}
             />
 

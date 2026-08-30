@@ -714,8 +714,8 @@ body.ios-pwa {
   --safe-top: max(env(safe-area-inset-top, 0px), 24px);
 }
 
-/* ── Tam Siyah Obsidiyen Gece Haritası (Pure Deep Black) ── */
+/* ── Tam Siyah Google Gece Haritası (Full Roads, Deep Black) ── */
 .dark-map-tiles {
-  filter: brightness(0.28) contrast(260%) grayscale(100%) !important;
+  filter: invert(100%) hue-rotate(180deg) brightness(82%) contrast(135%) saturate(35%) !important;
 }
 
