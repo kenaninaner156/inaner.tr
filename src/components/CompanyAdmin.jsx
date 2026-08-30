@@ -484,41 +484,41 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                     )}
                     <div className="flex items-center gap-2 min-w-0">
                         <h2 className="text-lg font-bold tracking-tight text-white whitespace-nowrap flex items-center gap-2">
-                            <Building2 size={20} className="text-indigo-400" />
+                            <Building2 size={20} className="text-slate-300" />
                             <span>Şirket Yönetimi</span>
                         </h2>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 border border-indigo-500/25 rounded-full text-indigo-300 text-xs font-semibold">
-                        <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-800/80 border border-slate-700/80 rounded-full text-slate-300 text-xs font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                         <span className="truncate max-w-[140px] sm:max-w-[200px]">{companyData?.name || 'Şirket'}</span>
                     </div>
                 </div>
             </div>
 
-            {/* 2. Modern Kapsül Sekme Çubuğu */}
+            {/* 2. Sistemle Uyumlu Kapsül Sekme Çubuğu */}
             <div className="flex items-center gap-1.5 p-1 bg-[#0d1117] border border-white/[0.08] rounded-2xl overflow-x-auto custom-scrollbar shrink-0">
                 <button
                     onClick={() => setActiveTab('trucks')}
-                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                         activeTab === 'trucks'
-                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                            ? 'bg-slate-800 text-white shadow-sm border border-slate-700'
                             : 'text-slate-400 hover:text-white hover:bg-white/5'
                     }`}
                 >
                     <Truck size={14} />
                     <span>Araçlar</span>
-                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] ${activeTab === 'trucks' ? 'bg-white/20 text-white' : 'bg-white/10 text-slate-400'}`}>
+                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] ${activeTab === 'trucks' ? 'bg-slate-700 text-slate-200' : 'bg-white/10 text-slate-400'}`}>
                         {trucks.length}
                     </span>
                 </button>
                 <button
                     onClick={() => setActiveTab('drivers')}
-                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                         activeTab === 'drivers'
-                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                            ? 'bg-slate-800 text-white shadow-sm border border-slate-700'
                             : 'text-slate-400 hover:text-white hover:bg-white/5'
                     }`}
                 >
@@ -533,9 +533,9 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                 {companyData?.mapEnabled && (
                     <button
                         onClick={() => setActiveTab('analysis')}
-                        className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                             activeTab === 'analysis'
-                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                                ? 'bg-slate-800 text-white shadow-sm border border-slate-700'
                                 : 'text-slate-400 hover:text-white hover:bg-white/5'
                         }`}
                     >
@@ -546,9 +546,9 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                 {companyData?.personnelEnabled && (
                     <button
                         onClick={() => setActiveTab('premiums')}
-                        className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                             activeTab === 'premiums'
-                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                                ? 'bg-slate-800 text-white shadow-sm border border-slate-700'
                                 : 'text-slate-400 hover:text-white hover:bg-white/5'
                         }`}
                     >
@@ -558,9 +558,9 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                 )}
                 <button
                     onClick={() => setActiveTab('notifications')}
-                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                         activeTab === 'notifications'
-                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                            ? 'bg-slate-800 text-white shadow-sm border border-slate-700'
                             : 'text-slate-400 hover:text-white hover:bg-white/5'
                     }`}
                 >
@@ -574,15 +574,15 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
 
                 {/* ─── ARAÇLAR SEKMESİ ─── */}
                 {activeTab === 'trucks' && (
-                    <div className="space-y-3.5">
+                    <div className="space-y-3 sm:space-y-4">
                         {/* Üst Bar */}
                         <div className="flex items-center justify-between gap-3 bg-[#0d1117] border border-white/[0.08] p-3 rounded-2xl">
                             <div className="text-xs text-slate-300">
-                                Sisteme kayıtlı <span className="font-bold text-indigo-400 font-mono">{trucks.length}</span> araç bulunuyor.
+                                Sisteme kayıtlı <span className="font-bold text-white font-mono">{trucks.length}</span> araç bulunuyor.
                             </div>
                             <button 
                                 onClick={() => setShowTruckForm(!showTruckForm)} 
-                                className="h-8 px-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-md shadow-indigo-600/25 active:scale-95 cursor-pointer shrink-0"
+                                className="h-8 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shrink-0"
                             >
                                 <Plus size={14} />
                                 <span>Yeni Araç Ekle</span>
@@ -591,10 +591,10 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
 
                         {/* Yeni Araç Ekleme Formu */}
                         {showTruckForm && (
-                            <form onSubmit={handleAddTruck} className="bg-[#07090e] p-4 sm:p-5 rounded-2xl border border-indigo-500/30 shadow-xl space-y-3 animate-in fade-in zoom-in-95 duration-200">
+                            <form onSubmit={handleAddTruck} className="bg-[#07090e] p-4 sm:p-5 rounded-2xl border border-white/10 shadow-xl space-y-3 animate-in fade-in zoom-in-95 duration-200">
                                 <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
                                     <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                                        <Truck size={14} className="text-indigo-400" /> Yeni Filo Aracı Ekle
+                                        <Truck size={14} className="text-slate-300" /> Yeni Filo Aracı Ekle
                                     </h4>
                                     <button 
                                         type="button" 
@@ -612,7 +612,7 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                             required 
                                             value={truckPlate} 
                                             onChange={e => setTruckPlate(e.target.value.toUpperCase())} 
-                                            className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-mono font-bold uppercase focus:border-indigo-500 outline-none" 
+                                            className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-mono font-bold uppercase focus:border-slate-500 outline-none" 
                                             placeholder="Örn: 06 FTN 692" 
                                         />
                                     </div>
@@ -623,7 +623,7 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                             required 
                                             value={truckBrand} 
                                             onChange={e => setTruckBrand(e.target.value)} 
-                                            className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-semibold focus:border-indigo-500 outline-none" 
+                                            className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-semibold focus:border-slate-500 outline-none" 
                                             placeholder="Örn: Iveco Stralis 460" 
                                         />
                                     </div>
@@ -638,7 +638,7 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                     </button>
                                     <button 
                                         type="submit" 
-                                        className="h-8 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-md shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer"
+                                        className="h-8 px-4 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition border border-slate-700 flex items-center gap-1.5 cursor-pointer"
                                     >
                                         <Check size={14} /> Aracı Kaydet
                                     </button>
@@ -646,21 +646,22 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                             </form>
                         )}
 
-                        {/* Araç Kartları Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                        {/* Araç Kartları Grid (Seçili araç text/butonu kaldırıldı, sadece renkli çerçeve) */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3.5">
                             {trucks.map(truck => {
                                 const isSelected = activeTruckId === truck.id;
                                 return (
                                     <div 
                                         key={truck.id} 
-                                        className={`bg-[#07090e] rounded-2xl sm:rounded-3xl p-4 sm:p-5 border transition-all relative overflow-hidden flex flex-col justify-between ${
+                                        onClick={() => setActiveTruckId(truck.id)}
+                                        className={`bg-[#07090e] rounded-2xl p-4 transition-all relative overflow-hidden flex flex-col justify-between cursor-pointer ${
                                             isSelected 
-                                                ? 'border-indigo-500/60 bg-gradient-to-b from-indigo-950/20 to-[#07090e] shadow-xl shadow-indigo-950/40' 
-                                                : 'border-white/[0.08] hover:border-white/20'
+                                                ? 'border-2 border-sky-500 bg-[#07090e] shadow-lg shadow-sky-500/10' 
+                                                : 'border border-white/[0.08] hover:border-slate-600'
                                         }`}
                                     >
-                                        {/* Üst Kısım: TR Plaka Rozeti & Durum */}
-                                        <div className="flex items-center justify-between gap-2 mb-3">
+                                        {/* Üst Kısım: TR Plaka & Düzenle/Sil */}
+                                        <div className="flex items-center justify-between gap-2 mb-2">
                                             {/* TR Plaka Badge */}
                                             <div className="inline-flex items-center bg-[#0d1117] border border-white/20 rounded-xl px-2.5 py-1 gap-2 shadow-inner">
                                                 <span className="text-[10px] font-black text-sky-400 bg-sky-500/20 px-1 py-0.2 rounded font-mono">TR</span>
@@ -669,44 +670,49 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                                 </span>
                                             </div>
 
-                                            {/* Durum Rozeti */}
-                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                                                isSelected
-                                                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                                                    : truck.status === 'inactive'
-                                                    ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                                                    : truck.status === 'maintenance'
-                                                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                                                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                            }`}>
-                                                <span className={`w-1.5 h-1.5 rounded-full ${
-                                                    isSelected ? 'bg-emerald-400 animate-ping' : 'bg-current'
-                                                }`} />
-                                                {isSelected ? 'SEÇİLİ ARAÇ' : truck.status === 'inactive' ? 'PASİF' : truck.status === 'maintenance' ? 'BAKIMDA' : 'AKTİF'}
-                                            </span>
+                                            {/* Aksiyon İkonları */}
+                                            <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                                <button 
+                                                    onClick={() => { 
+                                                        setEditingTruckId(truck.id); 
+                                                        setEditTruckForm({ plate: truck.plate, brand: truck.brand, status: truck.status || 'active' }); 
+                                                    }} 
+                                                    className="w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer" 
+                                                    title="Düzenle"
+                                                >
+                                                    <Edit2 size={12} />
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleDeleteTruck(truck.id, truck.plate)} 
+                                                    className="w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-red-400 flex items-center justify-center transition cursor-pointer" 
+                                                    title="Aracı Sil"
+                                                >
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </div>
                                         </div>
 
                                         {/* Marka & Model / Düzenleme Formu */}
                                         {editingTruckId === truck.id ? (
-                                            <div className="space-y-2.5 my-3 p-3 bg-white/[0.02] border border-white/[0.06] rounded-2xl">
+                                            <div className="space-y-2 my-2 p-2.5 bg-white/[0.02] border border-white/[0.06] rounded-xl" onClick={e => e.stopPropagation()}>
                                                 <input 
                                                     type="text" 
                                                     value={editTruckForm.plate} 
                                                     onChange={e => setEditTruckForm({ ...editTruckForm, plate: e.target.value.toUpperCase() })} 
-                                                    className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-mono font-bold outline-none focus:border-indigo-500" 
+                                                    className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2.5 text-xs font-mono font-bold outline-none focus:border-slate-500" 
                                                     placeholder="Plaka" 
                                                 />
                                                 <input 
                                                     type="text" 
                                                     value={editTruckForm.brand} 
                                                     onChange={e => setEditTruckForm({ ...editTruckForm, brand: e.target.value })} 
-                                                    className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-semibold outline-none focus:border-indigo-500" 
+                                                    className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2.5 text-xs font-semibold outline-none focus:border-slate-500" 
                                                     placeholder="Marka / Model" 
                                                 />
                                                 <select 
                                                     value={editTruckForm.status} 
                                                     onChange={e => setEditTruckForm({ ...editTruckForm, status: e.target.value })} 
-                                                    className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs outline-none focus:border-indigo-500"
+                                                    className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2 text-xs outline-none focus:border-slate-500"
                                                 >
                                                     <option value="active">Aktif (Çalışıyor)</option>
                                                     <option value="inactive">Pasif (Yatıyor)</option>
@@ -715,7 +721,7 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                                 <div className="flex gap-2 pt-1">
                                                     <button 
                                                         onClick={() => handleEditSaveTruck(truck.id)} 
-                                                        className="flex-1 h-7 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1 cursor-pointer"
+                                                        className="flex-1 h-7 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1 border border-slate-700 cursor-pointer"
                                                     >
                                                         <Check size={12} /> Kaydet
                                                     </button>
@@ -728,48 +734,18 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="mb-4">
+                                            <div className="flex items-center justify-between mt-1">
                                                 <p className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
-                                                    <Truck size={13} className="text-indigo-400" />
+                                                    <Truck size={13} className="text-slate-400" />
                                                     <span>{truck.brand || 'Model Belirtilmedi'}</span>
                                                 </p>
+                                                {truck.status && truck.status !== 'active' && (
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                                        {truck.status === 'inactive' ? 'PASİF' : 'BAKIMDA'}
+                                                    </span>
+                                                )}
                                             </div>
                                         )}
-
-                                        {/* Alt Kısım: Seç Butonu ve İkonlar */}
-                                        <div className="mt-auto pt-3 border-t border-white/[0.06] flex items-center justify-between gap-2">
-                                            <button
-                                                onClick={() => setActiveTruckId(truck.id)}
-                                                className={`flex-1 h-8 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                                                    isSelected
-                                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                                                        : 'bg-white/[0.05] hover:bg-white/10 text-slate-300 hover:text-white border border-white/[0.08]'
-                                                }`}
-                                            >
-                                                {isSelected ? <CheckCircle size={14} /> : <Truck size={14} />}
-                                                <span>{isSelected ? 'Seçili Araç' : 'Bu Aracı Seç'}</span>
-                                            </button>
-
-                                            <div className="flex items-center gap-1">
-                                                <button 
-                                                    onClick={() => { 
-                                                        setEditingTruckId(truck.id); 
-                                                        setEditTruckForm({ plate: truck.plate, brand: truck.brand, status: truck.status || 'active' }); 
-                                                    }} 
-                                                    className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-indigo-400 flex items-center justify-center transition cursor-pointer" 
-                                                    title="Düzenle"
-                                                >
-                                                    <Edit2 size={13} />
-                                                </button>
-                                                <button 
-                                                    onClick={() => handleDeleteTruck(truck.id, truck.plate)} 
-                                                    className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-red-400 flex items-center justify-center transition cursor-pointer" 
-                                                    title="Aracı Sil"
-                                                >
-                                                    <Trash2 size={13} />
-                                                </button>
-                                            </div>
-                                        </div>
                                     </div>
                                 );
                             })}
@@ -811,11 +787,11 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                         {/* Şoför Yönetim Üst Barı */}
                         <div className="flex items-center justify-between gap-3 bg-[#0d1117] border border-white/[0.08] p-3 rounded-2xl">
                             <div className="text-xs text-slate-300">
-                                Sistemde toplam <span className="font-bold text-indigo-400 font-mono">{approvedUsers.filter(u => u.role === 'şoför' || u.role === 'user').length}</span> aktif şoför bulunuyor.
+                                Sistemde toplam <span className="font-bold text-white font-mono">{approvedUsers.filter(u => u.role === 'şoför' || u.role === 'user').length}</span> aktif şoför bulunuyor.
                             </div>
                             <button 
                                 onClick={() => { setShowOfflineDriverForm(!showOfflineDriverForm); setEditingOfflineDriverId(null); setNewOfflineDriverName(''); setNewOfflineDriverPhone(''); }} 
-                                className="h-8 px-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-md shadow-indigo-600/25 active:scale-95 cursor-pointer shrink-0"
+                                className="h-8 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shrink-0"
                             >
                                 <Plus size={14} />
                                 <span>Çevrimdışı Şoför Ekle</span>
@@ -824,10 +800,10 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
 
                         {/* Çevrimdışı Şoför Ekleme Formu */}
                         {showOfflineDriverForm && (
-                            <form onSubmit={handleSaveOfflineDriver} className="bg-[#07090e] p-4 sm:p-5 rounded-2xl border border-indigo-500/30 shadow-xl space-y-3 animate-in fade-in zoom-in-95 duration-200">
+                            <form onSubmit={handleSaveOfflineDriver} className="bg-[#07090e] p-4 sm:p-5 rounded-2xl border border-white/10 shadow-xl space-y-3 animate-in fade-in zoom-in-95 duration-200">
                                 <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
                                     <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                                        <User size={14} className="text-indigo-400" /> {editingOfflineDriverId ? 'Çevrimdışı Şoförü Düzenle' : 'Yeni Çevrimdışı Şoför Ekle'}
+                                        <User size={14} className="text-slate-300" /> {editingOfflineDriverId ? 'Çevrimdışı Şoförü Düzenle' : 'Yeni Çevrimdışı Şoför Ekle'}
                                     </h4>
                                     <button 
                                         type="button" 
@@ -840,18 +816,18 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-[11px] font-medium text-slate-400 mb-1">Şoför Adı Soyadı *</label>
-                                        <input type="text" required value={newOfflineDriverName} onChange={e => setNewOfflineDriverName(e.target.value)} className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-semibold focus:border-indigo-500 outline-none" placeholder="Örn: Ahmet Yılmaz" />
+                                        <input type="text" required value={newOfflineDriverName} onChange={e => setNewOfflineDriverName(e.target.value)} className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-semibold focus:border-slate-500 outline-none" placeholder="Örn: Ahmet Yılmaz" />
                                     </div>
                                     <div>
                                         <label className="block text-[11px] font-medium text-slate-400 mb-1">Telefon Numarası (İsteğe Bağlı)</label>
-                                        <input type="text" value={newOfflineDriverPhone} onChange={e => setNewOfflineDriverPhone(e.target.value)} className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-mono focus:border-indigo-500 outline-none" placeholder="Örn: 0555..." />
+                                        <input type="text" value={newOfflineDriverPhone} onChange={e => setNewOfflineDriverPhone(e.target.value)} className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-mono focus:border-slate-500 outline-none" placeholder="Örn: 0555..." />
                                     </div>
                                 </div>
                                 <div className="flex justify-end gap-2 pt-1">
                                     <button type="button" onClick={() => { setShowOfflineDriverForm(false); setEditingOfflineDriverId(null); }} className="h-8 px-3 text-xs font-semibold text-slate-400 hover:text-white rounded-xl transition cursor-pointer">
                                         İptal
                                     </button>
-                                    <button type="submit" className="h-8 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-md shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer">
+                                    <button type="submit" className="h-8 px-4 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition border border-slate-700 flex items-center gap-1.5 cursor-pointer">
                                         <Check size={14} /> {editingOfflineDriverId ? 'Güncelle' : 'Kaydet'}
                                     </button>
                                 </div>
@@ -861,19 +837,19 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                         {/* Aktif Şoförler (Sistem Kullanıcıları) */}
                         <div className="bg-[#07090e] p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-white/[0.08]">
                             <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-3.5 flex items-center gap-2">
-                                <Users size={14} className="text-indigo-400" /> Aktif Şoförler (Sistem Kullanıcıları)
+                                <Users size={14} className="text-slate-300" /> Aktif Şoförler (Sistem Kullanıcıları)
                             </h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {approvedUsers.filter(u => u.role === 'şoför' || u.role === 'user').map(driver => (
                                     <div key={driver.id} className="bg-white/[0.03] hover:bg-white/[0.05] p-3.5 rounded-2xl border border-white/[0.07] flex items-center justify-between gap-3 transition">
-                                        <div className="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+                                        <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 shrink-0">
                                             <Users size={18} />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="font-bold text-white text-xs sm:text-sm truncate">{driver.fullName || (driver.firstName ? `${driver.firstName} ${driver.lastName || ''}`.trim() : driver.username)}</p>
                                             <p className="text-[11px] text-slate-400 truncate">@{driver.username}</p>
                                             <div className="flex items-center gap-2 mt-1">
-                                                <span className="text-[9px] uppercase tracking-wider font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/25 px-2 py-0.5 rounded-full inline-block">
+                                                <span className="text-[9px] uppercase tracking-wider font-bold text-slate-300 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded-full inline-block">
                                                     ŞOFÖR
                                                 </span>
                                                 {editingUserId !== driver.id && (
@@ -892,7 +868,7 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                                         type="password" 
                                                         value={newUserPassword} 
                                                         onChange={(e) => setNewUserPassword(e.target.value)}
-                                                        className="w-full bg-[#0d1117] border border-white/[0.1] text-white text-xs rounded-lg px-2 py-1 outline-none focus:border-indigo-500" 
+                                                        className="w-full bg-[#0d1117] border border-white/[0.1] text-white text-xs rounded-lg px-2 py-1 outline-none focus:border-slate-500" 
                                                         placeholder="Yeni Şifre (En az 6 karakter)" 
                                                     />
                                                     <button onClick={() => { if(newUserPassword.length>=6){ editUser(driver.id, {password: newUserPassword}); setEditingUserId(null); }else{ alert('Şifre en az 6 karakter olmalı!'); } }} className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 p-1.5 rounded-lg cursor-pointer"><Check size={13}/></button>
@@ -939,7 +915,7 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                             </span>
                                         </div>
                                         <div className="flex gap-1 shrink-0">
-                                            <button onClick={() => handleEditOfflineDriver(driver)} className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-indigo-400 flex items-center justify-center transition cursor-pointer" title="Düzenle">
+                                            <button onClick={() => handleEditOfflineDriver(driver)} className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer" title="Düzenle">
                                                 <Edit2 size={13} />
                                             </button>
                                             <button onClick={() => handleDeleteOfflineDriver(driver.id, driver.name)} className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-red-400 flex items-center justify-center transition cursor-pointer" title="Sil">
@@ -960,8 +936,8 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
 
                 {/* ─── ARAÇ ANALİZ SEKMESİ ─── */}
                 {activeTab === 'analysis' && companyData?.mapEnabled && (
-                    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                        <VehicleAnalysis activeTruckId={activeTruckId} />
+                    <div className="animate-in fade-in duration-300">
+                        <VehicleAnalysis isEmbedded={true} activeTruckId={activeTruckId} />
                     </div>
                 )}
 
@@ -971,11 +947,11 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                         {/* Üst Bar */}
                         <div className="flex items-center justify-between gap-3 bg-[#0d1117] border border-white/[0.08] p-3 rounded-2xl">
                             <div className="text-xs text-slate-300">
-                                Sistemde tanımlı toplam <span className="font-bold text-indigo-400 font-mono">{premiums.length}</span> prim şablonu bulunuyor.
+                                Sistemde tanımlı toplam <span className="font-bold text-white font-mono">{premiums.length}</span> prim şablonu bulunuyor.
                             </div>
                             <button 
                                 onClick={() => { setShowPremiumForm(!showPremiumForm); setEditingPremiumId(null); resetPremiumForm(); }} 
-                                className="h-8 px-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-md shadow-indigo-600/25 active:scale-95 cursor-pointer shrink-0"
+                                className="h-8 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer shrink-0"
                             >
                                 <Plus size={14} />
                                 <span>Yeni Prim Ekle</span>
@@ -984,10 +960,10 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
 
                         {/* Prim Ekleme / Düzenleme Formu */}
                         {showPremiumForm && (
-                            <form onSubmit={handleSavePremium} className="bg-[#07090e] p-4 sm:p-5 rounded-2xl border border-indigo-500/30 shadow-xl space-y-3 animate-in fade-in zoom-in-95 duration-200">
+                            <form onSubmit={handleSavePremium} className="bg-[#07090e] p-4 sm:p-5 rounded-2xl border border-white/10 shadow-xl space-y-3 animate-in fade-in zoom-in-95 duration-200">
                                 <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
                                     <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                                        <Award size={14} className="text-indigo-400" /> {editingPremiumId ? 'Prim Şablonunu Düzenle' : 'Yeni Prim Şablonu Ekle'}
+                                        <Award size={14} className="text-slate-300" /> {editingPremiumId ? 'Prim Şablonunu Düzenle' : 'Yeni Prim Şablonu Ekle'}
                                     </h4>
                                     <button 
                                         type="button" 
@@ -1000,25 +976,25 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                     <div>
                                         <label className="block text-[11px] font-medium text-slate-400 mb-1">Prim Adı *</label>
-                                        <input type="text" required value={premName} onChange={e => setPremName(e.target.value)} className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-semibold focus:border-indigo-500 outline-none" placeholder="Örn: Kısa Yol Primi" />
+                                        <input type="text" required value={premName} onChange={e => setPremName(e.target.value)} className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-semibold focus:border-slate-500 outline-none" placeholder="Örn: Kısa Yol Primi" />
                                     </div>
                                     <div>
                                         <label className="block text-[11px] font-medium text-slate-400 mb-1">Prim Tipi *</label>
-                                        <select value={premType} onChange={e => setPremType(e.target.value)} className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-semibold focus:border-indigo-500 outline-none">
+                                        <select value={premType} onChange={e => setPremType(e.target.value)} className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-semibold focus:border-slate-500 outline-none">
                                             <option value="fixed">Sabit Tutar</option>
                                             <option value="perTonnage">Ton Başı Tutar</option>
                                         </select>
                                     </div>
                                     <div>
                                         <label className="block text-[11px] font-medium text-slate-400 mb-1">{premType === 'fixed' ? 'Sabit Tutar (₺) *' : 'Ton Başı Tutar (₺) *'}</label>
-                                        <input type="number" step="any" required value={premAmount} onChange={e => setPremAmount(e.target.value)} className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-mono font-bold focus:border-indigo-500 outline-none" placeholder="Örn: 500" />
+                                        <input type="number" step="any" required value={premAmount} onChange={e => setPremAmount(e.target.value)} className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-mono font-bold focus:border-slate-500 outline-none" placeholder="Örn: 500" />
                                     </div>
                                 </div>
                                 <div className="flex justify-end gap-2 pt-1">
                                     <button type="button" onClick={() => setShowPremiumForm(false)} className="h-8 px-3 text-xs font-semibold text-slate-400 hover:text-white rounded-xl transition cursor-pointer">
                                         İptal
                                     </button>
-                                    <button type="submit" className="h-8 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-md shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer">
+                                    <button type="submit" className="h-8 px-4 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition border border-slate-700 flex items-center gap-1.5 cursor-pointer">
                                         <Check size={14} /> {editingPremiumId ? 'Güncelle' : 'Kaydet'}
                                     </button>
                                 </div>
@@ -1028,36 +1004,36 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                         {/* Prim Kartları Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                             {premiums.map(prem => (
-                                <div key={prem.id} className="bg-[#07090e] rounded-2xl sm:rounded-3xl p-4 sm:p-5 border border-white/[0.08] hover:border-white/20 transition flex flex-col justify-between">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-                                            <Award size={18} />
+                                <div key={prem.id} className="bg-[#07090e] rounded-2xl p-4 border border-white/[0.08] hover:border-slate-600 transition flex flex-col justify-between">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300">
+                                            <Award size={16} />
                                         </div>
-                                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/25">
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
                                             {prem.type === 'fixed' ? 'SABİT TUTAR' : 'TON BAŞI'}
                                         </span>
                                     </div>
 
-                                    <div className="mb-4 flex-1">
-                                        <h4 className="text-sm font-bold text-white mb-1 truncate" title={prem.name}>{prem.name}</h4>
-                                        <p className="text-2xl font-black text-emerald-400 font-mono mt-1">
+                                    <div className="mb-3 flex-1">
+                                        <h4 className="text-xs font-bold text-white mb-1 truncate" title={prem.name}>{prem.name}</h4>
+                                        <p className="text-xl font-black text-emerald-400 font-mono mt-1">
                                             ₺{Number(prem.amount).toLocaleString('tr-TR')}
                                             {prem.type === 'perTonnage' && <span className="text-xs text-slate-400 font-normal font-sans"> / ton</span>}
                                         </p>
                                     </div>
 
-                                    <div className="pt-3 border-t border-white/[0.06] flex justify-end gap-1.5 mt-auto">
-                                        <button onClick={() => handleEditPremium(prem)} className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-indigo-400 flex items-center justify-center transition cursor-pointer" title="Düzenle">
-                                            <Edit2 size={13} />
+                                    <div className="pt-2.5 border-t border-white/[0.06] flex justify-end gap-1 mt-auto">
+                                        <button onClick={() => handleEditPremium(prem)} className="w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer" title="Düzenle">
+                                            <Edit2 size={12} />
                                         </button>
-                                        <button onClick={() => handleDeletePremium(prem.id, prem.name)} className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-red-400 flex items-center justify-center transition cursor-pointer" title="Sil">
-                                            <Trash2 size={13} />
+                                        <button onClick={() => handleDeletePremium(prem.id, prem.name)} className="w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-red-400 flex items-center justify-center transition cursor-pointer" title="Sil">
+                                            <Trash2 size={12} />
                                         </button>
                                     </div>
                                 </div>
                             ))}
                             {premiums.length === 0 && (
-                                <div className="col-span-full text-center py-10 text-slate-500 text-xs">
+                                <div className="col-span-full text-center py-8 text-slate-500 text-xs">
                                     Henüz tanımlı prim şablonu bulunmuyor.
                                 </div>
                             )}
