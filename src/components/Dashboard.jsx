@@ -235,7 +235,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
         return (activeTrips || [])
             .filter(t => t.date)
             .sort((a, b) => new Date(b.date) - new Date(a.date))
-            .slice(0, 3);
+            .slice(0, 5);
     }, [activeTrips]);
 
     const lastHistDay = useMemo(() => {
@@ -637,11 +637,16 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     // ─── DİKEY (PORTRAIT) MOD: DENGELİ GRAFİK & CANLI OPERASYON AKIŞI ───
     return (
         <div 
-            className="flex-1 flex flex-col h-full w-full overflow-y-auto custom-scrollbar gap-2.5 sm:gap-3 max-w-[1920px] mx-auto pb-1 sm:pb-2"
+            className="flex-1 flex flex-col h-full w-full overflow-y-auto custom-scrollbar gap-2.5 sm:gap-3 max-w-[1920px] mx-auto pb-4"
         >
             {/* Mobilde Şık Başlık & Menü Çubuğu */}
             {isMobile && onOpenMenu && (
-                <div className="flex items-center justify-between gap-3 pb-1 border-b border-white/[0.06] shrink-0">
+                <div 
+                    className="flex items-center justify-between gap-3 pb-2 border-b border-white/[0.06] shrink-0"
+                    style={{
+                        paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+                    }}
+                >
                     <div className="flex items-center gap-2.5 min-w-0">
                         <button 
                             onClick={onOpenMenu} 
