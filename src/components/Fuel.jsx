@@ -238,7 +238,6 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
     // Kümülatif Yakıt Tüketimi Hesaplama Algoritması
     const processedRecords = React.useMemo(() => {
         // Hesaplamayı yapabilmek için kayıtları kronolojik (eskiden yeniye) sıralayalım.
-        // DataContext'te b-a (yeni -> eski) sıralandığı için tersine çeviriyoruz.
         const chronological = [...activeFuelRecords].reverse();
         
         let lastOdometer = null;
@@ -247,29 +246,32 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
         
         const enriched = chronological.map((record) => {
             const enrichedRecord = { ...record };
+            const recOdometer = record.odometer ? parseFloat(String(record.odometer).replace(/\./g, '')) : null;
+            const recLiters = parseFloat(record.liters) || 0;
+            const recPrice = parseFloat(record.price) || 0;
             
-            if (record.odometer && record.odometer > 0 && !record.isPartial) {
-                if (lastOdometer && record.odometer > lastOdometer) {
-                    const distance = record.odometer - lastOdometer;
-                    const totalLitersForDistance = accumulatedLiters + record.liters;
-                    const totalCostForDistance = accumulatedPrice + record.price;
+            if (recOdometer && recOdometer > 0 && !record.isPartial) {
+                if (lastOdometer && recOdometer > lastOdometer) {
+                    const distance = recOdometer - lastOdometer;
+                    const totalLitersForDistance = accumulatedLiters + recLiters;
+                    const totalCostForDistance = accumulatedPrice + recPrice;
                     
                     enrichedRecord.consumptionStats = {
                         distance,
                         totalLiters: totalLitersForDistance,
-                        ltPer100km: (totalLitersForDistance / distance) * 100,
-                        costPerKm: totalCostForDistance / distance
+                        ltPer100km: distance > 0 ? (totalLitersForDistance / distance) * 100 : 0,
+                        costPerKm: distance > 0 ? totalCostForDistance / distance : 0
                     };
                 }
                 // Yeni referans KM'yi güncelle ve birikimleri sıfırla
-                lastOdometer = record.odometer;
+                lastOdometer = recOdometer;
                 accumulatedLiters = 0;
                 accumulatedPrice = 0;
             } else {
                 // KM girilmediyse veya Kısmi Dolum (isPartial) işaretliyse biriktirmeye devam et
                 if (lastOdometer) {
-                    accumulatedLiters += record.liters;
-                    accumulatedPrice += record.price;
+                    accumulatedLiters += recLiters;
+                    accumulatedPrice += recPrice;
                 }
             }
             return enrichedRecord;
@@ -285,13 +287,14 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
         
         const uniqueMonths = [...new Set(activeFuelRecords.map(r => {
             const d = new Date(r.date);
+            if (isNaN(d.getTime())) return null;
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        }))].sort().reverse();
+        }).filter(Boolean))].sort().reverse();
         
         uniqueMonths.forEach(ym => {
             const [y, m] = ym.split('-');
-            const year = parseInt(y);
-            const monthIndex = parseInt(m) - 1;
+            const year = parseInt(y, 10);
+            const monthIndex = parseInt(m, 10) - 1;
             const date = new Date(year, monthIndex, 1);
             const monthName = date.toLocaleString('tr-TR', { month: 'long' });
             
@@ -307,6 +310,7 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
         
         return processedRecords.filter(r => {
             const d = new Date(r.date);
+            if (isNaN(d.getTime())) return false;
             const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
             return ym === timeFilter;
         });
@@ -320,13 +324,18 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
         let totalCostForConsumption = 0;
         
         filteredRecords.forEach(r => {
-            totalLiters += (r.liters || 0);
-            totalCost += (r.price || 0);
+            const l = parseFloat(r.liters) || 0;
+            const p = parseFloat(r.price) || 0;
+            totalLiters += l;
+            totalCost += p;
             
             if (r.consumptionStats) {
-                totalDistanceForConsumption += r.consumptionStats.distance;
-                totalLitersForConsumption += r.consumptionStats.totalLiters;
-                totalCostForConsumption += (r.consumptionStats.costPerKm * r.consumptionStats.distance);
+                const dist = parseFloat(r.consumptionStats.distance) || 0;
+                const cLit = parseFloat(r.consumptionStats.totalLiters) || 0;
+                const cCost = parseFloat(r.consumptionStats.costPerKm) || 0;
+                totalDistanceForConsumption += dist;
+                totalLitersForConsumption += cLit;
+                totalCostForConsumption += (cCost * dist);
             }
         });
         
@@ -558,21 +567,29 @@ return (
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/[0.04]">
-                            {filteredRecords.length > 0 ? filteredRecords.map((record) => (
+                            {filteredRecords.length > 0 ? filteredRecords.map((record) => {
+                                const recPrice = parseFloat(record.price) || 0;
+                                const recLiters = parseFloat(record.liters) || 0;
+                                const unitPrice = recLiters > 0 ? (recPrice / recLiters).toFixed(2) : '0.00';
+                                const recDate = record.date ? new Date(record.date) : new Date();
+                                const formattedDate = !isNaN(recDate.getTime()) ? recDate.toLocaleDateString('tr-TR') : '—';
+                                const recKm = record.odometer ? parseFloat(String(record.odometer).replace(/\./g, '')) : null;
+
+                                return (
                                 <tr key={record.id} className="hover:bg-white/[0.02] transition-colors group">
                                     <td className="p-3 pl-4 whitespace-nowrap">
-                                        <div className="text-white text-sm font-semibold">{new Date(record.date).toLocaleDateString('tr-TR')}</div>
+                                        <div className="text-white text-sm font-semibold">{formattedDate}</div>
                                     </td>
                                     <td className="p-3">
                                         <div className="text-sm font-bold text-white whitespace-nowrap flex items-center gap-1.5">
                                             <MapPin size={13} className="text-cyan-400 shrink-0" />
-                                            <span>{record.station}</span>
+                                            <span>{record.station || 'İstasyon Belirtilmedi'}</span>
                                         </div>
-                                        {(record.notes || record.odometer) && (
+                                        {(record.notes || recKm) && (
                                             <div className="flex flex-wrap items-center gap-2 mt-1">
-                                                {record.odometer && (
+                                                {recKm && (
                                                     <span className="text-[10px] text-slate-500 font-medium font-mono">
-                                                        KM: {record.odometer.toLocaleString('tr-TR')}
+                                                        KM: {recKm.toLocaleString('tr-TR')}
                                                     </span>
                                                 )}
                                                 {record.notes && (
@@ -585,7 +602,7 @@ return (
                                         )}
                                     </td>
                                     <td className="p-3 text-center whitespace-nowrap">
-                                        <div className="text-white font-bold text-sm">{record.liters} Lt</div>
+                                        <div className="text-white font-bold text-sm">{recLiters} Lt</div>
                                         <div className="flex items-center justify-center gap-1 mt-1">
                                             {record.isPartial && (
                                                 <span className="text-[10px] bg-cyan-500/10 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-500/20 font-bold whitespace-nowrap">
@@ -594,17 +611,17 @@ return (
                                             )}
                                             {record.consumptionStats && (
                                                 <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 font-bold whitespace-nowrap">
-                                                    {record.consumptionStats.ltPer100km.toFixed(1)} L/100km
+                                                    {Number(record.consumptionStats.ltPer100km || 0).toFixed(1)} L/100km
                                                 </span>
                                             )}
                                         </div>
                                     </td>
                                     <td className="p-3 text-right whitespace-nowrap">
-                                        <div className="text-amber-400 font-bold text-sm">₺{record.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
-                                        <div className="text-[11px] text-slate-500 font-medium font-mono">₺{(record.price / record.liters).toFixed(2)}/Lt</div>
+                                        <div className="text-amber-400 font-bold text-sm">₺{recPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                        <div className="text-[11px] text-slate-500 font-medium font-mono">₺{unitPrice}/Lt</div>
                                         {record.consumptionStats && (
                                             <div className="text-[10px] text-amber-400/80 font-medium font-mono mt-0.5">
-                                                ₺{record.consumptionStats.costPerKm.toFixed(2)} / km
+                                                ₺{Number(record.consumptionStats.costPerKm || 0).toFixed(2)} / km
                                             </div>
                                         )}
                                     </td>
@@ -629,7 +646,8 @@ return (
                                         </div>
                                     </td>
                                 </tr>
-                            )) : (
+                                );
+                            }) : (
                                 <tr>
                                     <td colSpan="5" className="p-12 text-center text-slate-500">
                                         <Droplet size={36} className="mx-auto mb-3 opacity-20 text-cyan-400" />
@@ -644,19 +662,27 @@ return (
                     {/* Mobil Kart Görünümü */}
                     <div className="md:hidden flex flex-col gap-2.5 p-3">
                         {filteredRecords.length > 0 ? (
-                            filteredRecords.map((record) => (
+                            filteredRecords.map((record) => {
+                                const recPrice = parseFloat(record.price) || 0;
+                                const recLiters = parseFloat(record.liters) || 0;
+                                const unitPrice = recLiters > 0 ? (recPrice / recLiters).toFixed(2) : '0.00';
+                                const recDate = record.date ? new Date(record.date) : new Date();
+                                const formattedDate = !isNaN(recDate.getTime()) ? recDate.toLocaleDateString('tr-TR') : '—';
+                                const recKm = record.odometer ? parseFloat(String(record.odometer).replace(/\./g, '')) : null;
+
+                                return (
                                 <div key={record.id} className="bg-[#0b0e14]/90 border border-white/[0.08] hover:border-cyan-500/30 rounded-xl p-3.5 shadow-md relative transition-all">
                                     <div className="flex justify-between items-start mb-2">
                                         <div className="flex flex-col min-w-0 pr-2">
                                             <div className="font-bold text-white leading-tight flex items-center gap-1.5 text-sm truncate">
                                                 <MapPin size={14} className="text-cyan-400 shrink-0" />
-                                                <span className="truncate">{record.station}</span>
+                                                <span className="truncate">{record.station || 'İstasyon'}</span>
                                             </div>
-                                            {(record.notes || record.odometer) && (
+                                            {(record.notes || recKm) && (
                                                 <div className="flex flex-wrap items-center gap-2 mt-1">
-                                                    {record.odometer && (
+                                                    {recKm && (
                                                         <span className="text-[10px] text-slate-500 font-medium font-mono">
-                                                            KM: {record.odometer.toLocaleString('tr-TR')}
+                                                            KM: {recKm.toLocaleString('tr-TR')}
                                                         </span>
                                                     )}
                                                     {record.notes && (
@@ -670,7 +696,7 @@ return (
                                         </div>
                                         <div className="flex items-center gap-1.5 shrink-0">
                                             <div className="text-xs font-bold text-slate-400">
-                                                {new Date(record.date).toLocaleDateString('tr-TR')}
+                                                {formattedDate}
                                             </div>
                                             {record.files && record.files.length > 0 && (
                                                 <button 
@@ -693,17 +719,17 @@ return (
                                         <div className="flex flex-col">
                                             <div className="text-[9px] text-slate-500 uppercase font-semibold mb-0.5">LİTRE</div>
                                             <div className="flex items-center gap-1">
-                                                <span className="text-white font-bold text-xs">{record.liters} Lt</span>
+                                                <span className="text-white font-bold text-xs">{recLiters} Lt</span>
                                                 {record.isPartial && <span className="text-[8px] bg-cyan-500/10 text-cyan-400 px-1 py-0.5 rounded font-bold border border-cyan-500/20">KISMİ</span>}
                                             </div>
                                         </div>
                                         <div className="flex flex-col border-l border-white/10 pl-2">
                                             <div className="text-[9px] text-slate-500 uppercase font-semibold mb-0.5">BİRİM</div>
-                                            <div className="text-slate-400 font-medium text-xs font-mono">₺{(record.price / record.liters).toFixed(2)}</div>
+                                            <div className="text-slate-400 font-medium text-xs font-mono">₺{unitPrice}</div>
                                         </div>
                                         <div className="flex flex-col items-end border-l border-white/10 pl-2 relative">
                                             <div className="text-[9px] text-slate-500 uppercase font-semibold mb-0.5 w-full text-right">TUTAR</div>
-                                            <div className="text-amber-400 font-bold text-sm w-full text-right">₺{parseFloat(record.price).toLocaleString('tr-TR')}</div>
+                                            <div className="text-amber-400 font-bold text-sm w-full text-right">₺{recPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                                         </div>
                                     </div>
                                     
@@ -712,20 +738,21 @@ return (
                                         <div className="mt-2 grid grid-cols-3 gap-2 bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-2.5 items-center">
                                             <div className="flex flex-col">
                                                 <div className="text-[9px] text-emerald-400/70 uppercase font-bold mb-0.5">Menzil</div>
-                                                <div className="text-emerald-400 font-medium text-xs font-mono">{record.consumptionStats.distance.toLocaleString('tr-TR')} km</div>
+                                                <div className="text-emerald-400 font-medium text-xs font-mono">{Number(record.consumptionStats.distance || 0).toLocaleString('tr-TR')} km</div>
                                             </div>
                                             <div className="flex flex-col border-l border-emerald-500/20 pl-2">
                                                 <div className="text-[9px] text-emerald-400/70 uppercase font-bold mb-0.5">Tüketim</div>
-                                                <div className="text-emerald-400 font-medium text-xs font-mono">{record.consumptionStats.ltPer100km.toFixed(1)} L/100</div>
+                                                <div className="text-emerald-400 font-medium text-xs font-mono">{Number(record.consumptionStats.ltPer100km || 0).toFixed(1)} L/100</div>
                                             </div>
                                             <div className="flex flex-col items-end border-l border-emerald-500/20 pl-2">
                                                 <div className="text-[9px] text-emerald-400/70 uppercase font-bold mb-0.5 w-full text-right">Maliyet</div>
-                                                <div className="text-amber-400 font-bold text-xs w-full text-right font-mono">₺{record.consumptionStats.costPerKm.toFixed(2)}/km</div>
+                                                <div className="text-amber-400 font-bold text-xs w-full text-right font-mono">₺{Number(record.consumptionStats.costPerKm || 0).toFixed(2)}/km</div>
                                             </div>
                                         </div>
                                     )}
                                 </div>
-                            ))
+                                );
+                            })
                         ) : (
                             <div className="p-8 text-center text-slate-500">
                                 <Droplet size={32} className="mx-auto mb-3 opacity-20 text-cyan-400" />
