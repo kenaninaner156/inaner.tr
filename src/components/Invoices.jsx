@@ -845,31 +845,31 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                 >
                                     {docViewTab === 'summary' && (
                                         <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full min-h-0 overflow-hidden">
-                                            <div className="overflow-y-auto custom-scrollbar flex-1">
-                                                <table className="w-full table-fixed text-left border-collapse">
+                                            <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1">
+                                                <table className="w-full min-w-[480px] text-left border-collapse">
                                                     <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-sm z-10 border-b border-slate-200">
                                                         <tr className="text-[10px] sm:text-[11px] text-slate-600 uppercase font-bold tracking-wider">
-                                                            <th className="py-2.5 px-3 w-[32%]">Yükleme Yeri</th>
-                                                            <th className="py-2.5 px-3 w-[38%]">Boşaltma Yeri</th>
-                                                            <th className="py-2.5 px-2 text-center w-[14%]">Sefer Sayısı</th>
-                                                            <th className="py-2.5 px-3 text-right w-[16%]">Toplam Tonaj</th>
+                                                            <th className="py-2.5 px-3 min-w-[120px]">Yükleme Yeri</th>
+                                                            <th className="py-2.5 px-3 min-w-[140px]">Boşaltma Yeri</th>
+                                                            <th className="py-2.5 px-3 text-center min-w-[80px]">Sefer Sayısı</th>
+                                                            <th className="py-2.5 px-3 text-right min-w-[110px]">Toplam Tonaj</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="text-xs text-slate-700 divide-y divide-slate-100 font-medium">
                                                         {routeSummary.length > 0 ? routeSummary.map((route, i) => (
                                                             <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                                                <td className="py-2 px-3 text-slate-900 truncate" title={route.from}>
+                                                                <td className="py-2 px-3 text-slate-900">
                                                                     {route.from}
                                                                 </td>
-                                                                <td className="py-2 px-3 text-slate-900 truncate" title={route.to}>
+                                                                <td className="py-2 px-3 text-slate-900">
                                                                     {route.to}
                                                                 </td>
-                                                                <td className="py-2 px-2 text-center font-mono">
+                                                                <td className="py-2 px-3 text-center font-mono">
                                                                     <span className="inline-block bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded text-slate-700 font-semibold text-[11px]">
                                                                         {route.count}
                                                                     </span>
                                                                 </td>
-                                                                <td className="py-2 px-3 text-right font-mono font-bold text-sky-600 text-xs">
+                                                                <td className="py-2 px-3 text-right font-mono font-bold text-sky-600 text-xs whitespace-nowrap">
                                                                     {route.tonnage.toFixed(2)} <span className="text-[10px] font-medium text-slate-500">Ton</span>
                                                                 </td>
                                                             </tr>
@@ -923,14 +923,14 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
 
                                     {docViewTab === 'trips' && (
                                         <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full min-h-0 overflow-hidden">
-                                            <div className="overflow-y-auto custom-scrollbar flex-1">
-                                                <table className="w-full table-fixed text-left border-collapse">
+                                            <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1">
+                                                <table className="w-full min-w-[500px] text-left border-collapse">
                                                     <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-sm z-10 border-b border-slate-200">
                                                         <tr className="text-[10px] sm:text-[11px] text-slate-600 uppercase font-bold tracking-wider">
-                                                            <th className="py-2.5 px-3 w-[18%]">Tarih</th>
-                                                            <th className="py-2.5 px-3 w-[34%]">Yükleme Yeri</th>
-                                                            <th className="py-2.5 px-3 w-[34%]">Boşaltma Yeri</th>
-                                                            <th className="py-2.5 px-3 text-right w-[14%]">Tonaj</th>
+                                                            <th className="py-2.5 px-3 min-w-[95px]">Tarih</th>
+                                                            <th className="py-2.5 px-3 min-w-[120px]">Yükleme Yeri</th>
+                                                            <th className="py-2.5 px-3 min-w-[140px]">Boşaltma Yeri</th>
+                                                            <th className="py-2.5 px-3 text-right min-w-[95px]">Tonaj</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="text-xs text-slate-700 divide-y divide-slate-100 font-medium">
@@ -939,13 +939,13 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                                                 <td className="py-2 px-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
                                                                     {t.date ? new Date(t.date).toLocaleDateString('tr-TR') : '—'}
                                                                 </td>
-                                                                <td className="py-2 px-3 text-slate-900 truncate" title={t.from || '—'}>
+                                                                <td className="py-2 px-3 text-slate-900">
                                                                     {t.from || '—'}
                                                                 </td>
-                                                                <td className="py-2 px-3 text-slate-900 truncate" title={t.to || '—'}>
+                                                                <td className="py-2 px-3 text-slate-900">
                                                                     {t.to || '—'}
                                                                 </td>
-                                                                <td className="py-2 px-3 text-right font-mono font-bold text-sky-600 text-xs">
+                                                                <td className="py-2 px-3 text-right font-mono font-bold text-sky-600 text-xs whitespace-nowrap">
                                                                     {parseTonnageInTons(t.tonnage).toFixed(2)} <span className="text-[10px] font-medium text-slate-500">Ton</span>
                                                                 </td>
                                                             </tr>
