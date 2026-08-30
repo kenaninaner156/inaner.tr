@@ -183,8 +183,8 @@ const Dashboard = () => {
     
     const [isAllTime, setIsAllTime] = useState(false);
     const [liveDieselPrice, setLiveDieselPrice] = useState(null);
-    const [chartTheme, setChartTheme] = useState(() => localStorage.getItem('dashboard_chart_theme') || 'violet');
-    const activeTheme = CHART_THEMES[chartTheme] || CHART_THEMES.violet;
+    const chartTheme = 'violet';
+    const activeTheme = CHART_THEMES.violet;
 
     // Canlı internetten güncel motorin pompa fiyatını çek
     React.useEffect(() => {

@@ -44,15 +44,16 @@ async function run() {
         await api.initAccessToken();
         console.log("Logged in to GIB! Token:", api.token);
 
-        console.log("\nPatching invoice A8qd8cfhH7aT4VUoK8xh with real GIB UUID 1d14eeb9-2967-4649-a946-f471ba70e451...");
+        console.log("\nUpdating grandTotal on invoice A8qd8cfhH7aT4VUoK8xh to 410565.67...");
         await db.collection('invoices').doc('A8qd8cfhH7aT4VUoK8xh').update({
-            gibUuid: '1d14eeb9-2967-4649-a946-f471ba70e451',
-            buyerVkn: '7720698422',
-            invoiceDate: '2026-08-21T00:00:00.000Z'
+            grandTotal: 410565.67,
+            netAmount: 353935.92,
+            vatAmount: 70787.18,
+            gibStatus: 'Signed'
         });
-        console.log("SUCCESS! Firestore updated!");
+        console.log("SUCCESS! Invoice grandTotal updated to 410565.67!");
     } catch (err) {
-        console.error("Inspect error:", err);
+        console.error("Update error:", err);
     }
 }
 

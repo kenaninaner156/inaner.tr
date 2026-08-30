@@ -149,7 +149,7 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
     return (
         <div className="relative w-full">
             <div className={`relative flex items-center ${className} p-0 overflow-hidden cursor-text`}>
-                <div className="flex-1 flex items-center justify-center gap-1 px-1 sm:px-2 py-2">
+                <div className="flex-1 flex items-center justify-center gap-0.5 px-1 py-1.5 select-none">
                     <input
                         ref={dayRef}
                         type="text"
@@ -157,9 +157,9 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                         onChange={handleDayChange}
                         onBlur={handleDayBlur}
                         placeholder="GG"
-                        className="w-7 text-center bg-transparent outline-none text-[var(--text-primary)] placeholder:text-slate-500 font-medium"
+                        className="w-5 text-center bg-transparent outline-none text-white placeholder:text-slate-500 text-xs font-mono font-bold"
                     />
-                    <span className="text-slate-500">/</span>
+                    <span className="text-slate-600 text-xs">/</span>
                     <input
                         ref={monthRef}
                         type="text"
@@ -168,9 +168,9 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                         onKeyDown={handleMonthKeyDown}
                         onBlur={handleMonthBlur}
                         placeholder="AA"
-                        className="w-7 text-center bg-transparent outline-none text-[var(--text-primary)] placeholder:text-slate-500 font-medium"
+                        className="w-5 text-center bg-transparent outline-none text-white placeholder:text-slate-500 text-xs font-mono font-bold"
                     />
-                    <span className="text-slate-500">/</span>
+                    <span className="text-slate-600 text-xs">/</span>
                     <input
                         ref={yearRef}
                         type="text"
@@ -178,54 +178,54 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                         onChange={handleYearChange}
                         onKeyDown={handleYearKeyDown}
                         placeholder="YYYY"
-                        className="w-12 text-center bg-transparent outline-none text-[var(--text-primary)] placeholder:text-slate-500 font-medium"
+                        className="w-9 text-center bg-transparent outline-none text-white placeholder:text-slate-500 text-xs font-mono font-bold"
                     />
                 </div>
                 <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); toggleOpen(); }}
-                    className="shrink-0 px-2 py-2 hover:bg-white/10 transition-colors border-l border-white/5 flex items-center justify-center"
+                    className="shrink-0 px-2 py-2 hover:bg-orange-500/15 text-slate-400 hover:text-orange-400 transition-colors border-l border-white/[0.06] flex items-center justify-center cursor-pointer"
                 >
-                    <Calendar size={16} className="text-slate-400" />
+                    <Calendar size={14} />
                 </button>
             </div>
 
             {isOpen && createPortal(
                 <div 
-                    className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" 
+                    className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-150" 
                     onClick={() => setIsOpen(false)}
                 >
                     <div 
-                        className="bg-[#0b1120] border border-sky-500/30 rounded-2xl shadow-2xl p-4 w-full max-w-sm animate-in zoom-in-95 duration-200"
+                        className="bg-[#07090e] border border-white/[0.1] rounded-3xl shadow-2xl shadow-black/95 p-5 w-full max-w-sm animate-in zoom-in-95 duration-150"
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex justify-between items-center mb-4">
-                            <button type="button" onClick={handlePrevMonth} className="p-2 bg-white/5 hover:bg-sky-500/20 text-slate-400 hover:text-sky-400 rounded-lg transition-colors">
-                                <ChevronLeft size={18} />
+                            <button type="button" onClick={handlePrevMonth} className="p-2 bg-white/[0.04] hover:bg-orange-500/20 text-slate-400 hover:text-orange-400 rounded-xl transition-colors cursor-pointer border border-white/[0.06]">
+                                <ChevronLeft size={16} />
                             </button>
-                            <div className="font-bold text-[var(--text-primary)] flex items-center gap-1">
+                            <div className="font-bold text-white flex items-center gap-1.5">
                                 <select 
                                     value={currentMonth.getMonth()} 
                                     onChange={handleMonthSelect}
-                                    className="bg-transparent appearance-none outline-none cursor-pointer hover:text-sky-400 transition-colors"
+                                    className="bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2 py-1 text-xs outline-none cursor-pointer hover:border-orange-500/50 transition-colors"
                                 >
-                                    {monthNames.map((m, i) => <option key={m} value={i} className="bg-[#0b1120] text-[var(--text-primary)]">{m}</option>)}
+                                    {monthNames.map((m, i) => <option key={m} value={i} className="bg-[#07090e] text-white">{m}</option>)}
                                 </select>
                                 <input 
                                     type="number" 
                                     value={currentMonth.getFullYear()} 
                                     onChange={handleYearInputForCalendar}
-                                    className="w-14 bg-transparent outline-none hover:text-sky-400 transition-colors text-center"
+                                    className="w-16 bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2 py-1 text-xs outline-none hover:border-orange-500/50 transition-colors text-center font-mono font-bold"
                                 />
                             </div>
-                            <button type="button" onClick={handleNextMonth} className="p-2 bg-white/5 hover:bg-sky-500/20 text-slate-400 hover:text-sky-400 rounded-lg transition-colors">
-                                <ChevronRight size={18} />
+                            <button type="button" onClick={handleNextMonth} className="p-2 bg-white/[0.04] hover:bg-orange-500/20 text-slate-400 hover:text-orange-400 rounded-xl transition-colors cursor-pointer border border-white/[0.06]">
+                                <ChevronRight size={16} />
                             </button>
                         </div>
 
                         <div className="grid grid-cols-7 gap-1 mb-2">
                             {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map(d => (
-                                <div key={d} className="text-center text-[10px] font-bold text-slate-500 uppercase">{d}</div>
+                                <div key={d} className="text-center text-[11px] font-bold text-slate-500 uppercase">{d}</div>
                             ))}
                         </div>
 
@@ -251,10 +251,10 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                                             <button
                                                 type="button"
                                                 onClick={() => handleSelectDate(d)}
-                                                className={`w-full h-full flex items-center justify-center rounded-lg text-sm transition-colors ${
-                                                    isSelected ? 'bg-sky-500 text-[var(--text-primary)] font-bold shadow-lg shadow-sky-500/30' : 
-                                                    isToday ? 'bg-white/10 text-sky-400 font-bold border border-sky-500/30' : 
-                                                    'text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)]'
+                                                className={`w-full h-full flex items-center justify-center rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                                                    isSelected ? 'bg-gradient-to-tr from-orange-500 to-amber-500 text-white font-bold shadow-lg shadow-orange-500/30' : 
+                                                    isToday ? 'bg-orange-500/15 text-orange-400 font-bold border border-orange-500/30' : 
+                                                    'text-slate-300 hover:bg-white/[0.06] hover:text-white'
                                                 }`}
                                             >
                                                 {d}

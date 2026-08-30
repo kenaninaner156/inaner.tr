@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { DataContext } from '../context/DataContext';
 import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
 import { auth } from '../services/firebaseConfig';
 import { doc, getDoc, setDoc, onSnapshot, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
-import { FileText, Save, Key, RefreshCw, CheckCircle, AlertTriangle, ExternalLink, HelpCircle, X, Send, BookOpen, Settings, Smartphone, Download, Paperclip, Clock, Menu, Globe, Coins, TrendingUp, ArrowUpRight, ArrowRight, Sparkles, LogOut } from 'lucide-react';
+import { FileText, Save, Key, RefreshCw, CheckCircle, AlertTriangle, ExternalLink, HelpCircle, X, Send, BookOpen, Settings, Smartphone, Download, Paperclip, Clock, Menu, Globe, Coins, TrendingUp, ArrowUpRight, ArrowRight, Sparkles, LogOut, Building2, MapPin, Receipt, Truck, ShieldCheck, ChevronRight, Calculator, Calendar, BookmarkPlus } from 'lucide-react';
 import {
     ResponsiveContainer,
     ComposedChart,
@@ -20,6 +20,7 @@ import {
 } from 'recharts';
 
 import CustomDatePicker from './CustomDatePicker';
+import CustomSelect from './CustomSelect';
 import FileUpload from './FileUpload';
 import { parseTonnageInTons } from '../utils/tonnageUtils';
 
@@ -237,17 +238,95 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         return () => unsub();
     }, [activeCompanyId, docId]);
 
+    const [isSavingClient, setIsSavingClient] = useState(false);
+
+    const handleSaveClientToPool = async (customClient = null) => {
+        const vkn = (customClient?.vkn || buyerVkn || '').trim().replace(/\s/g, '');
+        const title = (customClient?.title || buyerTitle || '').trim();
+        const taxOffice = (customClient?.taxOffice || buyerTaxOffice || '').trim();
+        const address = (customClient?.address || buyerAddress || '').trim();
+        const city = (customClient?.city || buyerCity || '').trim();
+        const district = (customClient?.district || buyerDistrict || '').trim();
+
+        if (!vkn || vkn.length < 10) {
+            showToast('error', 'Lütfen geçerli bir TCKN (11 hane) veya VKN (10 hane) giriniz.');
+            return;
+        }
+        if (!title) {
+            showToast('error', 'Lütfen şirket unvanı veya ad soyad giriniz.');
+            return;
+        }
+
+        setIsSavingClient(true);
+        try {
+            const updatedClients = {
+                ...(gibClients || {}),
+                [vkn]: {
+                    vkn,
+                    title,
+                    taxOffice,
+                    address,
+                    city,
+                    district
+                }
+            };
+
+            const docRef = doc(db, 'company_data', docId);
+            await setDoc(docRef, { gibClients: updatedClients }, { merge: true });
+            setGibClients(updatedClients);
+            showToast('success', `✅ "${title}" müşteri havuzuna kaydedildi.`);
+            if (addLog) addLog(`Müşteri havuzuna kaydedildi: ${title} (${vkn})`, 'success');
+        } catch (err) {
+            console.error("Müşteri kaydedilirken hata:", err);
+            showToast('error', 'Müşteri kaydedilemedi: ' + err.message);
+        } finally {
+            setIsSavingClient(false);
+        }
+    };
+
+    const handleDeleteClientFromPool = async (vknToDelete) => {
+        if (!vknToDelete) return;
+        try {
+            const updated = { ...(gibClients || {}) };
+            const title = updated[vknToDelete]?.title || vknToDelete;
+            delete updated[vknToDelete];
+
+            const docRef = doc(db, 'company_data', docId);
+            await setDoc(docRef, { gibClients: updated }, { merge: true });
+            setGibClients(updated);
+            showToast('success', `"${title}" havuzdan silindi.`);
+        } catch (err) {
+            console.error("Müşteri silinirken hata:", err);
+            showToast('error', 'Müşteri silinemedi: ' + err.message);
+        }
+    };
+
     const handleSaveSettings = async (e) => {
         e.preventDefault();
         setSettingsStatus({ type: '', message: '' });
         setIsSavingSettings(true);
 
         try {
+            // Also merge default buyer into gibClients pool if entered
+            const updatedClients = { ...(gibClients || {}) };
+            if (defaultBuyerVkn.trim() && defaultBuyerTitle.trim()) {
+                updatedClients[defaultBuyerVkn.trim()] = {
+                    vkn: defaultBuyerVkn.trim(),
+                    title: defaultBuyerTitle.trim(),
+                    taxOffice: defaultBuyerTaxOffice.trim(),
+                    address: defaultBuyerAddress.trim(),
+                    city: defaultBuyerCity.trim(),
+                    district: defaultBuyerDistrict.trim()
+                };
+                setGibClients(updatedClients);
+            }
+
             const docRef = doc(db, 'company_data', docId);
             await setDoc(docRef, {
                 gibUsername: gibUsername.trim(),
                 gibPassword: gibPassword.trim(),
                 gibTestMode: gibTestMode,
+                gibClients: updatedClients,
                 // Save default preferences
                 defaultIban: defaultIban.trim(),
                 defaultIbanName: defaultIbanName.trim(),
@@ -1113,7 +1192,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             <div className="flex flex-col h-full w-full gap-3 sm:gap-4 overflow-hidden animate-in fade-in duration-500 pb-2">
 
                 {/* ÜST KONTROL & NAVİGASYON BARI */}
-                <div className="relative overflow-hidden bg-[#0c1017]/85 backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-xl px-4 py-3 sm:px-5 sm:py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+                <div className="relative overflow-hidden bg-[#07090e] border border-white/[0.06] rounded-2xl shadow-xl px-4 py-3 sm:px-5 sm:py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
                     {/* Top hairline specular glow */}
                     <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent pointer-events-none" />
                     
@@ -1135,13 +1214,13 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                             <div className="flex items-center gap-2.5">
                                 <h2 className="text-base font-bold text-white tracking-tight">E-Arşiv Fatura</h2>
                                 {activeTruckData?.plate && (
-                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700/80 text-xs font-mono font-bold text-slate-200 shadow-sm">
-                                        <span className="text-[9px] font-black text-sky-400 tracking-tighter">TR</span>
-                                        <span>{activeTruckData.plate}</span>
+                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs font-mono font-bold text-slate-200 shadow-sm">
+                                        <span className="text-[9px] font-black text-orange-400 tracking-tighter">TR</span>
+                                        <span className="tracking-wide text-white">{activeTruckData.plate}</span>
                                     </span>
                                 )}
                             </div>
-                            <p className="text-xs text-slate-400 font-medium">GİB Entegrasyonu & Resmi Fatura Yönetimi</p>
+                            <p className="text-[11px] text-slate-500 font-normal mt-0.5">GİB Entegrasyonu & Resmi Fatura Yönetimi</p>
                         </div>
                     </div>
 
@@ -1223,11 +1302,19 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
 
                 {/* ANA İÇERİK: TAM GENİŞLİKTE GRAFİK VE FATURA TABLOSU */}
                 <div className="flex-1 w-full min-w-0 flex flex-col gap-3 h-full overflow-hidden">
-                    {/* 1. Üst Grafik Kartı (FINANCIA / Tasks Overview Birebir Tasarımı) */}
+                    {/* 1. Üst Grafik Kartı (FINANCIA / Tasks Overview - Pürüzsüz Grid Row Kapanışı) */}
+                    <div 
+                        className="grid shrink-0 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                        style={{
+                            gridTemplateRows: (isModalOpen && selectedInvoice) || isSettingsModalOpen ? '0fr' : '1fr',
+                            opacity: (isModalOpen && selectedInvoice) || isSettingsModalOpen ? 0 : 1,
+                            pointerEvents: (isModalOpen && selectedInvoice) || isSettingsModalOpen ? 'none' : 'auto',
+                        }}
+                    >
+                        <div className="overflow-hidden min-h-0">
                             <div 
-                                className="relative overflow-hidden rounded-3xl border border-[#1e2230] p-5 shadow-2xl shadow-black/90 shrink-0 flex flex-col justify-between" 
+                                className="h-[240px] relative overflow-hidden rounded-3xl border border-[#1e2230] shadow-2xl shadow-black/90 flex flex-col justify-between p-5"
                                 style={{ 
-                                    height: '240px',
                                     backgroundColor: '#080a12',
                                     backgroundImage: 'radial-gradient(ellipse 65% 55% at 0% 100%, rgba(249,115,22,0.28) 0%, transparent 70%), radial-gradient(ellipse 65% 55% at 100% 100%, rgba(249,115,22,0.28) 0%, transparent 70%)'
                                 }}
@@ -1328,10 +1415,825 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                     )}
                                 </div>
                             </div>
+                        </div>
+                    </div>
 
-                            {/* 2. Alt Tablo Kartı (İçeriden Kayan Fatura Listesi) */}
-                            <div className="bg-[#0c1017]/85 backdrop-blur-xl border border-[#1e2230] rounded-2xl shadow-xl flex-1 flex flex-col overflow-hidden p-0 min-h-0">
+                    {/* 2. Alt Tablo Kartı (İçeriden Kayan Fatura Listesi VEYA In-Card GİB Düzenleyici) */}
+                    <div className="bg-[#07090e] border border-white/[0.06] rounded-2xl shadow-xl flex-1 flex flex-col overflow-hidden p-0 min-h-0 relative">
+                        {isModalOpen && selectedInvoice ? (
+                            /* IN-PLACE GİB WORKSPACE EDITÖRÜ */
+                            <div 
+                                key="gib-in-place-workspace"
+                                className="flex-1 flex flex-col h-full min-h-0 bg-[#07090e] animate-in fade-in zoom-in-[0.99] duration-300"
+                            >
+                                {/* In-Card Header */}
+                                <div className="h-14 shrink-0 bg-[#07090e] border-b border-white/[0.06] px-4 sm:px-6 flex items-center justify-between gap-4 z-10">
+                                    {/* Left: Clean Title & Period */}
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs sm:text-sm font-bold text-white tracking-tight">
+                                            E-Arşiv Fatura Düzenleyici
+                                        </span>
+                                        <span className="text-xs text-slate-400 hidden sm:inline font-mono">
+                                            • {formatInvoicePeriod(selectedInvoice.startDate, selectedInvoice.endDate).primary}
+                                        </span>
+                                    </div>
 
+                                    {/* Right: Close Button */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsModalOpen(false)}
+                                        className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] flex items-center justify-center text-slate-400 hover:text-white transition cursor-pointer border border-white/[0.06]"
+                                        title="Kapat"
+                                    >
+                                        <X size={15} />
+                                    </button>
+                                </div>
+
+                                {/* Step 1: Form View (Seamless Bento Grid Layout) */}
+                                {modalStep === 1 && (
+                                    <form 
+                                        onSubmit={(e) => { e.preventDefault(); handleNextStep(); }} 
+                                        className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden animate-in fade-in duration-200"
+                                    >
+                                        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 sm:p-6 flex flex-col justify-start">
+                                            <div className="max-w-6xl mx-auto w-full flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-stretch">
+                                                
+                                                {/* Sol Kolon (5/12): Fatura Parametreleri + Not & Banka */}
+                                                <div className="lg:col-span-5 flex flex-col justify-between bg-white/[0.02] border border-white/[0.05] rounded-3xl p-4 sm:p-5 gap-3.5">
+                                                    {/* Başlık (Sağ taraf ile tam eşit h-10 ve taban çizgisi) */}
+                                                    <div className="h-10 flex items-center justify-between border-b border-white/[0.05] pb-2">
+                                                        <h4 className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                                                            Fatura Parametreleri
+                                                        </h4>
+                                                    </div>
+
+                                                    {/* Satır 1: Tarih, Tip, KDV */}
+                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                        <div>
+                                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Fatura Tarihi</label>
+                                                            <CustomDatePicker
+                                                                value={invoiceDate}
+                                                                onChange={setInvoiceDate}
+                                                                className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl text-xs focus:border-amber-500 outline-none uppercase font-semibold"
+                                                                placeholder="Tarih Seçin"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Fatura Tipi</label>
+                                                            <CustomSelect
+                                                                value={invoiceType}
+                                                                onChange={setInvoiceType}
+                                                                buttonClassName="h-8 py-0"
+                                                                options={[
+                                                                    { value: 'SATIS', label: 'SATIŞ' },
+                                                                    { value: 'TEVKIFAT', label: 'TEVKİFAT' },
+                                                                    { value: 'ISTISNA', label: 'İSTİSNA' }
+                                                                ]}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">KDV Oranı</label>
+                                                            <CustomSelect
+                                                                value={vatRate}
+                                                                onChange={(v) => setVatRate(Number(v))}
+                                                                buttonClassName="h-8 py-0"
+                                                                options={[
+                                                                    { value: 20, label: '%20' },
+                                                                    { value: 10, label: '%10' },
+                                                                    { value: 0, label: '%0' }
+                                                                ]}
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Satır 2: Tevkifat / İstisna Kodu */}
+                                                    <div className="h-[54px] flex flex-col justify-end">
+                                                        {invoiceType === 'TEVKIFAT' ? (
+                                                            <div>
+                                                                <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Tevkifat Kodu</label>
+                                                                <CustomSelect
+                                                                    value={tevkifatKodu}
+                                                                    onChange={setTevkifatKodu}
+                                                                    buttonClassName="h-8 py-0"
+                                                                    options={TEVKIFAT_CODES.map(t => ({
+                                                                        value: t.code,
+                                                                        label: t.label
+                                                                    }))}
+                                                                    searchable
+                                                                />
+                                                            </div>
+                                                        ) : invoiceType === 'ISTISNA' ? (
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                                <div>
+                                                                    <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">İstisna Kodu</label>
+                                                                    <CustomSelect
+                                                                        value={kdvMuafiyetKodu}
+                                                                        onChange={setKdvMuafiyetKodu}
+                                                                        buttonClassName="h-8 py-0"
+                                                                        options={EXEMPTION_CODES.map(e => ({
+                                                                            value: e.code,
+                                                                            label: e.label
+                                                                        }))}
+                                                                        searchable
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">İstisna Açıklaması</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        required
+                                                                        value={kdvMuafiyetNedeni}
+                                                                        onChange={(e) => setKdvMuafiyetNedeni(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                                        className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-2.5 text-xs focus:border-amber-500 outline-none"
+                                                                        placeholder="Örn: 306/1-a Kapsamında..."
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="h-8 rounded-xl border border-dashed border-white/[0.05] bg-white/[0.01] px-3 flex items-center text-[11px] text-slate-500 italic">
+                                                                Standart Satış Faturası
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Satır 3: Fatura Notu */}
+                                                    <div className="flex-1 flex flex-col justify-between pt-3 border-t border-white/[0.05]">
+                                                        <div className="h-5 flex items-center mb-1.5">
+                                                            <h4 className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                                                                Fatura Notu & Banka / İBAN
+                                                            </h4>
+                                                        </div>
+                                                        <textarea
+                                                            value={invoiceNote}
+                                                            onChange={(e) => setInvoiceNote(e.target.value)}
+                                                            className="w-full flex-1 min-h-[90px] bg-[#0d1117] border border-white/[0.08] text-slate-200 rounded-2xl p-3.5 text-xs font-mono focus:border-amber-500 outline-none resize-none transition"
+                                                            placeholder="Fatura üzerinde yer alacak ek notlar..."
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Sağ Kolon (7/12): Alıcı Şirket Bilgileri */}
+                                                <div className="lg:col-span-7 flex flex-col justify-between bg-white/[0.02] border border-white/[0.05] rounded-3xl p-4 sm:p-5 gap-3.5">
+                                                    {/* Başlık (Sol taraf ile tam eşit h-10 ve taban çizgisi) */}
+                                                    <div className="h-10 flex items-center justify-between border-b border-white/[0.05] pb-2 gap-2">
+                                                        <h4 className="text-[11px] font-bold text-slate-300 uppercase tracking-wider shrink-0">
+                                                            Alıcı Şirket Bilgileri
+                                                        </h4>
+                                                        <div className="flex items-center gap-2">
+                                                            {/* Havuza Kaydet Butonu (VKN ve Ünvan girilmişse ve havuzdakinden farklıysa veya yeni ise) */}
+                                                            {buyerVkn && buyerTitle && (!gibClients[buyerVkn] || gibClients[buyerVkn].title !== buyerTitle || gibClients[buyerVkn].address !== buyerAddress || gibClients[buyerVkn].taxOffice !== buyerTaxOffice) && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleSaveClientToPool()}
+                                                                    disabled={isSavingClient}
+                                                                    title="Bu Müşteri Bilgilerini Müşteri Havuzuna Kaydet"
+                                                                    className="h-7 px-2.5 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 text-orange-400 border border-orange-500/30 text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer active:scale-95 disabled:opacity-50"
+                                                                >
+                                                                    {isSavingClient ? <RefreshCw size={11} className="animate-spin" /> : <BookmarkPlus size={12} />}
+                                                                    <span>{gibClients[buyerVkn] ? 'Hafızayı Güncelle' : 'Havuza Kaydet'}</span>
+                                                                </button>
+                                                            )}
+
+                                                            {Object.keys(gibClients || {}).length > 0 && (
+                                                                <CustomSelect
+                                                                    value={gibClients[buyerVkn] ? buyerVkn : ''}
+                                                                    placeholder="Kayıtlı Müşteri Seç"
+                                                                    onChange={(v) => { if (v) handleVknChange(v); }}
+                                                                    options={Object.values(gibClients).map(c => ({
+                                                                        value: c.vkn,
+                                                                        label: c.title,
+                                                                        sublabel: `VKN: ${c.vkn} • ${c.taxOffice || c.city || ''}`
+                                                                    }))}
+                                                                    searchable
+                                                                    buttonClassName="h-7 py-0 text-[11px]"
+                                                                    className="w-44 sm:w-52"
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Satır 1: VKN & Ünvan */}
+                                                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                                                        <div className="sm:col-span-4">
+                                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4 flex items-center justify-between">
+                                                                <span>TCKN / VKN *</span>
+                                                                {buyerVkn && gibClients[buyerVkn] && <span className="text-[10px] text-slate-500 font-normal">Kayıtlı</span>}
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                required
+                                                                maxLength={11}
+                                                                value={buyerVkn}
+                                                                onChange={(e) => handleVknChange(e.target.value)}
+                                                                className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs sm:text-sm font-mono font-bold focus:border-amber-500 outline-none"
+                                                                placeholder="10 VKN / 11 TCKN"
+                                                            />
+                                                        </div>
+                                                        <div className="sm:col-span-8">
+                                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Ünvan / Ad Soyad *</label>
+                                                            <input
+                                                                type="text"
+                                                                required
+                                                                value={buyerTitle}
+                                                                onChange={(e) => setBuyerTitle(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                                className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs sm:text-sm font-semibold focus:border-amber-500 outline-none"
+                                                                placeholder="Şirket Resmi Unvanı"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Satır 2: Vergi Dairesi, İlçe, Şehir */}
+                                                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 h-[54px] flex flex-col justify-end">
+                                                        <div className="sm:col-span-6">
+                                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Vergi Dairesi</label>
+                                                            <input
+                                                                type="text"
+                                                                value={buyerTaxOffice}
+                                                                onChange={(e) => setBuyerTaxOffice(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                                className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs focus:border-amber-500 outline-none"
+                                                                placeholder="Vergi Dairesi Müdürlüğü"
+                                                            />
+                                                        </div>
+                                                        <div className="sm:col-span-3">
+                                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">İlçe</label>
+                                                            <input
+                                                                type="text"
+                                                                value={buyerDistrict}
+                                                                onChange={(e) => setBuyerDistrict(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                                className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-2.5 text-xs focus:border-amber-500 outline-none"
+                                                                placeholder="İlçe"
+                                                            />
+                                                        </div>
+                                                        <div className="sm:col-span-3">
+                                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Şehir (İl)</label>
+                                                            <input
+                                                                type="text"
+                                                                value={buyerCity}
+                                                                onChange={(e) => setBuyerCity(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                                className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-2.5 text-xs focus:border-amber-500 outline-none"
+                                                                placeholder="Şehir"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Satır 3: Açık Adres */}
+                                                    <div className="flex-1 flex flex-col justify-between pt-3 border-t border-white/[0.05]">
+                                                        <div className="h-5 flex items-center mb-1.5">
+                                                            <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">Açık Adres *</label>
+                                                        </div>
+                                                        <textarea
+                                                            value={buyerAddress}
+                                                            onChange={(e) => setBuyerAddress(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                            rows={2}
+                                                            required
+                                                            className="w-full flex-1 min-h-[90px] bg-[#0d1117] border border-white/[0.08] text-white rounded-2xl p-3.5 text-xs focus:border-amber-500 outline-none resize-none transition"
+                                                            placeholder="Açık adres..."
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                            </div>
+                                        </div>
+
+                                        {/* Step 1 Footer */}
+                                        <div className="h-14 shrink-0 bg-[#07090e] border-t border-white/[0.06] px-4 sm:px-6 flex items-center justify-between gap-4">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsModalOpen(false)}
+                                                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] transition cursor-pointer"
+                                            >
+                                                Vazgeç
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 shadow-md shadow-orange-500/20 active:scale-95 transition flex items-center gap-2 cursor-pointer"
+                                            >
+                                                <span>Güzergah ve Fiyatlara Geç</span>
+                                                <ChevronRight size={14} />
+                                            </button>
+                                        </div>
+                                    </form>
+                                )}
+
+                                {/* Step 2: Table & Calculation View */}
+                                {modalStep === 2 && (
+                                    <form 
+                                        onSubmit={handleSendInvoiceSubmit} 
+                                        className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden animate-in fade-in duration-200"
+                                    >
+                                        <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-4 sm:p-6">
+                                            <div className="flex-1 min-h-0 flex flex-col bg-white/[0.02] border border-white/[0.05] rounded-2xl overflow-hidden shadow-sm">
+                                                {/* Table Header */}
+                                                <div className="bg-[#07090e] border-b border-white/[0.06] px-4 py-2.5 shrink-0 flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                                    <span>Güzergah Kalemleri ({routeLines.length} Kalem)</span>
+                                                </div>
+
+                                                {/* Table Body */}
+                                                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+                                                    <table className="w-full text-left text-xs border-collapse">
+                                                        <thead className="sticky top-0 z-10 bg-[#07090e] border-b border-white/[0.06] text-slate-400 uppercase text-[10px] font-bold">
+                                                            <tr>
+                                                                <th className="p-3 pl-4">Hizmet Adı / Açıklama</th>
+                                                                <th className="p-3 text-right w-28 whitespace-nowrap">Miktar (Ton)</th>
+                                                                <th className="p-3 text-right w-32 whitespace-nowrap">Birim Fiyat (₺)</th>
+                                                                <th className="p-3 text-right w-36 pr-4 whitespace-nowrap">Tutar (Matrah)</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-white/[0.04]">
+                                                            {routeLines.map((line, idx) => (
+                                                                <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
+                                                                    <td className="p-2 pl-4">
+                                                                        <input
+                                                                            type="text"
+                                                                            required
+                                                                            value={line.name}
+                                                                            onChange={(e) => handleLineChange(idx, 'name', e.target.value)}
+                                                                            className="w-full bg-[#0d1117] border border-white/[0.06] text-white rounded-xl px-3 py-1.5 text-xs font-medium focus:border-amber-500 outline-none uppercase transition"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="p-2 text-right w-28 whitespace-nowrap">
+                                                                        <input
+                                                                            type="number"
+                                                                            step="0.001"
+                                                                            required
+                                                                            value={line.quantity || ''}
+                                                                            onChange={(e) => handleLineChange(idx, 'quantity', e.target.value)}
+                                                                            className="w-24 bg-[#0d1117] border border-white/[0.06] text-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold text-right outline-none"
+                                                                            placeholder="0.00"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="p-2 text-right w-32 whitespace-nowrap">
+                                                                        <input
+                                                                            type="number"
+                                                                            step="0.01"
+                                                                            required
+                                                                            value={line.unitPrice || ''}
+                                                                            onChange={(e) => handleLineChange(idx, 'unitPrice', e.target.value)}
+                                                                            className="w-28 bg-[#0d1117] border border-orange-500/30 text-orange-400 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold text-right focus:border-orange-400 outline-none"
+                                                                            placeholder="0.00"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="p-2 pr-4 text-right text-orange-400 font-bold font-mono whitespace-nowrap w-36 text-xs sm:text-sm">
+                                                                        {line.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Step 2 Footer */}
+                                        <div className="shrink-0 bg-[#07090e] border-t border-white/[0.06] px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                            {/* Left: Matrah / KDV breakdown */}
+                                            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
+                                                <div>
+                                                    <span className="text-slate-400 font-medium">Matrah: </span>
+                                                    <span className="font-bold text-white font-mono">{totals.base.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-400 font-medium">KDV (%{vatRate}): </span>
+                                                    <span className="font-bold text-white font-mono">+{totals.vat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                                </div>
+                                                {invoiceType === 'TEVKIFAT' && (
+                                                    <div>
+                                                        <span className="text-slate-400 font-medium">Tevkifat: </span>
+                                                        <span className="font-bold text-amber-400 font-mono">-{totals.vatOfTax.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <span className="text-slate-500 font-medium">Genel Toplam: </span>
+                                                    <span className="font-semibold text-slate-400 font-mono">{totals.withTaxes.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Right: Net & Actions */}
+                                            <div className="flex items-center gap-3 shrink-0">
+                                                <div className="flex items-center gap-2 bg-white/[0.03] border border-white/[0.08] px-3 py-1.5 rounded-xl">
+                                                    <span className="text-[11px] text-slate-400 font-semibold uppercase">Ödenecek Net:</span>
+                                                    <span className="text-sm sm:text-base font-mono font-bold text-orange-400">{totals.payment.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setModalStep(1)}
+                                                    className="px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] transition cursor-pointer"
+                                                >
+                                                    Geri Dön
+                                                </button>
+
+                                                <button
+                                                    type="submit"
+                                                    disabled={sendingInvoiceId === selectedInvoice.id}
+                                                    className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 shadow-md shadow-orange-500/20 active:scale-95 transition flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                                                >
+                                                    {sendingInvoiceId === selectedInvoice.id ? (
+                                                        <>
+                                                            <RefreshCw size={13} className="animate-spin" />
+                                                            GİB Portalına Aktarılıyor...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Send size={13} /> GİB Taslak Oluştur
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                )}
+                            </div>
+                        ) : isSettingsModalOpen ? (
+                            /* IN-PLACE GİB AYARLARI BENTO STUDIO */
+                            <div 
+                                key="gib-in-place-settings"
+                                className="flex-1 flex flex-col h-full min-h-0 bg-[#07090e] animate-in fade-in zoom-in-[0.99] duration-300"
+                            >
+                                {/* In-Card Header */}
+                                <div className="h-14 shrink-0 bg-[#07090e] border-b border-white/[0.06] px-4 sm:px-6 flex items-center justify-between gap-4 z-10">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400">
+                                            <Key size={15} />
+                                        </div>
+                                        <div>
+                                            <span className="text-xs sm:text-sm font-bold text-white tracking-tight">
+                                                GİB Portal & Fatura Bağlantı Ayarları
+                                            </span>
+                                            <span className="text-xs text-slate-500 hidden sm:inline ml-2">
+                                                • Tercihler & Güvenlik
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Right: Close Button */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsSettingsModalOpen(false)}
+                                        className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] flex items-center justify-center text-slate-400 hover:text-white transition cursor-pointer border border-white/[0.06]"
+                                        title="Kapat"
+                                    >
+                                        <X size={15} />
+                                    </button>
+                                </div>
+
+                                {/* In-Card Settings Form Body (Zero-Scroll 2-Column Bento Grid) */}
+                                <form onSubmit={handleSaveSettings} className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden">
+                                    <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 sm:p-6 flex flex-col justify-start">
+                                        <div className="max-w-6xl mx-auto w-full flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-stretch">
+                                            
+                                            {/* Sol Kolon (5/12): Portal Giriş, Test Modu, İBAN, Acil Sıfırlama */}
+                                            <div className="lg:col-span-5 flex flex-col justify-between bg-white/[0.02] border border-white/[0.05] rounded-3xl p-4 sm:p-5 gap-3.5">
+                                                {/* Başlık */}
+                                                <div className="h-10 flex items-center justify-between border-b border-white/[0.05] pb-2">
+                                                    <h4 className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                                                        Portal Giriş & Sistem
+                                                    </h4>
+                                                    <span className="text-[10px] text-slate-500">SSL 256-Bit Şifreli</span>
+                                                </div>
+
+                                                {/* Kompakt Bilgilendirme Notu */}
+                                                <div className="p-2.5 rounded-xl bg-orange-500/5 border border-orange-500/15 text-slate-300 text-[11px] flex items-start gap-2">
+                                                    <HelpCircle size={14} className="text-orange-400 shrink-0 mt-0.5" />
+                                                    <p className="text-slate-400 text-[10px] leading-tight">
+                                                        İnteraktif Vergi Dairesi (İVD) giriş bilgilerinizdir. Yalnızca fatura taslağı oluşturmada kullanılır.
+                                                    </p>
+                                                </div>
+
+                                                {/* Giriş Bilgileri (Kullanıcı Kodu + Şifre) */}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Kullanıcı Kodu (VKN / TCKN)</label>
+                                                        <input
+                                                            type="text"
+                                                            required
+                                                            value={gibUsername}
+                                                            onChange={(e) => setGibUsername(e.target.value)}
+                                                            className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-mono font-bold focus:border-amber-500 outline-none"
+                                                            placeholder="VKN / TCKN"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">GİB Portal Şifresi</label>
+                                                        <input
+                                                            type="password"
+                                                            required
+                                                            value={gibPassword}
+                                                            onChange={(e) => setGibPassword(e.target.value)}
+                                                            className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs focus:border-amber-500 outline-none"
+                                                            placeholder="••••••••"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Test Modu Switch */}
+                                                <div className="flex items-center justify-between p-2.5 bg-white/[0.02] border border-white/[0.06] rounded-xl">
+                                                    <div className="space-y-0.5">
+                                                        <div className="text-xs font-bold text-slate-200">GİB Test Portalı Modu</div>
+                                                        <div className="text-[10px] text-slate-500">Resmi fatura kesmeden önce test portalında deneme yapın.</div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setGibTestMode(!gibTestMode)}
+                                                        className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 outline-none flex items-center cursor-pointer ${
+                                                            gibTestMode ? 'bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]' : 'bg-slate-800 border border-white/10'
+                                                        }`}
+                                                    >
+                                                        <div
+                                                            className={`w-4 h-4 rounded-full bg-white transition-transform duration-200 ${
+                                                                gibTestMode ? 'translate-x-4' : 'translate-x-0'
+                                                            }`}
+                                                        />
+                                                    </button>
+                                                </div>
+
+                                                {/* İBAN Bilgileri */}
+                                                <div className="pt-3 border-t border-white/[0.05]">
+                                                    <h4 className="text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-2">
+                                                        Fatura Notuna Eklenecek İBAN & İsim
+                                                    </h4>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                                                        <div className="sm:col-span-7">
+                                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Banka İBAN</label>
+                                                            <input
+                                                                type="text"
+                                                                value={defaultIban}
+                                                                onChange={(e) => setDefaultIban(e.target.value)}
+                                                                className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-mono focus:border-amber-500 outline-none"
+                                                                placeholder="TR86 0004 ..."
+                                                            />
+                                                        </div>
+                                                        <div className="sm:col-span-5">
+                                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">İBAN Sahibi</label>
+                                                            <input
+                                                                type="text"
+                                                                value={defaultIbanName}
+                                                                onChange={(e) => setDefaultIbanName(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                                className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs focus:border-amber-500 outline-none"
+                                                                placeholder="Ad Soyad / Unvan"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Acil Oturum Sıfırlama */}
+                                                <div className="pt-2.5 border-t border-white/[0.05] flex items-center justify-between gap-3">
+                                                    <div className="text-[10px] text-slate-500 leading-tight">
+                                                        "Birden fazla giriş yapamazsınız" uyarısı için oturumu sonlandırın.
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleForceGibLogout}
+                                                        disabled={isForceLoggingOut}
+                                                        className="px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 transition flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-50"
+                                                    >
+                                                        {isForceLoggingOut ? (
+                                                            <RefreshCw size={11} className="animate-spin" />
+                                                        ) : (
+                                                            <LogOut size={11} />
+                                                        )}
+                                                        <span>Oturumu Sıfırla</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Sağ Kolon (7/12): Varsayılan Fatura & Alıcı Bilgileri */}
+                                            <div className="lg:col-span-7 flex flex-col justify-between bg-white/[0.02] border border-white/[0.05] rounded-3xl p-4 sm:p-5 gap-3.5">
+                                                {/* Başlık */}
+                                                <div className="h-10 flex items-center justify-between border-b border-white/[0.05] pb-2">
+                                                    <h4 className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                                                        Varsayılan Fatura & Alıcı Tercihleri
+                                                    </h4>
+                                                </div>
+
+                                                {/* Varsayılan Fatura Parametreleri */}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Varsayılan Fatura Tipi</label>
+                                                        <CustomSelect
+                                                            value={defaultInvoiceType}
+                                                            onChange={setDefaultInvoiceType}
+                                                            buttonClassName="h-8 py-0"
+                                                            options={[
+                                                                { value: 'SATIS', label: 'SATIŞ FATURASI' },
+                                                                { value: 'TEVKIFAT', label: 'TEVKİFATLI FATURA' },
+                                                                { value: 'ISTISNA', label: 'İSTİSNA (KDV MUAFİYETLİ)' }
+                                                            ]}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Varsayılan KDV Oranı</label>
+                                                        <CustomSelect
+                                                            value={defaultVatRate}
+                                                            onChange={(v) => setDefaultVatRate(Number(v))}
+                                                            buttonClassName="h-8 py-0"
+                                                            options={[
+                                                                { value: 20, label: '%20' },
+                                                                { value: 10, label: '%10' },
+                                                                { value: 0, label: '%0' }
+                                                            ]}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Tevkifat / İstisna Satırı */}
+                                                <div className="h-[54px] flex flex-col justify-end">
+                                                    {defaultInvoiceType === 'TEVKIFAT' ? (
+                                                        <div>
+                                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Varsayılan Tevkifat Kodu</label>
+                                                            <CustomSelect
+                                                                value={defaultTevkifatKodu}
+                                                                onChange={setDefaultTevkifatKodu}
+                                                                buttonClassName="h-8 py-0"
+                                                                options={TEVKIFAT_CODES.map(t => ({ value: t.code, label: t.label }))}
+                                                                searchable
+                                                            />
+                                                        </div>
+                                                    ) : defaultInvoiceType === 'ISTISNA' ? (
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                            <div>
+                                                                <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Varsayılan Muafiyet Kodu</label>
+                                                                <CustomSelect
+                                                                    value={defaultKdvMuafiyetKodu}
+                                                                    onChange={setDefaultKdvMuafiyetKodu}
+                                                                    buttonClassName="h-8 py-0"
+                                                                    options={EXEMPTION_CODES.map(e => ({ value: e.code, label: e.label }))}
+                                                                    searchable
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Muafiyet Açıklaması</label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={defaultKdvMuafiyetNedeni}
+                                                                    onChange={(e) => setDefaultKdvMuafiyetNedeni(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                                    className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-2.5 text-xs focus:border-amber-500 outline-none"
+                                                                    placeholder="306/1-a Kapsamında..."
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="h-8 rounded-xl border border-dashed border-white/[0.05] bg-white/[0.01] px-3 flex items-center text-[11px] text-slate-500 italic">
+                                                            Standart Satış Faturası
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Varsayılan Alıcı Şirket Bilgileri */}
+                                                <div className="pt-3 border-t border-white/[0.05]">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <h4 className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                                                            Varsayılan Alıcı Şirket Bilgileri
+                                                        </h4>
+                                                        {defaultBuyerVkn && defaultBuyerTitle && (!gibClients[defaultBuyerVkn] || gibClients[defaultBuyerVkn].title !== defaultBuyerTitle) && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleSaveClientToPool({
+                                                                    vkn: defaultBuyerVkn,
+                                                                    title: defaultBuyerTitle,
+                                                                    taxOffice: defaultBuyerTaxOffice,
+                                                                    address: defaultBuyerAddress,
+                                                                    city: defaultBuyerCity,
+                                                                    district: defaultBuyerDistrict
+                                                                })}
+                                                                disabled={isSavingClient}
+                                                                className="h-6 px-2 rounded-lg bg-orange-500/15 hover:bg-orange-500/25 text-orange-400 border border-orange-500/30 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer active:scale-95 disabled:opacity-50"
+                                                            >
+                                                                {isSavingClient ? <RefreshCw size={10} className="animate-spin" /> : <BookmarkPlus size={11} />}
+                                                                <span>Müşteri Havuzuna Ekle</span>
+                                                            </button>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 mb-3">
+                                                        <div className="sm:col-span-4">
+                                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Varsayılan TCKN / VKN</label>
+                                                            <input
+                                                                type="text"
+                                                                maxLength={11}
+                                                                value={defaultBuyerVkn}
+                                                                onChange={(e) => setDefaultBuyerVkn(e.target.value.replace(/\s/g, ''))}
+                                                                className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs sm:text-sm font-mono font-bold focus:border-amber-500 outline-none"
+                                                                placeholder="10 VKN / 11 TCKN"
+                                                            />
+                                                        </div>
+                                                        <div className="sm:col-span-8">
+                                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Varsayılan Unvan / Ad Soyad</label>
+                                                            <input
+                                                                type="text"
+                                                                value={defaultBuyerTitle}
+                                                                onChange={(e) => setDefaultBuyerTitle(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                                className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs sm:text-sm font-semibold focus:border-amber-500 outline-none"
+                                                                placeholder="Varsayılan Şirket Resmi Unvanı"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 mb-3">
+                                                        <div className="sm:col-span-6">
+                                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Vergi Dairesi</label>
+                                                            <input
+                                                                type="text"
+                                                                value={defaultBuyerTaxOffice}
+                                                                onChange={(e) => setDefaultBuyerTaxOffice(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                                className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs focus:border-amber-500 outline-none"
+                                                                placeholder="Vergi Dairesi Müdürlüğü"
+                                                            />
+                                                        </div>
+                                                        <div className="sm:col-span-3">
+                                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">İlçe</label>
+                                                            <input
+                                                                type="text"
+                                                                value={defaultBuyerDistrict}
+                                                                onChange={(e) => setDefaultBuyerDistrict(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                                className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-2.5 text-xs focus:border-amber-500 outline-none"
+                                                                placeholder="İlçe"
+                                                            />
+                                                        </div>
+                                                        <div className="sm:col-span-3">
+                                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Şehir (İl)</label>
+                                                            <input
+                                                                type="text"
+                                                                value={defaultBuyerCity}
+                                                                onChange={(e) => setDefaultBuyerCity(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                                className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-2.5 text-xs focus:border-amber-500 outline-none"
+                                                                placeholder="Şehir"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Varsayılan Açık Adres</label>
+                                                        <textarea
+                                                            value={defaultBuyerAddress}
+                                                            onChange={(e) => setDefaultBuyerAddress(e.target.value.toLocaleUpperCase('tr-TR'))}
+                                                            rows={2}
+                                                            className="w-full h-[54px] bg-[#0d1117] border border-white/[0.08] text-white rounded-2xl p-2.5 text-xs focus:border-amber-500 outline-none resize-none transition"
+                                                            placeholder="Varsayılan adres..."
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    </div>
+
+                                    {/* Step Footer */}
+                                    <div className="h-14 shrink-0 bg-[#07090e] border-t border-white/[0.06] px-4 sm:px-6 flex items-center justify-between gap-4">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            {settingsStatus.message && (
+                                                <div className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border ${
+                                                    settingsStatus.type === 'error' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                                                }`}>
+                                                    {settingsStatus.type === 'error' ? <AlertTriangle size={14}/> : <CheckCircle size={14}/>}
+                                                    <span className="truncate">{settingsStatus.message}</span>
+                                                </div>
+                                            )}
+                                            {forceLogoutStatus && (
+                                                <div className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-xl border ${
+                                                    forceLogoutStatus.type === 'error' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                                                }`}>
+                                                    {forceLogoutStatus.type === 'error' ? <AlertTriangle size={14}/> : <CheckCircle size={14}/>}
+                                                    <span className="truncate">{forceLogoutStatus.message}</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsSettingsModalOpen(false)}
+                                                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] transition cursor-pointer"
+                                            >
+                                                Vazgeç
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                disabled={isSavingSettings}
+                                                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 shadow-md shadow-orange-500/20 active:scale-95 transition flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                                            >
+                                                {isSavingSettings ? (
+                                                    <>
+                                                        <RefreshCw size={13} className="animate-spin" />
+                                                        <span>Kaydediliyor...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Save size={13} />
+                                                        <span>GİB Ayarlarını Kaydet</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        ) : (
+                            /* NORMAL FATURA TABLO GÖRÜNÜMÜ */
+                            <div
+                                key="invoice-table-view"
+                                className="flex-1 flex flex-col h-full min-h-0 animate-in fade-in duration-300"
+                            >
                                 {isLoadingSettings ? (
                                     <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center gap-2 m-auto">
                                         <RefreshCw size={24} className="animate-spin text-orange-500" />
@@ -1344,7 +2246,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                 ) : (
                                     <div className="overflow-y-auto flex-1 custom-scrollbar">
                                         <table className="w-full text-left text-sm border-collapse">
-                                            <thead className="bg-[#0b101b]/95 sticky top-0 z-10 border-b border-white/[0.06] text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                                            <thead className="bg-[#07090e] sticky top-0 z-10 border-b border-white/[0.06] text-[11px] font-bold uppercase tracking-wider text-slate-400">
                                                 <tr>
                                                     <th className="py-3 px-4 font-semibold">Dönem & Operasyon</th>
                                                     <th className="py-3 px-4 font-semibold">Hakediş Tutarı</th>
@@ -1352,582 +2254,202 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                                     <th className="py-3 px-4 font-semibold text-right">İşlemler</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-white/[0.04]">
-                                                {activeInvoices.map((inv) => {
-                                                    const isDraftOnGib = inv.gibStatus === 'Draft';
-                                                    const isSignedOnGib = inv.gibStatus === 'Signed' || inv.gibStatus === 'Approved';
-                                                    const isSending = sendingInvoiceId === inv.id;
+                                                    <tbody className="divide-y divide-white/[0.04]">
+                                                        {activeInvoices.map((inv) => {
+                                                            const isDraftOnGib = inv.gibStatus === 'Draft';
+                                                            const isSignedOnGib = inv.gibStatus === 'Signed' || inv.gibStatus === 'Approved';
+                                                            const isSending = sendingInvoiceId === inv.id;
 
-                                                    return (
-                                                        <tr key={inv.id} className="hover:bg-white/[0.02] transition-colors">
-                                                            {/* 1. Sütun: Dönem & Operasyon */}
-                                                            <td className="p-4">
-                                                                {(() => {
-                                                                    const period = formatInvoicePeriod(inv.startDate, inv.endDate);
-                                                                    const tripCount = inv.trips?.length || 0;
-                                                                    const totalTon = ((inv.trips && inv.trips.length > 0) ? inv.trips.reduce((acc, t) => acc + parseTonnageInTons(t.tonnage), 0) : (inv.totalTonnage || 0)).toFixed(2);
-                                                                    return (
-                                                                        <div className="flex flex-col">
-                                                                            <span className="text-white text-sm font-bold tracking-tight">
-                                                                                {period.primary}
+                                                            return (
+                                                                <tr key={inv.id} className="hover:bg-white/[0.02] transition-colors">
+                                                                    {/* 1. Sütun: Dönem & Operasyon */}
+                                                                    <td className="p-4">
+                                                                        {(() => {
+                                                                            const period = formatInvoicePeriod(inv.startDate, inv.endDate);
+                                                                            const tripCount = inv.trips?.length || 0;
+                                                                            const totalTon = ((inv.trips && inv.trips.length > 0) ? inv.trips.reduce((acc, t) => acc + parseTonnageInTons(t.tonnage), 0) : (inv.totalTonnage || 0)).toFixed(2);
+                                                                            return (
+                                                                                <div className="flex flex-col">
+                                                                                    <span className="text-white text-sm font-bold tracking-tight">
+                                                                                        {period.primary}
+                                                                                    </span>
+                                                                                    <span className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                                                                        {tripCount > 0 ? `${tripCount} Sefer • ${totalTon} Ton` : (period.sub || '2026 Dönemi')}
+                                                                                    </span>
+                                                                                </div>
+                                                                            );
+                                                                        })()}
+                                                                    </td>
+
+                                                                    {/* 2. Sütun: Hakediş Tutarı */}
+                                                                    <td className="p-4">
+                                                                        {(() => {
+                                                                            const est = getInvoiceEstimate(inv);
+                                                                            if (!est) {
+                                                                                return <span className="text-slate-600 font-mono text-sm">—</span>;
+                                                                            }
+                                                                            if (est.isActual) {
+                                                                                return (
+                                                                                    <span className="text-white font-bold font-mono text-sm">
+                                                                                        {est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                                                                                    </span>
+                                                                                );
+                                                                            }
+                                                                            return (
+                                                                                <div className="flex flex-col">
+                                                                                    <span className="text-slate-300 font-semibold font-mono text-sm">
+                                                                                        {est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                                                                                    </span>
+                                                                                    <span className="text-[10px] text-slate-500 font-medium tracking-tight">
+                                                                                        (Tahmini Tutar)
+                                                                                    </span>
+                                                                                </div>
+                                                                            );
+                                                                        })()}
+                                                                    </td>
+
+                                                                    {/* 3. Sütun: GİB Durumu Rozeti */}
+                                                                    <td className="p-4 hidden md:table-cell">
+                                                                        {isDraftOnGib ? (
+                                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-300 border border-orange-500/20 text-xs font-semibold">
+                                                                                <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+                                                                                GİB'de Taslak {inv.gibTestMode && "(TEST)"}
                                                                             </span>
-                                                                            <span className="text-[11px] text-slate-400 font-medium mt-0.5">
-                                                                                {tripCount > 0 ? `${tripCount} Sefer • ${totalTon} Ton` : (period.sub || '2026 Dönemi')}
+                                                                        ) : isSignedOnGib ? (
+                                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] text-slate-200 border border-white/[0.08] text-xs font-semibold">
+                                                                                <CheckCircle size={12} className="text-slate-400" />
+                                                                                Resmi Onaylı {inv.gibTestMode && "(TEST)"}
                                                                             </span>
+                                                                        ) : (
+                                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/20 text-xs font-semibold">
+                                                                                <Clock size={12} className="text-orange-400" />
+                                                                                Taslak Bekliyor
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+
+                                                                    {/* 4. Sütun: İşlemler & Butonlar */}
+                                                                    <td className="p-4 text-right">
+                                                                        <div className="flex justify-end items-center gap-2">
+                                                                            {/* Belge / PDF Yönetim Modalı Butonu */}
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    setPdfModalInvoice(inv);
+                                                                                    setModalFiles(inv.files || []);
+                                                                                    setModalNote(inv.note || '');
+                                                                                }}
+                                                                                title={inv.files?.length > 0 ? "Fatura Belgelerini Düzenle / Görüntüle" : "Faturaya PDF / Belge Ekle"}
+                                                                                className={`p-1.5 text-xs font-semibold rounded-lg transition border cursor-pointer ${inv.files?.length > 0 ? 'bg-orange-500/15 border-orange-500/30 text-orange-400 hover:bg-orange-500/25' : 'bg-slate-800/80 border-slate-700/60 text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                                                                            >
+                                                                                <Paperclip size={13} />
+                                                                            </button>
+
+                                                                            {isDraftOnGib ? (
+                                                                                <>
+                                                                                    <button
+                                                                                        onClick={() => handleApproveSmsInit(inv)}
+                                                                                        disabled={isApprovingSms === inv.id}
+                                                                                        className="inline-flex items-center gap-1.5 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white px-3 py-1.5 rounded-xl transition disabled:opacity-50 cursor-pointer shadow-md shadow-orange-950/40"
+                                                                                    >
+                                                                                        {isApprovingSms === inv.id ? (
+                                                                                            <RefreshCw size={12} className="animate-spin" />
+                                                                                        ) : (
+                                                                                            <Smartphone size={12} />
+                                                                                        )}
+                                                                                        Sistemde Onayla
+                                                                                    </button>
+                                                                                    <a
+                                                                                        href={gibPortalUrl}
+                                                                                        target="_blank" 
+                                                                                        rel="noopener noreferrer" 
+                                                                                        className="inline-flex items-center gap-1 text-xs font-semibold bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 px-3 py-1.5 rounded-xl transition cursor-pointer"
+                                                                                    >
+                                                                                        Portalda Onayla <ExternalLink size={12} />
+                                                                                    </a>
+                                                                                    <button
+                                                                                        onClick={() => handleMarkAsSigned(inv)}
+                                                                                        title="İmzalandı Olarak İşaretle"
+                                                                                        className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 hover:border-orange-500/30 rounded-xl transition cursor-pointer"
+                                                                                    >
+                                                                                        <CheckCircle size={13} />
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => handleResetGibStatus(inv)}
+                                                                                        title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
+                                                                                        className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 hover:border-slate-500 rounded-xl transition cursor-pointer"
+                                                                                    >
+                                                                                        <RefreshCw size={13} />
+                                                                                    </button>
+                                                                                </>
+                                                                            ) : isSignedOnGib ? (
+                                                                                <>
+                                                                                    <button
+                                                                                        onClick={() => handleDownloadPdf(inv)}
+                                                                                        disabled={!inv.gibUuid || isDownloadingPdf === inv.id}
+                                                                                        title={inv.gibUuid ? "Faturayı Görüntüle / Yazdır" : "Sistem dışı onaylandığı için görüntülenemez"}
+                                                                                        className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 hover:border-orange-500/30 rounded-xl transition disabled:opacity-30 disabled:hover:bg-slate-800 disabled:hover:text-slate-400 disabled:hover:border-slate-700 disabled:cursor-not-allowed cursor-pointer"
+                                                                                    >
+                                                                                        {isDownloadingPdf === inv.id ? (
+                                                                                            <RefreshCw size={12} className="animate-spin" />
+                                                                                        ) : (
+                                                                                            <Download size={13} />
+                                                                                        )}
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => handleResetGibStatus(inv)}
+                                                                                        title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
+                                                                                        className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 hover:border-slate-500 rounded-xl transition cursor-pointer"
+                                                                                    >
+                                                                                        <RefreshCw size={13} />
+                                                                                    </button>
+                                                                                </>
+                                                                            ) : (
+                                                                                <>
+                                                                                    <button
+                                                                                        onClick={() => handleOpenSendModal(inv)}
+                                                                                        disabled={isSending}
+                                                                                        className="inline-flex items-center gap-1.5 text-xs font-bold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white px-3.5 py-1.5 rounded-xl transition disabled:opacity-50 shadow-md shadow-orange-500/25 active:scale-95 cursor-pointer"
+                                                                                    >
+                                                                                        {isSending ? (
+                                                                                            <>
+                                                                                                <RefreshCw size={12} className="animate-spin" />
+                                                                                                Hazırlanıyor...
+                                                                                            </>
+                                                                                        ) : (
+                                                                                            <>
+                                                                                                GİB Taslak Hazırla
+                                                                                            </>
+                                                                                        )}
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => handleMarkAsSigned(inv)}
+                                                                                        title="İmzalandı Olarak İşaretle"
+                                                                                        className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 hover:border-orange-500/30 rounded-xl transition cursor-pointer"
+                                                                                    >
+                                                                                        <CheckCircle size={13} />
+                                                                                    </button>
+                                                                                </>
+                                                                            )}
                                                                         </div>
-                                                                    );
-                                                                })()}
-                                                            </td>
-
-                                                            {/* 2. Sütun: Hakediş Tutarı */}
-                                                            <td className="p-4">
-                                                                {(() => {
-                                                                    const est = getInvoiceEstimate(inv);
-                                                                    if (!est) {
-                                                                        return <span className="text-slate-600 font-mono text-sm">—</span>;
-                                                                    }
-                                                                    if (est.isActual) {
-                                                                        return (
-                                                                            <span className="text-white font-bold font-mono text-sm">
-                                                                                {est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
-                                                                            </span>
-                                                                        );
-                                                                    }
-                                                                    return (
-                                                                        <div className="flex flex-col">
-                                                                            <span className="text-slate-300 font-semibold font-mono text-sm">
-                                                                                {est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
-                                                                            </span>
-                                                                            <span className="text-[10px] text-slate-500 font-medium tracking-tight">
-                                                                                (Tahmini Tutar)
-                                                                            </span>
-                                                                        </div>
-                                                                    );
-                                                                })()}
-                                                            </td>
-
-                                                            {/* 3. Sütun: GİB Durumu Rozeti */}
-                                                            <td className="p-4 hidden md:table-cell">
-                                                                {isDraftOnGib ? (
-                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-300 border border-orange-500/20 text-xs font-semibold">
-                                                                        <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
-                                                                        GİB'de Taslak {inv.gibTestMode && "(TEST)"}
-                                                                    </span>
-                                                                ) : isSignedOnGib ? (
-                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.05] text-slate-200 border border-white/[0.08] text-xs font-semibold">
-                                                                        <CheckCircle size={12} className="text-slate-400" />
-                                                                        Resmi Onaylı {inv.gibTestMode && "(TEST)"}
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/20 text-xs font-semibold">
-                                                                        <Clock size={12} className="text-orange-400" />
-                                                                        Taslak Bekliyor
-                                                                    </span>
-                                                                )}
-                                                            </td>
-
-                                                            {/* 4. Sütun: İşlemler & Butonlar */}
-                                                            <td className="p-4 text-right">
-                                                                <div className="flex justify-end items-center gap-2">
-                                                                    {/* Belge / PDF Yönetim Modalı Butonu */}
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setPdfModalInvoice(inv);
-                                                                            setModalFiles(inv.files || []);
-                                                                            setModalNote(inv.note || '');
-                                                                        }}
-                                                                        title={inv.files?.length > 0 ? "Fatura Belgelerini Düzenle / Görüntüle" : "Faturaya PDF / Belge Ekle"}
-                                                                        className={`p-1.5 text-xs font-semibold rounded-lg transition border cursor-pointer ${inv.files?.length > 0 ? 'bg-orange-500/15 border-orange-500/30 text-orange-400 hover:bg-orange-500/25' : 'bg-slate-800/80 border-slate-700/60 text-slate-400 hover:text-white hover:bg-slate-700'}`}
-                                                                    >
-                                                                        <Paperclip size={13} />
-                                                                    </button>
-
-                                                                    {isDraftOnGib ? (
-                                                                        <>
-                                                                            <button
-                                                                                onClick={() => handleApproveSmsInit(inv)}
-                                                                                disabled={isApprovingSms === inv.id}
-                                                                                className="inline-flex items-center gap-1.5 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white px-3 py-1.5 rounded-xl transition disabled:opacity-50 cursor-pointer shadow-md shadow-orange-950/40"
-                                                                            >
-                                                                                {isApprovingSms === inv.id ? (
-                                                                                    <RefreshCw size={12} className="animate-spin" />
-                                                                                ) : (
-                                                                                    <Smartphone size={12} />
-                                                                                )}
-                                                                                Sistemde Onayla
-                                                                            </button>
-                                                                            <a
-                                                                                href={gibPortalUrl}
-                                                                                target="_blank" 
-                                                                                rel="noopener noreferrer" 
-                                                                                className="inline-flex items-center gap-1 text-xs font-semibold bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 px-3 py-1.5 rounded-xl transition cursor-pointer"
-                                                                            >
-                                                                                Portalda Onayla <ExternalLink size={12} />
-                                                                            </a>
-                                                                            <button
-                                                                                onClick={() => handleMarkAsSigned(inv)}
-                                                                                title="İmzalandı Olarak İşaretle"
-                                                                                className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 hover:border-orange-500/30 rounded-xl transition cursor-pointer"
-                                                                            >
-                                                                                <CheckCircle size={13} />
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => handleResetGibStatus(inv)}
-                                                                                title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
-                                                                                className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 hover:border-slate-500 rounded-xl transition cursor-pointer"
-                                                                            >
-                                                                                <RefreshCw size={13} />
-                                                                            </button>
-                                                                        </>
-                                                                    ) : isSignedOnGib ? (
-                                                                        <>
-                                                                            <button
-                                                                                onClick={() => handleDownloadPdf(inv)}
-                                                                                disabled={!inv.gibUuid || isDownloadingPdf === inv.id}
-                                                                                title={inv.gibUuid ? "Faturayı Görüntüle / Yazdır" : "Sistem dışı onaylandığı için görüntülenemez"}
-                                                                                className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 hover:border-orange-500/30 rounded-xl transition disabled:opacity-30 disabled:hover:bg-slate-800 disabled:hover:text-slate-400 disabled:hover:border-slate-700 disabled:cursor-not-allowed cursor-pointer"
-                                                                            >
-                                                                                {isDownloadingPdf === inv.id ? (
-                                                                                    <RefreshCw size={12} className="animate-spin" />
-                                                                                ) : (
-                                                                                    <Download size={13} />
-                                                                                )}
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => handleResetGibStatus(inv)}
-                                                                                title="GİB Durumunu Sıfırla (Yeniden Göndermek İçin)"
-                                                                                className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 hover:border-slate-500 rounded-xl transition cursor-pointer"
-                                                                            >
-                                                                                <RefreshCw size={13} />
-                                                                            </button>
-                                                                        </>
-                                                                    ) : (
-                                                                        <>
-                                                                            <button
-                                                                                onClick={() => handleOpenSendModal(inv)}
-                                                                                disabled={isSending}
-                                                                                className="inline-flex items-center gap-1.5 text-xs font-bold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white px-3.5 py-1.5 rounded-xl transition disabled:opacity-50 shadow-md shadow-orange-500/25 active:scale-95 cursor-pointer"
-                                                                            >
-                                                                                {isSending ? (
-                                                                                    <>
-                                                                                        <RefreshCw size={12} className="animate-spin" />
-                                                                                        Hazırlanıyor...
-                                                                                    </>
-                                                                                ) : (
-                                                                                    <>
-                                                                                        GİB Taslak Hazırla
-                                                                                    </>
-                                                                                )}
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => handleMarkAsSigned(inv)}
-                                                                                title="İmzalandı Olarak İşaretle"
-                                                                                className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 hover:border-orange-500/30 rounded-xl transition cursor-pointer"
-                                                                            >
-                                                                                <CheckCircle size={13} />
-                                                                            </button>
-                                                                        </>
-                                                                    )}
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
                         </div>
                     </div>
 
-            {/* GİB BAĞLANTI AYARLARI MODAL POPUP */}
-    {isSettingsModalOpen && createPortal(
-        <div 
-            className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-6 bg-black/75 backdrop-blur-md animate-in fade-in duration-200"
-            onClick={(e) => { if (e.target === e.currentTarget) setIsSettingsModalOpen(false); }}
-        >
-            <div className="bg-[#0c1017] border border-amber-500/30 rounded-3xl shadow-2xl shadow-black/90 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-                {/* Modal Header */}
-                <div className="p-5 sm:p-6 border-b border-white/[0.08] flex items-center justify-between bg-slate-900/60 shrink-0">
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-orange-500/20 to-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                            <Key size={18} />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-base text-white">
-                                GİB Portal & Fatura Bağlantı Ayarları
-                            </h3>
-                            <p className="text-xs text-slate-400">
-                                Portal giriş şifreleri, test modu ve varsayılan fatura tercihleri
-                            </p>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={() => setIsSettingsModalOpen(false)}
-                        className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition cursor-pointer"
-                        title="Kapat (ESC / X)"
-                    >
-                        <X size={20} />
-                    </button>
-                </div>
 
-                {/* Modal Body / Form */}
-                <div className="overflow-y-auto custom-scrollbar p-6 space-y-6 flex-1">
-                    <form onSubmit={handleSaveSettings} className="space-y-5">
-                        <div className="bg-amber-500/10 border border-amber-500/25 text-amber-300 p-4 rounded-2xl text-xs space-y-1 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
-                            <span className="font-bold flex items-center gap-1.5 mb-1 text-amber-400">
-                                <HelpCircle size={15} /> Önemli Bilgilendirme
-                            </span>
-                            <p>GİB e-Arşiv şifreniz İnteraktif Vergi Dairesi (İVD) giriş şifrenizdir. Bu bilgiler SSL ile korunmakta ve fatura taslağı oluşturmak haricinde hiçbir amaçla kullanılmamaktadır.</p>
-                            <p className="mt-1 font-semibold text-amber-200">Lütfen canlı ortamda resmi fatura kesmeden önce Test Modu'nu aktif ederek deneme yapın.</p>
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                Kullanıcı Kodu (VKN / TCKN)
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                value={gibUsername}
-                                onChange={(e) => setGibUsername(e.target.value)}
-                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 outline-none"
-                                placeholder="GİB Kullanıcı Kodunuz veya VKN/TCKN"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                GİB Portal Şifresi
-                            </label>
-                            <input
-                                type="password"
-                                required
-                                value={gibPassword}
-                                onChange={(e) => setGibPassword(e.target.value)}
-                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 outline-none"
-                                placeholder="GİB / İnteraktif Vergi Dairesi Şifreniz"
-                            />
-                        </div>
-
-                        {/* Test Mode Switcher */}
-                        <div className="flex items-center justify-between p-4 bg-slate-900/40 border border-white/[0.08] rounded-2xl">
-                            <div className="space-y-0.5">
-                                <div className="text-sm font-bold text-[var(--text-primary)]">GİB Test Portalı Modu</div>
-                                <div className="text-xs text-[var(--text-secondary)]">Açık olduğunda earsivportaltest.efatura.gov.tr üzerinde işlem yapar (Resmi fatura kesilmez).</div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setGibTestMode(!gibTestMode)}
-                                className={`w-10 h-6 rounded-full p-0.5 transition-colors duration-200 outline-none flex items-center cursor-pointer ${
-                                    gibTestMode ? 'bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.5)]' : 'bg-slate-800 border border-[var(--border-color)]'
-                                }`}
-                            >
-                                <div
-                                    className={`w-5 h-5 rounded-full bg-white transition-transform duration-200 ${
-                                        gibTestMode ? 'translate-x-4' : 'translate-x-0'
-                                    }`}
-                                />
-                            </button>
-                        </div>
-
-                        {/* PREFERRED DEFAULTS SECTION */}
-                        <div className="border-t border-[var(--border-color)] pt-6 mt-6">
-                            <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 flex items-center">
-                                <Settings className="mr-2 text-amber-400" size={18} />
-                                Varsayılan Fatura Tercihleri
-                            </h4>
-                            
-                            <div className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            Varsayılan Fatura Tipi
-                                        </label>
-                                        <select
-                                            value={defaultInvoiceType}
-                                            onChange={(e) => setDefaultInvoiceType(e.target.value)}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
-                                        >
-                                            <option value="SATIS">SATIŞ FATURASI</option>
-                                            <option value="TEVKIFAT">TEVKİFATLI FATURA</option>
-                                            <option value="ISTISNA">İSTİSNA (KDV MUAFİYETLİ)</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            Varsayılan KDV Oranı
-                                        </label>
-                                        <select
-                                            value={defaultVatRate}
-                                            onChange={(e) => setDefaultVatRate(Number(e.target.value))}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
-                                        >
-                                            <option value={20}>%20</option>
-                                            <option value={10}>%10</option>
-                                            <option value={0}>%0</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                {defaultInvoiceType === 'TEVKIFAT' && (
-                                    <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            Varsayılan Tevkifat Kodu
-                                        </label>
-                                        <select
-                                            value={defaultTevkifatKodu}
-                                            onChange={(e) => setDefaultTevkifatKodu(e.target.value)}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
-                                        >
-                                            {TEVKIFAT_CODES.map(t => (
-                                                <option key={t.code} value={t.code}>{t.label}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
-
-                                {defaultInvoiceType === 'ISTISNA' && (
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                                Varsayılan Muafiyet Kodu
-                                            </label>
-                                            <select
-                                                value={defaultKdvMuafiyetKodu}
-                                                onChange={(e) => setDefaultKdvMuafiyetKodu(e.target.value)}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
-                                            >
-                                                {EXEMPTION_CODES.map(e => (
-                                                    <option key={e.code} value={e.code}>{e.label}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                                Varsayılan Muafiyet Nedeni Açıklaması
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={defaultKdvMuafiyetNedeni}
-                                                onChange={(e) => setDefaultKdvMuafiyetNedeni(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 outline-none"
-                                                placeholder="Örn: 306/1-a Maddesi Kapsamında Uluslararası Nakliye..."
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* DEFAULT IBAN INFORMATION SECTION */}
-                        <div className="border-t border-[var(--border-color)] pt-6 mt-6">
-                            <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 flex items-center">
-                                <FileText className="mr-2 text-amber-400" size={18} />
-                                Fatura Notuna Eklenecek Bilgiler (İBAN & İsim)
-                            </h4>
-                            <div className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            Banka İBAN Numarası
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={defaultIban}
-                                            onChange={(e) => setDefaultIban(e.target.value)}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 outline-none"
-                                            placeholder="Örn: TR86 0004 ..."
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            İBAN Adı Soyadı / Unvan
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={defaultIbanName}
-                                            onChange={(e) => setDefaultIbanName(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 outline-none"
-                                            placeholder="Örn: AHMET YILMAZ veya ŞİRKET UNVANI"
-                                        />
-                                    </div>
-                                </div>
-                                <p className="text-[11px] text-[var(--text-secondary)]">
-                                    Bu alanları doldurursanız, fatura oluşturulurken açıklama (not) kısmının en altına otomatik olarak İBAN bilginiz eklenecektir.
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* DEFAULT BUYER INFORMATION SECTION */}
-                        <div className="border-t border-[var(--border-color)] pt-6 mt-6">
-                            <h4 className="text-sm font-bold text-[var(--text-primary)] mb-4 flex items-center">
-                                <BookOpen className="mr-2 text-amber-400" size={18} />
-                                Varsayılan Alıcı (Müşteri) Bilgileri
-                            </h4>
-                            
-                            <div className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            Varsayılan Alıcı TCKN / VKN
-                                        </label>
-                                        <input
-                                            type="text"
-                                            maxLength={11}
-                                            value={defaultBuyerVkn}
-                                            onChange={(e) => setDefaultBuyerVkn(e.target.value.replace(/\s/g, ''))}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
-                                            placeholder="10 veya 11 haneli numara"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            Varsayılan Alıcı Unvanı / Adı Soyadı
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={defaultBuyerTitle}
-                                            onChange={(e) => setDefaultBuyerTitle(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
-                                            placeholder="Şirket unvanı veya ad soyad"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            Vergi Dairesi
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={defaultBuyerTaxOffice}
-                                            onChange={(e) => setDefaultBuyerTaxOffice(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
-                                            placeholder="Vergi Dairesi"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            İlçe / Mahalle
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={defaultBuyerDistrict}
-                                            onChange={(e) => setDefaultBuyerDistrict(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
-                                            placeholder="İlçe"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            Şehir (İl)
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={defaultBuyerCity}
-                                            onChange={(e) => setDefaultBuyerCity(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none"
-                                            placeholder="Şehir"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                        Açık Adres
-                                    </label>
-                                    <textarea
-                                        value={defaultBuyerAddress}
-                                        onChange={(e) => setDefaultBuyerAddress(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                        rows={2}
-                                        className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm focus:border-amber-500 outline-none resize-none"
-                                        placeholder="Detaylı adres..."
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {settingsStatus.message && (
-                            <div className={`flex items-center gap-2 text-sm p-3.5 rounded-xl border ${
-                                settingsStatus.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                            }`}>
-                                {settingsStatus.type === 'error' ? <AlertTriangle size={16}/> : <CheckCircle size={16}/>}
-                                {settingsStatus.message}
-                            </div>
-                        )}
-
-                        <button
-                            type="submit"
-                            disabled={isSavingSettings}
-                            className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white py-3 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-orange-500/25 active:scale-[0.99] cursor-pointer"
-                        >
-                            {isSavingSettings ? (
-                                <>
-                                    <RefreshCw size={16} className="animate-spin" />
-                                    Kaydediliyor...
-                                </>
-                            ) : (
-                                <>
-                                    <Save size={16} /> GİB Ayarlarını ve Tercihlerini Kaydet
-                                </>
-                            )}
-                        </button>
-                    </form>
-
-                    {/* Force Logout Utility */}
-                    <div className="border-t border-red-500/20 pt-6 mt-6">
-                        <h4 className="text-sm font-bold text-red-400 mb-2 flex items-center">
-                            <LogOut className="mr-2 text-red-400" size={18} />
-                            Acil Oturum Sıfırlama
-                        </h4>
-                        <p className="text-xs text-[var(--text-secondary)] mb-4">
-                            Tarayıcınızda veya başka bir cihazda GİB portalı açık kaldığı için "Birden fazla giriş yapamazsınız" hatası alıyorsanız, GİB sunucularındaki oturumunuzu buradan zorla sonlandırabilirsiniz.
-                        </p>
-
-                        {forceLogoutStatus && (
-                            <div className={`flex items-start gap-2 text-sm p-3 rounded-lg border mb-4 ${
-                                forceLogoutStatus.type === 'success'
-                                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                                    : 'bg-red-500/10 border-red-500/20 text-red-400'
-                            }`}>
-                                {forceLogoutStatus.type === 'success'
-                                    ? <CheckCircle size={16} className="shrink-0 mt-0.5" />
-                                    : <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-                                }
-                                <span>{forceLogoutStatus.message}</span>
-                            </div>
-                        )}
-
-                        <button
-                            type="button"
-                            onClick={handleForceGibLogout}
-                            disabled={isForceLoggingOut}
-                            className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 py-2.5 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                            {isForceLoggingOut ? (
-                                <>
-                                    <RefreshCw size={16} className="animate-spin" />
-                                    Oturum Sonlandırılıyor...
-                                </>
-                            ) : (
-                                <>
-                                    GİB Aktif Oturumunu Sonlandır
-                                </>
-                            )}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>,
-        document.body
-    )}
 
             {smsModalOpen && smsTargetInvoice && createPortal(
-                <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-[#0b1120] border border-emerald-500/30 rounded-2xl shadow-2xl p-6 w-full max-w-md animate-in zoom-in-95 duration-200">
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-[#07090e] border border-emerald-500/30 rounded-2xl shadow-2xl p-6 w-full max-w-md animate-in zoom-in-95 duration-200">
                         <h3 className="text-lg font-bold text-emerald-400 mb-2 flex items-center gap-2">
                             <Smartphone size={20} />
                             SMS Onayı
@@ -1944,7 +2466,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                     value={smsCode}
                                     onChange={(e) => setSmsCode(e.target.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase())}
                                     placeholder="XXXXXX"
-                                    className="w-full text-center tracking-[0.5em] font-mono text-2xl bg-slate-900 border border-slate-700 text-white rounded-xl px-4 py-3 focus:border-emerald-500 outline-none"
+                                    className="w-full text-center tracking-[0.5em] font-mono text-2xl bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-4 py-3 focus:border-emerald-500 outline-none"
                                 />
                             </div>
                             
@@ -1952,7 +2474,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                 <button
                                     type="button"
                                     onClick={() => { setSmsModalOpen(false); setSmsCode(''); }}
-                                    className="flex-1 px-4 py-2 text-sm font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition"
+                                    className="flex-1 px-4 py-2 text-sm font-semibold text-slate-300 bg-white/[0.04] hover:bg-white/[0.08] rounded-lg transition"
                                 >
                                     İptal
                                 </button>
@@ -1971,410 +2493,13 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                 document.body
             )}
 
-            {/* SENDING MODAL OVERLAY */}
-            {isModalOpen && selectedInvoice && createPortal(
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
-                    <div className="glass-panel w-full max-w-4xl lg:max-w-5xl max-h-[95vh] overflow-hidden shadow-2xl grid grid-rows-[auto_minmax(0,1fr)]">
-                        {/* Header */}
-                        <div className="p-5 sm:p-6 border-b border-[var(--border-color)] flex items-center justify-between bg-slate-900/60 shrink-0">
-                            <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                                    <FileText size={18} />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-sm sm:text-base text-[var(--text-primary)]">
-                                        GİB Taslak Hazırla <span className="text-amber-400 font-normal">({modalStep === 1 ? "1. Adım: Bilgileri Kontrol Et" : "2. Adım: Güzergahlar ve Fiyatlar"})</span>
-                                    </h3>
-                                    <p className="text-[11px] text-[var(--text-secondary)] font-medium">
-                                        {trucksMap.get(selectedInvoice.truckId)?.plate || 'Araç'} • {formatInvoicePeriod(selectedInvoice.startDate, selectedInvoice.endDate).primary} ({formatInvoicePeriod(selectedInvoice.startDate, selectedInvoice.endDate).sub})
-                                    </p>
-                                </div>
-                            </div>
-                            <button 
-                                onClick={() => setIsModalOpen(false)}
-                                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition cursor-pointer"
-                            >
-                                <X size={18} />
-                            </button>
-                        </div>
 
-                        {/* Step 1 Form */}
-                        {modalStep === 1 && (
-                            <form onSubmit={(e) => { e.preventDefault(); handleNextStep(); }} className="grid grid-rows-[minmax(0,1fr)_auto] overflow-hidden h-full">
-                                <div className="overflow-y-auto p-5 space-y-4 custom-scrollbar">
-                                    {/* Invoice Type, Date, VAT Rate in clean 3-col grid */}
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-900/30 p-4 border border-white/[0.08] rounded-2xl">
-                                        <div>
-                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                                Fatura Tarihi
-                                            </label>
-                                            <CustomDatePicker
-                                                value={invoiceDate}
-                                                onChange={setInvoiceDate}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl text-xs focus:border-amber-500 outline-none uppercase"
-                                                placeholder="Tarih Seçin"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                                Fatura Tipi
-                                            </label>
-                                            <select
-                                                value={invoiceType}
-                                                onChange={(e) => setInvoiceType(e.target.value)}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs focus:border-amber-500 outline-none"
-                                            >
-                                                <option value="SATIS">SATIŞ</option>
-                                                <option value="TEVKIFAT">TEVKİFAT</option>
-                                                <option value="ISTISNA">İSTİSNA</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                                KDV Oranı
-                                            </label>
-                                            <select
-                                                value={vatRate}
-                                                onChange={(e) => setVatRate(Number(e.target.value))}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs focus:border-amber-500 outline-none"
-                                            >
-                                                <option value={20}>%20</option>
-                                                <option value={10}>%10</option>
-                                                <option value={0}>%0</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    {/* Conditionally render Tevkifat parameters */}
-                                    {invoiceType === 'TEVKIFAT' && (
-                                        <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-2">
-                                            <label className="block text-xs font-semibold text-amber-400">
-                                                Tevkifat Kodu ve Oranı
-                                            </label>
-                                            <select
-                                                value={tevkifatKodu}
-                                                onChange={(e) => setTevkifatKodu(e.target.value)}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm focus:border-amber-500 outline-none"
-                                            >
-                                                {TEVKIFAT_CODES.map(t => (
-                                                    <option key={t.code} value={t.code}>{t.label}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    )}
-
-                                    {/* Conditionally render Exemption parameters */}
-                                    {invoiceType === 'ISTISNA' && (
-                                        <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-3">
-                                            <div>
-                                                <label className="block text-xs font-semibold text-amber-400 mb-1">
-                                                    KDV İstisna Kodu
-                                                </label>
-                                                <select
-                                                    value={kdvMuafiyetKodu}
-                                                    onChange={(e) => setKdvMuafiyetKodu(e.target.value)}
-                                                    className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm focus:border-amber-500 outline-none"
-                                                >
-                                                    {EXEMPTION_CODES.map(e => (
-                                                        <option key={e.code} value={e.code}>{e.label}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-semibold text-amber-400 mb-1">
-                                                    KDV İstisna Nedeni Açıklaması
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    required
-                                                    value={kdvMuafiyetNedeni}
-                                                    onChange={(e) => setKdvMuafiyetNedeni(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                    className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2 text-sm focus:border-amber-500 outline-none"
-                                                    placeholder="Örn: 306/1-a Maddesi Kapsamında Uluslararası Nakliye..."
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Client VKN and Title */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <div className="flex justify-between items-center mb-1">
-                                                <label className="block text-xs font-semibold text-[var(--text-secondary)]">
-                                                    Alıcı TCKN / VKN *
-                                                </label>
-                                                {Object.keys(gibClients || {}).length > 0 && (
-                                                    <select
-                                                        onChange={(e) => {
-                                                            if (e.target.value) {
-                                                                handleVknChange(e.target.value);
-                                                            }
-                                                        }}
-                                                        className="text-[10px] bg-slate-950 border border-[var(--border-color)] text-amber-400 rounded-lg px-2 py-0.5 outline-none max-w-[180px] font-medium"
-                                                        defaultValue=""
-                                                    >
-                                                        <option value="" disabled>Kayıtlı Müşteri Seç</option>
-                                                        {Object.values(gibClients).map(c => (
-                                                            <option key={c.vkn} value={c.vkn}>
-                                                                {c.title.length > 20 ? c.title.substring(0, 18) + '...' : c.title}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                )}
-                                            </div>
-                                            <div className="relative">
-                                                <input
-                                                    type="text"
-                                                    required
-                                                    maxLength={11}
-                                                    value={buyerVkn}
-                                                    onChange={(e) => handleVknChange(e.target.value)}
-                                                    className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl pl-9 pr-4 py-2.5 text-sm focus:border-amber-500 outline-none font-mono"
-                                                    placeholder="11 haneli TCKN veya 10 haneli VKN"
-                                                />
-                                                <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={15} />
-                                            </div>
-                                            {buyerVkn && gibClients[buyerVkn] && (
-                                                <span className="text-[10px] text-emerald-400 mt-1 block">
-                                                    ✓ Kayıtlı müşteri bilgileri otomatik dolduruldu.
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                                Alıcı Unvanı / Adı Soyadı
-                                            </label>
-                                            <input
-                                                type="text"
-                                                required
-                                                value={buyerTitle}
-                                                onChange={(e) => setBuyerTitle(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 outline-none"
-                                                placeholder="Şirket unvanı veya şahıs adı soyadı"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Tax Office, City, District */}
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="md:col-span-1">
-                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                                Vergi Dairesi
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={buyerTaxOffice}
-                                                onChange={(e) => setBuyerTaxOffice(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2 text-sm focus:border-amber-500 outline-none"
-                                                placeholder="Vergi Dairesi adı"
-                                            />
-                                        </div>
-                                        <div className="md:col-span-1">
-                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                                İlçe / Mahalle
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={buyerDistrict}
-                                                onChange={(e) => setBuyerDistrict(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2 text-sm focus:border-amber-500 outline-none"
-                                                placeholder="İlçe veya mahalle"
-                                            />
-                                        </div>
-                                        <div className="md:col-span-1">
-                                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                                Şehir (İl)
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={buyerCity}
-                                                onChange={(e) => setBuyerCity(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2 text-sm focus:border-amber-500 outline-none"
-                                                placeholder="Şehir"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            Açık Adres
-                                        </label>
-                                        <textarea
-                                            value={buyerAddress}
-                                            onChange={(e) => setBuyerAddress(e.target.value.toLocaleUpperCase('tr-TR'))}
-                                            rows={2}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2 text-sm focus:border-amber-500 outline-none resize-none"
-                                            placeholder="Sokak, bulvar, apartman no ve detaylı adres..."
-                                        />
-                                    </div>
-                                    
-                                    <div>
-                                        <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
-                                            Fatura Notu
-                                        </label>
-                                        <textarea
-                                            value={invoiceNote}
-                                            onChange={(e) => setInvoiceNote(e.target.value)}
-                                            rows={2}
-                                            className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-4 py-2 text-sm focus:border-amber-500 outline-none resize-none font-mono"
-                                            placeholder="Faturaya eklenecek notlar..."
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Footer Buttons inside Modal - Step 1 */}
-                                <div className="p-5 sm:p-6 border-t border-[var(--border-color)] flex gap-3 bg-slate-900/40 shrink-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsModalOpen(false)}
-                                        className="flex-1 bg-white/[0.04] hover:bg-white/[0.08] text-[var(--text-secondary)] border border-white/[0.08] py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer"
-                                    >
-                                        Vazgeç
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="flex-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 active:scale-95 cursor-pointer"
-                                    >
-                                        Onayla ve Devam Et
-                                    </button>
-                                </div>
-                            </form>
-                        )}
-
-                        {/* Step 2 Form */}
-                        {modalStep === 2 && (
-                            <form onSubmit={handleSendInvoiceSubmit} className="grid grid-rows-[minmax(0,1fr)_auto] overflow-hidden h-full">
-                                <div className="overflow-y-auto p-6 space-y-4 custom-scrollbar">
-                                    <div className="overflow-x-auto border border-white/[0.08] rounded-2xl">
-                                        <table className="w-full text-left text-xs border-collapse">
-                                            <thead>
-                                                <tr className="bg-slate-950/40 text-[var(--text-secondary)] uppercase border-b border-[var(--border-color)]">
-                                                    <th className="p-3 font-bold">Hizmet Adı / Açıklama</th>
-                                                    <th className="p-3 font-bold text-right w-24 whitespace-nowrap">Miktar (Ton)</th>
-                                                    <th className="p-3 font-bold text-right w-28 whitespace-nowrap">Birim Fiyat (₺)</th>
-                                                    <th className="p-3 font-bold text-right w-32 whitespace-nowrap">Tutar (Matrah)</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-[var(--border-color)]">
-                                                {routeLines.map((line, idx) => (
-                                                    <tr key={idx} className="hover:bg-white/[0.02]">
-                                                        <td className="p-2">
-                                                            <input
-                                                                type="text"
-                                                                required
-                                                                value={line.name}
-                                                                onChange={(e) => handleLineChange(idx, 'name', e.target.value)}
-                                                                className="w-full bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3 py-1.5 text-xs sm:text-[13px] focus:border-amber-500 outline-none uppercase font-semibold tracking-tight"
-                                                            />
-                                                        </td>
-                                                        <td className="p-2 text-right w-24 whitespace-nowrap">
-                                                            <input
-                                                                type="number"
-                                                                step="0.001"
-                                                                required
-                                                                value={line.quantity || ''}
-                                                                onChange={(e) => handleLineChange(idx, 'quantity', e.target.value)}
-                                                                className="w-20 bg-slate-900 border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-2 py-1.5 text-xs focus:border-amber-500 outline-none text-right font-mono font-bold"
-                                                                placeholder="0.00"
-                                                            />
-                                                        </td>
-                                                        <td className="p-2 text-right w-28 whitespace-nowrap">
-                                                            <input
-                                                                type="number"
-                                                                step="0.01"
-                                                                required
-                                                                value={line.unitPrice || ''}
-                                                                onChange={(e) => handleLineChange(idx, 'unitPrice', e.target.value)}
-                                                                className="w-20 bg-slate-900 border border-amber-500/30 text-amber-400 rounded-xl px-2 py-1.5 text-xs focus:border-amber-500 outline-none text-right font-mono font-bold"
-                                                                placeholder="0.00"
-                                                            />
-                                                        </td>
-                                                        <td className="p-2 text-right text-emerald-400 font-bold font-mono whitespace-nowrap w-32 text-xs sm:text-sm">
-                                                            {line.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    {/* Dynamic calculations summary card */}
-                                    <div className="bg-slate-900/40 p-5 border border-white/[0.08] rounded-2xl space-y-2 text-xs">
-                                        <div className="flex justify-between">
-                                            <span className="text-[var(--text-secondary)]">Mal Hizmet Toplam Tutarı:</span>
-                                            <span className="font-bold text-[var(--text-primary)] font-mono">{totals.base.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-[var(--text-secondary)]">Hesaplanan KDV (%{vatRate}):</span>
-                                            <span className="font-bold text-[var(--text-primary)] font-mono">{totals.vat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-                                        </div>
-                                        
-                                        {invoiceType === 'TEVKIFAT' && (
-                                            <>
-                                                <div className="flex justify-between border-t border-white/[0.05] pt-2 text-amber-400">
-                                                    <span>Hesaplanan KDV Tevkifatı (%{TEVKIFAT_CODES.find(t => t.code === tevkifatKodu)?.rate}%):</span>
-                                                    <span className="font-bold font-mono">{totals.vatOfTax.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-                                                </div>
-                                                <div className="flex justify-between text-slate-400">
-                                                    <span>Tevkifata Tabi İşlem Tutarı:</span>
-                                                    <span className="font-semibold font-mono">{totals.base.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-                                                </div>
-                                                <div className="flex justify-between text-slate-400">
-                                                    <span>Tevkifata Tabi İşlem Üzerinden Hes. KDV:</span>
-                                                    <span className="font-semibold font-mono">{totals.vat.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-                                                </div>
-                                            </>
-                                        )}
-                                        
-                                        <div className="flex justify-between border-t border-white/[0.08] pt-2.5">
-                                            <span className="text-[var(--text-secondary)]">Vergiler Dahil Toplam Tutar:</span>
-                                            <span className="font-bold text-[var(--text-primary)] font-mono">{totals.withTaxes.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-                                        </div>
-                                        <div className="flex justify-between items-center border-t-2 border-amber-500/30 pt-3 text-sm text-amber-400 bg-amber-500/5 -mx-5 -mb-5 p-4 rounded-b-2xl">
-                                            <span className="font-bold">Ödenecek Tutar (Net):</span>
-                                            <span className="font-black text-base font-mono text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]">{totals.payment.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Footer buttons inside Step 2 */}
-                                <div className="p-5 sm:p-6 border-t border-[var(--border-color)] flex gap-3 bg-slate-900/40 shrink-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => setModalStep(1)}
-                                        className="flex-1 bg-white/[0.04] hover:bg-white/[0.08] text-[var(--text-secondary)] border border-white/[0.08] py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer"
-                                    >
-                                        Geri Dön
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={sendingInvoiceId === selectedInvoice.id}
-                                        className="flex-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 active:scale-95 disabled:opacity-50 cursor-pointer"
-                                    >
-                                        {sendingInvoiceId === selectedInvoice.id ? (
-                                            <>
-                                                <RefreshCw size={14} className="animate-spin" />
-                                                Gönderiliyor...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Send size={14} /> GİB Taslak Hazırla
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            </form>
-                        )}
-                    </div>
-                </div>,
-                document.body
-            )}
 
         {/* Manuel PDF / Belge Yönetimi Modalı */}
         {pdfModalInvoice && createPortal(
-            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[100] p-4" onClick={() => setPdfModalInvoice(null)}>
-                <div className="bg-[#0b1120] rounded-2xl border border-white/[0.08] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-                    <div className="flex justify-between items-center px-5 py-4 border-b border-white/[0.08]">
+            <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-[100] p-4" onClick={() => setPdfModalInvoice(null)}>
+                <div className="bg-[#07090e] rounded-2xl border border-white/[0.08] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                    <div className="flex justify-between items-center px-5 py-4 border-b border-white/[0.08] bg-white/[0.02]">
                         <h3 className="font-bold flex items-center gap-2.5 text-[var(--text-primary)]">
                             <span className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500/20 to-amber-500/20 border border-orange-500/30 flex items-center justify-center flex-shrink-0 text-amber-400 shadow-[0_0_10px_rgba(249,115,22,0.2)]">
                                 <FileText size={16} />
@@ -2395,12 +2520,12 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                             <textarea
                                 value={modalNote}
                                 onChange={(e) => setModalNote(e.target.value)}
-                                className="w-full bg-slate-900 border border-white/[0.08] focus:border-amber-500/40 rounded-xl p-3 text-sm text-[var(--text-primary)] placeholder-slate-600 outline-none min-h-[80px] resize-none transition-colors"
+                                className="w-full bg-[#0d1117] border border-white/[0.08] focus:border-amber-500/40 rounded-xl p-3 text-sm text-[var(--text-primary)] placeholder-slate-600 outline-none min-h-[80px] resize-none transition-colors"
                                 placeholder="Not ekle... (örn: GİB'den manuel kesildi, onay belgesi eklendi vb.)"
                             />
                         </div>
                     </div>
-                    <div className="px-5 py-4 border-t border-white/[0.08] flex justify-end gap-3 bg-slate-900/40">
+                    <div className="px-5 py-4 border-t border-white/[0.08] flex justify-end gap-3 bg-white/[0.02]">
                         <button
                             onClick={() => setPdfModalInvoice(null)}
                             className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"

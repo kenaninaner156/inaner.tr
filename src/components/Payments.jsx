@@ -1,8 +1,32 @@
 import React, { useState, useContext, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { DataContext } from '../context/DataContext';
-import { Wallet, Search, Filter, TrendingUp, TrendingDown, Plus, Download, Trash2, Calendar, Pencil, ArrowDownRight, ArrowUpRight, X, ChevronDown, Check } from 'lucide-react';
+import { 
+    Wallet, 
+    Search, 
+    Filter, 
+    TrendingUp, 
+    TrendingDown, 
+    Plus, 
+    Download, 
+    Trash2, 
+    Calendar, 
+    Pencil, 
+    ArrowDownRight, 
+    ArrowUpRight, 
+    X, 
+    Check, 
+    Save, 
+    Receipt, 
+    FileText, 
+    Paperclip, 
+    RefreshCw,
+    Sparkles,
+    Coins
+} from 'lucide-react';
 import FileUpload from './FileUpload';
+import CustomDatePicker from './CustomDatePicker';
+import CustomSelect from './CustomSelect';
 
 const Payments = () => {
     const {
@@ -12,15 +36,15 @@ const Payments = () => {
         updatePayment
     } = useContext(DataContext);
 
-    const [filterType, setFilterType] = useState('Hepsi'); // 'Hepsi', 'Tahsilat', 'Ödeme'
+    // Filters
+    const [filterType, setFilterType] = useState('Hepsi'); // 'Hepsi', 'Tahsilat', 'Ödeme', 'Rapor Dışı'
     const [filterMonth, setFilterMonth] = useState(''); // 'YYYY-MM'
-    
-    // Custom select dropdown states
-    const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
-    const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    // In-Card Studio State (Zero-Scroll / Modal-Free)
+    const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingPaymentId, setEditingPaymentId] = useState(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [viewingFilesRecord, setViewingFilesRecord] = useState(null);
 
     // Helpers for viewing files directly
@@ -35,7 +59,6 @@ const Payments = () => {
             window.open(f.data, '_blank');
         }
     };
-    const isImage = (type) => type && type.startsWith('image/');
 
     // Form States
     const [formData, setFormData] = useState({
@@ -46,8 +69,57 @@ const Payments = () => {
         files: []
     });
 
+    // Formatting helper
+    const formatCurrency = (val, showSign = false) => {
+        const num = Number(val) || 0;
+        const absFormatted = Math.abs(num).toLocaleString('tr-TR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+        if (num < 0) {
+            return `-₺${absFormatted}`;
+        }
+        if (showSign && num > 0) {
+            return `+₺${absFormatted}`;
+        }
+        return `₺${absFormatted}`;
+    };
 
-    // Özet ve Filtre Hesaplamaları
+    // Dynamic Month Options for Filter (matching Mazot Fişleri / Seferler style)
+    const monthOptions = useMemo(() => {
+        const options = [{ value: 'all', label: 'Tüm Zamanlar' }];
+        const currentYear = new Date().getFullYear();
+
+        const activeList = (paymentRecords || []).filter(r => !r.deleted);
+        const uniqueMonths = [...new Set(activeList.map(r => {
+            if (!r.date) return null;
+            const d = new Date(r.date);
+            if (isNaN(d.getTime())) return null;
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        }).filter(Boolean))].sort().reverse();
+
+        // Include current month
+        const nowYm = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+        if (!uniqueMonths.includes(nowYm)) {
+            uniqueMonths.unshift(nowYm);
+        }
+
+        uniqueMonths.forEach(ym => {
+            const [y, m] = ym.split('-');
+            const year = parseInt(y);
+            const monthIndex = parseInt(m) - 1;
+            const date = new Date(year, monthIndex, 1);
+            const monthName = date.toLocaleString('tr-TR', { month: 'long' });
+            const capMonthName = monthName.charAt(0).toLocaleUpperCase('tr-TR') + monthName.slice(1);
+
+            const label = `${capMonthName} ${year}`;
+            options.push({ value: ym, label });
+        });
+
+        return options;
+    }, [paymentRecords]);
+
+    // Filter & Search calculation
     const activePaymentRecords = useMemo(() => {
         let records = (paymentRecords || []).filter(r => !r.deleted)
             .sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -56,24 +128,87 @@ const Payments = () => {
             records = records.filter(r => r.type === filterType);
         }
 
-        if (filterMonth) {
+        if (filterMonth && filterMonth !== 'all') {
             records = records.filter(r => {
-                const recordMonth = r.date.substring(0, 7); // 'YYYY-MM'
+                const recordMonth = (r.date || '').substring(0, 7); // 'YYYY-MM'
                 return recordMonth === filterMonth;
             });
         }
 
-        return records;
-    }, [paymentRecords, filterType, filterMonth]);
+        if (searchTerm.trim()) {
+            const q = searchTerm.trim().toLocaleLowerCase('tr-TR');
+            records = records.filter(r => {
+                const desc = (r.description || '').toLocaleLowerCase('tr-TR');
+                const amountStr = String(r.amount || '');
+                const typeStr = (r.type || '').toLocaleLowerCase('tr-TR');
+                return desc.includes(q) || amountStr.includes(q) || typeStr.includes(q);
+            });
+        }
 
-    const activeForBalance = (paymentRecords || []).filter(r => !r.deleted);
+        return records;
+    }, [paymentRecords, filterType, filterMonth, searchTerm]);
+
+    // Stats calculated based on active time filter (Period-aware)
+    const activeForBalance = useMemo(() => {
+        let records = (paymentRecords || []).filter(r => !r.deleted);
+        if (filterMonth && filterMonth !== 'all') {
+            records = records.filter(r => (r.date || '').substring(0, 7) === filterMonth);
+        }
+        return records;
+    }, [paymentRecords, filterMonth]);
+
     const totalIncome = activeForBalance.filter(r => r.type === 'Tahsilat').reduce((sum, r) => sum + (r.amount || 0), 0);
     const totalExpense = activeForBalance.filter(r => r.type === 'Ödeme').reduce((sum, r) => sum + (r.amount || 0), 0);
     const netBalance = totalIncome - totalExpense;
 
+    const handleOpenAddForm = () => {
+        setEditingPaymentId(null);
+        setFormData({
+            type: 'Tahsilat',
+            date: new Date().toISOString().split('T')[0],
+            description: '',
+            amount: '',
+            files: []
+        });
+        setIsFormOpen(true);
+    };
+
+    const handleOpenEditForm = (record) => {
+        setEditingPaymentId(record.id);
+        setFormData({
+            type: record.type || 'Tahsilat',
+            date: record.date || new Date().toISOString().split('T')[0],
+            description: record.description || '',
+            amount: record.amount !== undefined ? String(record.amount) : '',
+            files: record.files || []
+        });
+        setIsFormOpen(true);
+    };
+
+    const handleCloseForm = () => {
+        setIsFormOpen(false);
+        setEditingPaymentId(null);
+        setFormData({
+            type: 'Tahsilat',
+            date: new Date().toISOString().split('T')[0],
+            description: '',
+            amount: '',
+            files: []
+        });
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!formData.amount || isNaN(parseFloat(formData.amount))) {
+            alert('Lütfen geçerli bir tutar giriniz.');
+            return;
+        }
+        if (!formData.description.trim()) {
+            alert('Lütfen açıklama alanını doldurunuz.');
+            return;
+        }
 
+        setIsSubmitting(true);
         try {
             if (editingPaymentId) {
                 await updatePayment(editingPaymentId, {
@@ -86,366 +221,546 @@ const Payments = () => {
                     amount: parseFloat(formData.amount)
                 });
             }
-
-            setFormData({
-                type: 'Tahsilat',
-                date: new Date().toISOString().split('T')[0],
-                description: '',
-                amount: '',
-                files: []
-            });
-            setIsAddModalOpen(false);
-            setEditingPaymentId(null);
-        } catch {
-            
+            handleCloseForm();
+        } catch (err) {
+            console.error("Ödeme kaydedilemedi:", err);
             alert('İşlem kaydedilemedi. Lütfen tekrar deneyin.');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     const handleDelete = (id) => {
-        deletePayment(id);
+        if (window.confirm('Bu kaydı silmek istediğinizden emin misiniz?')) {
+            deletePayment(id);
+        }
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
-            {/* Üst İstatistikler */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="glass-panel p-5 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl transition-all"></div>
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-[var(--text-secondary)] text-sm font-medium">Toplam Tahsilat</p>
-                            <h3 className="text-3xl font-bold mt-2 text-[var(--text-primary)]">₺{totalIncome.toLocaleString('tr-TR')}</h3>
-                        </div>
-                        <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-400">
-                            <ArrowDownRight size={24} />
-                        </div>
-                    </div>
-                </div>
-
-                <div className="glass-panel p-5 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/10 rounded-full blur-2xl transition-all"></div>
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-[var(--text-secondary)] text-sm font-medium">Toplam Ödeme</p>
-                            <h3 className="text-3xl font-bold mt-2 text-[var(--text-primary)]">₺{totalExpense.toLocaleString('tr-TR')}</h3>
-                        </div>
-                        <div className="p-2 bg-red-500/20 rounded-lg text-red-400">
-                            <ArrowUpRight size={24} />
-                        </div>
-                    </div>
-                </div>
-
-                <div className="glass-panel p-5 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/10 rounded-full blur-2xl transition-all"></div>
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <p className="text-[var(--text-secondary)] text-sm font-medium">Net Kasa (Bakiye)</p>
-                            <h3 className={`text-3xl font-bold mt-2 ${netBalance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                ₺{netBalance.toLocaleString('tr-TR')}
-                            </h3>
-                        </div>
-                        <div className="p-2 bg-green-500/20 rounded-lg text-green-400">
-                            <Wallet size={24} />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Aksiyon Barı */}
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-2">
-                <div className="flex flex-wrap items-center gap-4">
-                    <div className="relative">
-                        <button
-                            type="button"
-                            onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
-                            className="glass-input flex items-center px-4 py-2 hover:border-green-500/30 transition-colors text-sm font-semibold text-[var(--text-primary)]"
+        <div className="flex-1 flex flex-col h-[calc(100vh-4rem)] p-3 sm:p-4 lg:p-6 overflow-hidden gap-3 max-w-[1920px] mx-auto w-full">
+            
+            {/* 1. Üst Finansal Bento Kartları (Pürüzsüz Grid Row Kapanışı) */}
+            <div 
+                className="grid shrink-0 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+                style={{
+                    gridTemplateRows: isFormOpen ? '0fr' : '1fr',
+                    opacity: isFormOpen ? 0 : 1,
+                    pointerEvents: isFormOpen ? 'none' : 'auto',
+                }}
+            >
+                <div className="overflow-hidden min-h-0">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 pb-1">
+                        {/* 1. KART: Toplam Tahsilat (Giriş - Zümrüt Yeşili) */}
+                        <div 
+                            className="relative overflow-hidden rounded-3xl border border-[#1b2f28] shadow-2xl shadow-black/80 flex flex-col justify-between p-4 sm:p-5"
+                            style={{ 
+                                backgroundColor: '#070f0c',
+                                backgroundImage: 'radial-gradient(ellipse 70% 60% at 100% 0%, rgba(16,185,129,0.22) 0%, transparent 70%), radial-gradient(ellipse 70% 60% at 0% 100%, rgba(16,185,129,0.10) 0%, transparent 70%)'
+                            }}
                         >
-                            <Filter size={16} className="text-[var(--text-secondary)] mr-2" />
-                            <span className="text-sm font-medium text-[var(--text-secondary)] mr-1">Tür:</span>
-                            {filterType === 'Hepsi' ? 'Tümü' : filterType === 'Tahsilat' ? 'Tahsilatlar' : filterType === 'Ödeme' ? 'Ödemeler' : 'Rapor Dışı'}
-                            <ChevronDown size={14} className={`ml-2 transition-transform text-slate-400 ${isFilterDropdownOpen ? 'rotate-180 text-green-400' : ''}`} />
-                        </button>
-                        {isFilterDropdownOpen && (
-                            <div className="absolute left-0 mt-1 z-50 w-44 bg-[#0b1120]/95 backdrop-blur-xl border border-green-500/20 rounded-xl shadow-2xl overflow-hidden p-1">
-                                {[
-                                    { value: 'Hepsi', label: 'Tümü' },
-                                    { value: 'Tahsilat', label: 'Tahsilatlar' },
-                                    { value: 'Ödeme', label: 'Ödemeler' },
-                                    { value: 'Rapor Dışı', label: 'Rapor Dışı' }
-                                ].map((opt) => (
-                                    <button
-                                        key={opt.value}
-                                        type="button"
-                                        className={`w-full text-left px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-between ${filterType === opt.value ? 'bg-green-500/20 text-green-400 font-semibold' : 'text-slate-300 hover:bg-white/5'}`}
-                                        onClick={() => {
-                                            setFilterType(opt.value);
-                                            setIsFilterDropdownOpen(false);
-                                        }}
-                                    >
-                                        {opt.label}
-                                        {filterType === opt.value && <Check size={12} />}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                    <div className="glass-input flex items-center px-4 py-2 hover:border-green-500/30 transition-colors relative group">
-                        <Calendar size={16} className={`mr-1 transition-colors ${filterMonth ? 'text-green-400' : 'text-[var(--text-secondary)] group-hover:text-green-400'}`} />
-                        <div className="relative flex items-center">
-                            {/* Gerçek input (şeffaf ve üstte) */}
-                            <input
-                                type="month"
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                value={filterMonth}
-                                onChange={e => setFilterMonth(e.target.value)}
-                            />
-                            {/* Görünen sahte input (içi boşken hiçbir string göstermeyecek) */}
-                            {filterMonth && (
-                                <span className="text-sm font-semibold pointer-events-none text-green-400 ml-1">
-                                    {new Date(filterMonth + '-01').toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' })}
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs sm:text-sm font-bold text-emerald-400 tracking-wide flex items-center gap-1.5">
+                                    <ArrowDownRight size={16} /> Toplam Tahsilat (Giriş)
                                 </span>
-                            )}
+                                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                    <TrendingUp size={16} />
+                                </div>
+                            </div>
+                            <div>
+                                <h3 className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight">
+                                    {formatCurrency(totalIncome)}
+                                </h3>
+                                <p className="text-[11px] text-emerald-400/80 mt-1 font-medium">
+                                    {activeForBalance.filter(r => r.type === 'Tahsilat').length} adet tahsilat işlemi
+                                </p>
+                            </div>
                         </div>
-                        {filterMonth && (
-                            <button onClick={() => setFilterMonth('')} className="ml-3 p-1 rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-[var(--text-primary)] transition-colors" title="Filtreyi Temizle relative z-20">
-                                <X size={14} />
-                            </button>
-                        )}
+
+                        {/* 2. KART: Toplam Ödeme (Çıkış - Okyanus Cyan / Teal) */}
+                        <div 
+                            className="relative overflow-hidden rounded-3xl border border-[#162933] shadow-2xl shadow-black/80 flex flex-col justify-between p-4 sm:p-5"
+                            style={{ 
+                                backgroundColor: '#070f14',
+                                backgroundImage: 'radial-gradient(ellipse 70% 60% at 100% 0%, rgba(6,182,212,0.22) 0%, transparent 70%), radial-gradient(ellipse 70% 60% at 0% 100%, rgba(6,182,212,0.08) 0%, transparent 70%)'
+                            }}
+                        >
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs sm:text-sm font-bold text-cyan-400 tracking-wide flex items-center gap-1.5">
+                                    <ArrowUpRight size={16} /> Toplam Ödeme (Çıkış)
+                                </span>
+                                <div className="w-8 h-8 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                                    <TrendingDown size={16} />
+                                </div>
+                            </div>
+                            <div>
+                                <h3 className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight">
+                                    {formatCurrency(totalExpense)}
+                                </h3>
+                                <p className="text-[11px] text-cyan-400/80 mt-1 font-medium">
+                                    {activeForBalance.filter(r => r.type === 'Ödeme').length} adet ödeme işlemi
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* 3. KART: Net Kasa (Bakiye - Lüks Zümrüt Obsidian) */}
+                        <div 
+                            className="relative overflow-hidden rounded-3xl border border-[#1b2f28] shadow-2xl shadow-black/80 flex flex-col justify-between p-4 sm:p-5"
+                            style={{ 
+                                backgroundColor: '#070f0c',
+                                backgroundImage: 'radial-gradient(ellipse 70% 60% at 100% 0%, rgba(16,185,129,0.25) 0%, transparent 70%), radial-gradient(ellipse 70% 60% at 0% 100%, rgba(16,185,129,0.12) 0%, transparent 70%)'
+                            }}
+                        >
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs sm:text-sm font-bold text-emerald-400 tracking-wide flex items-center gap-1.5">
+                                    <Wallet size={16} /> Net Kasa (Bakiye)
+                                </span>
+                                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                    <Coins size={16} />
+                                </div>
+                            </div>
+                            <div>
+                                <h3 className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white">
+                                    {formatCurrency(netBalance, true)}
+                                </h3>
+                                <p className="text-[11px] mt-1 font-medium text-emerald-400/80">
+                                    {filterMonth && filterMonth !== 'all' 
+                                        ? `${monthOptions.find(o => o.value === filterMonth)?.label || 'Dönem'} Net Dengesi`
+                                        : 'Tüm Zamanlar Net Dengesi'}
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <button
-                    onClick={() => setIsAddModalOpen(true)}
-                    className="w-full sm:w-auto bg-green-600 hover:bg-green-500 text-[var(--text-primary)] px-5 py-2.5 rounded-xl font-semibold transition-all shadow-lg shadow-green-500/20 flex items-center justify-center whitespace-nowrap"
-                >
-                    <Plus size={18} className="mr-2" />
-                    Yeni İşlem Ekle
-                </button>
             </div>
 
-            {/* Ödemeler Tablosu (Liste) */}
-            <div className="glass-panel rounded-xl overflow-hidden">
-                {activePaymentRecords.length === 0 ? (
-                    <div className="p-12 text-center text-slate-500">
-                        <Wallet size={48} className="mx-auto mb-4 opacity-20" />
-                        <p className="text-lg">Henüz bir ödeme/tahsilat kaydı bulunmuyor.</p>
-                        <p className="text-sm mt-1">Nakit akışınızı takip etmek için yeni işlem ekleyin.</p>
+            {/* 2. Ana Kart (In-Card Form Stüdyosu VEYA Tablo Listesi) */}
+            <div className="bg-[#07090e] border border-white/[0.06] rounded-2xl shadow-xl flex-1 flex flex-col overflow-hidden min-h-0 relative">
+                
+                {isFormOpen ? (
+                    /* IN-CARD ZERO-SCROLL İŞLEM STÜDYOSU */
+                    <div className="flex-1 flex flex-col h-full min-h-0 bg-[#07090e] animate-in fade-in zoom-in-[0.99] duration-300">
+                        {/* Stüdyo Başlığı */}
+                        <div className="h-14 shrink-0 bg-[#07090e] border-b border-white/[0.06] px-4 sm:px-6 flex items-center justify-between gap-4 z-10">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                    <Wallet size={16} />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-xs sm:text-sm font-bold text-white tracking-tight">
+                                            {editingPaymentId ? 'İşlemi Düzenle' : 'Yeni Finansal İşlem Ekle'}
+                                        </h3>
+                                        <span className="text-[11px] text-slate-400 hidden sm:inline font-mono">
+                                            • {formData.type === 'Tahsilat' ? 'Para Girişi' : formData.type === 'Ödeme' ? 'Para Çıkışı' : 'Rapor Dışı Kayıt'}
+                                        </span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 hidden sm:block">
+                                        Nakit akış kaydı, tarih, tutar ve makbuz yönetimi
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleCloseForm}
+                                className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-white transition flex items-center justify-center cursor-pointer"
+                                title="Kapat (ESC / X)"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Stüdyo Form Gövdesi (2 Sütunlu Dengeli Bento Mimarisi) */}
+                        <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col justify-between">
+                            <div className="flex-1 min-h-0 p-4 sm:p-5 overflow-y-auto custom-scrollbar">
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-full">
+                                    
+                                    {/* Sol Kolon (5/12): İşlem Parametreleri */}
+                                    <div className="lg:col-span-5 flex flex-col justify-between bg-white/[0.02] border border-white/[0.05] rounded-3xl p-4 sm:p-5 gap-3.5">
+                                        <div className="h-10 flex items-center border-b border-white/[0.05] pb-2">
+                                            <h4 className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                                                İşlem Parametreleri
+                                            </h4>
+                                        </div>
+
+                                        {/* 1. İşlem Türü (3'lü Segmented Butonlar) */}
+                                        <div>
+                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">
+                                                İşlem Türü *
+                                            </label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, type: 'Tahsilat' })}
+                                                    className={`h-8 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                                        formData.type === 'Tahsilat'
+                                                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm shadow-emerald-500/20'
+                                                            : 'bg-[#0d1117] border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/[0.04]'
+                                                    }`}
+                                                >
+                                                    <ArrowDownRight size={14} /> Tahsilat
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, type: 'Ödeme' })}
+                                                    className={`h-8 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                                        formData.type === 'Ödeme'
+                                                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm shadow-cyan-500/20'
+                                                            : 'bg-[#0d1117] border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/[0.04]'
+                                                    }`}
+                                                >
+                                                    <ArrowUpRight size={14} /> Ödeme
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, type: 'Rapor Dışı' })}
+                                                    className={`h-8 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                                        formData.type === 'Rapor Dışı'
+                                                            ? 'bg-slate-500/20 text-slate-200 border border-slate-500/40 shadow-sm'
+                                                            : 'bg-[#0d1117] border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/[0.04]'
+                                                    }`}
+                                                >
+                                                    Rapor Dışı
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* 2. Tarih */}
+                                        <div>
+                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">
+                                                İşlem Tarihi *
+                                            </label>
+                                            <CustomDatePicker
+                                                value={formData.date}
+                                                onChange={(val) => setFormData({ ...formData, date: val })}
+                                                placeholder="İşlem Tarihi Seçin"
+                                                className="w-full h-8"
+                                            />
+                                        </div>
+
+                                        {/* 3. Tutar */}
+                                        <div>
+                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">
+                                                Tutar (₺) *
+                                            </label>
+                                            <div className="relative flex items-center">
+                                                <span className="absolute left-3 text-xs font-bold text-slate-400 pointer-events-none font-mono">
+                                                    ₺
+                                                </span>
+                                                <input
+                                                    type="number"
+                                                    required
+                                                    min="0"
+                                                    step="0.01"
+                                                    value={formData.amount}
+                                                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                                                    className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl pl-7 pr-3 text-xs sm:text-sm font-mono font-bold focus:border-emerald-500 outline-none"
+                                                    placeholder="0.00"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Sağ Kolon (7/12): Açıklama & Makbuz/Belge Ekle */}
+                                    <div className="lg:col-span-7 flex flex-col justify-between bg-white/[0.02] border border-white/[0.05] rounded-3xl p-4 sm:p-5 gap-3.5">
+                                        <div className="h-10 flex items-center border-b border-white/[0.05] pb-2">
+                                            <h4 className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                                                Açıklama & Ekli Belgeler
+                                            </h4>
+                                        </div>
+
+                                        {/* 1. Açıklama */}
+                                        <div>
+                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">
+                                                Açıklama (Kime / Kimden) *
+                                            </label>
+                                            <input
+                                                type="text"
+                                                required
+                                                value={formData.description}
+                                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                                className="w-full h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs sm:text-sm font-semibold focus:border-emerald-500 outline-none"
+                                                placeholder={
+                                                    formData.type === 'Tahsilat'
+                                                        ? 'Örn: Çayırhan Nakliye Tahsilatı'
+                                                        : formData.type === 'Ödeme'
+                                                        ? 'Örn: Lastikçi Ahmet Usta Ödemesi'
+                                                        : 'Örn: 6 Aylık Gelir Vergisi Beyannamesi'
+                                                }
+                                            />
+                                        </div>
+
+                                        {/* 2. Belge / Makbuz / Fatura Ekle */}
+                                        <div className="flex-1 flex flex-col justify-between pt-2">
+                                            <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4 flex items-center gap-1.5">
+                                                <Paperclip size={13} className="text-emerald-400" /> Makbuz / Dekont / Belge Ekle
+                                            </label>
+                                            <div className="bg-[#0d1117] border border-white/[0.08] rounded-2xl p-2.5">
+                                                <FileUpload files={formData.files} onChange={files => setFormData({ ...formData, files })} />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            {/* Alt Aksiyon Çubuğu */}
+                            <div className="h-14 shrink-0 bg-[#07090e] border-t border-white/[0.06] px-4 sm:px-6 flex items-center justify-between gap-3 z-10">
+                                <div className="text-xs text-slate-400 hidden sm:flex items-center gap-1.5">
+                                    <Sparkles size={14} className="text-emerald-400" />
+                                    <span>Tüm değişiklikler güvenle şirketinize kaydedilir.</span>
+                                </div>
+                                <div className="flex items-center gap-2.5 ml-auto">
+                                    <button
+                                        type="button"
+                                        onClick={handleCloseForm}
+                                        className="h-8 px-4 text-xs font-semibold text-slate-400 hover:text-white rounded-xl hover:bg-white/5 transition cursor-pointer"
+                                    >
+                                        Vazgeç
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmitting}
+                                        className="h-8 px-5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-lg shadow-emerald-500/25 cursor-pointer disabled:opacity-50 active:scale-95"
+                                    >
+                                        {isSubmitting ? (
+                                            <>
+                                                <RefreshCw size={13} className="animate-spin" />
+                                                Kaydediliyor...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Save size={13} />
+                                                {editingPaymentId ? 'Değişiklikleri Kaydet' : 'İşlemi Kaydet'}
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="border-b border-[var(--border-color)] text-[var(--text-secondary)] text-sm">
-                                    <th className="p-4 font-medium">Tarih</th>
-                                    <th className="p-4 font-medium">Tür</th>
-                                    <th className="p-4 font-medium">Açıklama (Kime/Kimden)</th>
-                                    <th className="p-4 font-medium text-right">Tutar</th>
-                                    <th className="p-4 font-medium text-center">İşlem</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {activePaymentRecords.map((record) => (
-                                    <tr key={record.id} className="border-b border-[var(--border-color)] hover:bg-white/5 transition-colors group">
-                                        <td className="p-4 text-[var(--text-primary)]">
-                                            {new Date(record.date).toLocaleDateString('tr-TR')}
-                                        </td>
-                                        <td className="p-4">
-                                            <span className={`px-3 py-1 rounded-full text-xs font-medium border ${record.type === 'Tahsilat'
-                                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                                : record.type === 'Ödeme'
-                                                ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                                                : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
-                                                }`}>
-                                                {record.type}
-                                            </span>
-                                        </td>
-                                        <td className="p-4 text-[var(--text-primary)] font-medium">
-                                            <div className="flex items-center gap-2">
-                                                <span>{record.description}</span>
-                                                {record.files?.length > 0 && (
-                                                    <button 
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (record.files.length === 1) {
-                                                                openFile(record.files[0]);
-                                                            } else {
-                                                                setViewingFilesRecord(record);
-                                                            }
-                                                        }}
-                                                        className="text-green-400 hover:text-green-300 transition-colors flex items-center bg-green-500/10 px-1.5 py-0.5 rounded text-xs cursor-pointer"
-                                                        title="Belgeyi Gör"
-                                                    >
-                                                        📎 {record.files.length}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="p-4 text-right font-bold text-[var(--text-primary)]">
-                                            ₺{record.amount.toLocaleString('tr-TR')}
-                                        </td>
-                                        <td className="p-4 text-center">
-                                            <div className="flex items-center justify-center gap-1 transition-opacity">
-                                                <button
-                                                    onClick={() => {
-                                                        setEditingPaymentId(record.id);
-                                                        setFormData({
-                                                            type: record.type || 'Tahsilat',
-                                                            date: record.date || new Date().toISOString().split('T')[0],
-                                                            description: record.description || '',
-                                                            amount: record.amount || '',
-                                                            files: record.files || []
-                                                        });
-                                                        setIsAddModalOpen(true);
-                                                    }}
-                                                    className="p-1.5 rounded-lg transition-all text-slate-500 hover:text-green-400 hover:bg-white/5"
-                                                    title="Kaydı Düzenle"
+                    /* TABLO VE FİLTRE GÖRÜNÜMÜ */
+                    <div className="flex-1 flex flex-col h-full min-h-0">
+                        {/* Filtre & Aksiyon Barı */}
+                        <div className="h-14 shrink-0 bg-[#07090e] border-b border-white/[0.06] px-4 sm:px-6 flex flex-wrap items-center justify-between gap-3 z-10">
+                            
+                            {/* Sol Filtreler (Canlı Arama + Tür Seçici + Ay/Dönem Filtresi) */}
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                                {/* Canlı Arama Input */}
+                                <div className="relative flex items-center">
+                                    <Search size={13} className="absolute left-3 text-slate-400 pointer-events-none" />
+                                    <input
+                                        type="text"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        placeholder="İşlem veya tutar ara..."
+                                        className="h-8 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl pl-8 pr-7 text-xs focus:border-emerald-500 outline-none w-40 sm:w-52 transition placeholder:text-slate-500"
+                                    />
+                                    {searchTerm && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSearchTerm('')}
+                                            className="absolute right-2 text-slate-400 hover:text-white"
+                                        >
+                                            <X size={12} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Tür Filtresi */}
+                                <div className="w-36">
+                                    <CustomSelect
+                                        value={filterType}
+                                        onChange={setFilterType}
+                                        options={[
+                                            { value: 'Hepsi', label: 'Tüm Türler' },
+                                            { value: 'Tahsilat', label: 'Tahsilatlar' },
+                                            { value: 'Ödeme', label: 'Ödemeler' },
+                                            { value: 'Rapor Dışı', label: 'Rapor Dışı' }
+                                        ]}
+                                        buttonClassName="h-8 py-0 text-xs"
+                                    />
+                                </div>
+
+                                {/* Şık Tarih / Dönem Filtresi (Tüm Zamanlar / Ağustos 2026 vb.) */}
+                                <div className="w-44">
+                                    <CustomSelect
+                                        value={filterMonth || 'all'}
+                                        onChange={(val) => setFilterMonth(val === 'all' ? '' : val)}
+                                        options={monthOptions}
+                                        placeholder="Tüm Zamanlar"
+                                        buttonClassName="h-8 py-0 text-xs"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Sağ Aksiyon: Yeni İşlem Ekle */}
+                            <button
+                                type="button"
+                                onClick={handleOpenAddForm}
+                                className="h-8 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-md shadow-emerald-500/25 active:scale-95 cursor-pointer shrink-0"
+                            >
+                                <Plus size={14} /> Yeni İşlem Ekle
+                            </button>
+                        </div>
+
+                        {/* Ödemeler Tablosu (Liste) */}
+                        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+                            {activePaymentRecords.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center p-8 text-center text-slate-500">
+                                    <div className="w-14 h-14 rounded-2xl bg-white/[0.02] border border-white/[0.06] flex items-center justify-center text-slate-600 mb-3">
+                                        <Wallet size={26} />
+                                    </div>
+                                    <p className="text-sm font-semibold text-slate-400">Kayıt Bulunamadı</p>
+                                    <p className="text-xs text-slate-600 mt-1 max-w-xs">
+                                        {searchTerm || filterType !== 'Hepsi' || (filterMonth && filterMonth !== 'all')
+                                            ? 'Filtreleme kriterlerinize uygun ödeme kaydı bulunamadı.' 
+                                            : 'Nakit akışınızı takip etmek için yukarıdaki "Yeni İşlem Ekle" butonuna tıklayın.'}
+                                    </p>
+                                </div>
+                            ) : (
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="sticky top-0 bg-[#07090e] border-b border-white/[0.06] text-[11px] font-bold text-slate-400 uppercase tracking-wider z-10">
+                                        <tr>
+                                            <th className="py-3 px-4 sm:px-6">Tarih</th>
+                                            <th className="py-3 px-4">Tür</th>
+                                            <th className="py-3 px-4">Açıklama (Kime / Kimden)</th>
+                                            <th className="py-3 px-4 text-right">Tutar</th>
+                                            <th className="py-3 px-4 sm:px-6 text-center w-24">İşlem</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/[0.04] text-xs">
+                                        {activePaymentRecords.map((record) => {
+                                            const isIncome = record.type === 'Tahsilat';
+                                            const isExpense = record.type === 'Ödeme';
+
+                                            return (
+                                                <tr 
+                                                    key={record.id} 
+                                                    className="hover:bg-white/[0.02] transition-colors group"
                                                 >
-                                                    <Pencil size={18} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(record.id)}
-                                                    className="p-1.5 rounded-lg transition-all text-slate-500 hover:text-red-400 hover:bg-white/5"
-                                                    title="Kaydı Sil"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                                    <td className="py-3 px-4 sm:px-6 font-mono text-slate-300 font-medium">
+                                                        {record.date ? new Date(record.date).toLocaleDateString('tr-TR') : '-'}
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                                                            isIncome
+                                                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                                                                : isExpense
+                                                                ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/25'
+                                                                : 'bg-slate-500/10 text-slate-400 border-slate-500/25'
+                                                        }`}>
+                                                            {record.type}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-4 text-white font-medium">
+                                                        <div className="flex items-center gap-2">
+                                                            <span>{record.description}</span>
+                                                            {record.files?.length > 0 && (
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (record.files.length === 1) {
+                                                                            openFile(record.files[0]);
+                                                                        } else {
+                                                                            setViewingFilesRecord(record);
+                                                                        }
+                                                                    }}
+                                                                    className="text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-lg text-[10px] font-bold cursor-pointer hover:bg-emerald-500/20"
+                                                                    title="Belgeyi Gör"
+                                                                >
+                                                                    <Paperclip size={10} />
+                                                                    <span>{record.files.length}</span>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className={`py-3 px-4 text-right font-mono font-bold text-xs sm:text-sm ${
+                                                        isIncome ? 'text-emerald-400' : isExpense ? 'text-cyan-300' : 'text-slate-400'
+                                                    }`}>
+                                                        {isIncome ? '+' : isExpense ? '-' : ''}₺{(record.amount || 0).toLocaleString('tr-TR', {
+                                                            minimumFractionDigits: 2,
+                                                            maximumFractionDigits: 2
+                                                        })}
+                                                    </td>
+                                                    <td className="py-3 px-4 sm:px-6 text-center">
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenEditForm(record)}
+                                                                className="w-7 h-7 rounded-lg transition text-slate-400 hover:text-emerald-400 hover:bg-white/5 flex items-center justify-center cursor-pointer"
+                                                                title="Kaydı Düzenle"
+                                                            >
+                                                                <Pencil size={14} />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDelete(record.id)}
+                                                                className="w-7 h-7 rounded-lg transition text-slate-400 hover:text-white hover:bg-white/10 flex items-center justify-center cursor-pointer"
+                                                                title="Kaydı Sil"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
 
-            {/* Yeni İşlem Ekleme Modalı */}
-            {typeof document !== 'undefined' && isAddModalOpen && createPortal(
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
-                    <div className="glass-panel w-full max-w-md max-h-[90vh] overflow-y-auto p-6 border border-[var(--border-color)] rounded-2xl animate-in zoom-in-95 duration-200 custom-scrollbar translate-y-6">
-                        <h2 className="text-xl font-bold mb-4 flex items-center text-[var(--text-primary)]">
-                            <Wallet className="mr-2 text-green-400" />
-                            {editingPaymentId ? 'İşlemi Düzenle' : 'Yeni İşlem (Para Giriş/Çıkış)'}
-                        </h2>
-
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">İşlem Türü</label>
-                                <div className="relative">
-                                    <select
-                                        className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-green-500 transition-all appearance-none cursor-pointer text-sm font-semibold"
-                                        value={formData.type}
-                                        onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                                    >
-                                        <option value="Tahsilat" className="bg-[#0b1120] text-slate-100 py-2">Tahsilat (Para Girişi)</option>
-                                        <option value="Ödeme" className="bg-[#0b1120] text-slate-100 py-2">Ödeme (Para Çıkışı)</option>
-                                        <option value="Rapor Dışı" className="bg-[#0b1120] text-slate-100 py-2">Rapor Dışı (Bilgi)</option>
-                                    </select>
-                                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Tarih</label>
-                                <input
-                                    type="date"
-                                    required
-                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-green-500 transition-all"
-                                    value={formData.date}
-                                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Açıklama</label>
-                                <input
-                                    type="text"
-                                    required
-                                    placeholder={formData.type === 'Tahsilat' ? "Örn: Çayırhan Nakliye Tahsilatı" : "Örn: Lastikçi Ahmet Usta Ödemesi"}
-                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-green-500 transition-all"
-                                    value={formData.description}
-                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">Tutar (₺)</label>
-                                <input
-                                    type="number"
-                                    required
-                                    min="0"
-                                    step="0.01"
-                                    placeholder="0.00"
-                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] focus:outline-none focus:border-green-500 transition-all"
-                                    value={formData.amount}
-                                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">📎 Makbuz / Belge Ekle</label>
-                                <FileUpload files={formData.files} onChange={files => setFormData({ ...formData, files })} />
-                            </div>
-
-                            <div className="flex gap-3 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setIsAddModalOpen(false);
-                                        setEditingPaymentId(null);
-                                        setFormData({
-                                            type: 'Tahsilat',
-                                            date: new Date().toISOString().split('T')[0],
-                                            description: '',
-                                            amount: '',
-                                            files: []
-                                        });
-                                    }}
-                                    className="flex-1 py-2.5 rounded-lg font-medium text-[var(--text-primary)] hover:bg-white/5 transition-colors"
-                                >
-                                    İptal
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="flex-1 bg-green-600 hover:bg-green-500 text-[var(--text-primary)] py-2.5 rounded-lg font-medium shadow-lg shadow-green-500/25 transition-all"
-                                >
-                                    Kaydet
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>,
-                document.body
-            )}
-
             {/* Dosya Görüntüleme Modalı (Çoklu dosya varsa) */}
-            {viewingFilesRecord && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setViewingFilesRecord(null)}>
-                    <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold text-[var(--text-primary)] text-lg">Ekli Belgeler</h3>
-                            <button onClick={() => setViewingFilesRecord(null)} className="text-slate-500 hover:text-[var(--text-primary)] transition-colors p-1">
-                                <X size={20} />
+            {viewingFilesRecord && createPortal(
+                <div 
+                    className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200" 
+                    onClick={() => setViewingFilesRecord(null)}
+                >
+                    <div 
+                        className="bg-[#07090e] border border-white/[0.08] rounded-3xl p-5 sm:p-6 w-full max-w-sm shadow-2xl shadow-black/90 animate-in zoom-in-95 duration-200" 
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/[0.06]">
+                            <div className="flex items-center gap-2">
+                                <Paperclip size={16} className="text-emerald-400" />
+                                <h3 className="font-bold text-white text-sm">Ekli Belgeler</h3>
+                            </div>
+                            <button 
+                                onClick={() => setViewingFilesRecord(null)} 
+                                className="w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-white transition flex items-center justify-center cursor-pointer"
+                            >
+                                <X size={16} />
                             </button>
                         </div>
                         <div className="space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
                             {viewingFilesRecord.files.map(f => (
-                                <div key={f.id} onClick={() => openFile(f)} className="flex items-center gap-3 p-3 bg-white/5 border border-[var(--border-color)] rounded-xl cursor-pointer hover:bg-white/10 hover:border-green-500/30 transition-all group">
-                                    <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center shrink-0">
-                                        <ArrowUpRight size={18} className="text-green-400 group-hover:scale-110 transition-transform" />
+                                <div 
+                                    key={f.id} 
+                                    onClick={() => openFile(f)} 
+                                    className="flex items-center gap-3 p-3 bg-white/[0.02] border border-white/[0.06] rounded-2xl cursor-pointer hover:bg-white/[0.06] hover:border-emerald-500/30 transition-all group"
+                                >
+                                    <div className="w-9 h-9 rounded-xl bg-slate-900 border border-white/[0.08] flex items-center justify-center shrink-0">
+                                        <ArrowUpRight size={16} className="text-emerald-400 group-hover:scale-110 transition-transform" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-[var(--text-primary)] truncate">{f.name || 'İsimsiz Belge'}</p>
-                                        <p className="text-xs text-slate-500">{f.size ? (f.size / 1024 / 1024).toFixed(2) + ' MB' : 'Görsel/PDF'}</p>
+                                        <p className="text-xs font-semibold text-white truncate">{f.name || 'İsimsiz Belge'}</p>
+                                        <p className="text-[10px] text-slate-500 mt-0.5">{f.size ? (f.size / 1024 / 1024).toFixed(2) + ' MB' : 'Görsel / PDF'}</p>
                                     </div>
                                 </div>
                             ))}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
 };
 
 export default Payments;
+
