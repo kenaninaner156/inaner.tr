@@ -85,6 +85,7 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
     }, [trips, companyData, activeTruckData]);
 
     const [isPeriodModalOpen, setIsPeriodModalOpen] = useState(false);
+    const [mobileActiveView, setMobileActiveView] = useState('list'); // 'list' | 'preview'
 
     // Aktif Düzenlenen Fatura State'i
     const [activeInvoice, setActiveInvoice] = useState(null);
@@ -286,27 +287,20 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
         saveDraftInvoice(newDraft);
         setIsViewingOldInvoice(false);
         setNetPrice(0);
-        
-        
+        setMobileActiveView('preview');
     };
 
-    // Eski faturaya tıklandığında önizlele
+    // Eski faturaya tıklandığında önizle
     const handleViewInvoice = (inv) => {
         if (activeInvoice?.id === inv.id && isViewingOldInvoice) {
-            // Aynı faturaya tekrar tıklandı: PDF varsa toggle
-            const hasPdf = inv.files && inv.files.length > 0;
-            if (hasPdf) {
-                
-                
-            }
+            setMobileActiveView('preview');
             return;
         }
         setActiveInvoice(inv);
         setNetPrice(inv.grandTotal ?? 0);
         setIsViewingOldInvoice(true);
         setShowOldInvoiceWarning(true);
-        
-        
+        setMobileActiveView('preview');
     };
 
     const handleSaveInvoice = async () => {
@@ -504,33 +498,83 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
     };
 
     return (
-        <div className="flex flex-col md:flex-row h-full w-full gap-4 md:gap-5 overflow-hidden animate-in fade-in duration-500 pb-2 md:pb-0">
+        <div className="flex flex-col h-full w-full gap-3 md:gap-4 overflow-hidden animate-in fade-in duration-500 pb-ios-nav">
 
-            {/* Sol Panel: Kontrol Merkezi */}
-            <div className="w-full md:w-[380px] lg:w-[420px] shrink-0 h-full flex flex-col gap-3 overflow-hidden">
-
-                {/* Panel Başlık (Masaüstü & Mobil) */}
-                <div 
-                    className="flex glass-panel px-4 py-3 items-center justify-between shadow-none border border-white/[0.08] backdrop-blur-md rounded-2xl shrink-0"
-                    style={{
-                        paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
-                    }}
-                >
-                    <div className="flex items-center gap-2.5">
-                        {isMobile && onOpenMenu && (
-                            <button 
-                                onClick={onOpenMenu} 
-                                className="p-1.5 -ml-1 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors md:hidden cursor-pointer"
-                                title="Menüyü Aç"
-                            >
-                                <Menu size={20} />
-                            </button>
-                        )}
-                        <h2 className="text-lg font-bold tracking-tight text-white">Fatura Durumu</h2>
-                    </div>
+            {/* ─── ENTEGRE TEK SATIR HEADER BAR ─── */}
+            <div 
+                className="flex items-center justify-between gap-3 pb-2 border-b border-white/[0.06] shrink-0"
+                style={{
+                    paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+                }}
+            >
+                {/* Sol Grup: Hamburger (Mobil) + Başlık */}
+                <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
+                    {isMobile && onOpenMenu && (
+                        <button 
+                            onClick={onOpenMenu} 
+                            className="p-1.5 -ml-1 text-slate-400 hover:text-slate-100 transition-colors flex items-center justify-center cursor-pointer rounded-lg hover:bg-white/5"
+                            title="Menüyü Aç"
+                        >
+                            <Menu size={22} />
+                        </button>
+                    )}
+                    
+                    <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white whitespace-nowrap">
+                        Fatura Durumu
+                    </h2>
                 </div>
 
-                <div className="glass-panel p-4 overflow-hidden relative shadow-none border border-white/[0.08]">
+                {/* Sağ Grup (Mobilde Görünüm Değiştirici: Faturalar vs Önizleme Dökümü) */}
+                <div className="flex items-center gap-2">
+                    {/* Mobil Görünüm Toggle Butonları */}
+                    <div className="md:hidden flex items-center bg-black/50 border border-white/10 rounded-xl p-1 gap-1">
+                        <button
+                            type="button"
+                            onClick={() => setMobileActiveView('list')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                mobileActiveView === 'list' 
+                                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30' 
+                                    : 'text-slate-400 hover:text-white'
+                            }`}
+                        >
+                            <ListChecks size={13} />
+                            <span>Faturalar</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setMobileActiveView('preview')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                mobileActiveView === 'preview' 
+                                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30' 
+                                    : 'text-slate-400 hover:text-white'
+                            }`}
+                        >
+                            <FileText size={13} />
+                            <span>Döküm</span>
+                        </button>
+                    </div>
+
+                    {/* Aktif Fatura PDF İndir (Masaüstü) */}
+                    {activeInvoice && (
+                        <button
+                            onClick={handlePrintPDF}
+                            className="hidden sm:flex items-center gap-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
+                            title="PDF İndir / Yazdır"
+                        >
+                            <Printer size={14} />
+                            <span>PDF İndir</span>
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* ─── 2 PANELLİ ANA GÖVDE (Masaüstü Yan Yana, Mobilde Sekmeli & Tam Ekran) ─── */}
+            <div className="flex-1 flex flex-col md:flex-row min-h-0 w-full gap-3 md:gap-5 overflow-hidden">
+                {/* Sol Panel: Kontrol Merkezi & Fatura Listesi */}
+                <div className={`w-full md:w-[360px] lg:w-[400px] shrink-0 h-full flex-col gap-3 overflow-hidden ${
+                    mobileActiveView === 'preview' ? 'hidden md:flex' : 'flex'
+                }`}>
+                    <div className="glass-panel p-4 overflow-hidden relative shadow-none border border-white/[0.08]">
                     {/* Arka plan animasyon efekti */}
                     <div className="absolute -right-10 -top-10 w-32 h-32 bg-sky-500/5 blur-3xl rounded-full pointer-events-none"></div>
                     
@@ -675,7 +719,29 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
             </div>
 
             {/* Sağ Panel: Tek Parça A4 Benzeri Çerçeve (Açık Tema) */}
-            <div className="flex-1 h-full min-w-0 flex flex-col overflow-hidden bg-slate-50 pt-3 sm:pt-4 md:pt-6 px-3 sm:px-5 pb-3 sm:pb-4 rounded-2xl border border-slate-200 shadow-xl relative text-slate-800">
+            <div className={`flex-1 h-full min-w-0 flex-col overflow-hidden bg-slate-50 pt-3 sm:pt-4 md:pt-6 px-3 sm:px-5 pb-3 sm:pb-4 rounded-2xl border border-slate-200 shadow-xl relative text-slate-800 ${
+                mobileActiveView === 'list' ? 'hidden md:flex' : 'flex'
+            }`}>
+                {/* Mobilde Üst Hızlı Geri & PDF Barı */}
+                <div className="md:hidden flex items-center justify-between pb-2 mb-2 border-b border-slate-200 shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => setMobileActiveView('list')}
+                        className="text-xs font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1 cursor-pointer bg-slate-200/80 hover:bg-slate-300 px-3 py-1.5 rounded-xl transition-colors shadow-xs"
+                    >
+                        ← Faturalara Dön
+                    </button>
+                    {activeInvoice && (
+                        <button
+                            type="button"
+                            onClick={handlePrintPDF}
+                            className="text-xs font-bold text-sky-700 hover:text-sky-800 flex items-center gap-1.5 cursor-pointer bg-sky-100/90 border border-sky-300/60 px-3 py-1.5 rounded-xl transition-colors shadow-xs"
+                        >
+                            <Printer size={13} /> PDF İndir
+                        </button>
+                    )}
+                </div>
+
                 {/* 1. Üst Başlık (Kompakt ve Zarif Boyutlandırma) */}
                 <div className="flex justify-between items-end border-b border-blue-800/70 pb-2.5 mb-3 shrink-0">
                     {/* Sol Kısım: Başlık, Periyot ve Tarih */}
@@ -938,6 +1004,7 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                         </div>
                     )}
                 </div>
+            </div>
             </div>
 
             {/* Gizli A4 Yazdırma Şablonu (PDF İndir Butonu İçin) */}
