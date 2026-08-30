@@ -360,10 +360,10 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
     return Object.keys(sessionsByDriver).filter(id => !deviceMappings[id] && id !== 'Bilinmeyen');
   }, [sessionsByDriver, deviceMappings]);
 
-  // ── Harita Tabanları (API Key Hatası Vermeyen Google & ESRI Tabanları) ──
+  // ── Harita Tabanları (Orijinal Koyu Carto Dark Matter + Google & ESRI) ──
   const mapUrls = {
     voyager: 'https://mt{s}.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}',
-    darkmatter: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    darkmatter: 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png',
     satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     traffic: 'https://mt{s}.google.com/vt/lyrs=y,traffic&hl=tr&x={x}&y={y}&z={z}',
   };
