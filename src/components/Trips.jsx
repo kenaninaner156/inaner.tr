@@ -1455,7 +1455,6 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                                 <input
                                     type="text"
-                                    autoFocus
                                     placeholder="Rota ara (Nereden veya Nereye)..."
                                     className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-4 py-3 text-sm text-white focus:outline-none focus:border-sky-500/50 focus:bg-white/10 transition-all placeholder:text-slate-500"
                                     value={routeSearchTerm}

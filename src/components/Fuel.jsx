@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Droplet, Plus, MapPin, X, Trash2, Paperclip, FileText, Download, Pencil, StickyNote, ChevronDown, Calendar, Activity, Wallet, TrendingUp, Gauge, Fuel as FuelIcon, Menu } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import FileUpload from './FileUpload';
+import CustomDatePicker from './CustomDatePicker';
 import { sendDiscordAlert } from '../services/discordWebhook';
 
 const Fuel = ({ onOpenMenu, isMobile }) => {
@@ -765,29 +766,32 @@ return (
 
             {/* ─── DÜZENLE MODAL ─── */}
             {editingFuel && createPortal(
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto border-cyan-500/30">
-                        <button onClick={() => setEditingFuel(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer"><X size={20} /></button>
-                        <h3 className="text-lg font-bold text-white mb-5 flex items-center gap-2">
-                            <Pencil size={16} className="text-cyan-400" /> Fişi Düzenle
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md">
+                    <div className="glass-panel w-full max-w-md p-4 sm:p-6 relative animate-in zoom-in-95 duration-200 max-h-[92dvh] overflow-hidden flex flex-col border-cyan-500/30">
+                        <button onClick={() => setEditingFuel(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer z-20"><X size={20} /></button>
+                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-5 flex items-center gap-2 flex-shrink-0">
+                            <Pencil size={18} className="text-cyan-400" /> Fişi Düzenle
                         </h3>
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-4 flex-1 overflow-y-auto pr-1 sm:pr-2 custom-scrollbar pb-3">
+                            <div className="grid grid-cols-2 gap-3 items-end">
                                 {/* Tarih */}
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tarih</label>
-                                    <input type="date" className="w-full glass-input px-3 py-2.5 text-sm"
+                                    <CustomDatePicker 
                                         value={editForm.date}
-                                        onChange={e => setEditForm({ ...editForm, date: e.target.value })} />
+                                        onChange={val => setEditForm({ ...editForm, date: val })}
+                                        className="glass-input text-left px-3 py-2 text-sm"
+                                    />
                                 </div>
-                                <div className="flex items-end">
+                                <div>
                                     <button
                                         type="button"
                                         onClick={() => setEditShowExtra(!editShowExtra)}
-                                        className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${editShowExtra ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-lg shadow-cyan-500/10' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                                        className={`w-full py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer h-[38px] ${editShowExtra ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-lg shadow-cyan-500/10' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                                     >
-                                        <StickyNote size={14} className={editShowExtra ? "animate-pulse" : ""} />
-                                        Ek Bilgiler {editShowExtra ? <ChevronDown size={14} className="rotate-180" /> : <ChevronDown size={14} />}
+                                        <StickyNote size={13} className={editShowExtra ? "animate-pulse" : ""} />
+                                        <span>Ek Bilgiler</span>
+                                        <ChevronDown size={13} className={editShowExtra ? "rotate-180 transition-transform" : "transition-transform"} />
                                     </button>
                                 </div>
                             </div>
@@ -936,29 +940,33 @@ return (
 
             {/* ─── YENİ FİŞ MODAL ─── */}
             {isModalOpen && createPortal(
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto border-cyan-500/30">
-                        <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md">
+                    <div className="glass-panel w-full max-w-md p-4 sm:p-6 relative animate-in zoom-in-95 duration-200 max-h-[92dvh] overflow-hidden flex flex-col border-cyan-500/30">
+                        <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer z-20">
                             <X size={20} />
                         </button>
-                        <h3 className="text-xl font-bold text-white mb-6 flex items-center">
+                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6 flex items-center flex-shrink-0">
                             <Droplet className="mr-2 text-cyan-400" /> Yeni Mazot Fişi
                         </h3>
-                        <form onSubmit={handleAdd} className="space-y-4">
-                            <div className="grid grid-cols-2 gap-3">
+                        <form onSubmit={handleAdd} className="space-y-4 flex-1 overflow-y-auto pr-1 sm:pr-2 custom-scrollbar pb-3">
+                            <div className="grid grid-cols-2 gap-3 items-end">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tarih</label>
-                                    <input type="date" required className="w-full glass-input px-4 py-2.5 text-sm font-medium" value={formData.date}
-                                        onChange={e => setFormData({ ...formData, date: e.target.value })} />
+                                    <CustomDatePicker 
+                                        value={formData.date}
+                                        onChange={val => setFormData({ ...formData, date: val })}
+                                        className="glass-input text-left px-3 py-2 text-sm"
+                                    />
                                 </div>
-                                <div className="flex items-end">
+                                <div>
                                     <button
                                         type="button"
                                         onClick={() => setShowExtra(!showExtra)}
-                                        className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${showExtra ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-lg shadow-cyan-500/10' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                                        className={`w-full py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer h-[38px] ${showExtra ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-lg shadow-cyan-500/10' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                                     >
-                                        <StickyNote size={14} className={showExtra ? "animate-pulse" : ""} />
-                                        Ek Bilgiler {showExtra ? <ChevronDown size={14} className="rotate-180" /> : <ChevronDown size={14} />}
+                                        <StickyNote size={13} className={showExtra ? "animate-pulse" : ""} />
+                                        <span>Ek Bilgiler</span>
+                                        <ChevronDown size={13} className={showExtra ? "rotate-180 transition-transform" : "transition-transform"} />
                                     </button>
                                 </div>
                             </div>
