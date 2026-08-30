@@ -394,7 +394,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
           top: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
         }}
       >
-        <div className="flex bg-[#0D1219]/96 backdrop-blur-2xl p-1 sm:p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] w-full border border-white/10 items-center select-none gap-0.5 sm:gap-1 ring-1 ring-black/40">
+        <div className="flex bg-[#0D1219] p-1 sm:p-1.5 rounded-2xl shadow-xl w-full border border-white/10 items-center select-none gap-0.5 sm:gap-1 ring-1 ring-black/40">
           {/* Mobile & iPad Menu Button (Hamburger) */}
           {onOpenMenu && (
             <button
