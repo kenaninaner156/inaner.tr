@@ -673,7 +673,7 @@ function App() {
                   ? 'p-3 sm:p-4 md:p-5 h-full overflow-hidden flex flex-col'
                   : 'p-3 sm:p-4 md:p-6 xl:p-8'
           }`}>
-            <div key={activeTab} className={['dashboard', 'invoices', 'earsiv'].includes(activeTab) ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
+            <div key={activeTab} className={activeTab === 'map' ? 'h-full w-full overflow-hidden' : ['dashboard', 'invoices', 'earsiv'].includes(activeTab) ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
               {activeTab === 'dashboard' && <Dashboard onOpenMenu={() => setIsMenuOpen(true)} onNavigate={setActiveTab} isMobile={isMobile} />}
               {activeTab === 'trips' && <Trips onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'fuel' && <Fuel onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
