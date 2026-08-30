@@ -451,7 +451,6 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                 {/* Sağ Grup: Sabit & Titremesiz Dinamik Aksiyon Butonu */}
                 {dynamicActionBtn && (
                     <button
-                        key={dynamicActionBtn.id}
                         onClick={dynamicActionBtn.onClick}
                         className={`h-[36px] px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all duration-150 flex items-center justify-center shrink-0 cursor-pointer active:scale-95 shadow-sm ${dynamicActionBtn.className}`}
                     >
@@ -615,7 +614,7 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3">
                                     {(periodicMaintenanceItems || []).map(item => {
                                         const lastMaintenance = maintenanceRecords
                                             .filter(m => m.type === 'Periyodik Bakım' && m.doneItems && m.doneItems.includes(item.id))
@@ -644,14 +643,14 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                                         }
 
                                         return (
-                                            <div key={item.id} className={`p-3.5 rounded-xl border ${bgColor} flex flex-col gap-2 relative overflow-hidden group shadow-sm transition-colors`}>
-                                                <div className="flex justify-between items-center z-10">
-                                                    <span className="font-bold text-white text-sm">{item.name}</span>
-                                                    <span className={`text-xs font-bold ${textColor} font-mono`}>
+                                            <div key={item.id} className={`p-3 sm:p-3.5 rounded-xl border ${bgColor} flex flex-col gap-1.5 sm:gap-2 relative overflow-hidden group shadow-sm transition-colors`}>
+                                                <div className="flex justify-between items-center gap-2 z-10 min-w-0">
+                                                    <span className="font-bold text-white text-xs sm:text-sm truncate">{item.name}</span>
+                                                    <span className={`text-[11px] sm:text-xs font-bold ${textColor} font-mono shrink-0 whitespace-nowrap`}>
                                                         {remainingKm <= 0 ? 'GEÇTİ!' : `Kalan: ${remainingKm.toLocaleString('tr-TR')} km`}
                                                     </span>
                                                 </div>
-                                                <div className="text-[11px] text-slate-400 font-mono z-10">
+                                                <div className="text-[10px] sm:text-[11px] text-slate-400 font-mono z-10 truncate">
                                                     Son: {lastKm > 0 ? lastKm.toLocaleString('tr-TR') : 'Yok'} | Değişim: {nextDueKm.toLocaleString('tr-TR')}
                                                 </div>
                                                 <div className="w-full bg-black/40 h-1.5 rounded-full mt-1 z-10 overflow-hidden border border-white/5">

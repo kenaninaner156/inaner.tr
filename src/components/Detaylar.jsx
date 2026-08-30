@@ -288,34 +288,27 @@ const Detaylar = ({ onOpenMenu, isMobile }) => {
                 </div>
 
                 {/* Sağ Grup: Cezalar sekmesi seçiliyse Ceza Ekle butonu */}
-                <AnimatePresence mode="wait">
-                    {activeTab === 'cezalar' && (
-                        <motion.button
-                            key="header-btn-cezalar"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            transition={{ duration: 0.15 }}
-                            onClick={() => {
-                                setEditingPenaltyId(null);
-                                setPenaltyForm({
-                                    date: new Date().toISOString().split('T')[0],
-                                    driver: '',
-                                    type: 'Hız İhlali',
-                                    amount: '',
-                                    plate: '',
-                                    description: '',
-                                    paid: false,
-                                    files: []
-                                });
-                                setShowPenaltyForm(true);
-                            }}
-                            className="h-[36px] px-3.5 sm:px-4 bg-gradient-to-r from-red-600 to-rose-500 hover:from-red-500 hover:to-rose-400 border border-red-400/40 text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-[0_0_15px_rgba(239,68,68,0.35)] flex items-center justify-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
-                        >
-                            <Plus size={15} /> <span>Ceza Ekle</span>
-                        </motion.button>
-                    )}
-                </AnimatePresence>
+                {activeTab === 'cezalar' && (
+                    <button
+                        onClick={() => {
+                            setEditingPenaltyId(null);
+                            setPenaltyForm({
+                                date: new Date().toISOString().split('T')[0],
+                                driver: '',
+                                type: 'Hız İhlali',
+                                amount: '',
+                                plate: '',
+                                description: '',
+                                paid: false,
+                                files: []
+                            });
+                            setShowPenaltyForm(true);
+                        }}
+                        className="h-[36px] px-3.5 sm:px-4 bg-gradient-to-r from-red-600 to-rose-500 hover:from-red-500 hover:to-rose-400 border border-red-400/40 text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-[0_0_15px_rgba(239,68,68,0.35)] flex items-center justify-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap active:scale-95"
+                    >
+                        <Plus size={15} /> <span>Ceza Ekle</span>
+                    </button>
+                )}
             </div>
 
             {/* ─── ZARİF OBSİDYEN TAB BAR (Sıfır Çakışma & Dengeli Grid) ─── */}
