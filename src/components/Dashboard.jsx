@@ -396,15 +396,206 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
         return { chartData: data, activeDays: activeDaySet.size, periodTrips: periodTotalTrips, periodTonnage: periodTotalTonnage, prevDailyTrips: pAD > 0 ? pTrips.length / pAD : null };
     }, [activeTrips, activeFuel, selectedMonth, selectedYear, isAllTime, dailyNotes, lastHistDay]);
 
+    // ─── Mobil Yatay (Landscape) Mod Kontrolü ───
+    const [isLandscape, setIsLandscape] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        return window.innerWidth > window.innerHeight && window.innerHeight < 600;
+    });
+
+    React.useEffect(() => {
+        const checkLandscape = () => {
+            setIsLandscape(window.innerWidth > window.innerHeight && window.innerHeight < 600);
+        };
+        checkLandscape();
+        window.addEventListener('resize', checkLandscape);
+        window.addEventListener('orientationchange', checkLandscape);
+        return () => {
+            window.removeEventListener('resize', checkLandscape);
+            window.removeEventListener('orientationchange', checkLandscape);
+        };
+    }, []);
+
     const currentDailyTrips = activeDays > 0 ? periodTrips / activeDays : 0;
     const currentDailyTonnage = activeDays > 0 ? periodTonnage / activeDays : 0;
     const perfDelta = (prevDailyTrips !== null && prevDailyTrips !== 0) ? ((currentDailyTrips - prevDailyTrips) / prevDailyTrips) * 100 : null;
     const PerfIcon = perfDelta === null ? Minus : perfDelta >= 0 ? TrendingUp : TrendingDown;
     const perfColor = perfDelta === null ? '#64748b' : perfDelta >= 0 ? '#10b981' : '#ef4444';
 
+    // ─── YATAY (LANDSCAPE) MOD: SADECE GENİŞLETİLMİŞ TAM EKRAN GRAFİK ───
+    if (isLandscape) {
+        return (
+            <div className="h-screen w-screen fixed inset-0 z-50 bg-[#07090e] p-2 sm:p-3 flex flex-col justify-between overflow-hidden select-none">
+                {/* Yatay Mod Üst Kontrol Çubuğu */}
+                <div className="flex items-center justify-between gap-3 px-2 py-1 bg-[#0d1117] border border-white/[0.08] rounded-xl shrink-0">
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+                        <h3 className="font-bold text-xs sm:text-sm text-white tracking-tight flex items-center gap-2">
+                            <span>Aylık Operasyon Grafiği</span>
+                            <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
+                                ({MONTHS_TR[selectedMonth]} {selectedYear})
+                            </span>
+                        </h3>
+                    </div>
+
+                    {/* Metrik Özet Rozetleri (Yatayda Tek Satır) */}
+                    <div className="flex items-center gap-2 text-[10px] font-semibold text-slate-300">
+                        <span className="bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700">
+                            Aktif: <strong className="text-white">{activeDays}</strong> Gün
+                        </span>
+                        <span className="bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700">
+                            Ort: <strong className="text-white">{currentDailyTonnage.toFixed(1)}</strong> Ton
+                        </span>
+                        {perfDelta !== null && (
+                            <span className={`px-2 py-0.5 rounded-md border ${perfDelta >= 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                                {perfDelta >= 0 ? '↗' : '↘'} %{Math.abs(perfDelta).toFixed(1)}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Zaman Navigasyonu */}
+                    <div className="flex items-center bg-[#07090e] border border-white/10 p-0.5 rounded-lg">
+                        <button onClick={goToPrev} className="p-1 rounded text-slate-400 hover:text-white transition cursor-pointer">
+                            <ChevronLeft size={14} />
+                        </button>
+                        <span className="text-[11px] font-bold text-white px-2 min-w-[70px] text-center">
+                            {MONTHS_SHORT[selectedMonth]} {selectedYear}
+                        </span>
+                        <button onClick={goToNext} className="p-1 rounded text-slate-400 hover:text-white transition cursor-pointer">
+                            <ChevronRight size={14} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Tam Ekran Geniş Grafik */}
+                <div className="flex-1 w-full min-h-0 pt-2 pb-1">
+                    {chartData.every(d => (d['Sefer Sayısı'] || 0) === 0 && (d['Taşınan Tonaj'] || 0) === 0) ? (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-500">
+                            <Activity size={28} className="mb-1 opacity-30 animate-pulse" />
+                            <p className="font-medium text-xs">Bu dönemde kayıtlı veri bulunamadı.</p>
+                        </div>
+                    ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <ComposedChart
+                                data={chartData}
+                                margin={{ top: 5, right: 10, left: -25, bottom: 0 }}
+                                onDoubleClick={(state) => {
+                                    if (!isAllTime && state && state.activeLabel) {
+                                        const dayStr = state.activeLabel;
+                                        setEditNoteDay(dayStr);
+                                        const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${dayStr.padStart(2, '0')}`;
+                                        setModalNoteText(dailyNotes?.[dateStr] || '');
+                                        setIsNoteModalOpen(true);
+                                        setConfirmDeleteNote(false);
+                                    }
+                                }}
+                            >
+                                <defs>
+                                    <linearGradient id="gradSeferLandscape" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor={activeTheme.seferGrad} stopOpacity={0.25} />
+                                        <stop offset="100%" stopColor={activeTheme.seferGrad} stopOpacity={0.0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" strokeOpacity={0.15} vertical={false} />
+                                <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} dy={4} interval={0} />
+                                <YAxis 
+                                    yAxisId="left" 
+                                    stroke="#64748b" 
+                                    fontSize={10} 
+                                    tickLine={false} 
+                                    axisLine={false} 
+                                    domain={[0, dataMax => Math.max(4, Math.ceil(dataMax * 1.35))]}
+                                    allowDecimals={false}
+                                />
+                                <YAxis yAxisId="right" orientation="right" hide={true} domain={[0, dataMax => Math.max(140, Math.ceil(dataMax * 1.35))]} />
+                                <Tooltip content={<CustomTooltip isAllTime={isAllTime} theme={activeTheme} />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                                
+                                <Area 
+                                    yAxisId="right" 
+                                    type="monotone" 
+                                    dataKey="Taşınan Tonaj" 
+                                    stroke={activeTheme.tonajStroke} 
+                                    strokeWidth={1.8} 
+                                    fillOpacity={0} 
+                                    fill="none" 
+                                    dot={false} 
+                                    activeDot={{ r: 3.5, strokeWidth: 1.5, stroke: '#07090e', fill: activeTheme.tonajStroke }} 
+                                />
+                                <Area 
+                                    yAxisId="left" 
+                                    type="monotone" 
+                                    dataKey="Sefer Sayısı" 
+                                    stroke={activeTheme.seferStroke} 
+                                    strokeWidth={2} 
+                                    fillOpacity={1} 
+                                    fill="url(#gradSeferLandscape)" 
+                                    dot={false} 
+                                    activeDot={{ r: 4, strokeWidth: 1.5, stroke: '#07090e', fill: activeTheme.seferStroke }} 
+                                />
+                                <Area 
+                                    yAxisId="left" 
+                                    type="monotone" 
+                                    dataKey="Yakıt Zemin" 
+                                    stroke="none" 
+                                    fill="none" 
+                                    dot={<GlowingFuelDotBottom fuelColor={activeTheme.fuelColor} />} 
+                                    activeDot={false} 
+                                    isAnimationActive={false} 
+                                />
+                            </ComposedChart>
+                        </ResponsiveContainer>
+                    )}
+                </div>
+
+                {/* Günlük Not Modalı */}
+                {createPortal(
+                    <AnimatePresence>
+                        {isNoteModalOpen && (
+                            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    onClick={() => { setIsNoteModalOpen(false); setConfirmDeleteNote(false); }}
+                                    className="absolute inset-0 bg-black/80 backdrop-blur-md"
+                                />
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-[#07090e] p-4 shadow-2xl"
+                                >
+                                    <h4 className="text-sm font-bold text-white mb-1 flex items-center gap-2">
+                                        <CalendarDays size={16} className="text-sky-400" />
+                                        {editNoteDay}. Gün Notu
+                                    </h4>
+                                    <form onSubmit={handleSaveModalNote} className="space-y-3">
+                                        <textarea
+                                            value={modalNoteText}
+                                            onChange={(e) => { setModalNoteText(e.target.value); setConfirmDeleteNote(false); }}
+                                            placeholder="Günün operasyon notu..."
+                                            rows={2}
+                                            autoFocus
+                                            className="w-full bg-[#0d1117] border border-white/10 text-white rounded-xl p-2.5 text-xs outline-none focus:border-slate-500 resize-none"
+                                        />
+                                        <div className="flex justify-end gap-2">
+                                            <button type="button" onClick={() => setIsNoteModalOpen(false)} className="px-3 py-1.5 text-xs text-slate-400 hover:text-white">İptal</button>
+                                            <button type="submit" className="px-4 py-1.5 text-xs font-bold text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl">Kaydet</button>
+                                        </div>
+                                    </form>
+                                </motion.div>
+                            </div>
+                        )}
+                    </AnimatePresence>,
+                    document.body
+                )}
+            </div>
+        );
+    }
+
+    // ─── DİKEY (PORTRAIT) MOD: KOMPAKT 2x2 KARTLAR VE HER ZAMAN GÖRÜNÜR GRAFİK ───
     return (
         <div 
-            className="h-full flex flex-col justify-between gap-3 md:gap-4 relative overflow-y-auto md:overflow-hidden pb-4 md:pb-0"
+            className="flex-1 flex flex-col h-full w-full p-2.5 sm:p-4 lg:p-6 overflow-y-auto custom-scrollbar gap-3 max-w-[1920px] mx-auto pb-ios-nav"
             style={{
                 paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
             }}
@@ -415,7 +606,7 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                     <div className="flex items-center gap-2.5 min-w-0">
                         <button 
                             onClick={onOpenMenu} 
-                            className="p-1.5 -ml-1 text-slate-400 hover:text-slate-100 transition-colors flex items-center justify-center cursor-pointer rounded-lg hover:bg-white/5"
+                            className="p-1.5 -ml-1 text-slate-400 hover:text-white transition-colors flex items-center justify-center cursor-pointer rounded-lg hover:bg-white/5"
                             title="Menüyü Aç"
                         >
                             <Menu size={22} />
@@ -427,132 +618,123 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                 </div>
             )}
 
-            {/* ─── 4'LÜ STRATEJİK KPI ÖZET KARTLARI (FLOATING GLASS STYLE) ─── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5 md:gap-4 flex-shrink-0 pt-1">
+            {/* ─── 4'LÜ STRATEJİK KPI ÖZET KARTLARI (MOBİLDE 2x2 KOMPAKT GRID) ─── */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 shrink-0">
                 
-                {/* 1. KART: Toplam Gelir (Ciro - Tüm Zamanlar / Motivasyon) */}
+                {/* 1. KART: Toplam Gelir (Ciro - Tüm Zamanlar) */}
                 <div 
                     onClick={() => setIsProfitModalOpen(true)}
-                    className="glass-panel p-4 sm:p-5 relative cursor-pointer hover:border-violet-400/40 hover:-translate-y-1 transition-all duration-300 ease-out flex flex-col justify-between overflow-hidden group"
+                    className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-3 sm:p-4 rounded-2xl cursor-pointer transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm"
                 >
-                    <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-violet-400 pointer-events-none">
-                        <Wallet size={90} />
-                    </div>
-
-                    <div className="flex justify-between items-start mb-2 relative z-10">
-                        <p className="text-[var(--text-secondary)] text-xs font-semibold tracking-wider uppercase group-hover:text-violet-300 transition-colors">
+                    <div className="flex justify-between items-start mb-1.5">
+                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors">
                             Toplam Gelir
                         </p>
-                        <div className="p-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-[0_2px_8px_rgba(139,92,246,0.25)] border border-violet-400/30 group-hover:scale-105 transition-transform">
-                            <Wallet size={16} />
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
+                            <Wallet size={14} />
                         </div>
                     </div>
-                    <h3 className="text-2xl lg:text-3xl font-extrabold text-white tracking-tight drop-shadow-sm transition-colors relative z-10">
-                        {totalRevenue > 0 ? `₺${Math.round(totalRevenue).toLocaleString('tr-TR')}` : '₺0'}
-                    </h3>
+                    <div>
+                        <h3 className="text-base sm:text-xl font-bold text-white tracking-tight truncate">
+                            {totalRevenue > 0 ? `₺${Math.round(totalRevenue).toLocaleString('tr-TR')}` : '₺0'}
+                        </h3>
+                    </div>
                 </div>
 
                 {/* 2. KART: Aylık Yakıt Gideri (Seçili Ay) */}
-                <div className="glass-panel p-4 sm:p-5 relative hover:border-amber-400/40 hover:-translate-y-1 transition-all duration-300 ease-out flex flex-col justify-between overflow-hidden group">
-                    <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-amber-400 pointer-events-none">
-                        <Droplet size={90} />
-                    </div>
-
-                    <div className="flex justify-between items-start mb-2 relative z-10">
-                        <p className="text-[var(--text-secondary)] text-xs font-semibold tracking-wider uppercase group-hover:text-amber-300 transition-colors flex items-center gap-1.5">
-                            <span>Yakıt Gideri</span>
-                            <span className="text-[10px] font-normal tracking-wide text-slate-400 group-hover:text-amber-300/80 uppercase">
-                                {MONTHS_TR[selectedMonth]}
-                            </span>
+                <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-3 sm:p-4 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
+                    <div className="flex justify-between items-start mb-1.5">
+                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors truncate pr-1">
+                            Yakıt <span className="text-[10px] text-slate-500 lowercase">({MONTHS_SHORT[selectedMonth]})</span>
                         </p>
-                        <div className="p-2 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-[0_2px_8px_rgba(245,158,11,0.25)] border border-amber-400/30 group-hover:scale-105 transition-transform">
-                            <Droplet size={16} />
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                            <Droplet size={14} />
                         </div>
                     </div>
-                    <h3 className="text-2xl lg:text-3xl font-extrabold text-white tracking-tight drop-shadow-sm transition-colors relative z-10">
-                        ₺{Math.round(monthFuelCost).toLocaleString('tr-TR')}
-                    </h3>
+                    <div>
+                        <h3 className="text-base sm:text-xl font-bold text-white tracking-tight truncate">
+                            ₺{Math.round(monthFuelCost).toLocaleString('tr-TR')}
+                        </h3>
+                    </div>
                 </div>
 
                 {/* 3. KART: Ortalama Tüketim (Seçili Ay) */}
-                <div className="glass-panel p-4 sm:p-5 relative hover:border-cyan-400/40 hover:-translate-y-1 transition-all duration-300 ease-out flex flex-col justify-between overflow-hidden group">
-                    <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-cyan-400 pointer-events-none">
-                        <Gauge size={90} />
-                    </div>
-
-                    <div className="flex justify-between items-start mb-2 relative z-10">
-                        <p className="text-[var(--text-secondary)] text-xs font-semibold tracking-wider uppercase group-hover:text-cyan-300 transition-colors flex items-center gap-1.5">
-                            <span>Ortalama Tüketim</span>
-                            <span className="text-[10px] font-normal tracking-wide text-slate-400 group-hover:text-cyan-300/80 uppercase">
-                                {MONTHS_TR[selectedMonth]}
-                            </span>
+                <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-3 sm:p-4 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
+                    <div className="flex justify-between items-start mb-1.5">
+                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors truncate pr-1">
+                            Ort. Tüketim
                         </p>
-                        <div className="p-2 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-[0_2px_8px_rgba(6,182,212,0.25)] border border-cyan-400/30 group-hover:scale-105 transition-transform">
-                            <Gauge size={16} />
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
+                            <Gauge size={14} />
                         </div>
                     </div>
-                    <h3 className="text-2xl lg:text-3xl font-extrabold text-white tracking-tight drop-shadow-sm transition-colors flex items-baseline relative z-10">
-                        {monthAvgConsumption ? (
-                            <>
-                                <span>{monthAvgConsumption.toFixed(1)}</span>
-                                <span className="text-sm font-bold text-cyan-400 ml-1.5">L/100km</span>
-                            </>
-                        ) : (
-                            <span className="text-lg text-slate-400 font-normal">—</span>
-                        )}
-                    </h3>
+                    <div>
+                        <h3 className="text-base sm:text-xl font-bold text-white tracking-tight flex items-baseline">
+                            {monthAvgConsumption ? (
+                                <>
+                                    <span>{monthAvgConsumption.toFixed(1)}</span>
+                                    <span className="text-[10px] sm:text-xs font-bold text-cyan-400 ml-1">L/100km</span>
+                                </>
+                            ) : (
+                                <span className="text-slate-500 text-sm font-normal">—</span>
+                            )}
+                        </h3>
+                    </div>
                 </div>
 
                 {/* 4. KART: Güncel Motorin Fiyatı */}
-                <div className="glass-panel p-4 sm:p-5 relative hover:border-emerald-400/40 hover:-translate-y-1 transition-all duration-300 ease-out flex flex-col justify-between overflow-hidden group">
-                    <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-emerald-400 pointer-events-none">
-                        <Zap size={90} />
-                    </div>
-
-                    <div className="flex justify-between items-start mb-2 relative z-10">
-                        <p className="text-[var(--text-secondary)] text-xs font-semibold tracking-wider uppercase group-hover:text-emerald-300 transition-colors">
+                <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-3 sm:p-4 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
+                    <div className="flex justify-between items-start mb-1.5">
+                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors truncate pr-1">
                             Güncel Motorin
                         </p>
-                        <div className="p-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-[0_2px_8px_rgba(16,185,129,0.25)] border border-emerald-400/30 group-hover:scale-105 transition-transform">
-                            <Zap size={16} />
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                            <Zap size={14} />
                         </div>
                     </div>
-                    <h3 className="text-2xl lg:text-3xl font-extrabold text-white tracking-tight drop-shadow-sm transition-colors flex items-baseline relative z-10">
-                        ₺{currentDieselPrice.toFixed(2)}
-                        <span className="text-sm font-bold text-emerald-400 ml-1.5">/ Lt</span>
-                    </h3>
+                    <div>
+                        <h3 className="text-base sm:text-xl font-bold text-white tracking-tight flex items-baseline">
+                            ₺{currentDieselPrice.toFixed(2)}
+                            <span className="text-[10px] sm:text-xs font-bold text-emerald-400 ml-1">/ Lt</span>
+                        </h3>
+                    </div>
                 </div>
 
             </div>
 
-            {/* Grafik Paneli */}
-            <div className="glass-panel p-4 sm:p-5 md:p-6 flex-1 min-h-0 flex flex-col justify-between overflow-hidden border border-white/10 ring-1 ring-black/40">
+            {/* ─── GRAFİK PANELİ (HER ZAMAN GÖRÜNÜR SABİT ASGARİ YÜKSEKLİKLE) ─── */}
+            <div className="bg-[#07090e] border border-white/[0.08] p-3.5 sm:p-5 rounded-2xl flex-1 flex flex-col justify-between shadow-sm min-h-[360px] sm:min-h-[420px]">
 
-                {/* Başlık Satırı */}
-                <div className="flex items-center justify-between gap-3 mb-3 flex-shrink-0">
-                    <h3 className="font-bold text-base md:text-lg text-white tracking-tight">
-                        Aylık Operasyon Hacmi
-                    </h3>
+                {/* Başlık ve Ay Seçici */}
+                <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
+                    <div>
+                        <h3 className="font-bold text-sm sm:text-base text-white tracking-tight">
+                            Aylık Operasyon Hacmi
+                        </h3>
+                        <p className="text-[10px] text-slate-400 hidden sm:block">Günlük sefer ve taşınan tonaj dalgalanması</p>
+                    </div>
 
-                    {/* Zaman Navigasyonu (Sade & Zarif) */}
-                    <div className="flex items-center gap-2">
-                        <div className="flex items-center bg-[#0B0F17]/80 backdrop-blur-xl border border-white/10 p-1 rounded-xl shadow-lg ring-1 ring-black/30">
-                            <button onClick={goToPrev} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08] active:scale-95 transition-all cursor-pointer"><ChevronLeft size={15} /></button>
-                            <span className="text-xs md:text-sm font-semibold text-white px-3 min-w-[85px] text-center select-none tracking-wide">
-                                {selectedYear === now.getFullYear() ? MONTHS_TR[selectedMonth] : `${MONTHS_TR[selectedMonth]} ${selectedYear}`}
-                            </span>
-                            <button onClick={goToNext} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08] active:scale-95 transition-all cursor-pointer"><ChevronRight size={15} /></button>
-                        </div>
+                    {/* Zaman Navigasyonu */}
+                    <div className="flex items-center bg-[#0d1117] border border-white/10 p-0.5 sm:p-1 rounded-xl shadow-sm">
+                        <button onClick={goToPrev} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08] active:scale-95 transition-all cursor-pointer">
+                            <ChevronLeft size={14} />
+                        </button>
+                        <span className="text-xs sm:text-sm font-semibold text-white px-2.5 min-w-[75px] sm:min-w-[85px] text-center select-none tracking-wide">
+                            {selectedYear === now.getFullYear() ? MONTHS_TR[selectedMonth] : `${MONTHS_TR[selectedMonth]} ${selectedYear}`}
+                        </span>
+                        <button onClick={goToNext} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08] active:scale-95 transition-all cursor-pointer">
+                            <ChevronRight size={14} />
+                        </button>
                     </div>
                 </div>
 
-                {/* Grafik - Esnek ve Dolduran Yükseklik */}
-                <div className="flex-1 min-h-0 w-full relative select-none outline-none focus:outline-none">
+                {/* Grafik - Asgari Yükseklik Garantili */}
+                <div className="w-full h-[200px] sm:h-[240px] md:h-full md:flex-1 md:min-h-0 relative select-none outline-none focus:outline-none my-1">
                     {chartData.every(d => (d['Sefer Sayısı'] || 0) === 0 && (d['Taşınan Tonaj'] || 0) === 0) ? (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-500 select-text">
-                            <Activity size={32} className="mb-2 opacity-30 animate-pulse" />
-                            <p className="font-medium text-sm">Bu dönemde veri bulunamadı.</p>
-                            <p className="text-xs mt-0.5 opacity-70">Operasyonlar kaydedildikçe grafiğiniz oluşacaktır.</p>
+                        <div className="flex flex-col items-center justify-center h-full text-slate-500">
+                            <Activity size={28} className="mb-1 opacity-30 animate-pulse" />
+                            <p className="font-medium text-xs">Bu dönemde veri bulunamadı.</p>
+                            <p className="text-[10px] opacity-70">Sefer kaydedildikçe grafik oluşacaktır.</p>
                         </div>
                     ) : (
                         <ResponsiveContainer width="100%" height="100%">
@@ -572,17 +754,17 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                                 }}
                             >
                                 <defs>
-                                    <linearGradient id="gradSefer" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor={activeTheme.seferGrad} stopOpacity={activeTheme.seferGradOpacity} />
+                                    <linearGradient id="gradSeferPortrait" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor={activeTheme.seferGrad} stopOpacity={0.25} />
                                         <stop offset="100%" stopColor={activeTheme.seferGrad} stopOpacity={0.0} />
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" strokeOpacity={0.12} vertical={false} />
-                                <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} dy={6} interval={isAllTime ? 'preserveStartEnd' : Math.floor(chartData.length / 8)} />
+                                <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} dy={4} interval={isAllTime ? 'preserveStartEnd' : Math.floor(chartData.length / 8)} />
                                 <YAxis 
                                     yAxisId="left" 
                                     stroke="#64748b" 
-                                    fontSize={11} 
+                                    fontSize={10} 
                                     tickLine={false} 
                                     axisLine={false} 
                                     dx={-4} 
@@ -597,7 +779,7 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                                 />
                                 <Tooltip content={<CustomTooltip isAllTime={isAllTime} theme={activeTheme} />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
 
-                                {/* Taşınan Tonaj: Havada Süzülen Parlayan İnce Çizgi (Dolgusuz - Çamursuz) */}
+                                {/* Taşınan Tonaj */}
                                 <Area 
                                     yAxisId="right" 
                                     type="monotone" 
@@ -611,7 +793,7 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                                     connectNulls={false} 
                                 />
 
-                                {/* Sefer Sayısı: Ana Dalga (Yumuşak Neon Gradyan) */}
+                                {/* Sefer Sayısı */}
                                 <Area 
                                     yAxisId="left" 
                                     type="monotone" 
@@ -619,7 +801,7 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                                     stroke={activeTheme.seferStroke} 
                                     strokeWidth={1.8} 
                                     fillOpacity={1} 
-                                    fill="url(#gradSefer)" 
+                                    fill="url(#gradSeferPortrait)" 
                                     dot={false} 
                                     activeDot={{ r: 4, strokeWidth: 1.5, stroke: '#07090E', fill: activeTheme.seferStroke }} 
                                     connectNulls={false} 
@@ -641,41 +823,43 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                     )}
                 </div>
 
-                {/* Verimlilik Metrikleri (Özenli, Tek Renk Simgeler) */}
+                {/* Verimlilik Metrikleri */}
                 {!isAllTime && activeDays > 0 && (
-                    <div className="mt-2.5 pt-2.5 md:mt-3 md:pt-3 border-t border-white/10 grid grid-cols-3 gap-3 flex-shrink-0">
-                        <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                            <div className="p-2 rounded-xl bg-white/[0.04] border border-white/10 text-slate-300 flex-shrink-0">
-                                <CalendarDays size={15} />
+                    <div className="mt-2 pt-2 sm:mt-2.5 sm:pt-2.5 border-t border-white/[0.06] grid grid-cols-3 gap-2 shrink-0">
+                        <div className="flex items-center gap-2 p-1.5 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04]">
+                            <div className="p-1.5 rounded-lg bg-slate-800 text-slate-300 shrink-0">
+                                <CalendarDays size={13} />
                             </div>
-                            <div>
-                                <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Aktif Gün</p>
-                                <p className="text-sm md:text-base font-bold text-white">{activeDays} <span className="text-xs text-slate-400 font-normal">gün</span></p>
+                            <div className="min-w-0">
+                                <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider truncate">Aktif Gün</p>
+                                <p className="text-xs sm:text-sm font-bold text-white truncate">{activeDays} <span className="text-[10px] text-slate-400 font-normal">gün</span></p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                            <div className="p-2 rounded-xl bg-white/[0.04] border border-white/10 text-slate-300 flex-shrink-0">
-                                <Weight size={15} />
+                        <div className="flex items-center gap-2 p-1.5 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04]">
+                            <div className="p-1.5 rounded-lg bg-slate-800 text-slate-300 shrink-0">
+                                <Weight size={13} />
                             </div>
-                            <div>
-                                <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Günlük Ort. Tonaj</p>
-                                <p className="text-sm md:text-base font-bold text-white">
+                            <div className="min-w-0">
+                                <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider truncate">Günlük Ort.</p>
+                                <p className="text-xs sm:text-sm font-bold text-white truncate">
                                     {currentDailyTonnage.toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                                    <span className="text-xs text-slate-400 font-normal"> Ton</span>
+                                    <span className="text-[10px] text-slate-400 font-normal"> Ton</span>
                                 </p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                            <div className="p-2 rounded-xl bg-white/[0.04] border border-white/10 text-slate-300 flex-shrink-0">
-                                <PerfIcon size={15} />
+                        <div className="flex items-center gap-2 p-1.5 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04]">
+                            <div className="p-1.5 rounded-lg bg-slate-800 text-slate-300 shrink-0">
+                                <PerfIcon size={13} />
                             </div>
-                            <div>
-                                <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Geçen Aya Göre</p>
-                                <p className="text-sm md:text-base font-bold text-white">
+                            <div className="min-w-0">
+                                <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider truncate">Geçen Aya</p>
+                                <p className="text-xs sm:text-sm font-bold text-white truncate">
                                     {perfDelta === null ? (
-                                        <span className="text-slate-400 text-xs font-normal">Veri Yok</span>
+                                        <span className="text-slate-400 text-[10px] font-normal">Veri Yok</span>
                                     ) : (
-                                        <span>%{Math.abs(perfDelta).toFixed(1)}</span>
+                                        <span className={perfDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                            %{Math.abs(perfDelta).toFixed(1)}
+                                        </span>
                                     )}
                                 </p>
                             </div>
