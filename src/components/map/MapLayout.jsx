@@ -530,7 +530,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
               url={mapUrls[mapStyle] || mapUrls.voyager}
               subdomains={mapStyle === 'traffic' ? ['0', '1', '2', '3'] : ['a', 'b', 'c', 'd']}
               maxZoom={20}
-              maxNativeZoom={mapStyle === 'satellite' ? 18 : 19}
+              maxNativeZoom={mapStyle === 'satellite' ? 18 : mapStyle === 'traffic' ? 20 : 16}
               keepBuffer={4}
             />
 
