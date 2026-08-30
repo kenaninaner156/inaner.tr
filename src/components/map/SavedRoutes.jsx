@@ -564,13 +564,15 @@ export default function SavedRoutes({ isVisible }) {
         {isVisible && showSidebar && (
           <motion.div
             ref={sidebarCallbackRef}
-            initial={{ x: -15, opacity: 0, scale: 0.99, filter: 'blur(6px)' }}
-            animate={{ x: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
-            exit={{ x: -15, opacity: 0, scale: 0.99, filter: 'blur(6px)' }}
+            initial={{ x: -15, opacity: 0, scale: 0.99 }}
+            animate={{ x: 0, opacity: 1, scale: 1 }}
+            exit={{ x: -15, opacity: 0, scale: 0.99 }}
             transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-            className="hidden md:flex absolute top-[76px] left-4 max-h-[calc(100vh-96px)] h-auto w-[335px] z-[1500] flex-col rounded-3xl overflow-hidden border border-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.85)] backdrop-blur-3xl"
+            className="hidden md:flex absolute left-4 w-[335px] z-[1500] flex-col rounded-3xl overflow-hidden border border-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.85)]"
             style={{
-              background: 'rgba(10, 14, 22, 0.97)',
+              top: 'calc(5.25rem + env(safe-area-inset-top, 0px))',
+              maxHeight: 'calc(100vh - 6.5rem - env(safe-area-inset-top, 0px))',
+              background: '#0a0e16',
             }}
           >
             {/* Üst Başlık & Sekmeler */}
@@ -798,7 +800,10 @@ export default function SavedRoutes({ isVisible }) {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.8, opacity: 0 }}
             onClick={() => setShowSidebar(true)}
-            className="hidden md:block absolute left-4 top-[76px] z-[1500] p-3.5 bg-[#0a0e16]/90 hover:bg-[#0f1420] text-indigo-400 rounded-2xl border border-indigo-500/20 transition-all backdrop-blur-md shadow-xl"
+            className="hidden md:block absolute left-4 z-[1500] p-3.5 bg-[#0a0e16] hover:bg-[#0f1420] text-indigo-400 rounded-2xl border border-indigo-500/20 transition-all shadow-xl cursor-pointer"
+            style={{
+              top: 'calc(5.25rem + env(safe-area-inset-top, 0px))'
+            }}
             title="Kayıtlı Rotaları Aç"
           >
             <Bookmark size={16} />

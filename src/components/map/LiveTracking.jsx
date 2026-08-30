@@ -732,12 +732,13 @@ export default function LiveTracking({
             animate={{ x: 0, opacity: 1, scale: 1 }}
             exit={{ x: -10, opacity: 0, scale: 0.99 }}
             transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-            className="hidden md:flex absolute top-[76px] left-4 w-[300px] z-[1500] flex-col rounded-3xl" 
+            className="hidden md:flex absolute left-4 w-[300px] z-[1500] flex-col rounded-3xl" 
             style={{
-              background: 'rgba(13,18,25,0.96)',
+              top: 'calc(5.25rem + env(safe-area-inset-top, 0px))',
+              maxHeight: 'calc(100vh - 6.5rem - env(safe-area-inset-top, 0px))',
+              background: '#0D1219',
               border: PANEL_BORDER,
               boxShadow: '0 8px 40px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.03)',
-              backdropFilter: 'blur(24px)',
               overflow: 'hidden'
             }}
           >
@@ -747,13 +748,13 @@ export default function LiveTracking({
               </h2>
               <button
                 onClick={() => setShowSidebar(false)}
-                className="p-1.5 text-slate-500 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] rounded-xl transition-all"
+                className="p-1.5 text-slate-500 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] rounded-xl transition-all cursor-pointer"
               >
                 <X size={13} />
               </button>
             </div>
 
-            <div ref={listCallbackRef} className="p-3 flex flex-col gap-2 overflow-y-auto max-h-[calc(100vh-160px)]" style={{ scrollbarWidth: 'none' }}>
+            <div ref={listCallbackRef} className="p-3 flex flex-col gap-2 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
               {vehicleList.length === 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', gap: 8 }}>
                   <WifiOff size={22} color="#334155" />
@@ -784,7 +785,10 @@ export default function LiveTracking({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.8, opacity: 0 }}
             onClick={() => setShowSidebar(true)}
-            className="hidden md:flex absolute left-4 top-[76px] z-[1500] p-3.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-2xl border border-emerald-500/20 transition-all backdrop-blur-md"
+            className="hidden md:flex absolute left-4 z-[1500] p-3.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-2xl border border-emerald-500/20 transition-all cursor-pointer"
+            style={{
+              top: 'calc(5.25rem + env(safe-area-inset-top, 0px))'
+            }}
           >
             <Activity size={16} />
           </motion.button>

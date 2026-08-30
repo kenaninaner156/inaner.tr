@@ -487,11 +487,11 @@ function App() {
         <div className="bom-notification">💣 B O M !</div>
       )}
       {isMenuOpen && isMobile && (
-        <div className="fixed inset-0 bg-black/75 z-40" onClick={handleOverlayClick} />
+        <div className="fixed inset-0 bg-black/75 z-[9990]" onClick={handleOverlayClick} />
       )}
 
       {/* Sidebar - Avant Garde Minimalist Layout */}
-      <aside className={`fixed top-0 left-0 h-full w-72 z-50 flex flex-col transition-transform duration-500 ease-in-out ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+      <aside className={`fixed top-0 left-0 h-full w-72 z-[9995] flex flex-col transition-transform duration-500 ease-in-out ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
         style={{
           background: 'var(--bg-sidebar)',
           borderRight: `1px solid var(--border-color)`,
