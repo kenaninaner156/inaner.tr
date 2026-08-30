@@ -845,32 +845,32 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                 >
                                     {docViewTab === 'summary' && (
                                         <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full min-h-0 overflow-hidden">
-                                            <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1">
-                                                <table className="w-full min-w-[480px] text-left border-collapse">
+                                            <div className="overflow-y-auto custom-scrollbar flex-1">
+                                                <table className="w-full table-fixed text-left border-collapse">
                                                     <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-sm z-10 border-b border-slate-200">
                                                         <tr className="text-[10px] sm:text-[11px] text-slate-600 uppercase font-bold tracking-wider">
-                                                            <th className="py-2.5 px-3 min-w-[120px]">Yükleme Yeri</th>
-                                                            <th className="py-2.5 px-3 min-w-[140px]">Boşaltma Yeri</th>
-                                                            <th className="py-2.5 px-3 text-center min-w-[80px]">Sefer Sayısı</th>
-                                                            <th className="py-2.5 px-3 text-right min-w-[110px]">Toplam Tonaj</th>
+                                                            <th className="py-2 px-2 sm:px-3 w-[32%]">Yükleme</th>
+                                                            <th className="py-2 px-2 sm:px-3 w-[35%]">Boşaltma</th>
+                                                            <th className="py-2 px-1 sm:px-2 text-center w-[13%]">Sefer</th>
+                                                            <th className="py-2 px-2 sm:px-3 text-right w-[20%]">Toplam</th>
                                                         </tr>
                                                     </thead>
-                                                    <tbody className="text-xs text-slate-700 divide-y divide-slate-100 font-medium">
+                                                    <tbody className="text-[11px] sm:text-xs text-slate-700 divide-y divide-slate-100 font-medium">
                                                         {routeSummary.length > 0 ? routeSummary.map((route, i) => (
                                                             <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                                                <td className="py-2 px-3 text-slate-900">
+                                                                <td className="py-2 px-2 sm:px-3 text-slate-900 truncate" title={route.from}>
                                                                     {route.from}
                                                                 </td>
-                                                                <td className="py-2 px-3 text-slate-900">
+                                                                <td className="py-2 px-2 sm:px-3 text-slate-900 truncate" title={route.to}>
                                                                     {route.to}
                                                                 </td>
-                                                                <td className="py-2 px-3 text-center font-mono">
-                                                                    <span className="inline-block bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded text-slate-700 font-semibold text-[11px]">
+                                                                <td className="py-2 px-1 sm:px-2 text-center font-mono">
+                                                                    <span className="inline-block bg-slate-100 border border-slate-200/80 px-1.5 py-0.5 rounded text-slate-700 font-semibold text-[10px] sm:text-[11px]">
                                                                         {route.count}
                                                                     </span>
                                                                 </td>
-                                                                <td className="py-2 px-3 text-right font-mono font-bold text-sky-600 text-xs whitespace-nowrap">
-                                                                    {route.tonnage.toFixed(2)} <span className="text-[10px] font-medium text-slate-500">Ton</span>
+                                                                <td className="py-2 px-2 sm:px-3 text-right font-mono font-bold text-sky-600 text-[11px] sm:text-xs whitespace-nowrap">
+                                                                    {route.tonnage.toFixed(2)} <span className="text-[9px] sm:text-[10px] font-medium text-slate-500">Ton</span>
                                                                 </td>
                                                             </tr>
                                                         )) : (
@@ -883,27 +883,27 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                             </div>
 
                                             {/* Toplam Tonaj Alt Barı (Tahmini Tutar ve Toplam Tonaj) */}
-                                            <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3 shrink-0 flex-wrap">
+                                            <div className="px-3 sm:px-4 py-2 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2 sm:gap-3 shrink-0 flex-wrap">
                                                     {/* Tahmini Hakediş Rozeti (Sadece imzalanmamış faturalarda görünür) */}
                                                     {activeInvoice && !isInvoiceSigned && estimatedCalculation.totalCount > 0 && (
                                                         <button 
                                                             type="button"
                                                             onClick={() => setShowPriceBreakdownModal(true)}
-                                                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-95 ${
+                                                            className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold border transition-all cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-95 ${
                                                                 estimatedCalculation.allPriced 
                                                                     ? 'bg-blue-50 hover:bg-blue-100/80 border-blue-200 text-blue-900 shadow-xs' 
                                                                     : 'bg-amber-50 hover:bg-amber-100/80 border-amber-200 text-amber-800'
                                                             }`} 
                                                             title="Fiyat kırılımı ve eksik rota detaylarını görmek/düzenlemek için tıklayın"
                                                         >
-                                                            <span className="text-[11px] font-medium text-slate-500">Tahmini Tutar:</span>
+                                                            <span className="text-[10px] sm:text-[11px] font-medium text-slate-500">Tahmini:</span>
                                                             <span className="font-mono font-bold tracking-tight">
                                                                 {estimatedCalculation.allPriced ? (
                                                                     `~₺${estimatedCalculation.totalPayable.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                                                                 ) : (
                                                                     <span className="text-[10px] font-medium text-amber-700 flex items-center gap-1">
                                                                         <AlertCircle size={12} className="text-amber-600" />
-                                                                        Fiyat Bilgisi Eksik
+                                                                        Eksik Fiyat
                                                                     </span>
                                                                 )}
                                                             </span>
@@ -911,10 +911,10 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                                     )}
 
                                                     {/* Toplam Tonaj Kutusu */}
-                                                    <div className="flex items-center gap-2 bg-white border border-slate-200 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 shadow-xs">
-                                                        <span className="text-slate-500 font-medium">Toplam Tonaj:</span>
-                                                        <span className="font-mono font-bold text-sky-600 text-sm">
-                                                            {totalInvoiceTonnage.toFixed(2)} <span className="text-[11px] font-normal text-slate-500">Ton</span>
+                                                    <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 sm:px-3.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold text-slate-700 shadow-xs">
+                                                        <span className="text-slate-500 font-medium">Toplam:</span>
+                                                        <span className="font-mono font-bold text-sky-600 text-xs sm:text-sm">
+                                                            {totalInvoiceTonnage.toFixed(2)} <span className="text-[10px] sm:text-[11px] font-normal text-slate-500">Ton</span>
                                                         </span>
                                                     </div>
                                             </div>
@@ -923,30 +923,30 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
 
                                     {docViewTab === 'trips' && (
                                         <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full min-h-0 overflow-hidden">
-                                            <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1">
-                                                <table className="w-full min-w-[500px] text-left border-collapse">
+                                            <div className="overflow-y-auto custom-scrollbar flex-1">
+                                                <table className="w-full table-fixed text-left border-collapse">
                                                     <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-sm z-10 border-b border-slate-200">
                                                         <tr className="text-[10px] sm:text-[11px] text-slate-600 uppercase font-bold tracking-wider">
-                                                            <th className="py-2.5 px-3 min-w-[95px]">Tarih</th>
-                                                            <th className="py-2.5 px-3 min-w-[120px]">Yükleme Yeri</th>
-                                                            <th className="py-2.5 px-3 min-w-[140px]">Boşaltma Yeri</th>
-                                                            <th className="py-2.5 px-3 text-right min-w-[95px]">Tonaj</th>
+                                                            <th className="py-2 px-1.5 sm:px-3 w-[20%]">Tarih</th>
+                                                            <th className="py-2 px-1.5 sm:px-3 w-[30%]">Yükleme</th>
+                                                            <th className="py-2 px-1.5 sm:px-3 w-[30%]">Boşaltma</th>
+                                                            <th className="py-2 px-1.5 sm:px-3 text-right w-[20%]">Tonaj</th>
                                                         </tr>
                                                     </thead>
-                                                    <tbody className="text-xs text-slate-700 divide-y divide-slate-100 font-medium">
+                                                    <tbody className="text-[11px] sm:text-xs text-slate-700 divide-y divide-slate-100 font-medium">
                                                         {(activeInvoice?.trips || []).length > 0 ? (activeInvoice.trips || []).map((t, i) => (
                                                             <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                                                <td className="py-2 px-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
-                                                                    {t.date ? new Date(t.date).toLocaleDateString('tr-TR') : '—'}
+                                                                <td className="py-2 px-1.5 sm:px-3 font-mono text-[10px] sm:text-[11px] text-slate-500 whitespace-nowrap">
+                                                                    {t.date ? new Date(t.date).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'}
                                                                 </td>
-                                                                <td className="py-2 px-3 text-slate-900">
+                                                                <td className="py-2 px-1.5 sm:px-3 text-slate-900 truncate" title={t.from || '—'}>
                                                                     {t.from || '—'}
                                                                 </td>
-                                                                <td className="py-2 px-3 text-slate-900">
+                                                                <td className="py-2 px-1.5 sm:px-3 text-slate-900 truncate" title={t.to || '—'}>
                                                                     {t.to || '—'}
                                                                 </td>
-                                                                <td className="py-2 px-3 text-right font-mono font-bold text-sky-600 text-xs whitespace-nowrap">
-                                                                    {parseTonnageInTons(t.tonnage).toFixed(2)} <span className="text-[10px] font-medium text-slate-500">Ton</span>
+                                                                <td className="py-2 px-1.5 sm:px-3 text-right font-mono font-bold text-sky-600 text-[11px] sm:text-xs whitespace-nowrap">
+                                                                    {parseTonnageInTons(t.tonnage).toFixed(2)} <span className="text-[9px] sm:text-[10px] font-medium text-slate-500">Ton</span>
                                                                 </td>
                                                             </tr>
                                                         )) : (
