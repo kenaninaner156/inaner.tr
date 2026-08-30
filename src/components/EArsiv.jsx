@@ -2528,22 +2528,22 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                                                         : 'bg-slate-800/80 border-slate-700/60 text-slate-400 hover:text-white'
                                                                 }`}
                                                             >
-                                                                <Paperclip size={13} />
-                                                                <span className="text-[11px]">{inv.files?.length > 0 ? `${inv.files.length} Belge` : 'Ekler'}</span>
+                                                                <Paperclip size={12} />
+                                                                <span>{inv.files?.length > 0 ? `${inv.files.length} Belge` : 'Ekler'}</span>
                                                             </button>
 
                                                             {/* Duruma Göre Ana Butonlar */}
                                                             {isDraftOnGib ? (
-                                                                <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0">
+                                                                <div className="flex items-center justify-end gap-1.5 ml-auto">
                                                                     <button
                                                                         onClick={() => handleApproveSmsInit(inv)}
                                                                         disabled={isApprovingSms === inv.id}
-                                                                        className="flex-1 min-w-[110px] inline-flex items-center justify-center gap-1.5 text-xs font-semibold bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white px-2.5 py-1.5 rounded-xl transition disabled:opacity-50 cursor-pointer shadow-sm"
+                                                                        className="inline-flex items-center justify-center gap-1 text-[11px] font-semibold bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white px-2.5 py-1.5 rounded-xl transition disabled:opacity-50 cursor-pointer shadow-sm"
                                                                     >
                                                                         {isApprovingSms === inv.id ? (
-                                                                            <RefreshCw size={12} className="animate-spin" />
+                                                                            <RefreshCw size={11} className="animate-spin" />
                                                                         ) : (
-                                                                            <Smartphone size={12} />
+                                                                            <Smartphone size={11} />
                                                                         )}
                                                                         <span>Sistemde Onayla</span>
                                                                     </button>
@@ -2551,63 +2551,63 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                                                         href={gibPortalUrl}
                                                                         target="_blank" 
                                                                         rel="noopener noreferrer" 
-                                                                        className="p-2 text-xs font-semibold bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 rounded-xl transition cursor-pointer shrink-0"
+                                                                        className="p-1.5 text-xs font-semibold bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white border border-white/10 rounded-xl transition cursor-pointer shrink-0"
                                                                         title="GİB Portalında Onayla"
                                                                     >
-                                                                        <ExternalLink size={13} />
+                                                                        <ExternalLink size={12} />
                                                                     </a>
                                                                     <button
                                                                         onClick={() => handleMarkAsSigned(inv)}
                                                                         title="İmzalandı Olarak İşaretle"
-                                                                        className="p-2 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 rounded-xl transition cursor-pointer shrink-0"
+                                                                        className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 rounded-xl transition cursor-pointer shrink-0"
                                                                     >
-                                                                        <CheckCircle size={13} />
+                                                                        <CheckCircle size={12} />
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleResetGibStatus(inv)}
                                                                         title="GİB Durumunu Sıfırla"
-                                                                        className="p-2 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 rounded-xl transition cursor-pointer shrink-0"
+                                                                        className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 rounded-xl transition cursor-pointer shrink-0"
                                                                     >
-                                                                        <RefreshCw size={13} />
+                                                                        <RefreshCw size={12} />
                                                                     </button>
                                                                 </div>
                                                             ) : isSignedOnGib ? (
-                                                                <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0">
+                                                                <div className="flex items-center justify-end gap-1.5 ml-auto">
                                                                     <button
                                                                         onClick={() => handleDownloadPdf(inv)}
                                                                         disabled={!inv.gibUuid || isDownloadingPdf === inv.id}
-                                                                        className="flex-1 min-w-[100px] inline-flex items-center justify-center gap-1.5 text-xs font-semibold bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 hover:text-white border border-white/10 px-3 py-1.5 rounded-xl transition disabled:opacity-30 cursor-pointer shadow-sm"
+                                                                        className="inline-flex items-center justify-center gap-1 text-[11px] font-semibold bg-white/[0.06] hover:bg-white/[0.12] text-slate-200 hover:text-white border border-white/10 px-2.5 py-1.5 rounded-xl transition disabled:opacity-30 cursor-pointer shadow-sm"
                                                                     >
                                                                         {isDownloadingPdf === inv.id ? (
-                                                                            <RefreshCw size={12} className="animate-spin" />
+                                                                            <RefreshCw size={11} className="animate-spin" />
                                                                         ) : (
-                                                                            <Download size={13} />
+                                                                            <Download size={12} />
                                                                         )}
                                                                         <span>PDF İndir</span>
                                                                     </button>
                                                                     <button
                                                                         onClick={() => handleResetGibStatus(inv)}
                                                                         title="GİB Durumunu Sıfırla"
-                                                                        className="p-2 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 rounded-xl transition cursor-pointer shrink-0"
+                                                                        className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/60 rounded-xl transition cursor-pointer shrink-0"
                                                                     >
-                                                                        <RefreshCw size={13} />
+                                                                        <RefreshCw size={12} />
                                                                     </button>
                                                                 </div>
                                                             ) : (
-                                                                <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0">
+                                                                <div className="flex items-center justify-end gap-1.5 ml-auto">
                                                                     <button
                                                                         onClick={() => handleOpenSendModal(inv)}
                                                                         disabled={isSending}
-                                                                        className="flex-1 min-w-[130px] inline-flex items-center justify-center gap-1.5 text-xs font-bold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white px-3 py-1.5 rounded-xl transition disabled:opacity-50 shadow-md shadow-orange-500/25 active:scale-95 cursor-pointer"
+                                                                        className="inline-flex items-center justify-center gap-1 text-[11px] font-bold bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white px-2.5 py-1.5 rounded-xl transition disabled:opacity-50 shadow-md shadow-orange-500/25 active:scale-95 cursor-pointer"
                                                                     >
                                                                         {isSending ? (
                                                                             <>
-                                                                                <RefreshCw size={12} className="animate-spin" />
+                                                                                <RefreshCw size={11} className="animate-spin" />
                                                                                 <span>Hazırlanıyor...</span>
                                                                             </>
                                                                         ) : (
                                                                             <>
-                                                                                <Sparkles size={12} />
+                                                                                <Sparkles size={11} />
                                                                                 <span>GİB Taslak Hazırla</span>
                                                                             </>
                                                                         )}
@@ -2615,9 +2615,9 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                                                     <button
                                                                         onClick={() => handleMarkAsSigned(inv)}
                                                                         title="İmzalandı Olarak İşaretle"
-                                                                        className="p-2 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 rounded-xl transition cursor-pointer shrink-0"
+                                                                        className="p-1.5 text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-orange-400 border border-slate-700/60 rounded-xl transition cursor-pointer shrink-0"
                                                                     >
-                                                                        <CheckCircle size={13} />
+                                                                        <CheckCircle size={12} />
                                                                     </button>
                                                                 </div>
                                                             )}
