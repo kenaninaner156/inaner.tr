@@ -672,16 +672,16 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                             <div className="bg-[#0c1017]/90 backdrop-blur-xl border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
                                 {/* Masaüstü Tablo Görünümü */}
                                 <div className="hidden md:block overflow-x-auto">
-                                    <table className="w-full border-collapse" style={{ minWidth: '480px' }}>
+                                    <table className="w-full text-left border-collapse min-w-[700px]">
                                         <thead>
                                             <tr className="bg-white/[0.03] border-b border-white/[0.06] text-slate-400 text-[11px] uppercase font-bold tracking-wider">
-                                                <th className="p-3 pl-4 text-left whitespace-nowrap">Tarih</th>
-                                                <th className="p-3 text-left whitespace-nowrap">Tür</th>
-                                                <th className="p-3 text-left">Açıklama</th>
-                                                <th className="p-3 text-center whitespace-nowrap">KM</th>
-                                                <th className="p-3 text-right whitespace-nowrap">Tutar</th>
-                                                <th className="p-3 text-center whitespace-nowrap">Ekler</th>
-                                                <th className="p-3 text-center whitespace-nowrap w-24">İşlemler</th>
+                                                <th className="p-3 pl-4 whitespace-nowrap w-28">Tarih</th>
+                                                <th className="p-3 whitespace-nowrap w-32">Tür</th>
+                                                <th className="p-3 min-w-[200px]">Açıklama</th>
+                                                <th className="p-3 text-center whitespace-nowrap w-28">KM</th>
+                                                <th className="p-3 text-right whitespace-nowrap w-28">Tutar</th>
+                                                <th className="p-3 text-center whitespace-nowrap w-20">Ekler</th>
+                                                <th className="p-3 text-center whitespace-nowrap w-20">İşlemler</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-white/[0.04]">

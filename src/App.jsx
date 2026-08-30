@@ -36,8 +36,8 @@ function App() {
     if (savedTab) return savedTab;
     return 'dashboard';
   })
-  const [isMenuOpen, setIsMenuOpen] = useState(window.innerWidth >= 768)
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+  const [isMenuOpen, setIsMenuOpen] = useState(window.innerWidth >= 1024)
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024)
   const [theme, setTheme] = useState('dark')
   const [activeNotification, setActiveNotification] = useState(null)
   const [bomPhase, setBomPhase] = useState(null); // null | 'fall' | 'recover'
@@ -126,7 +126,13 @@ function App() {
 
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    const handleResize = () => {
+      const mobile = window.innerWidth < 1024;
+      setIsMobile(mobile);
+      if (!mobile) {
+        setIsMenuOpen(true);
+      }
+    };
     window.addEventListener('resize', handleResize)
 
     // Sekme yönlendirme olaylarını dinle

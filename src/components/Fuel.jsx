@@ -557,14 +557,14 @@ return (
             {/* ─── MAZOT FİŞLERİ LİSTESİ / TABLOSU ─── */}
             <div className="bg-[#0c1017]/90 backdrop-blur-xl border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
                 <div className="overflow-x-auto">
-                    <table className="w-full table-fixed text-left border-collapse hidden md:table" style={{ minWidth: '600px' }}>
+                    <table className="w-full text-left border-collapse hidden md:table min-w-[680px]">
                         <thead>
                             <tr className="bg-white/[0.03] border-b border-white/[0.06] text-slate-400 text-[11px] uppercase font-bold tracking-wider">
-                                <th className="p-3 pl-4 whitespace-nowrap w-36">Tarih</th>
-                                <th className="p-3 whitespace-nowrap">İstasyon</th>
-                                <th className="p-3 text-center whitespace-nowrap w-36">Litre</th>
+                                <th className="p-3 pl-4 whitespace-nowrap w-32">Tarih</th>
+                                <th className="p-3 whitespace-nowrap min-w-[220px]">İstasyon</th>
+                                <th className="p-3 text-center whitespace-nowrap w-32">Litre</th>
                                 <th className="p-3 text-right whitespace-nowrap w-36">Tutar</th>
-                                <th className="p-3 text-center whitespace-nowrap w-24">İşlemler</th>
+                                <th className="p-3 text-center whitespace-nowrap w-20">İşlemler</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/[0.04]">
@@ -581,8 +581,8 @@ return (
                                     <td className="p-3 pl-4 whitespace-nowrap">
                                         <div className="text-white text-sm font-semibold">{formattedDate}</div>
                                     </td>
-                                    <td className="p-3">
-                                        <div className="text-sm font-bold text-white whitespace-nowrap flex items-center gap-1.5">
+                                    <td className="p-3 min-w-[220px]">
+                                        <div className="text-sm font-bold text-white flex items-center gap-1.5 flex-wrap">
                                             <MapPin size={13} className="text-cyan-400 shrink-0" />
                                             <span>{record.station || 'İstasyon Belirtilmedi'}</span>
                                         </div>

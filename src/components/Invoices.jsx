@@ -528,11 +528,11 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                 <div className="flex items-center gap-2"></div>
             </div>
 
-            {/* ─── 2 PANELLİ ANA GÖVDE (Masaüstü Yan Yana, Mobilde Sekmeli & Tam Ekran) ─── */}
-            <div className="flex-1 flex flex-col md:flex-row min-h-0 w-full gap-3 md:gap-5 overflow-hidden">
+            {/* ─── 2 PANELLİ ANA GÖVDE (Masaüstü Yan Yana, Mobilde & Tablet Portrede Sekmeli) ─── */}
+            <div className="flex-1 flex flex-col lg:flex-row min-h-0 w-full gap-3 md:gap-5 overflow-hidden">
                 {/* Sol Panel: Kontrol Merkezi & Fatura Listesi */}
-                <div className={`w-full md:w-[360px] lg:w-[400px] shrink-0 h-full flex-col gap-3 overflow-hidden ${
-                    mobileActiveView === 'preview' ? 'hidden md:flex' : 'flex'
+                <div className={`w-full lg:w-[360px] xl:w-[400px] shrink-0 h-full flex-col gap-3 overflow-hidden ${
+                    mobileActiveView === 'preview' ? 'hidden lg:flex' : 'flex'
                 }`}>
                     <div className="glass-panel p-4 overflow-hidden relative shadow-none border border-white/[0.08]">
                     {/* Arka plan animasyon efekti */}
@@ -680,10 +680,10 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
 
             {/* Sağ Panel: Tek Parça A4 Benzeri Çerçeve (Açık Tema) */}
             <div className={`flex-1 h-full min-w-0 flex-col overflow-hidden bg-slate-50 pt-3 sm:pt-4 md:pt-6 px-3 sm:px-5 pb-3 sm:pb-4 rounded-2xl border border-slate-200 shadow-xl relative text-slate-800 ${
-                mobileActiveView === 'list' ? 'hidden md:flex' : 'flex'
+                mobileActiveView === 'list' ? 'hidden lg:flex' : 'flex'
             }`}>
-                {/* Mobilde Üst Hızlı Geri & PDF Barı */}
-                <div className="md:hidden flex items-center justify-between pb-1.5 mb-2 border-b border-slate-200/80 shrink-0">
+                {/* Mobilde & Tablet Portrede Üst Hızlı Geri & PDF Barı */}
+                <div className="lg:hidden flex items-center justify-between pb-1.5 mb-2 border-b border-slate-200/80 shrink-0">
                     <button
                         type="button"
                         onClick={() => setMobileActiveView('list')}
@@ -847,13 +847,13 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                     {docViewTab === 'summary' && (
                                         <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full min-h-0 overflow-hidden">
                                             <div className="overflow-y-auto custom-scrollbar flex-1">
-                                                <table className="w-full table-fixed text-left border-collapse">
+                                                <table className="w-full table-fixed text-left border-collapse min-w-[320px]">
                                                     <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-sm z-10 border-b border-slate-200">
                                                         <tr className="text-[10px] sm:text-[11px] text-slate-600 uppercase font-bold tracking-wider">
-                                                            <th className="py-2 px-2 sm:px-3 w-[32%]">Yükleme</th>
-                                                            <th className="py-2 px-2 sm:px-3 w-[35%]">Boşaltma</th>
-                                                            <th className="py-2 px-1 sm:px-2 text-center w-[13%]">Sefer</th>
-                                                            <th className="py-2 px-2 sm:px-3 text-right w-[20%]">Toplam</th>
+                                                            <th className="py-2 px-2 sm:px-3 w-[30%] truncate">Yükleme</th>
+                                                            <th className="py-2 px-2 sm:px-3 w-[32%] truncate">Boşaltma</th>
+                                                            <th className="py-2 px-1 sm:px-2 text-center w-[16%] truncate">Sefer</th>
+                                                            <th className="py-2 px-2 sm:px-3 text-right w-[22%] truncate">Toplam</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="text-[11px] sm:text-xs text-slate-700 divide-y divide-slate-100 font-medium">
@@ -925,13 +925,13 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                     {docViewTab === 'trips' && (
                                         <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full min-h-0 overflow-hidden">
                                             <div className="overflow-y-auto custom-scrollbar flex-1">
-                                                <table className="w-full table-fixed text-left border-collapse">
+                                                <table className="w-full table-fixed text-left border-collapse min-w-[320px]">
                                                     <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-sm z-10 border-b border-slate-200">
                                                         <tr className="text-[10px] sm:text-[11px] text-slate-600 uppercase font-bold tracking-wider">
-                                                            <th className="py-2 px-1.5 sm:px-3 w-[20%]">Tarih</th>
-                                                            <th className="py-2 px-1.5 sm:px-3 w-[30%]">Yükleme</th>
-                                                            <th className="py-2 px-1.5 sm:px-3 w-[30%]">Boşaltma</th>
-                                                            <th className="py-2 px-1.5 sm:px-3 text-right w-[20%]">Tonaj</th>
+                                                            <th className="py-2 px-1.5 sm:px-3 w-[22%] truncate">Tarih</th>
+                                                            <th className="py-2 px-1.5 sm:px-3 w-[28%] truncate">Yükleme</th>
+                                                            <th className="py-2 px-1.5 sm:px-3 w-[28%] truncate">Boşaltma</th>
+                                                            <th className="py-2 px-1.5 sm:px-3 text-right w-[22%] truncate">Tonaj</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="text-[11px] sm:text-xs text-slate-700 divide-y divide-slate-100 font-medium">

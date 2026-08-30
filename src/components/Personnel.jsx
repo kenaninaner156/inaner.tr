@@ -310,13 +310,13 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
 
     return (
         <div 
-            className="flex flex-col md:flex-row md:h-[calc(100vh-64px)] gap-4 md:gap-8 animate-in fade-in duration-500 overflow-y-auto md:overflow-hidden pb-4 md:pb-0"
+            className="flex flex-col lg:flex-row lg:h-[calc(100vh-64px)] gap-4 lg:gap-8 animate-in fade-in duration-500 overflow-y-auto lg:overflow-hidden pb-4 lg:pb-0"
             style={{
                 paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
             }}
         >
             {/* Sol Panel: Kontrol Merkezi */}
-            <div className="w-full md:w-[45%] lg:w-[40%] flex flex-col gap-3 md:gap-6 md:overflow-y-auto custom-scrollbar md:pr-2">
+            <div className="w-full lg:w-[45%] xl:w-[40%] flex flex-col gap-3 lg:gap-6 lg:overflow-y-auto custom-scrollbar lg:pr-2">
 
                 {/* Panel Başlık (Masaüstü & Mobil) */}
                 <div className="flex glass-panel px-4 py-3 items-center justify-between shadow-sm border border-[var(--border-color)] backdrop-blur-md rounded-2xl shrink-0">
@@ -495,7 +495,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             </div>
 
             {/* Sağ Panel: A4 Hak Ediş Görünümü veya Ek PDF */}
-            <div className="w-full md:w-[55%] lg:w-[60%] relative flex flex-col overflow-hidden md:min-h-0 pl-0 md:pl-4" style={{ minHeight: '70vh' }}>
+            <div className="w-full lg:w-[55%] xl:w-[60%] relative flex flex-col overflow-hidden lg:min-h-0 pl-0 lg:pl-4" style={{ minHeight: '70vh' }}>
                 <div className="w-full relative overflow-hidden flex flex-col" style={{ flex: 1, minHeight: '70vh' }}>
                     {activePayoutState ? (
                         viewMode === 'pdf' && activePayoutState.files && activePayoutState.files.length > 0 ? (

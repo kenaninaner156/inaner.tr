@@ -646,15 +646,15 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                             ) : (
                                 <>
                                     {/* ─── MASAÜSTÜ TABLO GÖRÜNÜMÜ (hidden md:block) ─── */}
-                                    <div className="hidden md:block overflow-y-auto flex-1 custom-scrollbar">
-                                        <table className="w-full text-left border-collapse">
+                                    <div className="hidden md:block overflow-y-auto overflow-x-auto flex-1 custom-scrollbar">
+                                        <table className="w-full text-left border-collapse min-w-[620px]">
                                             <thead className="sticky top-0 bg-[#07090e] border-b border-white/[0.06] text-[11px] font-bold text-slate-400 uppercase tracking-wider z-10">
                                                 <tr>
-                                                    <th className="py-3 px-4 sm:px-6">Tarih</th>
-                                                    <th className="py-3 px-4">Tür</th>
-                                                    <th className="py-3 px-4">Açıklama (Kime / Kimden)</th>
-                                                    <th className="py-3 px-4 text-right">Tutar</th>
-                                                    <th className="py-3 px-4 sm:px-6 text-center w-24">İşlem</th>
+                                                    <th className="py-3 px-4 sm:px-6 w-32 whitespace-nowrap">Tarih</th>
+                                                    <th className="py-3 px-4 w-28 whitespace-nowrap">Tür</th>
+                                                    <th className="py-3 px-4 min-w-[200px]">Açıklama (Kime / Kimden)</th>
+                                                    <th className="py-3 px-4 text-right w-36 whitespace-nowrap">Tutar</th>
+                                                    <th className="py-3 px-4 sm:px-6 text-center w-20 whitespace-nowrap">İşlem</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-white/[0.04] text-xs">
