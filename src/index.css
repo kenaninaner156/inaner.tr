@@ -714,3 +714,8 @@ body.ios-pwa {
   --safe-top: max(env(safe-area-inset-top, 0px), 24px);
 }
 
+/* ── Premium Obsidian Dark Map (Zero API Key, 100% Free Forever) ── */
+.dark-map-tiles {
+  filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(108%) saturate(30%) !important;
+}
+

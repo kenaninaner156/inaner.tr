@@ -360,10 +360,10 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
     return Object.keys(sessionsByDriver).filter(id => !deviceMappings[id] && id !== 'Bilinmeyen');
   }, [sessionsByDriver, deviceMappings]);
 
-  // ── Harita Tabanları (Orijinal Koyu Carto Dark Matter + Google & ESRI) ──
+  // ── Harita Tabanları (Ömür Boyu Ücretsiz Google & ESRI Tabanları) ──
   const mapUrls = {
     voyager: 'https://mt{s}.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}',
-    darkmatter: 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png',
+    darkmatter: 'https://mt{s}.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}',
     satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     traffic: 'https://mt{s}.google.com/vt/lyrs=y,traffic&hl=tr&x={x}&y={y}&z={z}',
   };
@@ -528,7 +528,8 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
             <TileLayer
               key={mapStyle}
               url={mapUrls[mapStyle] || mapUrls.voyager}
-              subdomains={['traffic', 'voyager'].includes(mapStyle) ? ['0', '1', '2', '3'] : ['a', 'b', 'c', 'd']}
+              className={mapStyle === 'darkmatter' ? 'dark-map-tiles' : ''}
+              subdomains={['traffic', 'voyager', 'darkmatter'].includes(mapStyle) ? ['0', '1', '2', '3'] : ['a', 'b', 'c', 'd']}
               maxZoom={20}
               maxNativeZoom={mapStyle === 'satellite' ? 18 : 19}
               keepBuffer={4}
