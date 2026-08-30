@@ -238,7 +238,9 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
   
   const [activeTab, setActiveTab] = useState('live');
   const [mapStyle, setMapStyle] = useState(() => {
-    return localStorage.getItem('mapStyle') || 'voyager';
+    const saved = localStorage.getItem('mapStyle');
+    if (saved === 'traffic') return 'traffic';
+    return 'satellite';
   });
 
   // ── Canlı Yağış Katmanı State ──
@@ -360,10 +362,8 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
     return Object.keys(sessionsByDriver).filter(id => !deviceMappings[id] && id !== 'Bilinmeyen');
   }, [sessionsByDriver, deviceMappings]);
 
-  // ── Harita Tabanları (Google Full Roads & ESRI Uydu) ──
+  // ── Harita Tabanları (Kristal Netliğinde Orijinal ESRI Uydu & Canlı Trafik) ──
   const mapUrls = {
-    voyager: 'https://mt{s}.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}',
-    darkmatter: 'https://mt{s}.google.com/vt/lyrs=m&hl=tr&x={x}&y={y}&z={z}',
     satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     traffic: 'https://mt{s}.google.com/vt/lyrs=y,traffic&hl=tr&x={x}&y={y}&z={z}',
   };
@@ -465,8 +465,6 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
                   <div className="fixed inset-0 z-10" onClick={() => setShowLayerMenu(false)} />
                   <div className="absolute right-0 top-full mt-2 w-40 bg-[#0D1219] border border-white/10 rounded-2xl p-1.5 shadow-2xl z-20 flex flex-col gap-1">
                     {[
-                      { id: 'voyager',    name: 'Açık Harita' },
-                      { id: 'darkmatter', name: 'Koyu Harita' },
                       { id: 'satellite',  name: 'Uydu' },
                       { id: 'traffic',    name: 'Canlı Trafik' },
                     ].map(s => (
@@ -524,12 +522,11 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
             <MapClickHandler pickingLocation={draftZone.lat === null} onLocationPicked={(ll) => setDraftZone(prev => ({ ...prev, lat: ll.lat, lon: ll.lng }))} />
             <MapCameraSync activeTab={activeTab} sessionsByDriver={sessionsByDriver} deviceMappings={deviceMappings} />
 
-            {/* Temel Harita Tabanı (Açık, Koyu, Orijinal ESRI Uydu, veya Canlı Trafik) */}
+            {/* Temel Harita Tabanı (Orijinal ESRI Uydu veya Canlı Trafik) */}
             <TileLayer
               key={mapStyle}
-              url={mapUrls[mapStyle] || mapUrls.voyager}
-              className={mapStyle === 'darkmatter' ? 'dark-map-tiles' : ''}
-              subdomains={['traffic', 'voyager', 'darkmatter'].includes(mapStyle) ? ['0', '1', '2', '3'] : ['a', 'b', 'c', 'd']}
+              url={mapUrls[mapStyle] || mapUrls.satellite}
+              subdomains={mapStyle === 'traffic' ? ['0', '1', '2', '3'] : ['a', 'b', 'c', 'd']}
               maxZoom={20}
               maxNativeZoom={mapStyle === 'satellite' ? 18 : 20}
               keepBuffer={4}
