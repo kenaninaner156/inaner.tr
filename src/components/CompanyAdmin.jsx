@@ -126,9 +126,22 @@ const QUICK_TEMPLATES = [
 ];
 
 const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
-    const { activeCompanyId, companyData } = useCompany();
-    const { trucks, activeTruckId, setActiveTruckId } = useTruck();
-    const { approvedUsers, pendingUsers, approveUser, rejectUser, premiums, updatePremiums, editUser, deleteUser, drivers, updateDrivers, callAdminApi, companyNotifications } = useContext(DataContext);
+    const { activeCompanyId, companyData = {} } = useCompany() || {};
+    const { trucks = [], activeTruckId, setActiveTruckId } = useTruck() || {};
+    const { 
+        approvedUsers = [], 
+        pendingUsers = [], 
+        approveUser = () => {}, 
+        rejectUser = () => {}, 
+        premiums = [], 
+        updatePremiums = () => {}, 
+        editUser = () => {}, 
+        deleteUser = () => {}, 
+        drivers = [], 
+        updateDrivers = () => {}, 
+        callAdminApi = () => ({ success: false }), 
+        companyNotifications = [] 
+    } = useContext(DataContext) || {};
 
     const [activeTab, setActiveTab] = useState('trucks');
 
@@ -142,8 +155,11 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
         { id: '2', label: 'Sorun Var', icon: 'x', actionType: 'ack_rejected', style: 'red' }
     ]);
     const [isSendingNotif, setIsSendingNotif] = useState(false);
+    const [notifSending, setNotifSending] = useState(false);
     const [notifSuccess, setNotifSuccess] = useState(false);
     const [notifError, setNotifError] = useState(null);
+    const [notifResult, setNotifResult] = useState(null);
+    const [registeringDevice, setRegisteringDevice] = useState(false);
 
     // Özel İkon Seçici Modalı
     const [iconPickerIndex, setIconPickerIndex] = useState(null); // hangi butonun ikonu seçiliyor (0, 1 vs.)
@@ -186,6 +202,18 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
     const [premAmount, setPremAmount] = useState('');
     const [editingPremiumId, setEditingPremiumId] = useState(null);
 
+    // Offline Driver Form State
+    const [showOfflineDriverForm, setShowOfflineDriverForm] = useState(false);
+    const [editingOfflineDriverId, setEditingOfflineDriverId] = useState(null);
+    const [newOfflineDriverName, setNewOfflineDriverName] = useState('');
+    const [newOfflineDriverPhone, setNewOfflineDriverPhone] = useState('');
+
+    // User Password & Delete Modal States
+    const [editingUserId, setEditingUserId] = useState(null);
+    const [newUserPassword, setNewUserPassword] = useState('');
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [userToDelete, setUserToDelete] = useState(null);
+
     // Drivers state
     const [showDriverModal, setShowDriverModal] = useState(false);
     const [selectedUserForDriver, setSelectedUserForDriver] = useState(null);
@@ -211,6 +239,44 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
 
     // Şoför Arama ve Filtreleme
     const [driverSearch, setDriverSearch] = useState('');
+
+    const handleSaveOfflineDriver = async (e) => {
+        e.preventDefault();
+        if (!newOfflineDriverName.trim()) return;
+
+        try {
+            let updatedDrivers;
+            if (editingOfflineDriverId) {
+                updatedDrivers = (drivers || []).map(d =>
+                    d.id === editingOfflineDriverId
+                        ? { ...d, name: newOfflineDriverName.trim(), phone: newOfflineDriverPhone.trim() }
+                        : d
+                );
+            } else {
+                const newDriver = {
+                    id: 'driver_' + Date.now().toString(36),
+                    name: newOfflineDriverName.trim(),
+                    phone: newOfflineDriverPhone.trim(),
+                    createdAt: new Date().toISOString()
+                };
+                updatedDrivers = [...(drivers || []), newDriver];
+            }
+            await updateDrivers(updatedDrivers);
+            setShowOfflineDriverForm(false);
+            setEditingOfflineDriverId(null);
+            setNewOfflineDriverName('');
+            setNewOfflineDriverPhone('');
+        } catch {
+            alert("Şoför kaydedilirken bir hata oluştu.");
+        }
+    };
+
+    const handleEditOfflineDriver = (driver) => {
+        setEditingOfflineDriverId(driver.id);
+        setNewOfflineDriverName(driver.name || '');
+        setNewOfflineDriverPhone(driver.phone || '');
+        setShowOfflineDriverForm(true);
+    };
 
     const resetPremiumForm = () => {
         setPremName('');
