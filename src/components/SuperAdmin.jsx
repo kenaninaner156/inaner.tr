@@ -260,318 +260,548 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
 
     return (
         <div 
-            className="space-y-4 sm:space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto pb-ios-nav"
-            style={{
-                paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
-            }}
+            className="flex-1 flex flex-col h-full w-full p-2.5 sm:p-4 lg:p-6 overflow-hidden gap-3 max-w-[1920px] mx-auto pb-1 sm:pb-2"
         >
-            <div className="glass-panel p-4 sm:p-6 border-l-4 border-l-indigo-500 mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <div className="flex items-center gap-3">
+            {/* 1. Şık Tek Satır Başlık & Menü Çubuğu */}
+            <div 
+                className="flex items-center justify-between gap-3 pb-2.5 border-b border-white/[0.06] shrink-0"
+                style={{
+                    paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+                }}
+            >
+                <div className="flex items-center gap-2.5 min-w-0">
                     {isMobile && onOpenMenu && (
                         <button 
                             onClick={onOpenMenu} 
-                            className="p-1.5 -ml-1 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors md:hidden cursor-pointer shrink-0"
+                            className="p-1.5 -ml-1 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors cursor-pointer shrink-0"
                             title="Menüyü Aç"
                         >
-                            <Menu size={20} />
+                            <Menu size={22} />
                         </button>
                     )}
-                    <div>
-                        <h3 className="text-lg sm:text-xl font-bold flex items-center mb-1 text-[var(--text-primary)]">
-                            <ShieldAlert className="mr-2 sm:mr-3 text-indigo-400 shrink-0" size={22} />
-                            Super Admin Paneli (SaaS Yönetimi)
-                        </h3>
-                        <p className="text-[var(--text-secondary)] text-xs sm:text-sm">
-                            Sistemdeki tüm şirketleri görebilir ve yeni sistem müşterileri oluşturabilirsiniz.
-                        </p>
+                    <div className="flex items-center gap-2 min-w-0">
+                        <h2 className="text-lg font-bold tracking-tight text-white whitespace-nowrap flex items-center gap-2">
+                            <ShieldAlert size={20} className="text-slate-300" />
+                            <span>Super Admin (SaaS Yönetimi)</span>
+                        </h2>
                     </div>
                 </div>
-                <div className="flex bg-[var(--bg-panel-hover)] rounded-xl border border-[var(--border-color)] p-2.5 sm:p-3 items-center space-x-3 self-end sm:self-auto">
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
-                        <Server size={18} />
-                    </div>
-                    <div>
-                        <p className="text-[10px] sm:text-xs text-[var(--text-secondary)] font-medium tracking-wide">TOPLAM MÜŞTERİ</p>
-                        <p className="text-base sm:text-lg font-bold text-[var(--text-primary)] leading-none mt-1">{companies.length}</p>
+
+                <div className="flex items-center gap-2 shrink-0">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-800/80 border border-slate-700/80 rounded-full text-slate-300 text-xs font-semibold">
+                        <Server size={13} className="text-slate-400" />
+                        <span>Toplam: <strong className="text-white font-mono">{companies.length}</strong> Şirket</span>
                     </div>
                 </div>
             </div>
 
-            <div className="flex space-x-2 border-b border-[var(--border-color)] mb-4 sm:mb-6 pb-px overflow-x-auto no-scrollbar whitespace-nowrap">
+            {/* 2. Modern Kapsül Sekme Çubuğu */}
+            <div className="flex items-center gap-1.5 p-1 bg-[#0d1117] border border-white/[0.08] rounded-2xl overflow-x-auto custom-scrollbar shrink-0">
                 <button
                     onClick={() => setActiveTab('companies')}
-                    className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'companies' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                        activeTab === 'companies'
+                            ? 'bg-slate-800 text-white shadow-sm border border-slate-700'
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
                 >
-                    <div className="flex items-center"><Building2 size={16} className="mr-2" /> Şirketler ({companies.length})</div>
+                    <Building2 size={14} />
+                    <span>Şirketler</span>
+                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] ${activeTab === 'companies' ? 'bg-slate-700 text-slate-200' : 'bg-white/10 text-slate-400'}`}>
+                        {companies.length}
+                    </span>
                 </button>
                 <button
                     onClick={() => setActiveTab('users')}
-                    className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'users' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                        activeTab === 'users'
+                            ? 'bg-slate-800 text-white shadow-sm border border-slate-700'
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
                 >
-                    <div className="flex items-center"><Users size={16} className="mr-2" /> Sistem Kullanıcıları ({allUsers.length})</div>
+                    <Users size={14} />
+                    <span>Sistem Kullanıcıları</span>
+                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] ${activeTab === 'users' ? 'bg-slate-700 text-slate-200' : 'bg-white/10 text-slate-400'}`}>
+                        {allUsers.length}
+                    </span>
                 </button>
                 <button
                     onClick={() => setActiveTab('logs')}
-                    className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${activeTab === 'logs' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                        activeTab === 'logs'
+                            ? 'bg-slate-800 text-white shadow-sm border border-slate-700'
+                            : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
                 >
-                    <div className="flex items-center"><Shield size={16} className="mr-2" /> Admin Logu</div>
+                    <Shield size={14} />
+                    <span>Admin Logu</span>
                 </button>
             </div>
 
-            {activeTab === 'companies' && (
-                <>
-                    <div className="flex justify-between items-center bg-[var(--bg-panel-hover)] p-4 rounded-xl border border-[var(--border-color)] mb-4">
-                <div className="text-sm font-medium text-[var(--text-primary)] flex items-center">
-                    <Activity size={16} className="text-fuchsia-400 mr-2" />
-                    Aktif Müşteri Şirketleri Listesi
-                </div>
-                <div className="flex gap-2">
-                    <button 
-                        onClick={handleExportBackup} 
-                        disabled={isExporting}
-                        className={`bg-slate-700/50 hover:bg-slate-700 hover:text-white text-[var(--text-primary)] px-4 py-2 rounded-lg text-sm font-medium flex items-center transition-colors border border-slate-600/50 tooltip-parent`}
-                        title="Tüm Veritabanını Bilgisayara İndir (JSON)"
-                    >
-                        {isExporting ? (
-                            <Activity size={16} className="mr-1.5 animate-pulse text-amber-400" /> 
-                        ) : (
-                            <Database size={16} className="mr-1.5 text-sky-400" />
-                        )}
-                        {isExporting ? 'Yedekleniyor...' : 'Veritabanı Yedeği Al'}
-                    </button>
+            {/* 3. Ana İçerik Alanı (Kaydırılabilir) */}
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-4 pr-0.5">
 
-                    <button onClick={() => setShowForm(!showForm)} className="bg-indigo-500 hover:bg-indigo-600 text-[var(--text-primary)] px-4 py-2 rounded-lg text-sm font-medium flex items-center transition-colors shadow-lg shadow-indigo-500/20">
-                        <Plus size={16} className="mr-1.5" /> Yeni Müşteri (Şirket) Ekle
-                    </button>
-                </div>
-            </div>
-
-            {showForm && (
-                <form onSubmit={handleAddCompany} className="glass-panel p-6 mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 border border-indigo-500/30">
-                    <div>
-                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Şirket Adı (Müşteri Ünvanı)</label>
-                        <input type="text" required value={compName} onChange={e => setCompName(e.target.value)} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2.5 text-sm focus:border-indigo-500 outline-none transition-colors" placeholder="Örn: X Lojistik A.Ş." />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Ana Yönetici (Şirket Sahibinin Kullanıcı Adı)</label>
-                        <input type="text" required value={compAdmin} onChange={e => setCompAdmin(e.target.value)} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg px-4 py-2.5 text-sm focus:border-indigo-500 outline-none transition-colors" placeholder="Örn: xlojistik_admin" />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">Yönetici Şifresi (Geçici Şifre)</label>
-                        <div className="relative">
-                            <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                            <input type="text" required value={compPassword} onChange={e => setCompPassword(e.target.value)} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-lg pl-9 pr-4 py-2.5 text-sm focus:border-indigo-500 outline-none transition-colors" placeholder="Örn: xLojistik123" />
+                {/* ─── ŞİRKETLER SEKMESİ ─── */}
+                {activeTab === 'companies' && (
+                    <div className="space-y-3.5">
+                        {/* Üst Bar */}
+                        <div className="flex flex-wrap items-center justify-between gap-2.5 bg-[#0d1117] border border-white/[0.08] p-3 rounded-2xl">
+                            <div className="text-xs text-slate-300">
+                                Sistemde kayıtlı <span className="font-bold text-white font-mono">{companies.length}</span> müşteri şirketi bulunuyor.
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                                <button 
+                                    onClick={handleExportBackup} 
+                                    disabled={isExporting}
+                                    className="h-8 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                                    title="Tüm Veritabanını Bilgisayara İndir (JSON)"
+                                >
+                                    <Database size={13} className="text-sky-400" />
+                                    <span>{isExporting ? 'Yedekleniyor...' : 'Veritabanı Yedeği Al'}</span>
+                                </button>
+                                <button 
+                                    onClick={() => setShowForm(!showForm)} 
+                                    className="h-8 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                                >
+                                    <Plus size={14} />
+                                    <span>Yeni Şirket Ekle</span>
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                    <div className="flex items-end">
-                        <button type="submit" className="w-full bg-indigo-500 text-[var(--text-primary)] hover:bg-indigo-600 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-lg">
-                            Şirketi Sisteme Kaydet
-                        </button>
-                    </div>
-                </form>
-            )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {companies.map(comp => {
-                    const tCount = Math.max(stats.trucks?.[comp.id] || 0, stats.trucks?.[comp.docRefId] || 0);
-                    const dCount = Math.max(stats.drivers?.[comp.id] || 0, stats.drivers?.[comp.docRefId] || 0);
-                    const isEditing = editingCompanyId === comp.docRefId;
-
-                    return (
-                        <div key={comp.id} className={`glass-panel p-6 transition-all group flex flex-col ${comp.status === 'suspended' ? 'border-red-500/30 opacity-80' : 'border-[var(--border-color)] hover:border-indigo-500/50'}`}>
-                            <div className="flex justify-between items-start mb-4">
-                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center border transition-colors ${comp.status === 'suspended' ? 'bg-red-500/10 border-red-500/20' : 'bg-[var(--bg-panel-hover)] border-[var(--border-color)] group-hover:border-indigo-500/30'}`}>
-                                    <Building2 size={24} className={comp.status === 'suspended' ? 'text-red-400' : 'text-indigo-400'} />
-                                </div>
-                                <div className="flex flex-col items-end gap-2">
-                                    <button onClick={() => handleToggleStatus(comp.docRefId, comp.status)} className={`text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 transition-colors ${comp.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20' : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'}`} title={comp.status === 'active' ? 'Şirketi Askıya Al' : 'Ticari Faaliyeti Sürdür'}>
-                                        {comp.status === 'active' ? <><Check size={12} /> AKTİF</> : <><AlertOctagon size={12} /> ASKIYA ALINDI</>}
+                        {/* Yeni Şirket Ekleme Formu */}
+                        {showForm && (
+                            <form onSubmit={handleAddCompany} className="bg-[#07090e] p-4 sm:p-5 rounded-2xl border border-white/10 shadow-xl space-y-3 animate-in fade-in zoom-in-95 duration-200">
+                                <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                                    <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                        <Building2 size={14} className="text-slate-300" /> Yeni Müşteri Şirketi Oluştur
+                                    </h4>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setShowForm(false)}
+                                        className="text-slate-400 hover:text-white p-1 cursor-pointer"
+                                    >
+                                        <X size={14} />
                                     </button>
                                 </div>
-                            </div>
-
-                            {isEditing ? (
-                                <div className="space-y-3 mb-4 flex-1">
-                                    <input type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-sm outline-none focus:border-indigo-500" placeholder="Şirket Adı" />
-                                    <input type="text" value={editForm.adminId} onChange={e => setEditForm({ ...editForm, adminId: e.target.value })} className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md px-3 py-1.5 text-sm outline-none focus:border-indigo-500" placeholder="Yönetici Kullanıcı Adı" />
-                                    <div className="flex gap-2">
-                                        <button onClick={() => handleEditSave(comp.docRefId)} className="flex-1 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 py-1.5 rounded-md text-xs font-semibold transition border border-indigo-500/30">Kaydet</button>
-                                        <button onClick={() => setEditingCompanyId(null)} className="flex-1 bg-slate-700/50 hover:bg-slate-700/80 text-[var(--text-primary)] py-1.5 rounded-md text-xs font-semibold transition border border-slate-600/50">İptal</button>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-slate-400 mb-1">Şirket Adı (Müşteri Ünvanı) *</label>
+                                        <input 
+                                            type="text" 
+                                            required 
+                                            value={compName} 
+                                            onChange={e => setCompName(e.target.value)} 
+                                            className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-semibold focus:border-slate-500 outline-none" 
+                                            placeholder="Örn: X Lojistik A.Ş." 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-slate-400 mb-1">Ana Yönetici (Kullanıcı Adı) *</label>
+                                        <input 
+                                            type="text" 
+                                            required 
+                                            value={compAdmin} 
+                                            onChange={e => setCompAdmin(e.target.value)} 
+                                            className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl px-3 text-xs font-semibold focus:border-slate-500 outline-none" 
+                                            placeholder="Örn: xlojistik_admin" 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-medium text-slate-400 mb-1">Yönetici Şifresi (Geçici) *</label>
+                                        <div className="relative">
+                                            <Key size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                                            <input 
+                                                type="text" 
+                                                required 
+                                                value={compPassword} 
+                                                onChange={e => setCompPassword(e.target.value)} 
+                                                className="w-full h-9 bg-[#0d1117] border border-white/[0.08] text-white rounded-xl pl-8 pr-3 text-xs font-mono focus:border-slate-500 outline-none" 
+                                                placeholder="Örn: xLojistik123" 
+                                            />
+                                        </div>
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="mb-4 flex-1">
-                                    <h4 className="text-xl font-bold tracking-tight text-[var(--text-primary)] mb-1.5 truncate" title={comp.name}>{comp.name}</h4>
-                                    <p className="text-xs text-[var(--text-secondary)] font-medium flex items-center">
-                                        Yönetici: <span className="ml-1 text-[var(--text-primary)] bg-[var(--bg-panel-hover)] px-2 py-0.5 rounded-md">{comp.adminId}</span>
-                                    </p>
-                                </div>
-                            )}
-
-                            {/* Stats */}
-                            <div className="flex gap-2 mb-3">
-                                <div className="flex-1 bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg py-2 flex flex-col items-center justify-center" title="Araç sayısı">
-                                    <Truck size={14} className="text-slate-500 mb-1" />
-                                    <span className="text-sm font-bold text-[var(--text-primary)] leading-none">{tCount}</span>
-                                </div>
-                                <div className="flex-1 bg-[var(--bg-panel-hover)] border border-[var(--border-color)] rounded-lg py-2 flex flex-col items-center justify-center" title="Şoför sayısı">
-                                    <Users size={14} className="text-slate-500 mb-1" />
-                                    <span className="text-sm font-bold text-[var(--text-primary)] leading-none">{dCount}</span>
-                                </div>
-                            </div>
-
-                            {/* Personnel Toggle */}
-                            <div className="flex items-center justify-between border-t border-[var(--border-color)]/30 pt-3 mb-2">
-                                <span className="text-xs text-[var(--text-secondary)] font-medium">Personel & Prim Takibi</span>
-                                <button
-                                    type="button"
-                                    onClick={() => handleTogglePersonnel(comp.docRefId, comp.personnelEnabled)}
-                                    className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 outline-none flex items-center ${
-                                        comp.personnelEnabled ? 'bg-indigo-500' : 'bg-slate-800 border border-[var(--border-color)]'
-                                    }`}
-                                >
-                                    <div
-                                        className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 ${
-                                            comp.personnelEnabled ? 'translate-x-4' : 'translate-x-0'
-                                        }`}
-                                    />
-                                </button>
-                            </div>
-
-                            {/* Map Toggle */}
-                            <div className="flex items-center justify-between pt-1 mb-4">
-                                <span className="text-xs text-[var(--text-secondary)] font-medium">Harita Modülü</span>
-                                <button
-                                    type="button"
-                                    onClick={() => handleToggleMap(comp.docRefId, comp.mapEnabled)}
-                                    className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 outline-none flex items-center ${
-                                        comp.mapEnabled ? 'bg-indigo-500' : 'bg-slate-800 border border-[var(--border-color)]'
-                                    }`}
-                                >
-                                    <div
-                                        className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 ${
-                                            comp.mapEnabled ? 'translate-x-4' : 'translate-x-0'
-                                        }`}
-                                    />
-                                </button>
-                            </div>
-
-                            {/* E-Arşiv Toggle */}
-                            <div className="flex items-center justify-between pt-1 mb-4">
-                                <span className="text-xs text-[var(--text-secondary)] font-medium">E-Arşiv Modülü</span>
-                                <button
-                                    type="button"
-                                    onClick={() => handleToggleEArsiv(comp.docRefId, comp.earsivEnabled)}
-                                    className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 outline-none flex items-center ${
-                                        comp.earsivEnabled ? 'bg-indigo-500' : 'bg-slate-800 border border-[var(--border-color)]'
-                                    }`}
-                                >
-                                    <div
-                                        className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 ${
-                                            comp.earsivEnabled ? 'translate-x-4' : 'translate-x-0'
-                                        }`}
-                                    />
-                                </button>
-                            </div>
-
-                            <div className="pt-3 border-t border-[var(--border-color)] flex justify-between items-center mt-auto">
-                                <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
-                                    ID: {comp.id}
-                                </div>
-                                <div className="flex gap-1.5 items-center">
-                                    <button
-                                        onClick={() => {
-                                            setActiveCompanyId(comp.id);
-                                            localStorage.setItem('tir_current_company', comp.id);
-                                        }}
-                                        className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full transition-all ${activeCompanyId === comp.id
-                                            ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30'
-                                            : 'bg-[var(--bg-panel-hover)] text-slate-500 hover:text-indigo-400 hover:bg-indigo-500/10 border border-[var(--border-color)]'
-                                            }`}
-                                        title="Bu Şirketi Yönet"
+                                <div className="flex justify-end gap-2 pt-1">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setShowForm(false)} 
+                                        className="h-8 px-3 text-xs font-semibold text-slate-400 hover:text-white rounded-xl transition cursor-pointer"
                                     >
-                                        <LogIn size={10} />
-                                        {activeCompanyId === comp.id ? 'AKTİF' : 'Yönet'}
+                                        Vazgeç
                                     </button>
-                                    {(comp.id !== 'inaner_logistics') && (
-                                        <>
-                                            <button onClick={() => { setEditingCompanyId(comp.docRefId); setEditForm({ name: comp.name, adminId: comp.adminId }); }} className="text-slate-500 hover:text-indigo-400 p-1.5 bg-[var(--bg-panel-hover)] hover:bg-indigo-500/10 rounded-md transition-colors" title="Şirketi Düzenle">
-                                                <Edit2 size={13} />
-                                            </button>
-                                            <button onClick={() => handleDeleteCompany(comp)} className="text-slate-500 hover:text-red-400 p-1.5 bg-[var(--bg-panel-hover)] hover:bg-red-500/10 rounded-md transition-colors" title="Derinlemesine Sil (Cascade Delete)">
-                                                <Trash2 size={13} />
-                                            </button>
-                                        </>
-                                    )}
+                                    <button 
+                                        type="submit" 
+                                        className="h-8 px-4 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition border border-slate-700 flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                        <Check size={14} /> Şirketi Sisteme Kaydet
+                                    </button>
                                 </div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-            </>)}
+                            </form>
+                        )}
 
-            {activeTab === 'users' && (
-                <div className="glass-panel p-6">
-                    <h4 className="text-lg font-bold text-[var(--text-primary)] mb-4">Tüm Sistem Kullanıcıları ve Şifreleri</h4>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="border-b border-[var(--border-color)] text-xs text-[var(--text-secondary)]">
-                                    <th className="pb-3 pl-2">Kullanıcı Adı</th>
-                                    <th className="pb-3">Rol</th>
-                                    <th className="pb-3">Şirket ID</th>
-                                    <th className="pb-3">Şifre (Açık Metin)</th>
-                                    <th className="pb-3 text-right pr-2">İşlem</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {allUsers.map(user => (
-                                    <tr key={user.id} className="border-b border-[var(--border-color)]/50 hover:bg-[var(--bg-panel-hover)] transition-colors">
-                                        <td className="py-3 pl-2 text-sm font-semibold text-[var(--text-primary)]">{user.username}</td>
-                                        <td className="py-3 text-xs">
-                                            <span className={`px-2 py-1 rounded-md bg-opacity-20 flex items-center w-max ${
-                                                user.role === 'company_admin' ? 'bg-indigo-500 text-indigo-400' 
-                                                : user.role === 'şoför' ? 'bg-emerald-500 text-emerald-400'
-                                                : 'bg-slate-500 text-slate-400'
-                                            }`}>
-                                                {user.role}
+                        {/* Şirket Kartları Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                            {companies.map(comp => {
+                                const tCount = Math.max(stats.trucks?.[comp.id] || 0, stats.trucks?.[comp.docRefId] || 0);
+                                const dCount = Math.max(stats.drivers?.[comp.id] || 0, stats.drivers?.[comp.docRefId] || 0);
+                                const isEditing = editingCompanyId === comp.docRefId;
+                                const isSuspended = comp.status === 'suspended';
+
+                                return (
+                                    <div 
+                                        key={comp.id} 
+                                        className={`bg-[#07090e] rounded-2xl p-4 sm:p-5 border transition flex flex-col justify-between ${
+                                            isSuspended 
+                                                ? 'border-red-500/30 opacity-75' 
+                                                : activeCompanyId === comp.id
+                                                ? 'border-sky-500/60 shadow-md shadow-sky-500/10'
+                                                : 'border-white/[0.08] hover:border-slate-600'
+                                        }`}
+                                    >
+                                        {/* Üst Kısım: İkon + Şirket Adı & Durum */}
+                                        <div className="flex items-start justify-between gap-3 mb-3">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center border shrink-0 ${
+                                                    isSuspended 
+                                                        ? 'bg-red-500/10 border-red-500/20 text-red-400' 
+                                                        : 'bg-slate-800 border-slate-700 text-slate-300'
+                                                }`}>
+                                                    <Building2 size={20} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h4 className="text-sm sm:text-base font-bold text-white truncate" title={comp.name}>
+                                                        {comp.name}
+                                                    </h4>
+                                                    <p className="text-[11px] text-slate-400 font-medium truncate">
+                                                        Yönetici: <span className="text-slate-200 font-mono font-semibold">{comp.adminId}</span>
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <button 
+                                                onClick={() => handleToggleStatus(comp.docRefId, comp.status)} 
+                                                className={`text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 transition-colors shrink-0 cursor-pointer border ${
+                                                    comp.status === 'active' 
+                                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' 
+                                                        : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
+                                                }`} 
+                                                title={comp.status === 'active' ? 'Şirketi Askıya Al' : 'Ticari Faaliyeti Sürdür'}
+                                            >
+                                                <span className={`w-1.5 h-1.5 rounded-full ${comp.status === 'active' ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                                                {comp.status === 'active' ? 'AKTİF' : 'ASKIDA'}
+                                            </button>
+                                        </div>
+
+                                        {/* Düzenleme Formu veya Sayaç Kutuları */}
+                                        {isEditing ? (
+                                            <div className="space-y-2 my-2 p-3 bg-white/[0.02] border border-white/[0.06] rounded-xl">
+                                                <input 
+                                                    type="text" 
+                                                    value={editForm.name} 
+                                                    onChange={e => setEditForm({ ...editForm, name: e.target.value })} 
+                                                    className="w-full bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2.5 py-1 text-xs outline-none focus:border-slate-500" 
+                                                    placeholder="Şirket Adı" 
+                                                />
+                                                <input 
+                                                    type="text" 
+                                                    value={editForm.adminId} 
+                                                    onChange={e => setEditForm({ ...editForm, adminId: e.target.value })} 
+                                                    className="w-full bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2.5 py-1 text-xs outline-none focus:border-slate-500" 
+                                                    placeholder="Yönetici Kullanıcı Adı" 
+                                                />
+                                                <div className="flex gap-2 pt-1">
+                                                    <button 
+                                                        onClick={() => handleEditSave(comp.docRefId)} 
+                                                        className="flex-1 bg-slate-800 hover:bg-slate-700 text-white py-1 rounded-lg text-xs font-semibold transition border border-slate-700 cursor-pointer"
+                                                    >
+                                                        Kaydet
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setEditingCompanyId(null)} 
+                                                        className="flex-1 bg-white/10 hover:bg-white/15 text-slate-300 py-1 rounded-lg text-xs font-semibold transition cursor-pointer"
+                                                    >
+                                                        İptal
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-2 gap-2 my-2.5">
+                                                <div className="bg-[#0d1117] border border-white/[0.06] rounded-xl p-2 flex items-center justify-between">
+                                                    <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                                                        <Truck size={13} className="text-slate-400" /> Araç
+                                                    </span>
+                                                    <span className="text-xs font-bold text-white font-mono">{tCount}</span>
+                                                </div>
+                                                <div className="bg-[#0d1117] border border-white/[0.06] rounded-xl p-2 flex items-center justify-between">
+                                                    <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                                                        <Users size={13} className="text-slate-400" /> Şoför
+                                                    </span>
+                                                    <span className="text-xs font-bold text-white font-mono">{dCount}</span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Modül Açma / Kapama Anahtarları */}
+                                        <div className="space-y-1.5 py-2.5 border-t border-white/[0.06]">
+                                            {/* Personel & Prim */}
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-[11px] text-slate-400 font-medium">Personel & Prim Takibi</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleTogglePersonnel(comp.docRefId, comp.personnelEnabled)}
+                                                    className={`w-8 h-4.5 rounded-full p-0.5 transition-colors duration-200 outline-none flex items-center cursor-pointer ${
+                                                        comp.personnelEnabled ? 'bg-sky-500' : 'bg-slate-800 border border-slate-700'
+                                                    }`}
+                                                >
+                                                    <div
+                                                        className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 ${
+                                                            comp.personnelEnabled ? 'translate-x-3.5' : 'translate-x-0'
+                                                        }`}
+                                                    />
+                                                </button>
+                                            </div>
+
+                                            {/* Harita Modülü */}
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-[11px] text-slate-400 font-medium">Harita Modülü</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleToggleMap(comp.docRefId, comp.mapEnabled)}
+                                                    className={`w-8 h-4.5 rounded-full p-0.5 transition-colors duration-200 outline-none flex items-center cursor-pointer ${
+                                                        comp.mapEnabled ? 'bg-sky-500' : 'bg-slate-800 border border-slate-700'
+                                                    }`}
+                                                >
+                                                    <div
+                                                        className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 ${
+                                                            comp.mapEnabled ? 'translate-x-3.5' : 'translate-x-0'
+                                                        }`}
+                                                    />
+                                                </button>
+                                            </div>
+
+                                            {/* E-Arşiv Modülü */}
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-[11px] text-slate-400 font-medium">E-Arşiv Modülü</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleToggleEArsiv(comp.docRefId, comp.earsivEnabled)}
+                                                    className={`w-8 h-4.5 rounded-full p-0.5 transition-colors duration-200 outline-none flex items-center cursor-pointer ${
+                                                        comp.earsivEnabled ? 'bg-sky-500' : 'bg-slate-800 border border-slate-700'
+                                                    }`}
+                                                >
+                                                    <div
+                                                        className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 ${
+                                                            comp.earsivEnabled ? 'translate-x-3.5' : 'translate-x-0'
+                                                        }`}
+                                                    />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Alt Bar: ID ve Aksiyonlar */}
+                                        <div className="pt-2.5 border-t border-white/[0.06] flex justify-between items-center mt-auto">
+                                            <span className="text-[10px] text-slate-500 font-mono font-bold truncate max-w-[110px]" title={comp.id}>
+                                                {comp.id}
                                             </span>
-                                        </td>
-                                        <td className="py-3 text-xs text-slate-400 font-mono">{user.companyId || '-'}</td>
-                                        <td className="py-3">
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    onClick={() => {
+                                                        setActiveCompanyId(comp.id);
+                                                        localStorage.setItem('tir_current_company', comp.id);
+                                                    }}
+                                                    className={`flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-xl transition-all cursor-pointer ${
+                                                        activeCompanyId === comp.id
+                                                            ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                                                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                                                    }`}
+                                                    title="Bu Şirketi Yönet"
+                                                >
+                                                    <LogIn size={11} />
+                                                    {activeCompanyId === comp.id ? 'AKTİF' : 'Yönet'}
+                                                </button>
+                                                {comp.id !== 'inaner_logistics' && (
+                                                    <>
+                                                        <button 
+                                                            onClick={() => { setEditingCompanyId(comp.docRefId); setEditForm({ name: comp.name, adminId: comp.adminId }); }} 
+                                                            className="w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer" 
+                                                            title="Şirketi Düzenle"
+                                                        >
+                                                            <Edit2 size={12} />
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleDeleteCompany(comp)} 
+                                                            className="w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-red-400 flex items-center justify-center transition cursor-pointer" 
+                                                            title="Şirketi Sil"
+                                                        >
+                                                            <Trash2 size={12} />
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* ─── SİSTEM KULLANICILARI SEKMESİ ─── */}
+                {activeTab === 'users' && (
+                    <div className="bg-[#07090e] border border-white/[0.08] p-4 sm:p-5 rounded-2xl space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+                            <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                <Users size={14} className="text-slate-300" /> Tüm Sistem Kullanıcıları ve Şifreleri ({allUsers.length})
+                            </h4>
+                        </div>
+
+                        {/* Mobil Kart Görünümü */}
+                        <div className="grid grid-cols-1 md:hidden gap-2.5">
+                            {allUsers.map(user => (
+                                <div key={user.id} className="bg-white/[0.03] border border-white/[0.06] p-3.5 rounded-xl space-y-2.5">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300">
+                                                <Users size={14} />
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-white text-xs sm:text-sm">{user.username}</p>
+                                                <p className="text-[10px] text-slate-400 font-mono">Şirket: {user.companyId || '-'}</p>
+                                            </div>
+                                        </div>
+                                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase border ${
+                                            user.role === 'super_admin' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                                            : user.role === 'company_admin' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' 
+                                            : user.role === 'şoför' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                            : 'bg-slate-500/10 text-slate-300 border-slate-500/20'
+                                        }`}>
+                                            {user.role}
+                                        </span>
+                                    </div>
+
+                                    <div className="flex items-center justify-between pt-2 border-t border-white/[0.04]">
+                                        <div>
                                             {editingUserId === user.id ? (
                                                 <div className="flex items-center gap-1">
-                                                    <input type="password" value={editUserForm.password} onChange={e => setEditUserForm({password: e.target.value})} className="w-24 bg-[var(--bg-base)] border border-[var(--border-color)] text-[var(--text-primary)] text-xs rounded-md px-2 py-1 outline-none" placeholder="Şifre" />
-                                                    <button onClick={() => handleEditUserPassword(user.id)} className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 p-1 rounded-md"><Check size={14}/></button>
-                                                    <button onClick={() => setEditingUserId(null)} className="bg-slate-700 hover:bg-slate-600 text-slate-300 p-1 rounded-md"><X size={14}/></button>
+                                                    <input 
+                                                        type="password" 
+                                                        value={editUserForm.password} 
+                                                        onChange={e => setEditUserForm({password: e.target.value})} 
+                                                        className="w-28 bg-[#0d1117] border border-white/10 text-white text-xs rounded-lg px-2 py-1 outline-none focus:border-slate-500" 
+                                                        placeholder="Yeni Şifre" 
+                                                    />
+                                                    <button onClick={() => handleEditUserPassword(user.id)} className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 p-1.5 rounded-lg cursor-pointer"><Check size={12}/></button>
+                                                    <button onClick={() => setEditingUserId(null)} className="bg-white/10 text-slate-300 p-1.5 rounded-lg cursor-pointer"><X size={12}/></button>
                                                 </div>
                                             ) : (
-                                                <span className="font-mono text-xs text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">
+                                                <span className="font-mono text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
                                                     *******
                                                 </span>
                                             )}
-                                        </td>
-                                        <td className="py-3 text-right pr-2">
-                                            <div className="flex justify-end gap-1">
-                                                <button onClick={() => { setEditingUserId(user.id); setEditUserForm({password: ''}); }} className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/20 rounded-md transition" title="Şifreyi Düzenle"><Edit2 size={14}/></button>
-                                                <button onClick={() => handleDeleteUser(user.id, user.username)} className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/20 rounded-md transition" title="Kullanıcıyı Sil"><Trash2 size={14}/></button>
-                                            </div>
-                                        </td>
+                                        </div>
+
+                                        <div className="flex items-center gap-1">
+                                            <button 
+                                                onClick={() => { setEditingUserId(user.id); setEditUserForm({password: ''}); }} 
+                                                className="w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer" 
+                                                title="Şifreyi Düzenle"
+                                            >
+                                                <Edit2 size={12} />
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDeleteUser(user.id, user.username)} 
+                                                className="w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-red-400 flex items-center justify-center transition cursor-pointer" 
+                                                title="Kullanıcıyı Sil"
+                                            >
+                                                <Trash2 size={12} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Masaüstü Tablo Görünümü */}
+                        <div className="hidden md:block overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="border-b border-white/[0.06] text-xs text-slate-400">
+                                        <th className="pb-3 pl-3 font-semibold">Kullanıcı Adı</th>
+                                        <th className="pb-3 font-semibold">Rol</th>
+                                        <th className="pb-3 font-semibold">Şirket ID</th>
+                                        <th className="pb-3 font-semibold">Şifre</th>
+                                        <th className="pb-3 text-right pr-3 font-semibold">İşlem</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {allUsers.map(user => (
+                                        <tr key={user.id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
+                                            <td className="py-3 pl-3 text-xs font-bold text-white">{user.username}</td>
+                                            <td className="py-3 text-xs">
+                                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase border inline-block ${
+                                                    user.role === 'super_admin' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                                                    : user.role === 'company_admin' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' 
+                                                    : user.role === 'şoför' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                                    : 'bg-slate-500/10 text-slate-300 border-slate-500/20'
+                                                }`}>
+                                                    {user.role}
+                                                </span>
+                                            </td>
+                                            <td className="py-3 text-xs text-slate-400 font-mono">{user.companyId || '-'}</td>
+                                            <td className="py-3">
+                                                {editingUserId === user.id ? (
+                                                    <div className="flex items-center gap-1">
+                                                        <input 
+                                                            type="password" 
+                                                            value={editUserForm.password} 
+                                                            onChange={e => setEditUserForm({password: e.target.value})} 
+                                                            className="w-28 bg-[#0d1117] border border-white/10 text-white text-xs rounded-lg px-2 py-1 outline-none focus:border-slate-500" 
+                                                            placeholder="Yeni Şifre" 
+                                                        />
+                                                        <button onClick={() => handleEditUserPassword(user.id)} className="bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 p-1.5 rounded-lg cursor-pointer"><Check size={12}/></button>
+                                                        <button onClick={() => setEditingUserId(null)} className="bg-white/10 text-slate-300 p-1.5 rounded-lg cursor-pointer"><X size={12}/></button>
+                                                    </div>
+                                                ) : (
+                                                    <span className="font-mono text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                                        *******
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="py-3 text-right pr-3">
+                                                <div className="flex justify-end gap-1">
+                                                    <button 
+                                                        onClick={() => { setEditingUserId(user.id); setEditUserForm({password: ''}); }} 
+                                                        className="w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer" 
+                                                        title="Şifreyi Düzenle"
+                                                    >
+                                                        <Edit2 size={12} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDeleteUser(user.id, user.username)} 
+                                                        className="w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-white/10 text-slate-400 hover:text-red-400 flex items-center justify-center transition cursor-pointer" 
+                                                        title="Kullanıcıyı Sil"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {activeTab === 'logs' && (
-                <div className="pt-2">
-                    <AdminLog />
-                </div>
-            )}
+                {/* ─── ADMIN LOGU SEKMESİ ─── */}
+                {activeTab === 'logs' && (
+                    <div className="animate-in fade-in duration-300">
+                        <AdminLog />
+                    </div>
+                )}
 
+            </div>
         </div>
     );
 };
