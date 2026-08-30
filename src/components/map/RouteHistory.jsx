@@ -1752,12 +1752,11 @@ export default function RouteHistory({
                   input[type='range']::-webkit-slider-thumb:hover { transform: scale(1.25); }
                   
                   .play-tooltip {
-                    background: rgba(13, 18, 25, 0.95) !important;
+                    background: #0d1219 !important;
                     border: 1px solid rgba(255, 255, 255, 0.1) !important;
                     border-radius: 12px !important;
                     padding: 6px 12px !important;
                     box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
-                    backdrop-filter: blur(8px) !important;
                   }
                   .play-tooltip::before {
                     border-top-color: rgba(13, 18, 25, 0.95) !important;
@@ -1811,7 +1810,7 @@ export default function RouteHistory({
       {savingSession && (
         <div
           ref={saveModalRef}
-          className="fixed inset-0 z-[3500] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md"
+          className="fixed inset-0 z-[3500] flex items-center justify-center p-4 bg-black/75"
           onClick={() => setSaveDropdownOpen(false)}>
           <div
             className="rounded-3xl p-6 w-full max-w-sm shadow-2xl"
