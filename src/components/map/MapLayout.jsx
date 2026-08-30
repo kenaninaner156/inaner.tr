@@ -528,6 +528,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
             <TileLayer
               key={mapStyle}
               url={mapUrls[mapStyle] || mapUrls.voyager}
+              className={mapStyle === 'darkmatter' ? 'dark-map-tiles' : ''}
               subdomains={mapStyle === 'traffic' ? ['0', '1', '2', '3'] : ['a', 'b', 'c', 'd']}
               maxZoom={20}
               maxNativeZoom={mapStyle === 'satellite' ? 18 : mapStyle === 'traffic' ? 20 : 16}

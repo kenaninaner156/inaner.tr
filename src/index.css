@@ -714,8 +714,8 @@ body.ios-pwa {
   --safe-top: max(env(safe-area-inset-top, 0px), 24px);
 }
 
-/* ── Premium Obsidian Dark Map (Zero API Key, 100% Free Forever) ── */
+/* ── Tam Siyah Obsidiyen Gece Haritası (Pure Deep Black) ── */
 .dark-map-tiles {
-  filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(108%) saturate(30%) !important;
+  filter: brightness(0.28) contrast(260%) grayscale(100%) !important;
 }
 
