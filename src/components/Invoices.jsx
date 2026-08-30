@@ -590,20 +590,20 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                         <div className="mt-3 flex flex-row gap-2">
                             <button
                                 onClick={handlePrintPDF}
-                                className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-slate-700 hover:bg-slate-600 text-[var(--text-primary)] rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-slate-700 hover:bg-slate-600 text-[var(--text-primary)] rounded-lg text-xs font-medium transition-colors cursor-pointer"
                             >
-                                <Printer size={14} /> PDF İndir
+                                <Printer size={13} /> PDF İndir
                             </button>
                             {activeInvoice.status === 'Sent' ? (
-                                <button disabled className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-[var(--bg-panel-hover)] text-sky-400 rounded-lg text-xs font-medium border border-sky-500/30 opacity-80">
-                                    <CheckCircle size={14} /> Onaylandı
+                                <button disabled className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-[var(--bg-panel-hover)] text-sky-400 rounded-lg text-xs font-medium border border-sky-500/30 opacity-80">
+                                    <CheckCircle size={13} /> Onaylandı
                                 </button>
                             ) : (
                                 <button
                                     onClick={handleSaveInvoice}
-                                    className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-sky-600 hover:bg-sky-500 text-[var(--text-primary)] rounded-lg text-xs font-medium transition-colors border border-sky-500 shadow-none cursor-pointer"
+                                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-sky-600 hover:bg-sky-500 text-[var(--text-primary)] rounded-lg text-xs font-medium transition-colors border border-sky-500 shadow-none cursor-pointer"
                                 >
-                                    <Save size={14} /> Kes & Onayla
+                                    <Save size={13} /> Kes & Onayla
                                 </button>
                             )}
                         </div>
@@ -683,11 +683,11 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                 mobileActiveView === 'list' ? 'hidden md:flex' : 'flex'
             }`}>
                 {/* Mobilde Üst Hızlı Geri & PDF Barı */}
-                <div className="md:hidden flex items-center justify-between pb-2 mb-2 border-b border-slate-200 shrink-0">
+                <div className="md:hidden flex items-center justify-between pb-1.5 mb-2 border-b border-slate-200/80 shrink-0">
                     <button
                         type="button"
                         onClick={() => setMobileActiveView('list')}
-                        className="text-xs font-bold text-slate-700 hover:text-slate-900 flex items-center gap-1 cursor-pointer bg-slate-200/80 hover:bg-slate-300 px-3 py-1.5 rounded-xl transition-colors shadow-xs"
+                        className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1 cursor-pointer bg-slate-200/70 hover:bg-slate-300/80 px-2.5 py-1 rounded-lg transition-colors"
                     >
                         ← Faturalara Dön
                     </button>
@@ -695,9 +695,10 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                         <button
                             type="button"
                             onClick={handlePrintPDF}
-                            className="text-xs font-bold text-sky-700 hover:text-sky-800 flex items-center gap-1.5 cursor-pointer bg-sky-100/90 border border-sky-300/60 px-3 py-1.5 rounded-xl transition-colors shadow-xs"
+                            className="text-[11px] font-semibold text-sky-700 hover:text-sky-800 flex items-center gap-1 cursor-pointer bg-sky-50 hover:bg-sky-100/80 border border-sky-200/80 px-2.5 py-1 rounded-lg transition-colors"
                         >
-                            <Printer size={13} /> PDF İndir
+                            <Printer size={12} />
+                            <span>PDF İndir</span>
                         </button>
                     )}
                 </div>
