@@ -639,7 +639,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     // ─── DİKEY (PORTRAIT) MOD: DENGELİ GRAFİK & CANLI OPERASYON AKIŞI ───
     return (
         <div 
-            className="flex-1 flex flex-col h-full w-full overflow-y-auto custom-scrollbar gap-2.5 sm:gap-3 max-w-[1920px] mx-auto pb-4"
+            className="flex-1 flex flex-col h-full w-full overflow-y-auto custom-scrollbar gap-2.5 sm:gap-3 max-w-[1920px] mx-auto pb-4 pt-1 sm:pt-1.5"
         >
             {/* Mobilde Şık Başlık & Menü Çubuğu */}
             {isMobile && onOpenMenu && (
@@ -665,7 +665,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
             )}
 
             {/* ─── 4'LÜ STRATEJİK KPI ÖZET KARTLARI (MOBİLDE 2x2 KOMPAKT GRID) ─── */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5 shrink-0">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5 shrink-0 pt-0.5 sm:pt-1">
                 
                 {/* 1. KART: Toplam Gelir (Ciro - Tüm Zamanlar) */}
                 <div 

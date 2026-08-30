@@ -675,7 +675,7 @@ function App() {
                     : 'p-3 sm:p-4 md:p-6 xl:p-8'
             }`}
             style={activeTab === 'dashboard' ? {
-              paddingTop: 'calc(0.85rem + env(safe-area-inset-top, 0px))',
+              paddingTop: 'calc(1.35rem + env(safe-area-inset-top, 0px))',
               paddingRight: 'calc(1.25rem + env(safe-area-inset-right, 0px))',
               paddingLeft: 'calc(1.25rem + env(safe-area-inset-left, 0px))'
             } : undefined}
