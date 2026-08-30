@@ -7,6 +7,7 @@ import { useTruck } from '../context/TruckContext';
 import { db } from '../services/firebaseConfig';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import FileUpload from './FileUpload';
+import CustomDatePicker from './CustomDatePicker';
 import { sendDiscordAlert } from '../services/discordWebhook';
 import Tire3DViewer from './Tire3DViewer';
 
@@ -467,39 +468,37 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
             </div>
 
             {/* ─── ZARİF OBSİDYEN TAB BAR (Saf Kayar & Sıfır Çakışma) ─── */}
-            <div className="w-full z-20 relative overflow-hidden rounded-2xl">
-                <div className="flex bg-[#0c1017]/90 backdrop-blur-xl p-1.5 rounded-2xl shadow-xl border border-white/[0.08] w-full items-center overflow-x-auto [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                    <div className="flex items-center gap-1.5 min-w-full sm:min-w-0 w-full sm:w-auto">
-                        {tabs.map(tab => {
-                            const isActive = activeTab === tab.id;
-                            return (
-                                <button 
-                                    key={tab.id} 
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`relative flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl text-xs sm:text-sm transition-all duration-200 flex-1 sm:flex-initial justify-center whitespace-nowrap outline-none cursor-pointer group shrink-0 ${
-                                        isActive ? 'text-white font-bold' : 'text-slate-400 font-medium hover:text-white hover:bg-white/5'
-                                    }`}
-                                >
-                                    {/* Aktif Sekme Renkli Gradyan Pill */}
-                                    {isActive && (
-                                        <motion.div
-                                            layoutId="maintenance-active-tab-glow"
-                                            className={`absolute inset-0 bg-gradient-to-r ${tab.theme} rounded-xl`}
-                                            style={{ zIndex: 0 }}
-                                            initial={false}
-                                            transition={{ type: "spring", stiffness: 450, damping: 32, mass: 0.8 }}
-                                        />
-                                    )}
-                                    <span className="relative z-10 flex items-center gap-1.5 sm:gap-2">
-                                        <span className={isActive ? 'text-white' : `text-slate-400 ${tab.hoverText} transition-colors duration-200`}>
-                                            {tab.icon}
-                                        </span>
-                                        <span>{tab.label}</span>
+            <div className="w-full z-20 overflow-x-auto no-scrollbar scroll-smooth py-1">
+                <div className="inline-flex bg-[#0c1017]/90 backdrop-blur-xl p-1.5 rounded-2xl shadow-xl border border-white/[0.08] min-w-full sm:min-w-0 items-center gap-1.5">
+                    {tabs.map(tab => {
+                        const isActive = activeTab === tab.id;
+                        return (
+                            <button 
+                                key={tab.id} 
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`relative flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl text-xs sm:text-sm transition-all duration-200 justify-center whitespace-nowrap outline-none cursor-pointer group shrink-0 ${
+                                    isActive ? 'text-white font-bold' : 'text-slate-400 font-medium hover:text-white hover:bg-white/5'
+                                }`}
+                            >
+                                {/* Aktif Sekme Renkli Gradyan Pill */}
+                                {isActive && (
+                                    <motion.div
+                                        layoutId="maintenance-active-tab-glow"
+                                        className={`absolute inset-0 bg-gradient-to-r ${tab.theme} rounded-xl`}
+                                        style={{ zIndex: 0 }}
+                                        initial={false}
+                                        transition={{ type: "spring", stiffness: 450, damping: 32, mass: 0.8 }}
+                                    />
+                                )}
+                                <span className="relative z-10 flex items-center gap-1.5 sm:gap-2">
+                                    <span className={isActive ? 'text-white' : `text-slate-400 ${tab.hoverText} transition-colors duration-200`}>
+                                        {tab.icon}
                                     </span>
-                                </button>
-                            );
-                        })}
-                    </div>
+                                    <span>{tab.label}</span>
+                                </span>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -693,9 +692,10 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                                 </div>
                             </div>
 
-                            {/* BAKIM KAYITLARI TABLOSU */}
+                            {/* BAKIM KAYITLARI TABLOSU (Masaüstü & Mobil Görünüm) */}
                             <div className="bg-[#0c1017]/90 backdrop-blur-xl border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
-                                <div className="overflow-x-auto">
+                                {/* Masaüstü Tablo Görünümü */}
+                                <div className="hidden md:block overflow-x-auto">
                                     <table className="w-full border-collapse" style={{ minWidth: '480px' }}>
                                         <thead>
                                             <tr className="bg-white/[0.03] border-b border-white/[0.06] text-slate-400 text-[11px] uppercase font-bold tracking-wider">
@@ -709,9 +709,15 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-white/[0.04]">
-                                            {activeMaintenanceRecords.length > 0 ? activeMaintenanceRecords.map(rec => (
+                                            {activeMaintenanceRecords.length > 0 ? activeMaintenanceRecords.map(rec => {
+                                                const recDate = rec.date ? new Date(rec.date) : new Date();
+                                                const formattedDate = !isNaN(recDate.getTime()) ? recDate.toLocaleDateString('tr-TR') : '—';
+                                                const recCost = parseFloat(rec.cost) || 0;
+                                                const recKm = parseInt(rec.km) || 0;
+
+                                                return (
                                                 <tr key={rec.id} className="hover:bg-white/[0.02] transition-colors group">
-                                                    <td className="p-3 pl-4 text-white text-sm font-semibold whitespace-nowrap">{new Date(rec.date).toLocaleDateString('tr-TR')}</td>
+                                                    <td className="p-3 pl-4 text-white text-sm font-semibold whitespace-nowrap">{formattedDate}</td>
                                                     <td className="p-3 whitespace-nowrap">
                                                         <span className="bg-white/[0.05] text-slate-200 border border-white/10 text-xs font-bold px-2 py-0.5 rounded-md">{rec.type}</span>
                                                     </td>
@@ -723,8 +729,8 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                                                             </div>
                                                         )}
                                                     </td>
-                                                    <td className="p-3 text-center text-slate-300 font-mono text-xs font-semibold whitespace-nowrap">{rec.km > 0 ? `${(parseInt(rec.km) || 0).toLocaleString('tr-TR')} km` : '—'}</td>
-                                                    <td className="p-3 text-right text-amber-400 font-bold font-mono text-sm whitespace-nowrap">₺{(parseFloat(rec.cost) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
+                                                    <td className="p-3 text-center text-slate-300 font-mono text-xs font-semibold whitespace-nowrap">{recKm > 0 ? `${recKm.toLocaleString('tr-TR')} km` : '—'}</td>
+                                                    <td className="p-3 text-right text-amber-400 font-bold font-mono text-sm whitespace-nowrap">₺{recCost.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</td>
                                                     <td className="p-3 text-center whitespace-nowrap">
                                                         {rec.files && rec.files.length > 0 ? (
                                                             <button onClick={() => setViewFiles({ title: rec.description || 'Bakım Kaydı', files: rec.files })}
@@ -762,7 +768,8 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                                                         </div>
                                                     </td>
                                                 </tr>
-                                            )) : (
+                                                );
+                                            }) : (
                                                 <tr><td colSpan="7" className="p-12 text-center text-slate-500">
                                                     <Wrench size={36} className="mx-auto mb-3 opacity-20 text-amber-400" />
                                                     <p className="text-slate-300 font-semibold">Henüz Bakım Kaydı Yok</p>
@@ -771,6 +778,97 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                                             )}
                                         </tbody>
                                     </table>
+                                </div>
+
+                                {/* Mobil Kart Görünümü */}
+                                <div className="md:hidden flex flex-col gap-2.5 p-3">
+                                    {activeMaintenanceRecords.length > 0 ? (
+                                        activeMaintenanceRecords.map(rec => {
+                                            const recDate = rec.date ? new Date(rec.date) : new Date();
+                                            const formattedDate = !isNaN(recDate.getTime()) ? recDate.toLocaleDateString('tr-TR') : '—';
+                                            const recCost = parseFloat(rec.cost) || 0;
+                                            const recKm = parseInt(rec.km) || 0;
+
+                                            return (
+                                            <div key={rec.id} className="bg-[#0b0e14]/90 border border-white/[0.08] hover:border-amber-500/30 rounded-xl p-3.5 shadow-md relative transition-all">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <span className="text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-md whitespace-nowrap">
+                                                            {rec.type}
+                                                        </span>
+                                                        <span className="text-xs font-bold text-slate-400 whitespace-nowrap">
+                                                            {formattedDate}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        {rec.files && rec.files.length > 0 && (
+                                                            <button 
+                                                                onClick={() => setViewFiles({ title: rec.description || 'Bakım Kaydı', files: rec.files })}
+                                                                className="p-1 bg-amber-500/10 hover:bg-amber-500/20 rounded-lg text-amber-400 transition-colors flex items-center cursor-pointer"
+                                                                title={`${rec.files.length} Ek`}
+                                                            >
+                                                                <Paperclip size={12} />
+                                                            </button>
+                                                        )}
+                                                        <button 
+                                                            onClick={() => {
+                                                                const matchedMechanic = mechanics.find(m => m.name === rec.mechanicName);
+                                                                setEditingMaintenanceId(rec.id);
+                                                                setMaintenanceForm({
+                                                                    date: rec.date || new Date().toISOString().split('T')[0],
+                                                                    type: rec.type || 'Periyodik Bakım',
+                                                                    description: rec.description || '',
+                                                                    mechanicId: matchedMechanic ? matchedMechanic.id : '',
+                                                                    km: rec.km || '',
+                                                                    cost: rec.cost || '',
+                                                                    files: rec.files || [],
+                                                                    doneItems: rec.doneItems || []
+                                                                });
+                                                                setIsMaintenanceModalOpen(true);
+                                                            }}
+                                                            className="p-1 bg-white/5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-amber-400 transition-colors cursor-pointer"
+                                                        >
+                                                            <Pencil size={13} />
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleDeleteMaintenance(rec.id)}
+                                                            className="p-1 bg-white/5 hover:bg-red-500/10 rounded-lg text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
+                                                        >
+                                                            <Trash2 size={13} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="text-sm font-bold text-white leading-snug mb-1">
+                                                    {rec.description}
+                                                </div>
+
+                                                {rec.mechanicName && rec.mechanicName !== 'Belirtilmedi' && (
+                                                    <div className="text-xs text-slate-400 mb-2 flex items-center gap-1.5">
+                                                        <MapPin size={12} className="text-amber-400/80 shrink-0" />
+                                                        <span className="truncate">{rec.mechanicName}</span>
+                                                    </div>
+                                                )}
+
+                                                <div className="grid grid-cols-2 gap-2 bg-white/[0.02] border border-white/5 rounded-xl p-2.5 items-center mt-2.5">
+                                                    <div className="flex flex-col">
+                                                        <div className="text-[9px] text-slate-500 uppercase font-bold mb-0.5">ARAÇ KM</div>
+                                                        <div className="text-white font-mono font-bold text-xs">{recKm > 0 ? `${recKm.toLocaleString('tr-TR')} km` : '—'}</div>
+                                                    </div>
+                                                    <div className="flex flex-col items-end border-l border-white/10 pl-2">
+                                                        <div className="text-[9px] text-slate-500 uppercase font-bold mb-0.5 w-full text-right">TOPLAM TUTAR</div>
+                                                        <div className="text-amber-400 font-bold text-sm w-full text-right font-mono">₺{recCost.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            );
+                                        })
+                                    ) : (
+                                        <div className="p-8 text-center text-slate-500">
+                                            <Wrench size={32} className="mx-auto mb-3 opacity-20 text-amber-400" />
+                                            <p className="text-sm font-semibold text-slate-300">Henüz Bakım Kaydı Yok</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -793,11 +891,11 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                                                     <p className="text-xs sm:text-sm text-slate-400 mt-0.5 line-clamp-1">{item.description || 'Açıklama yok'}</p>
                                                 </div>
 
-                                                <div className="flex items-center gap-4 shrink-0">
+                                                <div className="flex items-center gap-2 sm:gap-4 shrink-0">
                                                     {item.price > 0 && (
-                                                        <div className="text-right hidden sm:block">
-                                                            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Tahmini Fiyat</p>
-                                                            <p className="font-bold text-emerald-400 font-mono text-sm sm:text-base">₺{item.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</p>
+                                                        <div className="text-right">
+                                                            <p className="text-[9px] sm:text-[10px] text-slate-500 uppercase font-bold tracking-wider hidden sm:block">Tahmini Fiyat</p>
+                                                            <p className="font-bold text-emerald-400 font-mono text-xs sm:text-base">₺{Number(item.price || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</p>
                                                         </div>
                                                     )}
                                                     
@@ -1242,11 +1340,14 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                             </div>
                             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar">
                                 <form onSubmit={handleAddMaintenance} className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-2 gap-3 items-end">
                                         <div>
                                             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Tarih</label>
-                                            <input type="date" required className="w-full bg-[#0b0e14]/90 border border-white/10 focus:border-amber-500/50 rounded-xl px-3 py-2 text-sm text-white outline-none transition-all" value={maintenanceForm.date}
-                                                onChange={e => setMaintenanceForm({ ...maintenanceForm, date: e.target.value })} />
+                                            <CustomDatePicker 
+                                                value={maintenanceForm.date}
+                                                onChange={val => setMaintenanceForm({ ...maintenanceForm, date: val })}
+                                                className="bg-[#0b0e14]/90 border border-white/10 focus:border-amber-500/50 rounded-xl px-3 py-2 text-sm text-white"
+                                            />
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Araç KM</label>
