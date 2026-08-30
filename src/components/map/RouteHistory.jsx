@@ -1157,8 +1157,8 @@ export default function RouteHistory({
             transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
             className="hidden md:flex absolute left-4 w-[330px] z-[1500] flex-col rounded-3xl overflow-hidden border border-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.85)]"
             style={{
-              top: 'calc(5.25rem + env(safe-area-inset-top, 0px))',
-              maxHeight: 'calc(100vh - 6.5rem - env(safe-area-inset-top, 0px))',
+              top: 'calc(5.25rem + var(--safe-top))',
+              maxHeight: 'calc(100vh - 6.5rem - var(--safe-top))',
               background: '#0D1219',
             }}
           >
@@ -1669,7 +1669,7 @@ export default function RouteHistory({
             onClick={() => setShowSidebar(true)}
             className="hidden md:block absolute left-4 z-[1500] p-3.5 bg-[#0e131b] hover:bg-[#121822] text-amber-400 rounded-2xl border border-white/10 transition-all shadow-xl cursor-pointer"
             style={{
-              top: 'calc(5.25rem + env(safe-area-inset-top, 0px))'
+              top: 'calc(5.25rem + var(--safe-top))'
             }}
           >
             <Clock size={16} />

@@ -384,7 +384,7 @@ function MobileMapActions({ vehicleList, followedVehicle, setFollowedDriverId, s
     <div 
       className="absolute right-3.5 z-[1500] flex flex-col gap-2.5 pointer-events-auto md:hidden"
       style={{
-        top: 'calc(env(safe-area-inset-top, 0px) + 78px)'
+        top: 'calc(var(--safe-top) + 78px)'
       }}
     >
       {/* 1. Üçgen: Seçili Aracı Ortala */}
@@ -734,8 +734,8 @@ export default function LiveTracking({
             transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
             className="hidden md:flex absolute left-4 w-[300px] z-[1500] flex-col rounded-3xl" 
             style={{
-              top: 'calc(5.25rem + env(safe-area-inset-top, 0px))',
-              maxHeight: 'calc(100vh - 6.5rem - env(safe-area-inset-top, 0px))',
+              top: 'calc(5.25rem + var(--safe-top))',
+              maxHeight: 'calc(100vh - 6.5rem - var(--safe-top))',
               background: '#0D1219',
               border: PANEL_BORDER,
               boxShadow: '0 8px 40px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.03)',
@@ -787,7 +787,7 @@ export default function LiveTracking({
             onClick={() => setShowSidebar(true)}
             className="hidden md:flex absolute left-4 z-[1500] p-3.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-2xl border border-emerald-500/20 transition-all cursor-pointer"
             style={{
-              top: 'calc(5.25rem + env(safe-area-inset-top, 0px))'
+              top: 'calc(5.25rem + var(--safe-top))'
             }}
           >
             <Activity size={16} />

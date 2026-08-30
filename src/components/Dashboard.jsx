@@ -454,7 +454,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                 style={{
                     paddingLeft: 'calc(1.25rem + env(safe-area-inset-left, 0px))',
                     paddingRight: 'calc(1.25rem + env(safe-area-inset-right, 0px))',
-                    paddingTop: 'calc(0.85rem + env(safe-area-inset-top, 0px))',
+                    paddingTop: 'calc(0.85rem + var(--safe-top))',
                     paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))',
                 }}
             >
@@ -646,7 +646,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                 <div 
                     className="flex items-center justify-between gap-3 pb-2 border-b border-white/[0.06] shrink-0"
                     style={{
-                        paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+                        paddingTop: 'calc(0.75rem + var(--safe-top))'
                     }}
                 >
                     <div className="flex items-center gap-2.5 min-w-0">

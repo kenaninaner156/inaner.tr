@@ -391,7 +391,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
         ref={navBarCallbackRef} 
         className="absolute top-3 sm:top-5 left-1/2 -translate-x-1/2 z-[2000] pointer-events-auto w-[96%] sm:w-11/12 max-w-2xl"
         style={{
-          paddingTop: 'env(safe-area-inset-top, 0px)'
+          paddingTop: 'var(--safe-top)'
         }}
       >
         <div className="flex bg-[#0D1219] p-1 sm:p-1.5 rounded-2xl shadow-xl w-full border border-white/10 items-center select-none gap-0.5 sm:gap-1 ring-1 ring-black/40">

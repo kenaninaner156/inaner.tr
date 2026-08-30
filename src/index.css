@@ -39,6 +39,9 @@
   --border-color: rgba(255, 255, 255, 0.08);
   --border-active: rgba(255, 255, 255, 0.16);
 
+  /* iOS PWA Safe Area Fallback */
+  --safe-top: env(safe-area-inset-top, 0px);
+
   /* Deep floating elevation shadows */
   --shadow-panel: 0 20px 50px rgba(0, 0, 0, 0.75);
   --shadow-panel-hover: 0 24px 60px rgba(0, 0, 0, 0.85);
@@ -51,6 +54,13 @@
   --scrollbar-track: transparent;
   --scrollbar-thumb: rgba(255, 255, 255, 0.1);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
+
+  /* iOS PWA Safe Area Fallback */
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+body.ios-pwa {
+  --safe-top: max(env(safe-area-inset-top, 0px), 24px);
 }
 
 /* === Tema 2: KREM (Avant-Garde Light) === */
@@ -697,3 +707,8 @@ tspan:focus {
   70% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
   100% { transform: translate(-50%, -50%) scale(0.5) rotate(5deg); opacity: 0; }
 }
+
+body.ios-pwa {
+  --safe-top: max(env(safe-area-inset-top, 0px), 24px);
+}
+

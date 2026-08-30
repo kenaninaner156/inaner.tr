@@ -498,7 +498,7 @@ function App() {
         }}>
         {/* Header - Premium Logo */}
         <div className="pb-2 flex flex-col"
-          style={{ paddingTop: 'calc(1.25rem + env(safe-area-inset-top, 0px))' }}>
+          style={{ paddingTop: 'calc(1.25rem + var(--safe-top))' }}>
 
           <PremiumLogo />
 
@@ -648,7 +648,7 @@ function App() {
           {/* Header - Simple & Clean (sticky) */}
           <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map', 'trips', 'dashboard', 'maintenance', 'detaylar', 'invoices', 'earsiv', 'payments', 'personel', 'settings', 'company_admin', 'super_admin'].includes(activeTab) ? 'hidden' : ''}`}
             style={{
-              paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+              paddingTop: 'calc(0.75rem + var(--safe-top))'
             }}
           >
             <div className="flex items-center space-x-4">
@@ -675,7 +675,7 @@ function App() {
                     : 'p-3 sm:p-4 md:p-6 xl:p-8'
             }`}
             style={activeTab === 'dashboard' ? {
-              paddingTop: 'calc(1.35rem + env(safe-area-inset-top, 0px))',
+              paddingTop: 'calc(1.35rem + var(--safe-top))',
               paddingRight: 'calc(1.25rem + env(safe-area-inset-right, 0px))',
               paddingLeft: 'calc(1.25rem + env(safe-area-inset-left, 0px))'
             } : undefined}
