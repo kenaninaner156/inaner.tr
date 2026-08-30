@@ -524,41 +524,12 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                     </h2>
                 </div>
 
-                {/* Sağ Grup (Mobilde Görünüm Değiştirici: Faturalar vs Önizleme Dökümü) */}
+                {/* Sağ Grup: PDF İndir (Aktif Fatura Varsa) */}
                 <div className="flex items-center gap-2">
-                    {/* Mobil Görünüm Toggle Butonları */}
-                    <div className="md:hidden flex items-center bg-black/50 border border-white/10 rounded-xl p-1 gap-1">
-                        <button
-                            type="button"
-                            onClick={() => setMobileActiveView('list')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                                mobileActiveView === 'list' 
-                                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30' 
-                                    : 'text-slate-400 hover:text-white'
-                            }`}
-                        >
-                            <ListChecks size={13} />
-                            <span>Faturalar</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setMobileActiveView('preview')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                                mobileActiveView === 'preview' 
-                                    ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30' 
-                                    : 'text-slate-400 hover:text-white'
-                            }`}
-                        >
-                            <FileText size={13} />
-                            <span>Döküm</span>
-                        </button>
-                    </div>
-
-                    {/* Aktif Fatura PDF İndir (Masaüstü) */}
                     {activeInvoice && (
                         <button
                             onClick={handlePrintPDF}
-                            className="hidden sm:flex items-center gap-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
+                            className="flex items-center gap-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
                             title="PDF İndir / Yazdır"
                         >
                             <Printer size={14} />
