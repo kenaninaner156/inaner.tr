@@ -7,7 +7,6 @@ import { db, auth } from '../services/firebaseConfig';
 import { collection, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { requestAndSaveNotificationToken } from '../services/notificationService';
 import { uploadToCloudinary } from '../services/cloudinaryService';
-import VehicleAnalysis from './map/VehicleAnalysis';
 
 const NOTIF_DESTINATIONS = [
     { id: 'detaylar', label: 'Bildirimler & Görevler', icon: Bell, color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30' },
@@ -530,19 +529,6 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                         </span>
                     )}
                 </button>
-                {companyData?.mapEnabled && (
-                    <button
-                        onClick={() => setActiveTab('analysis')}
-                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                            activeTab === 'analysis'
-                                ? 'bg-slate-800 text-white shadow-sm border border-slate-700'
-                                : 'text-slate-400 hover:text-white hover:bg-white/5'
-                        }`}
-                    >
-                        <BarChart3 size={14} />
-                        <span>Araç Analiz</span>
-                    </button>
-                )}
                 {companyData?.personnelEnabled && (
                     <button
                         onClick={() => setActiveTab('premiums')}
@@ -931,13 +917,6 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                 )}
                             </div>
                         </div>
-                    </div>
-                )}
-
-                {/* ─── ARAÇ ANALİZ SEKMESİ ─── */}
-                {activeTab === 'analysis' && companyData?.mapEnabled && (
-                    <div className="animate-in fade-in duration-300">
-                        <VehicleAnalysis isEmbedded={true} activeTruckId={activeTruckId} />
                     </div>
                 )}
 

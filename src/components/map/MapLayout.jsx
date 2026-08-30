@@ -15,7 +15,6 @@ import { groupIntoSessions, getPointTime } from '../../utils/mapUtils';
 import LiveTracking from './LiveTracking';
 import RouteHistory from './RouteHistory';
 import SavedRoutes from './SavedRoutes';
-import VehicleAnalysis from './VehicleAnalysis';
 import MapSettingsModal from './MapSettingsModal';
 import { InteractiveGeofenceMapLayer, InteractiveGeofencePanel } from './InteractiveGeofence';
 
