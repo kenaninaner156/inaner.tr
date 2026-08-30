@@ -492,15 +492,6 @@ function App() {
       onTouchEnd={handleTouchEnd}
     >
 
-      {/* ── Global iOS PWA Status Bar Shield (Prevents iOS translucent status bar from blurring map & scrolling lists) ── */}
-      <div 
-        className="fixed top-0 left-0 right-0 z-[9980] pointer-events-none transition-colors duration-300"
-        style={{ 
-          height: 'var(--safe-top, 0px)', 
-          backgroundColor: 'var(--bg-base)' 
-        }} 
-      />
-
       {/* 💣 BOM Easter Egg Bildirimi */}
       {bomPhase === 'fall' && (
         <div className="bom-notification">💣 B O M !</div>
