@@ -153,7 +153,7 @@ const parseTonnageInTons = (val) => {
     return num;
 };
 
-const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
+const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     const { trips, invoices, fuelRecords, maintenanceRecords, paymentRecords, penalties, dailyNotes, updateDailyNote } = useContext(DataContext);
     const [isProfitModalOpen, setIsProfitModalOpen] = useState(false);
 
@@ -163,9 +163,12 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
     const [selectedMonth, setSelectedMonth] = useState(() => {
         const tMonth = now.getMonth();
         const tYear = now.getFullYear();
-        const mTrips = (trips || []).filter(t => !t.deleted && t.date && new Date(t.date).getMonth() === tMonth && new Date(t.date).getFullYear() === tYear);
-        const mFuel = (fuelRecords || []).filter(f => !f.deleted && f.date && new Date(f.date).getMonth() === tMonth && new Date(f.date).getFullYear() === tYear);
-        if (mTrips.length + mFuel.length < 5) {
+        const curTrips = (trips || []).filter(t => {
+            if (t.deleted || !t.date) return false;
+            const d = new Date(t.date);
+            return d.getFullYear() === tYear && d.getMonth() === tMonth;
+        }).length;
+        if (curTrips < 5) {
             return tMonth === 0 ? 11 : tMonth - 1;
         }
         return tMonth;
@@ -174,21 +177,24 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
     const [selectedYear, setSelectedYear] = useState(() => {
         const tMonth = now.getMonth();
         const tYear = now.getFullYear();
-        const mTrips = (trips || []).filter(t => !t.deleted && t.date && new Date(t.date).getMonth() === tMonth && new Date(t.date).getFullYear() === tYear);
-        const mFuel = (fuelRecords || []).filter(f => !f.deleted && f.date && new Date(f.date).getMonth() === tMonth && new Date(f.date).getFullYear() === tYear);
-        if (mTrips.length + mFuel.length < 5) {
-            return tMonth === 0 ? tYear - 1 : tYear;
+        const curTrips = (trips || []).filter(t => {
+            if (t.deleted || !t.date) return false;
+            const d = new Date(t.date);
+            return d.getFullYear() === tYear && d.getMonth() === tMonth;
+        }).length;
+        if (curTrips < 5 && tMonth === 0) {
+            return tYear - 1;
         }
         return tYear;
     });
-    
-    const [isAllTime, setIsAllTime] = useState(false);
-    const [liveDieselPrice, setLiveDieselPrice] = useState(null);
-    const chartTheme = 'violet';
-    const activeTheme = CHART_THEMES.violet;
 
-    // Canlı internetten güncel motorin pompa fiyatını çek
-    React.useEffect(() => {
+    const [isAllTime, setIsAllTime] = useState(false);
+    const [activeThemeId, setActiveThemeId] = useState('violet');
+    const activeTheme = CHART_THEMES[activeThemeId] || CHART_THEMES.violet;
+    const [liveDieselPrice, setLiveDieselPrice] = useState(null);
+
+    // Canlı Motorin Fiyatı Çekme (Ankara Bölgesi)
+    useEffect(() => {
         let isMounted = true;
         const fetchLiveFuelPrice = async () => {
             try {
@@ -621,10 +627,10 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
         );
     }
 
-    // ─── DİKEY (PORTRAIT) MOD: KOMPAKT 2x2 KARTLAR VE TAM EKRAN DOLDURAN GRAFİK ───
+    // ─── DİKEY (PORTRAIT) MOD: DENGELİ GRAFİK & CANLI OPERASYON AKIŞI ───
     return (
         <div 
-            className="flex-1 flex flex-col h-full w-full p-2.5 sm:p-4 lg:p-6 overflow-hidden gap-2 sm:gap-2.5 max-w-[1920px] mx-auto pb-1 sm:pb-2"
+            className="flex-1 flex flex-col h-full w-full p-2.5 sm:p-4 lg:p-6 overflow-y-auto custom-scrollbar gap-2.5 sm:gap-3 max-w-[1920px] mx-auto pb-6"
             style={{
                 paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
             }}
@@ -731,15 +737,18 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
 
             </div>
 
-            {/* ─── GRAFİK PANELİ (TAM DOLDURAN VE MÜKEMMEL ORANLANMIŞ CONTAINER) ─── */}
-            <div className="bg-[#07090e] border border-white/[0.08] p-3 sm:p-4 rounded-2xl flex-1 min-h-0 flex flex-col justify-between shadow-sm overflow-hidden">
+            {/* ─── AYLIK OPERASYON HACMİ GRAFİK PANELİ (DOĞAL & ZARİF BOYUT) ─── */}
+            <div className="bg-[#07090e] border border-white/[0.08] p-3 sm:p-4 rounded-2xl shrink-0 flex flex-col justify-between shadow-sm">
 
                 {/* Başlık ve Ay Seçici */}
                 <div className="flex items-center justify-between gap-2 shrink-0 pb-1">
-                    <div>
+                    <div className="flex items-center gap-2">
                         <h3 className="font-bold text-sm sm:text-base text-white tracking-tight">
                             Aylık Operasyon Hacmi
                         </h3>
+                        <span className="text-[10px] text-slate-500 hidden sm:inline">
+                            (Yatayda Detaylı 📱)
+                        </span>
                     </div>
 
                     {/* Zaman Navigasyonu */}
@@ -756,8 +765,8 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                     </div>
                 </div>
 
-                {/* Grafik - Dengeli Y-Eksen Ölçeği */}
-                <div className="w-full flex-1 min-h-0 relative select-none outline-none focus:outline-none my-1">
+                {/* Grafik - Yumuşak ve Geniş Açılı Eğriler (160px Doğal Yükseklik) */}
+                <div className="w-full h-[155px] sm:h-[185px] relative select-none outline-none focus:outline-none my-1">
                     {chartData.every(d => (d['Sefer Sayısı'] || 0) === 0 && (d['Taşınan Tonaj'] || 0) === 0) ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-500">
                             <Activity size={28} className="mb-1 opacity-30 animate-pulse" />
@@ -768,7 +777,7 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                         <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart
                                 data={chartData}
-                                margin={{ top: 10, right: 10, left: -20, bottom: 12 }}
+                                margin={{ top: 8, right: 10, left: -22, bottom: 5 }}
                                 style={{ outline: 'none' }}
                                 onDoubleClick={(state) => {
                                     if (!isAllTime && state && state.activeLabel) {
@@ -794,7 +803,7 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                                     fontSize={10} 
                                     tickLine={false} 
                                     axisLine={false} 
-                                    dy={5} 
+                                    dy={4} 
                                     interval={isAllTime ? 'preserveStartEnd' : Math.floor(chartData.length / 8)} 
                                 />
                                 <YAxis 
@@ -804,15 +813,14 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                                     tickLine={false} 
                                     axisLine={false} 
                                     dx={-4} 
-                                    domain={[0, maxTrips <= 2 ? 3 : Math.ceil(maxTrips * 1.15)]}
-                                    ticks={maxTrips <= 2 ? [0, 1, 2, 3] : undefined}
+                                    domain={[0, dataMax => Math.max(4, Math.ceil(dataMax * 1.35))]}
                                     allowDecimals={false}
                                 />
                                 <YAxis 
                                     yAxisId="right" 
                                     orientation="right" 
                                     hide={true} 
-                                    domain={[0, Math.max(100, Math.ceil(maxTonnage * 1.15))]}
+                                    domain={[0, dataMax => Math.max(140, Math.ceil(dataMax * 1.35))]}
                                 />
                                 <Tooltip content={<CustomTooltip isAllTime={isAllTime} theme={activeTheme} />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
 
@@ -860,7 +868,7 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                     )}
                 </div>
 
-                {/* Verimlilik Metrikleri: Kesintisiz ve Hizalı Mini Widget'lar */}
+                {/* Verimlilik Metrikleri */}
                 {!isAllTime && activeDays > 0 && (
                     <div className="pt-2 border-t border-white/[0.06] grid grid-cols-3 gap-2 shrink-0">
                         <div className="flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04] text-center">
@@ -880,6 +888,77 @@ const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
                                 {perfDelta === null ? 'Veri Yok' : `${perfDelta >= 0 ? '+' : ''}%${Math.abs(perfDelta).toFixed(1)}`}
                             </span>
                         </div>
+                    </div>
+                )}
+            </div>
+
+            {/* ─── SON OPERASYONLAR AKIŞI (MODERN FİLO BAKIŞI) ─── */}
+            <div className="bg-[#07090e] border border-white/[0.08] p-3 sm:p-4 rounded-2xl shadow-sm flex flex-col gap-2.5 shrink-0">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+                            <Truck size={13} />
+                        </div>
+                        <h4 className="text-xs sm:text-sm font-bold text-white tracking-tight">Son Seferler</h4>
+                    </div>
+                    {onNavigate && (
+                        <button 
+                            onClick={() => onNavigate('trips')}
+                            className="text-[11px] font-semibold text-sky-400 hover:text-sky-300 transition-colors flex items-center gap-1 cursor-pointer"
+                        >
+                            <span>Tümünü Gör</span>
+                            <ChevronRight size={13} />
+                        </button>
+                    )}
+                </div>
+
+                {recentTrips.length === 0 ? (
+                    <div className="p-3 rounded-xl bg-[#0d1117] border border-white/[0.04] text-center text-xs text-slate-500">
+                        Kayıtlı sefer bulunamadı.
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        {recentTrips.map((trip, idx) => {
+                            const dateObj = trip.date ? new Date(trip.date) : null;
+                            const dateFormatted = dateObj ? `${dateObj.getDate()} ${MONTHS_SHORT[dateObj.getMonth()]}` : '—';
+                            const routeText = (trip.from && trip.to) ? `${trip.from} → ${trip.to}` : (trip.route || trip.from || trip.to || 'Bölgesel Sefer');
+                            const tonnageVal = trip.tonnage ? parseTonnageInTons(trip.tonnage) : null;
+
+                            return (
+                                <div 
+                                    key={trip.id || idx}
+                                    onClick={() => onNavigate && onNavigate('trips')}
+                                    className="flex items-center justify-between p-2 sm:p-2.5 rounded-xl bg-[#0d1117] border border-white/[0.04] hover:border-slate-700 transition-all cursor-pointer group"
+                                >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-md shrink-0">
+                                            {dateFormatted}
+                                        </span>
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-semibold text-white truncate group-hover:text-sky-400 transition-colors">
+                                                {routeText}
+                                            </p>
+                                            <p className="text-[10px] text-slate-400 truncate">
+                                                {trip.driverName || trip.driver || 'Şoför Belirtilmedi'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="text-right shrink-0 pl-2">
+                                        {tonnageVal ? (
+                                            <p className="text-xs font-bold text-slate-200">
+                                                {tonnageVal.toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} <span className="text-[10px] text-slate-400 font-normal">Ton</span>
+                                            </p>
+                                        ) : null}
+                                        {trip.price || trip.freightPrice ? (
+                                            <p className="text-[10px] font-semibold text-emerald-400">
+                                                ₺{Number(trip.price || trip.freightPrice).toLocaleString('tr-TR')}
+                                            </p>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>
