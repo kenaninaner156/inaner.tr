@@ -131,9 +131,12 @@ function App() {
       setIsMobile(mobile);
       if (!mobile) {
         setIsMenuOpen(true);
+      } else {
+        setIsMenuOpen(false);
       }
     };
-    window.addEventListener('resize', handleResize)
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
 
     // Sekme yönlendirme olaylarını dinle
     const handleSwitchTab = (e) => {
@@ -159,6 +162,7 @@ function App() {
 
     return () => {
       window.removeEventListener('resize', handleResize)
+      window.removeEventListener('orientationchange', handleResize)
       window.removeEventListener('tir_switch_tab', handleSwitchTab)
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.removeEventListener('message', handleSwMessage)

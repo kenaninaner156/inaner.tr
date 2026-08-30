@@ -232,10 +232,12 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     const activeFuel = useMemo(() => fuelRecords ? fuelRecords.filter(f => !f.deleted) : [], [fuelRecords]);
 
     const recentTrips = useMemo(() => {
+        const isTabletOrLarger = typeof window !== 'undefined' && (window.innerWidth >= 640 || window.innerHeight >= 750);
+        const limit = isTabletOrLarger ? 10 : 5;
         return (activeTrips || [])
             .filter(t => t.date)
             .sort((a, b) => new Date(b.date) - new Date(a.date))
-            .slice(0, 5);
+            .slice(0, limit);
     }, [activeTrips]);
 
     const lastHistDay = useMemo(() => {
