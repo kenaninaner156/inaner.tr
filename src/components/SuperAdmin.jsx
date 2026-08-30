@@ -264,12 +264,12 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
         >
             {/* 1. Şık Tek Satır Başlık & Menü Çubuğu */}
             <div 
-                className="flex items-center justify-between gap-3 pb-2.5 border-b border-white/[0.06] shrink-0"
+                className="flex items-center justify-between gap-2 pb-2.5 border-b border-white/[0.06] shrink-0"
                 style={{
                     paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
                 }}
             >
-                <div className="flex items-center gap-2.5 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                     {isMobile && onOpenMenu && (
                         <button 
                             onClick={onOpenMenu} 
@@ -280,17 +280,20 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
                         </button>
                     )}
                     <div className="flex items-center gap-2 min-w-0">
-                        <h2 className="text-lg font-bold tracking-tight text-white whitespace-nowrap flex items-center gap-2">
-                            <ShieldAlert size={20} className="text-slate-300" />
-                            <span>Super Admin (SaaS Yönetimi)</span>
+                        <h2 className="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2 truncate">
+                            <ShieldAlert size={20} className="text-slate-300 shrink-0" />
+                            <span className="truncate">Super Admin</span>
+                            <span className="text-xs text-slate-400 font-normal hidden sm:inline">(SaaS Yönetimi)</span>
                         </h2>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-800/80 border border-slate-700/80 rounded-full text-slate-300 text-xs font-semibold">
-                        <Server size={13} className="text-slate-400" />
-                        <span>Toplam: <strong className="text-white font-mono">{companies.length}</strong> Şirket</span>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 sm:px-3 bg-slate-800/80 border border-slate-700/80 rounded-full text-slate-300 text-xs font-semibold shrink-0">
+                        <Server size={13} className="text-slate-400 shrink-0" />
+                        <span className="hidden sm:inline">Toplam: </span>
+                        <strong className="text-white font-mono">{companies.length}</strong>
+                        <span className="text-[11px] text-slate-400">Şirket</span>
                     </div>
                 </div>
             </div>
