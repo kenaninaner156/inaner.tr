@@ -389,17 +389,17 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
       {/* ── ÜST YÜZEN KONTROL PANELİ (ORİJİNAL MERKEZLİ TASARIM) ── */}
       <div 
         ref={navBarCallbackRef} 
-        className="absolute left-1/2 -translate-x-1/2 z-[2000] pointer-events-auto w-[96%] sm:w-11/12 max-w-2xl"
+        className="absolute top-3 sm:top-5 left-1/2 -translate-x-1/2 z-[2000] pointer-events-auto w-[96%] sm:w-11/12 max-w-2xl"
         style={{
-          top: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+          paddingTop: 'env(safe-area-inset-top, 0px)'
         }}
       >
-        <div className="flex bg-[#0D1219] p-1 sm:p-1.5 rounded-2xl shadow-xl w-full border border-white/10 items-center select-none gap-0.5 sm:gap-1 ring-1 ring-black/40">
-          {/* Mobile & iPad Menu Button (Hamburger) */}
+        <div className="flex bg-[#0D1219]/96 backdrop-blur-2xl p-1 sm:p-1.5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] w-full border border-white/10 items-center select-none gap-0.5 sm:gap-1 ring-1 ring-black/40">
+          {/* Mobile Menu Button (Hamburger) */}
           {onOpenMenu && (
             <button
               onClick={onOpenMenu}
-              className="p-2 lg:hidden rounded-xl text-slate-300 hover:text-white hover:bg-white/[0.08] active:scale-95 transition-all duration-200 flex items-center justify-center shrink-0 cursor-pointer"
+              className="p-2 sm:hidden rounded-xl text-slate-300 hover:text-white hover:bg-white/[0.08] active:scale-95 transition-all duration-200 flex items-center justify-center shrink-0"
               title="Menüyü Aç"
             >
               <Menu size={18} />

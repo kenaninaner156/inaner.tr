@@ -1151,15 +1151,13 @@ export default function RouteHistory({
         {isVisible && showSidebar && (
           <motion.div
             ref={sidebarCallbackRef}
-            initial={{ x: -10, opacity: 0, scale: 0.99 }}
-            animate={{ x: 0, opacity: 1, scale: 1 }}
-            exit={{ x: -10, opacity: 0, scale: 0.99 }}
+            initial={{ x: -10, opacity: 0, scale: 0.99, filter: 'blur(4px)' }}
+            animate={{ x: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }}
+            exit={{ x: -10, opacity: 0, scale: 0.99, filter: 'blur(4px)' }}
             transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-            className="hidden md:flex absolute left-4 w-[330px] z-[1500] flex-col rounded-3xl overflow-hidden border border-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.85)]"
+            className="hidden md:flex absolute top-[76px] left-4 max-h-[calc(100vh-96px)] h-auto w-[330px] z-[1500] flex-col rounded-3xl overflow-hidden border border-white/10 shadow-[0_16px_50px_rgba(0,0,0,0.85)] backdrop-blur-3xl"
             style={{
-              top: 'calc(4.75rem + env(safe-area-inset-top, 0px))',
-              maxHeight: 'calc(100vh - 6rem - env(safe-area-inset-top, 0px))',
-              background: '#0D1219',
+              background: 'rgba(13, 18, 25, 0.96)',
             }}
           >
         {/* Başlık */}
@@ -1667,10 +1665,7 @@ export default function RouteHistory({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.8, opacity: 0 }}
             onClick={() => setShowSidebar(true)}
-            className="hidden md:block absolute left-4 z-[1500] p-3.5 bg-[#0e131b] hover:bg-[#121822] text-amber-400 rounded-2xl border border-white/10 transition-all shadow-xl cursor-pointer"
-            style={{
-              top: 'calc(4.75rem + env(safe-area-inset-top, 0px))'
-            }}
+            className="hidden md:block absolute left-4 top-[76px] z-[1500] p-3.5 bg-[#0e131b]/90 hover:bg-[#121822] text-amber-400 rounded-2xl border border-white/10 transition-all backdrop-blur-md shadow-xl"
           >
             <Clock size={16} />
           </motion.button>
