@@ -327,6 +327,9 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         // Map routeSummary to routeLines (Standart KDV Hariç)
         const initialLines = routeSummary.map(r => {
             const key = `${r.from.trim()}|||${r.to.trim()}`;
+            const existingLine = routeLines.find(l => l.from === r.from && l.to === r.to);
+            const cached = history[key] || {};
+
             const defaultOldName = `${r.from} ${r.to} NAKLİYESİ`.toUpperCase();
             const defaultNewName = `${r.from} ${r.to} UÇUCU KÜL NAKLİYESİ`.toUpperCase();
             
