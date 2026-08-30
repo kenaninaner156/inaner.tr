@@ -636,9 +636,9 @@ function App() {
         <div className={`flex flex-col w-full ${['dashboard', 'map', 'invoices', 'earsiv'].includes(activeTab) ? 'h-full overflow-hidden' : 'min-h-screen'}`}>
 
           {/* Header - Simple & Clean (sticky) */}
-          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map', 'trips', 'dashboard', 'maintenance', 'detaylar', 'invoices', 'earsiv'].includes(activeTab) ? 'hidden' : ''}`}
+          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map', 'trips', 'dashboard', 'maintenance', 'detaylar', 'invoices', 'earsiv', 'payments'].includes(activeTab) ? 'hidden' : ''}`}
             style={{
-              paddingTop: 'calc(0.5rem + env(safe-area-inset-top))'
+              paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
             }}
           >
             <div className="flex items-center space-x-4">
@@ -658,10 +658,10 @@ function App() {
             activeTab === 'map' 
               ? 'p-0 h-full overflow-hidden' 
               : activeTab === 'dashboard'
-                ? 'pt-3 sm:pt-4 md:pt-5 pb-3 sm:pb-4 px-3.5 sm:px-5 md:px-6 h-full overflow-hidden flex flex-col' 
+                ? 'pt-1 sm:pt-4 md:pt-5 pb-3 sm:pb-4 px-3 sm:px-5 md:px-6 h-full overflow-hidden flex flex-col' 
                 : ['invoices', 'earsiv'].includes(activeTab)
                   ? 'p-3 sm:p-4 md:p-5 h-full overflow-hidden flex flex-col'
-                  : 'p-4 md:p-6 xl:p-8'
+                  : 'p-3 sm:p-4 md:p-6 xl:p-8'
           }`}>
             <div key={activeTab} className={['dashboard', 'invoices', 'earsiv'].includes(activeTab) ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
               {activeTab === 'dashboard' && <Dashboard onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
@@ -671,7 +671,7 @@ function App() {
               {activeTab === 'detaylar' && <Detaylar onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'invoices' && <Invoices onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'earsiv' && <EArsiv onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'payments' && <Payments />}
+              {activeTab === 'payments' && <Payments onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'personel' && <Personnel />}
               {activeTab === 'settings' && <SettingsPage />}
               {activeTab === 'company_admin' && <CompanyAdmin />}

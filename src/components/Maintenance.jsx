@@ -427,7 +427,7 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
             <div 
                 className="flex items-center justify-between gap-3 pb-2 border-b border-white/[0.06]"
                 style={{
-                    paddingTop: 'calc(0.2rem + env(safe-area-inset-top, 0px))'
+                    paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
                 }}
             >
                 {/* Sol Grup: Hamburger (Mobil) + Başlık */}
@@ -446,21 +446,37 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                         Araç Bakım
                     </h2>
                 </div>
+
+                {/* Sağ Grup: Dinamik Aksiyon Butonu (Başlığın Hizası - Mobilde Sıfır Çakışma) */}
+                <AnimatePresence mode="wait">
+                    {dynamicActionBtn && (
+                        <motion.button
+                            key={dynamicActionBtn.id}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.15 }}
+                            onClick={dynamicActionBtn.onClick}
+                            className={`h-[36px] px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-lg flex items-center justify-center shrink-0 cursor-pointer ${dynamicActionBtn.className}`}
+                        >
+                            <span className="mr-1 sm:mr-1.5">{dynamicActionBtn.icon}</span>
+                            <span className="whitespace-nowrap">{dynamicActionBtn.label}</span>
+                        </motion.button>
+                    )}
+                </AnimatePresence>
             </div>
 
-            {/* ─── ZARİF OBSİDYEN TAB BAR & ENTEGRE KAYAN AKSIYON BUTONU ─── */}
-            <div className="flex items-center w-full z-20 relative">
-                <div className="flex bg-[#0c1017]/90 backdrop-blur-xl p-1.5 rounded-2xl shadow-xl border border-white/[0.08] w-full items-center overflow-x-auto custom-scrollbar">
-                    
-                    {/* Tabs List */}
-                    <div className="flex items-center gap-1 flex-1 min-w-0">
+            {/* ─── ZARİF OBSİDYEN TAB BAR (Saf Kayar & Sıfır Çakışma) ─── */}
+            <div className="w-full z-20 relative overflow-hidden rounded-2xl">
+                <div className="flex bg-[#0c1017]/90 backdrop-blur-xl p-1.5 rounded-2xl shadow-xl border border-white/[0.08] w-full items-center overflow-x-auto [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                    <div className="flex items-center gap-1.5 min-w-full sm:min-w-0 w-full sm:w-auto">
                         {tabs.map(tab => {
                             const isActive = activeTab === tab.id;
                             return (
                                 <button 
                                     key={tab.id} 
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`relative flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl text-xs sm:text-sm transition-all duration-200 flex-1 justify-center whitespace-nowrap outline-none cursor-pointer group ${
+                                    className={`relative flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl text-xs sm:text-sm transition-all duration-200 flex-1 sm:flex-initial justify-center whitespace-nowrap outline-none cursor-pointer group shrink-0 ${
                                         isActive ? 'text-white font-bold' : 'text-slate-400 font-medium hover:text-white hover:bg-white/5'
                                     }`}
                                 >
@@ -484,36 +500,6 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                             );
                         })}
                     </div>
-
-                    {/* Bar İçine Entegre Dinamik Aksiyon Butonu (Sabit Standart Genişlik & Sarsıntısız Geçiş) */}
-                    <AnimatePresence>
-                        {dynamicActionBtn && (
-                            <motion.div
-                                key="dynamic-action-wrapper"
-                                initial={{ width: 0, opacity: 0, marginLeft: 0 }}
-                                animate={{ width: 132, opacity: 1, marginLeft: 8 }}
-                                exit={{ width: 0, opacity: 0, marginLeft: 0 }}
-                                transition={{ type: "spring", stiffness: 450, damping: 35 }}
-                                className="overflow-hidden flex-shrink-0 flex items-stretch h-[36px] sm:h-[40px]"
-                            >
-                                <AnimatePresence mode="wait" initial={false}>
-                                    <motion.button
-                                        key={dynamicActionBtn.id}
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        transition={{ duration: 0.15, ease: "easeInOut" }}
-                                        onClick={dynamicActionBtn.onClick}
-                                        className={`w-[132px] h-full rounded-xl font-bold flex items-center justify-center gap-1.5 whitespace-nowrap outline-none cursor-pointer text-xs sm:text-sm ${dynamicActionBtn.className}`}
-                                    >
-                                        {dynamicActionBtn.icon}
-                                        <span className="truncate">{dynamicActionBtn.label}</span>
-                                    </motion.button>
-                                </AnimatePresence>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
                 </div>
             </div>
 

@@ -263,11 +263,11 @@ const Detaylar = ({ onOpenMenu, isMobile }) => {
     return (
         <div className="space-y-5 animate-in fade-in duration-500 relative pb-ios-nav">
 
-            {/* ─── ENTEGRE TEK SATIR HEADER BAR (Araç Bakım ile Birebir Aynı) ─── */}
+            {/* ─── ENTEGRE TEK SATIR HEADER BAR ─── */}
             <div 
                 className="flex items-center justify-between gap-3 pb-2 border-b border-white/[0.06]"
                 style={{
-                    paddingTop: 'calc(0.2rem + env(safe-area-inset-top, 0px))'
+                    paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
                 }}
             >
                 {/* Sol Grup: Hamburger (Mobil) + Başlık */}
@@ -286,82 +286,74 @@ const Detaylar = ({ onOpenMenu, isMobile }) => {
                         Ceza & Belgeler
                     </h2>
                 </div>
+
+                {/* Sağ Grup: Cezalar sekmesi seçiliyse Ceza Ekle butonu */}
+                <AnimatePresence mode="wait">
+                    {activeTab === 'cezalar' && (
+                        <motion.button
+                            key="header-btn-cezalar"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.15 }}
+                            onClick={() => {
+                                setEditingPenaltyId(null);
+                                setPenaltyForm({
+                                    date: new Date().toISOString().split('T')[0],
+                                    driver: '',
+                                    type: 'Hız İhlali',
+                                    amount: '',
+                                    plate: '',
+                                    description: '',
+                                    paid: false,
+                                    files: []
+                                });
+                                setShowPenaltyForm(true);
+                            }}
+                            className="h-[36px] px-3.5 sm:px-4 bg-gradient-to-r from-red-600 to-rose-500 hover:from-red-500 hover:to-rose-400 border border-red-400/40 text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-[0_0_15px_rgba(239,68,68,0.35)] flex items-center justify-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
+                        >
+                            <Plus size={15} /> <span>Ceza Ekle</span>
+                        </motion.button>
+                    )}
+                </AnimatePresence>
             </div>
 
-            {/* ─── ZARİF OBSİDYEN TAB BAR & ENTEGRE KAYAN AKSIYON BUTONU (Araç Bakım ile Birebir Aynı) ─── */}
+            {/* ─── ZARİF OBSİDYEN TAB BAR (Sıfır Çakışma & Dengeli Grid) ─── */}
             <div className="flex items-center w-full z-20 relative">
-                <div className="flex bg-[#0c1017]/90 backdrop-blur-xl p-1.5 rounded-2xl shadow-xl border border-white/[0.08] w-full items-center overflow-x-auto custom-scrollbar">
-                    
-                    {/* Tabs List */}
-                    <div className="flex items-center gap-1 flex-1 min-w-0">
-                        {tabs.map(tab => {
-                            const isActive = activeTab === tab.id;
-                            return (
-                                <button 
-                                    key={tab.id} 
-                                    onClick={() => handleTabChange(tab.id)}
-                                    className={`relative flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl text-xs sm:text-sm transition-all duration-200 flex-1 justify-center whitespace-nowrap outline-none cursor-pointer group ${
-                                        isActive ? 'text-white font-bold' : 'text-slate-400 font-medium hover:text-white hover:bg-white/5'
-                                    }`}
-                                >
-                                    {isActive && (
-                                        <motion.div
-                                            layoutId="detaylar-active-tab"
-                                            className={`absolute inset-0 bg-gradient-to-r rounded-xl border ${tab.theme}`}
-                                            style={{ zIndex: 0 }}
-                                            initial={false}
-                                            transition={{ type: 'spring', stiffness: 450, damping: 35 }}
-                                        />
-                                    )}
-
-                                    <span className={`relative z-10 transition-colors ${isActive ? 'text-white' : `text-slate-400 ${tab.hoverText}`}`}>
-                                        {tab.icon}
-                                    </span>
-                                    <span className="hidden sm:inline relative z-10">{tab.label}</span>
-                                    <span className="sm:hidden relative z-10">{tab.label.split(' ')[0]}</span>
-                                    {tab.badge > 0 && (
-                                        <span className="relative z-10 bg-white/20 border border-white/30 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center justify-center flex-shrink-0">
-                                            {tab.badge}
-                                        </span>
-                                    )}
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    {/* Cezalar sekmesi seçilince sağda açılan kayan buton */}
-                    <AnimatePresence mode="wait">
-                        {activeTab === 'cezalar' && (
-                            <motion.div
-                                key="btn-cezalar"
-                                initial={{ opacity: 0, width: 0 }}
-                                animate={{ opacity: 1, width: 'auto' }}
-                                exit={{ opacity: 0, width: 0 }}
-                                transition={{ duration: 0.2 }}
-                                className="overflow-hidden flex-shrink-0 ml-2"
+                <div className="grid grid-cols-3 gap-1 bg-[#0c1017]/90 backdrop-blur-xl p-1.5 rounded-2xl shadow-xl border border-white/[0.08] w-full">
+                    {tabs.map(tab => {
+                        const isActive = activeTab === tab.id;
+                        return (
+                            <button 
+                                key={tab.id} 
+                                onClick={() => handleTabChange(tab.id)}
+                                className={`relative flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm transition-all duration-200 justify-center whitespace-nowrap outline-none cursor-pointer group ${
+                                    isActive ? 'text-white font-bold' : 'text-slate-400 font-medium hover:text-white hover:bg-white/5'
+                                }`}
                             >
-                                <button
-                                    onClick={() => {
-                                        setEditingPenaltyId(null);
-                                        setPenaltyForm({
-                                            date: new Date().toISOString().split('T')[0],
-                                            driver: '',
-                                            type: 'Hız İhlali',
-                                            amount: '',
-                                            plate: '',
-                                            description: '',
-                                            paid: false,
-                                            files: []
-                                        });
-                                        setShowPenaltyForm(true);
-                                    }}
-                                    className="h-[36px] sm:h-[40px] px-3.5 bg-gradient-to-r from-red-600 to-rose-500 hover:from-red-500 hover:to-rose-400 border border-red-400/40 text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-[0_0_15px_rgba(239,68,68,0.35)] flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
-                                >
-                                    <Plus size={15} /> Ceza Ekle
-                                </button>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                                {isActive && (
+                                    <motion.div
+                                        layoutId="detaylar-active-tab"
+                                        className={`absolute inset-0 bg-gradient-to-r rounded-xl border ${tab.theme}`}
+                                        style={{ zIndex: 0 }}
+                                        initial={false}
+                                        transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                                    />
+                                )}
+
+                                <span className={`relative z-10 transition-colors ${isActive ? 'text-white' : `text-slate-400 ${tab.hoverText}`}`}>
+                                    {tab.icon}
+                                </span>
+                                <span className="hidden sm:inline relative z-10 truncate">{tab.label}</span>
+                                <span className="sm:hidden relative z-10 truncate">{tab.label.split(' ')[0]}</span>
+                                {tab.badge > 0 && (
+                                    <span className="relative z-10 bg-white/20 border border-white/30 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center justify-center flex-shrink-0 ml-0.5">
+                                        {tab.badge}
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 

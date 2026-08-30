@@ -22,13 +22,14 @@ import {
     Paperclip, 
     RefreshCw,
     Sparkles,
-    Coins
+    Coins,
+    Menu
 } from 'lucide-react';
 import FileUpload from './FileUpload';
 import CustomDatePicker from './CustomDatePicker';
 import CustomSelect from './CustomSelect';
 
-const Payments = () => {
+const Payments = ({ onOpenMenu, isMobile } = {}) => {
     const {
         paymentRecords,
         addPayment,
@@ -237,7 +238,29 @@ const Payments = () => {
     };
 
     return (
-        <div className="flex-1 flex flex-col h-[calc(100vh-4rem)] p-3 sm:p-4 lg:p-6 overflow-hidden gap-3 max-w-[1920px] mx-auto w-full">
+        <div 
+            className="flex-1 flex flex-col min-h-[100dvh] md:h-[calc(100dvh-4rem)] p-3 sm:p-4 lg:p-6 overflow-x-hidden md:overflow-hidden gap-3 max-w-[1920px] mx-auto w-full pb-ios-nav"
+            style={{
+                paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+            }}
+        >
+            {/* Mobilde Şık Başlık & Menü Çubuğu */}
+            {isMobile && onOpenMenu && (
+                <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/[0.06] shrink-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <button 
+                            onClick={onOpenMenu} 
+                            className="p-1.5 -ml-1 text-slate-400 hover:text-slate-100 transition-colors flex items-center justify-center cursor-pointer rounded-lg hover:bg-white/5"
+                            title="Menüyü Aç"
+                        >
+                            <Menu size={22} />
+                        </button>
+                        <h2 className="text-lg font-bold tracking-tight text-white whitespace-nowrap">
+                            Ödeme Takibi
+                        </h2>
+                    </div>
+                </div>
+            )}
             
             {/* 1. Üst Finansal Bento Kartları (Pürüzsüz Grid Row Kapanışı) */}
             <div 

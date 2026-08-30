@@ -18,7 +18,8 @@ import {
     Trash2,
     Droplet,
     Gauge,
-    Zap
+    Zap,
+    Menu
 } from 'lucide-react';
 import {
     ComposedChart,
@@ -152,7 +153,7 @@ const parseTonnageInTons = (val) => {
     return num;
 };
 
-const Dashboard = () => {
+const Dashboard = ({ onOpenMenu, isMobile } = {}) => {
     const { trips, invoices, fuelRecords, maintenanceRecords, paymentRecords, penalties, dailyNotes, updateDailyNote } = useContext(DataContext);
     const [isProfitModalOpen, setIsProfitModalOpen] = useState(false);
 
@@ -402,7 +403,29 @@ const Dashboard = () => {
     const perfColor = perfDelta === null ? '#64748b' : perfDelta >= 0 ? '#10b981' : '#ef4444';
 
     return (
-        <div className="h-full flex flex-col justify-between gap-3.5 md:gap-4 relative">
+        <div 
+            className="h-full flex flex-col justify-between gap-3 md:gap-4 relative overflow-y-auto md:overflow-hidden pb-4 md:pb-0"
+            style={{
+                paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+            }}
+        >
+            {/* Mobilde Şık Başlık & Menü Çubuğu */}
+            {isMobile && onOpenMenu && (
+                <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/[0.06] shrink-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <button 
+                            onClick={onOpenMenu} 
+                            className="p-1.5 -ml-1 text-slate-400 hover:text-slate-100 transition-colors flex items-center justify-center cursor-pointer rounded-lg hover:bg-white/5"
+                            title="Menüyü Aç"
+                        >
+                            <Menu size={22} />
+                        </button>
+                        <h2 className="text-lg font-bold tracking-tight text-white whitespace-nowrap">
+                            Özet
+                        </h2>
+                    </div>
+                </div>
+            )}
 
             {/* ─── 4'LÜ STRATEJİK KPI ÖZET KARTLARI (FLOATING GLASS STYLE) ─── */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5 md:gap-4 flex-shrink-0 pt-1">

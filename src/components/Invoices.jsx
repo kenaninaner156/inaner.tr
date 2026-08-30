@@ -510,7 +510,12 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
             <div className="w-full md:w-[380px] lg:w-[420px] shrink-0 h-full flex flex-col gap-3 overflow-hidden">
 
                 {/* Panel Başlık (Masaüstü & Mobil) */}
-                <div className="flex glass-panel px-4 py-3 items-center justify-between shadow-none border border-white/[0.08] backdrop-blur-md rounded-2xl shrink-0">
+                <div 
+                    className="flex glass-panel px-4 py-3 items-center justify-between shadow-none border border-white/[0.08] backdrop-blur-md rounded-2xl shrink-0"
+                    style={{
+                        paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+                    }}
+                >
                     <div className="flex items-center gap-2.5">
                         {isMobile && onOpenMenu && (
                             <button 
@@ -670,7 +675,7 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
             </div>
 
             {/* Sağ Panel: Tek Parça A4 Benzeri Çerçeve (Açık Tema) */}
-            <div className="flex-1 h-full min-w-0 flex flex-col overflow-hidden bg-slate-50 pt-7 sm:pt-9 px-5 sm:px-6 pb-4 sm:pb-5 rounded-2xl border border-slate-200 shadow-xl relative text-slate-800">
+            <div className="flex-1 h-full min-w-0 flex flex-col overflow-hidden bg-slate-50 pt-3 sm:pt-4 md:pt-6 px-3 sm:px-5 pb-3 sm:pb-4 rounded-2xl border border-slate-200 shadow-xl relative text-slate-800">
                 {/* 1. Üst Başlık (Kompakt ve Zarif Boyutlandırma) */}
                 <div className="flex justify-between items-end border-b border-blue-800/70 pb-2.5 mb-3 shrink-0">
                     {/* Sol Kısım: Başlık, Periyot ve Tarih */}

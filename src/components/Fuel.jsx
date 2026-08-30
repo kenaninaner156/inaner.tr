@@ -340,92 +340,93 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
             avgLtPer100km, 
             avgCostPerKm, 
             avgPricePerLiter, 
-            totalDistanceForConsumption,
-            receiptCount: filteredRecords.length
-        };
-    }, [filteredRecords]);
+        summaryStats,
+        receiptCount: filteredRecords.length
+    };
+}, [filteredRecords]);
 
-    const uniqueStations = [...new Set(activeFuelRecords.filter(r => r.station).map(r => toTitleCase(r.station)))];
+const uniqueStations = [...new Set(activeFuelRecords.filter(r => r.station).map(r => toTitleCase(r.station)))];
 
-    return (
-        <div className="space-y-5 animate-in fade-in duration-500 relative pb-ios-nav">
-            {/* ─── ENTEGRE TEK SATIR HEADER BAR (LİNEAR & VERCEL STANDARDI) ─── */}
-            <div 
-                className="flex items-center justify-between gap-3 pb-3 border-b border-white/[0.06]"
-                style={{
-                    paddingTop: 'calc(0.2rem + env(safe-area-inset-top, 0px))'
-                }}
-            >
-                {/* Sol Grup: Hamburger (Mobil) + Başlık + Tarih Kapsülü */}
-                <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
-                    {isMobile && onOpenMenu && (
-                        <button 
-                            onClick={onOpenMenu} 
-                            className="p-1.5 -ml-1 text-slate-400 hover:text-slate-100 transition-colors flex items-center justify-center cursor-pointer rounded-lg hover:bg-white/5"
-                            title="Menüyü Aç"
-                        >
-                            <Menu size={22} />
-                        </button>
+return (
+    <div className="space-y-5 animate-in fade-in duration-500 relative pb-ios-nav">
+        {/* ─── ENTEGRE TEK SATIR HEADER BAR ─── */}
+        <div 
+            className="flex items-center justify-between gap-2 sm:gap-3 pb-2 border-b border-white/[0.06]"
+            style={{
+                paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+            }}
+        >
+            {/* Sol Grup: Hamburger (Mobil) + Başlık + Zaman Seçici */}
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                {isMobile && onOpenMenu && (
+                    <button 
+                        onClick={onOpenMenu} 
+                        className="p-1.5 -ml-1 text-slate-400 hover:text-slate-100 transition-colors flex items-center justify-center cursor-pointer rounded-lg hover:bg-white/5 shrink-0"
+                        title="Menüyü Aç"
+                    >
+                        <Menu size={22} />
+                    </button>
+                )}
+                
+                <h2 className="text-base sm:text-xl font-bold tracking-tight text-white whitespace-nowrap shrink-0">
+                    Mazot Fişleri
+                </h2>
+                
+                {/* Zarif Zaman Seçici Kapsülü (Responsive genişlik) */}
+                <div className="relative min-w-0 shrink" ref={dropdownRef}>
+                    <button 
+                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                        className="h-[36px] w-[125px] sm:w-[155px] px-2 sm:px-3 bg-[#0b0e14]/90 border border-white/10 hover:border-cyan-500/35 rounded-xl flex items-center justify-between gap-1.5 sm:gap-2 text-[11px] sm:text-sm font-semibold text-slate-200 hover:text-white transition-all shadow-lg cursor-pointer"
+                    >
+                        <div className="flex items-center gap-1.5 min-w-0 truncate">
+                            <Calendar size={13} className="text-cyan-400 shrink-0" />
+                            <span className="truncate">
+                                {timeFilter === 'all' 
+                                    ? 'Tüm Zamanlar' 
+                                    : (monthOptions.find(o => o.value === timeFilter)?.label || timeFilter)}
+                            </span>
+                        </div>
+                        <ChevronDown size={12} className={`text-slate-400 shrink-0 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180 text-cyan-400' : ''}`} />
+                    </button>
+                    
+                    {isDropdownOpen && (
+                        <div className="absolute z-50 top-full left-0 mt-1.5 w-44 bg-[#0c1017]/95 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl p-1.5 animate-in fade-in zoom-in-95 duration-150">
+                            <button 
+                                onClick={() => { setTimeFilter('all'); setIsDropdownOpen(false); }}
+                                className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors cursor-pointer ${timeFilter === 'all' ? 'bg-cyan-500/15 text-cyan-300 font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                            >
+                                <span>Tüm Zamanlar</span>
+                            </button>
+                            <div className="my-1 border-t border-white/5" />
+                            <div className="max-h-56 overflow-y-auto [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                                {monthOptions.map(opt => (
+                                    <button 
+                                        key={opt.value}
+                                        onClick={() => { setTimeFilter(opt.value); setIsDropdownOpen(false); }}
+                                        className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors cursor-pointer ${timeFilter === opt.value ? 'bg-cyan-500/15 text-cyan-300 font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                                    >
+                                        <span className="truncate">{opt.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     )}
-                    
-                    <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white whitespace-nowrap">
-                        Mazot Fişleri
-                    </h2>
-                    
-                    {/* Zarif Zaman Seçici Kapsülü (Başlığın hemen yanında) */}
-                    <div className="relative" ref={dropdownRef}>
-                        <button 
-                            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                            className="h-[36px] w-[155px] px-3 bg-[#0b0e14]/90 border border-white/10 hover:border-cyan-500/35 rounded-xl flex items-center justify-between gap-2 text-xs sm:text-sm font-semibold text-slate-200 hover:text-white transition-all shadow-lg cursor-pointer"
-                        >
-                            <div className="flex items-center gap-2 min-w-0">
-                                <Calendar size={13} className="text-cyan-400 shrink-0" />
-                                <span className="truncate">
-                                    {timeFilter === 'all' 
-                                        ? 'Tüm Zamanlar' 
-                                        : (monthOptions.find(o => o.value === timeFilter)?.label || timeFilter)}
-                                </span>
-                            </div>
-                            <ChevronDown size={13} className={`text-slate-400 shrink-0 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180 text-cyan-400' : ''}`} />
-                        </button>
-                        
-                        {isDropdownOpen && (
-                            <div className="absolute z-50 top-full left-0 mt-1.5 w-44 bg-[#0c1017]/95 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl p-1.5 animate-in fade-in zoom-in-95 duration-150">
-                                <button 
-                                    onClick={() => { setTimeFilter('all'); setIsDropdownOpen(false); }}
-                                    className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors cursor-pointer ${timeFilter === 'all' ? 'bg-cyan-500/15 text-cyan-300 font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-                                >
-                                    <span>Tüm Zamanlar</span>
-                                </button>
-                                <div className="my-1 border-t border-white/5" />
-                                <div className="max-h-56 overflow-y-auto [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                                    {monthOptions.map(opt => (
-                                        <button 
-                                            key={opt.value}
-                                            onClick={() => { setTimeFilter(opt.value); setIsDropdownOpen(false); }}
-                                            className={`w-full text-left px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors cursor-pointer ${timeFilter === opt.value ? 'bg-cyan-500/15 text-cyan-300 font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-                                        >
-                                            <span className="truncate">{opt.label}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
                 </div>
-
-                {/* Sağ Aksiyon: Yeni Fiş Butonu */}
-                <button 
-                    onClick={() => openAddModal()}
-                    className="bg-gradient-to-r from-cyan-600 to-teal-500 hover:from-cyan-500 hover:to-teal-400 border border-cyan-400/40 text-white px-3.5 h-[36px] sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-[0_0_20px_rgba(6,182,212,0.35)] hover:shadow-[0_0_25px_rgba(6,182,212,0.5)] hover:-translate-y-0.5 flex items-center justify-center shrink-0 cursor-pointer"
-                >
-                    <Plus size={15} className="mr-1 sm:mr-1.5" /> 
-                    <span className="whitespace-nowrap">Yeni Fiş</span>
-                </button>
             </div>
 
-            {/* ─── YENİ TASARIM 4'LÜ ÖZET KARTLAR (MÜKEMMEL SİMETRİ) ─── */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Sağ Aksiyon: Yeni Fiş Butonu (Asla Kesilmez) */}
+            <button 
+                onClick={() => openAddModal()}
+                className="bg-gradient-to-r from-cyan-600 to-teal-500 hover:from-cyan-500 hover:to-teal-400 border border-cyan-400/40 text-white px-2.5 sm:px-4 h-[36px] rounded-xl text-xs sm:text-sm font-bold transition-all shadow-[0_0_20px_rgba(6,182,212,0.35)] hover:shadow-[0_0_25px_rgba(6,182,212,0.5)] flex items-center justify-center shrink-0 cursor-pointer"
+            >
+                <Plus size={15} className="sm:mr-1.5" /> 
+                <span className="hidden sm:inline whitespace-nowrap">Yeni Fiş</span>
+                <span className="sm:hidden whitespace-nowrap ml-1">Fiş</span>
+            </button>
+        </div>
+
+        {/* ─── YENİ TASARIM 4'LÜ ÖZET KARTLAR (MÜKEMMEL SİMETRİ) ─── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 
                 {/* KART 1: Toplam Tutar */}
                 <div className="bg-[#0c1017]/90 backdrop-blur-xl border border-white/[0.07] hover:border-cyan-500/35 rounded-xl p-3.5 sm:p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group transition-all duration-200">
