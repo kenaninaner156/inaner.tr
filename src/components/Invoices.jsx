@@ -524,19 +524,8 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                     </h2>
                 </div>
 
-                {/* Sağ Grup: PDF İndir (Aktif Fatura Varsa) */}
-                <div className="flex items-center gap-2">
-                    {activeInvoice && (
-                        <button
-                            onClick={handlePrintPDF}
-                            className="flex items-center gap-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
-                            title="PDF İndir / Yazdır"
-                        >
-                            <Printer size={14} />
-                            <span>PDF İndir</span>
-                        </button>
-                    )}
-                </div>
+                {/* Sağ Grup (Gerekirse boş bırakılır) */}
+                <div className="flex items-center gap-2"></div>
             </div>
 
             {/* ─── 2 PANELLİ ANA GÖVDE (Masaüstü Yan Yana, Mobilde Sekmeli & Tam Ekran) ─── */}
