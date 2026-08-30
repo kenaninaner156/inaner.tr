@@ -637,10 +637,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     // ─── DİKEY (PORTRAIT) MOD: DENGELİ GRAFİK & CANLI OPERASYON AKIŞI ───
     return (
         <div 
-            className="flex-1 flex flex-col h-full w-full p-2.5 sm:p-4 lg:p-6 overflow-y-auto custom-scrollbar gap-2.5 sm:gap-3 max-w-[1920px] mx-auto pb-6"
-            style={{
-                paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
-            }}
+            className="flex-1 flex flex-col h-full w-full overflow-y-auto custom-scrollbar gap-2.5 sm:gap-3 max-w-[1920px] mx-auto pb-1 sm:pb-2"
         >
             {/* Mobilde Şık Başlık & Menü Çubuğu */}
             {isMobile && onOpenMenu && (
