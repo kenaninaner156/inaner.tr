@@ -368,8 +368,8 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                 id: 'records', 
                 label: 'Bakım Ekle', 
                 icon: <Plus size={15} />, 
-                className: 'bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 border border-amber-400/40 text-white shadow-[0_0_15px_rgba(245,158,11,0.35)]', 
-                onClick: () => { setEditingMaintenanceId(null); setMaintenanceForm({ date: new Date().toISOString().split('T')[0], type: 'Periyodik Bakım', description: '', mechanicId: '', km: '', cost: '', files: [], doneItems: [] }); setIsMaintenanceModalOpen(true); } 
+                className: 'bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300', 
+                onClick: () => { setEditingMaintenanceId(null); setMaintenanceForm({ date: new Date().toISOString().split('T')[0], type: 'Periyodik Bakım', description: '', mechanicId: '', km: currentKm || '', cost: '', files: [], doneItems: [] }); setIsMaintenanceModalOpen(true); } 
             };
         }
         if (activeTab === 'shopping') {
@@ -377,7 +377,7 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                 id: 'shopping', 
                 label: 'İhtiyaç Ekle', 
                 icon: <Plus size={15} />, 
-                className: 'bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 border border-emerald-400/40 text-white shadow-[0_0_15px_rgba(16,185,129,0.35)]', 
+                className: 'bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300', 
                 onClick: () => { setEditingShoppingId(null); setShoppingForm({ name: '', description: '', price: '', link: '' }); setIsShoppingModalOpen(true); } 
             };
         }
@@ -386,7 +386,7 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                 id: 'stock', 
                 label: 'Stok Ekle', 
                 icon: <Plus size={15} />, 
-                className: 'bg-gradient-to-r from-violet-600 to-purple-500 hover:from-violet-500 hover:to-purple-400 border border-violet-400/40 text-white shadow-[0_0_15px_rgba(139,92,246,0.35)]', 
+                className: 'bg-violet-500/15 hover:bg-violet-500/25 border border-violet-500/30 text-violet-300', 
                 onClick: () => { setEditingStockId(null); setStockForm({ name: '', category: (sparePartCategories && sparePartCategories.length > 0) ? sparePartCategories[0] : 'Genel', count: '', price: '', notes: '', files: [] }); setShowNewCategoryInput(false); setIsStockModalOpen(true); } 
             };
         }
@@ -395,7 +395,7 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                 id: 'mechanics', 
                 label: 'Tamirci Ekle', 
                 icon: <Plus size={15} />, 
-                className: 'bg-gradient-to-r from-rose-600 to-pink-500 hover:from-rose-500 hover:to-pink-400 border border-rose-400/40 text-white shadow-[0_0_15px_rgba(244,63,94,0.35)]', 
+                className: 'bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300', 
                 onClick: () => { setEditingMechanicId(null); setMechanicForm({ name: '', masterName: '', phone: '', location: '', mapLink: '', type: 'Genel Bakım', notes: '' }); setIsMechanicModalOpen(true); } 
             };
         }
@@ -405,7 +405,7 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                     id: 'photos-file', 
                     label: 'Dosya Ekle', 
                     icon: <Plus size={15} />, 
-                    className: 'bg-gradient-to-r from-sky-600 to-cyan-500 hover:from-sky-500 hover:to-cyan-400 border border-sky-400/40 text-white shadow-[0_0_15px_rgba(14,165,233,0.35)]', 
+                    className: 'bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-sky-300', 
                     onClick: () => { setEditingFolderId(openedFolder.id); setFolderForm({ name: openedFolder.name, description: openedFolder.description, files: openedFolder.files || [] }); setIsFolderModalOpen(true); } 
                 };
             }
@@ -413,7 +413,7 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                 id: 'photos-album', 
                 label: 'Yeni Albüm', 
                 icon: <FolderPlus size={15} />, 
-                className: 'bg-gradient-to-r from-sky-600 to-cyan-500 hover:from-sky-500 hover:to-cyan-400 border border-sky-400/40 text-white shadow-[0_0_15px_rgba(14,165,233,0.35)]', 
+                className: 'bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-sky-300', 
                 onClick: () => { setEditingFolderId(null); setFolderForm({ name: '', description: '', files: [] }); setIsFolderModalOpen(true); } 
             };
         }
@@ -422,7 +422,7 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
     const dynamicActionBtn = getDynamicActionButton();
 
     return (
-        <div className="space-y-5 animate-in fade-in duration-500 relative pb-ios-nav">
+        <div className="space-y-4 pb-ios-nav">
 
             {/* ─── ENTEGRE TEK SATIR HEADER BAR ─── */}
             <div 
@@ -448,54 +448,38 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                     </h2>
                 </div>
 
-                {/* Sağ Grup: Dinamik Aksiyon Butonu (Başlığın Hizası - Mobilde Sıfır Çakışma) */}
-                <AnimatePresence mode="wait">
-                    {dynamicActionBtn && (
-                        <motion.button
-                            key={dynamicActionBtn.id}
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            transition={{ duration: 0.15 }}
-                            onClick={dynamicActionBtn.onClick}
-                            className={`h-[36px] px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-lg flex items-center justify-center shrink-0 cursor-pointer ${dynamicActionBtn.className}`}
-                        >
-                            <span className="mr-1 sm:mr-1.5">{dynamicActionBtn.icon}</span>
-                            <span className="whitespace-nowrap">{dynamicActionBtn.label}</span>
-                        </motion.button>
-                    )}
-                </AnimatePresence>
+                {/* Sağ Grup: Sabit & Titremesiz Dinamik Aksiyon Butonu */}
+                {dynamicActionBtn && (
+                    <button
+                        key={dynamicActionBtn.id}
+                        onClick={dynamicActionBtn.onClick}
+                        className={`h-[36px] px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all duration-150 flex items-center justify-center shrink-0 cursor-pointer active:scale-95 shadow-sm ${dynamicActionBtn.className}`}
+                    >
+                        <span className="mr-1 sm:mr-1.5">{dynamicActionBtn.icon}</span>
+                        <span className="whitespace-nowrap">{dynamicActionBtn.label}</span>
+                    </button>
+                )}
             </div>
 
-            {/* ─── ZARİF OBSİDYEN TAB BAR (Saf Kayar & Sıfır Çakışma) ─── */}
+            {/* ─── ZARİF OBSİDYEN TAB BAR (Sıfır Titreme & Süper Akıcı) ─── */}
             <div className="w-full z-20 overflow-x-auto no-scrollbar scroll-smooth py-1">
-                <div className="inline-flex bg-[#0c1017]/90 backdrop-blur-xl p-1.5 rounded-2xl shadow-xl border border-white/[0.08] min-w-full sm:min-w-0 items-center gap-1.5">
+                <div className="inline-flex bg-[#0c1017]/90 backdrop-blur-xl p-1 rounded-2xl shadow-sm border border-white/[0.08] min-w-full sm:min-w-0 items-center gap-1">
                     {tabs.map(tab => {
                         const isActive = activeTab === tab.id;
                         return (
                             <button 
                                 key={tab.id} 
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`relative flex items-center gap-2 px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl text-xs sm:text-sm transition-all duration-200 justify-center whitespace-nowrap outline-none cursor-pointer group shrink-0 ${
-                                    isActive ? 'text-white font-bold' : 'text-slate-400 font-medium hover:text-white hover:bg-white/5'
+                                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-150 justify-center whitespace-nowrap outline-none cursor-pointer shrink-0 ${
+                                    isActive 
+                                        ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
+                                        : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
                                 }`}
                             >
-                                {/* Aktif Sekme Renkli Gradyan Pill */}
-                                {isActive && (
-                                    <motion.div
-                                        layoutId="maintenance-active-tab-glow"
-                                        className={`absolute inset-0 bg-gradient-to-r ${tab.theme} rounded-xl`}
-                                        style={{ zIndex: 0 }}
-                                        initial={false}
-                                        transition={{ type: "spring", stiffness: 450, damping: 32, mass: 0.8 }}
-                                    />
-                                )}
-                                <span className="relative z-10 flex items-center gap-1.5 sm:gap-2">
-                                    <span className={isActive ? 'text-white' : `text-slate-400 ${tab.hoverText} transition-colors duration-200`}>
-                                        {tab.icon}
-                                    </span>
-                                    <span>{tab.label}</span>
+                                <span className={isActive ? 'text-white' : 'text-slate-400'}>
+                                    {tab.icon}
                                 </span>
+                                <span>{tab.label}</span>
                             </button>
                         );
                     })}
@@ -503,21 +487,13 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
             </div>
 
             {/* ─── TAB İÇERİKLERİ ─── */}
-            <AnimatePresence mode="wait">
-                <motion.div
-                    key={activeTab}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    transition={{ duration: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
-                    className="w-full"
-                >
-                    {/* ─── ARAÇ BİLGİLERİ ─── */}
-                    {activeTab === 'info' && (
-                        <div className="space-y-4">
-                            <div className="bg-[#0c1017]/90 backdrop-blur-xl border border-white/[0.07] rounded-2xl p-5 shadow-xl">
-                                <h3 className="font-bold text-white mb-4 flex items-center gap-2">
-                                    <Truck size={18} className="text-blue-400" /> Araç Bilgileri
+            <div className="w-full">
+                {/* ─── ARAÇ BİLGİLERİ ─── */}
+                {activeTab === 'info' && (
+                    <div className="space-y-4">
+                        <div className="bg-[#0c1017]/90 backdrop-blur-xl border border-white/[0.07] rounded-2xl p-5 shadow-xl">
+                            <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                                <Truck size={18} className="text-blue-400" /> Araç Bilgileri
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                                     {[
@@ -1177,8 +1153,7 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                             )}
                         </div>
                     )}
-                </motion.div>
-            </AnimatePresence>
+            </div>
 
             {/* ─── İHTİYAÇ EKLEME MODALI ─── */}
             {typeof document !== 'undefined' && createPortal(
