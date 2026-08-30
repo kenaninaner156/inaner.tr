@@ -664,16 +664,23 @@ function App() {
           </div>
 
           {/* Content Area */}
-          <div className={`flex-1 ${
-            activeTab === 'map' 
-              ? 'p-0 h-full overflow-hidden' 
-              : activeTab === 'dashboard'
-                ? 'pt-1 sm:pt-4 md:pt-5 pb-3 sm:pb-4 px-3 sm:px-5 md:px-6 h-full overflow-hidden flex flex-col' 
-                : ['invoices', 'earsiv'].includes(activeTab)
-                  ? 'p-3 sm:p-4 md:p-5 h-full overflow-hidden flex flex-col'
-                  : 'p-3 sm:p-4 md:p-6 xl:p-8'
-          }`}>
-            <div key={activeTab} className={activeTab === 'map' ? 'h-full w-full overflow-hidden' : ['dashboard', 'invoices', 'earsiv'].includes(activeTab) ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
+          <div 
+            className={`flex-1 ${
+              activeTab === 'map' 
+                ? 'p-0 h-full overflow-hidden' 
+                : activeTab === 'dashboard'
+                  ? 'pb-3 sm:pb-4 px-3 sm:px-5 md:px-6 h-full overflow-hidden flex flex-col' 
+                  : ['invoices', 'earsiv'].includes(activeTab)
+                    ? 'p-3 sm:p-4 md:p-5 h-full overflow-hidden flex flex-col'
+                    : 'p-3 sm:p-4 md:p-6 xl:p-8'
+            }`}
+            style={activeTab === 'dashboard' ? {
+              paddingTop: 'calc(0.85rem + env(safe-area-inset-top, 0px))',
+              paddingRight: 'calc(1.25rem + env(safe-area-inset-right, 0px))',
+              paddingLeft: 'calc(1.25rem + env(safe-area-inset-left, 0px))'
+            } : undefined}
+          >
+            <div key={activeTab} className={['map', 'dashboard'].includes(activeTab) ? 'h-full w-full overflow-hidden' : ['invoices', 'earsiv'].includes(activeTab) ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
               {activeTab === 'dashboard' && <Dashboard onOpenMenu={() => setIsMenuOpen(true)} onNavigate={setActiveTab} isMobile={isMobile} />}
               {activeTab === 'trips' && <Trips onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'fuel' && <Fuel onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}

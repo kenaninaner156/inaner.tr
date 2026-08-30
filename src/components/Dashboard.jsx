@@ -452,9 +452,9 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
             <div 
                 className="h-screen w-screen fixed inset-0 z-50 bg-[#07090e] p-2.5 sm:p-4 flex flex-col justify-between overflow-hidden select-none"
                 style={{
-                    paddingLeft: 'calc(0.75rem + env(safe-area-inset-left, 0px))',
-                    paddingRight: 'calc(0.75rem + env(safe-area-inset-right, 0px))',
-                    paddingTop: 'calc(0.5rem + env(safe-area-inset-top, 0px))',
+                    paddingLeft: 'calc(1.25rem + env(safe-area-inset-left, 0px))',
+                    paddingRight: 'calc(1.25rem + env(safe-area-inset-right, 0px))',
+                    paddingTop: 'calc(0.85rem + env(safe-area-inset-top, 0px))',
                     paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))',
                 }}
             >
