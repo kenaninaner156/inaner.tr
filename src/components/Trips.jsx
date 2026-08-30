@@ -789,13 +789,13 @@ const Trips = ({ onOpenMenu, isMobile }) => {
 
             {/* ─── DÜZENLE MODAL ─── */}
             {editingTrip && createPortal(
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto border-sky-500/30">
-                        <button onClick={() => setEditingTrip(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer"><X size={20} /></button>
-                        <h3 className="text-lg font-bold text-white mb-5 flex items-center gap-2">
-                            <Pencil size={16} className="text-sky-400" /> Seferi Düzenle
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md">
+                    <div className="glass-panel w-full max-w-lg p-4 sm:p-6 relative animate-in zoom-in-95 duration-200 max-h-[92dvh] overflow-hidden flex flex-col border-sky-500/30">
+                        <button onClick={() => setEditingTrip(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer z-20"><X size={20} /></button>
+                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-5 flex items-center gap-2 flex-shrink-0">
+                            <Pencil size={18} className="text-sky-400" /> Seferi Düzenle
                         </h3>
-                        <div className="space-y-4">
+                        <div className="space-y-4 flex-1 overflow-y-auto pr-1 sm:pr-2 custom-scrollbar pb-3">
                             {/* Tarih */}
                             <div className="animate-in fade-in slide-in-from-top-2 duration-300">
                                 <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">Tarih</label>
@@ -806,22 +806,22 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                 />
                             </div>
                             {/* Güzergah Belirleme */}
-                            <div className="p-4 bg-sky-500/5 border border-sky-500/20 rounded-2xl space-y-4 shadow-lg shadow-sky-500/5 transition-all duration-300 border-dashed md:border-solid">
-                                <div className="flex items-center justify-between mb-2">
+                            <div className="p-3.5 sm:p-4 bg-sky-500/5 border border-sky-500/20 rounded-2xl space-y-3.5 shadow-lg shadow-sky-500/5 transition-all duration-300 border-dashed md:border-solid">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1">
                                     <label className="text-xs font-bold text-sky-400 uppercase tracking-widest flex items-center gap-2">
                                         <MapPin size={14} /> Güzergah Belirleme
                                     </label>
-                                    <div className="flex items-center space-x-2 bg-black/40 p-1 rounded-lg border border-white/5">
+                                    <div className="flex items-center justify-between sm:justify-start space-x-1.5 sm:space-x-2 bg-black/40 p-1 rounded-xl border border-white/5 w-full sm:w-auto">
                                         <button
                                             type="button"
-                                            className={`px-3 py-1 text-xs font-medium rounded cursor-pointer transition-all ${editUseSavedRoute ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
+                                            className={`flex-1 sm:flex-initial px-3 py-1.5 text-xs font-medium rounded-lg cursor-pointer transition-all text-center ${editUseSavedRoute ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
                                             onClick={() => setEditUseSavedRoute(true)}
                                         >
                                             Kayıtlı Rota
                                         </button>
                                         <button
                                             type="button"
-                                            className={`px-3 py-1 text-xs font-medium rounded cursor-pointer transition-all ${!editUseSavedRoute ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
+                                            className={`flex-1 sm:flex-initial px-3 py-1.5 text-xs font-medium rounded-lg cursor-pointer transition-all text-center ${!editUseSavedRoute ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
                                             onClick={() => {
                                                 setEditUseSavedRoute(false);
                                                 setEditSelectedRouteId('');
@@ -830,10 +830,10 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                         >
                                             Yeni Rota
                                         </button>
-                                        <div className="w-[1px] h-3 bg-white/10 mx-1"></div>
+                                        <div className="w-[1px] h-3.5 bg-white/10 mx-0.5"></div>
                                         <button
                                             type="button"
-                                            className="px-2 py-1 text-[10px] font-bold text-sky-400 hover:text-sky-300 uppercase tracking-tighter cursor-pointer"
+                                            className="px-2.5 py-1.5 text-[10px] font-bold text-sky-400 hover:text-sky-300 uppercase tracking-tighter cursor-pointer"
                                             onClick={() => setIsRouteManagerOpen(true)}
                                         >
                                             Yönet
@@ -1054,8 +1054,8 @@ const Trips = ({ onOpenMenu, isMobile }) => {
 
             {/* ─── MANUEL EKLE MODAL ─── */}
             {isModalOpen && createPortal(
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                    <div className="glass-panel w-full max-w-lg p-6 relative animate-in zoom-in-95 duration-200 border-sky-500/30 max-h-[92vh] overflow-y-visible flex flex-col">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md">
+                    <div className="glass-panel w-full max-w-lg p-4 sm:p-6 relative animate-in zoom-in-95 duration-200 border-sky-500/30 max-h-[92dvh] overflow-hidden flex flex-col">
                         <button
                             onClick={() => setIsModalOpen(false)}
                             className="absolute top-4 right-4 text-slate-400 hover:text-white z-[80] cursor-pointer"
@@ -1063,11 +1063,11 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                             <X size={20} />
                         </button>
 
-                        <h3 className="text-xl font-bold text-white mb-6 flex items-center flex-shrink-0">
+                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6 flex items-center flex-shrink-0">
                             <MapPin className="mr-2 text-sky-400" /> Yeni Sefer / Rota
                         </h3>
 
-                        <form onSubmit={handleManualAdd} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar pb-20">
+                        <form onSubmit={handleManualAdd} className="space-y-4 flex-1 overflow-y-auto pr-1 sm:pr-2 custom-scrollbar pb-3">
                             {/* Tarih */}
                             <div className="animate-in fade-in slide-in-from-top-2 duration-300">
                                 <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">Tarih</label>
@@ -1079,22 +1079,22 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                             </div>
 
                             {/* Rota Seçim Alanı */}
-                            <div className="p-4 bg-sky-500/5 border border-sky-500/20 rounded-2xl space-y-4 shadow-lg shadow-sky-500/5 transition-all duration-300 border-dashed md:border-solid">
-                                <div className="flex items-center justify-between mb-2">
+                            <div className="p-3.5 sm:p-4 bg-sky-500/5 border border-sky-500/20 rounded-2xl space-y-3.5 shadow-lg shadow-sky-500/5 transition-all duration-300 border-dashed md:border-solid">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1">
                                     <label className="text-xs font-bold text-sky-400 uppercase tracking-widest flex items-center gap-2">
                                         <MapPin size={14} /> Güzergah Belirleme
                                     </label>
-                                    <div className="flex items-center space-x-2 bg-black/40 p-1 rounded-lg border border-white/5">
+                                    <div className="flex items-center justify-between sm:justify-start space-x-1.5 sm:space-x-2 bg-black/40 p-1 rounded-xl border border-white/5 w-full sm:w-auto">
                                         <button
                                             type="button"
-                                            className={`px-3 py-1 text-xs font-medium rounded cursor-pointer transition-all ${useSavedRoute ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
+                                            className={`flex-1 sm:flex-initial px-3 py-1.5 text-xs font-medium rounded-lg cursor-pointer transition-all text-center ${useSavedRoute ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
                                             onClick={() => setUseSavedRoute(true)}
                                         >
                                             Kayıtlı Rota
                                         </button>
                                         <button
                                             type="button"
-                                            className={`px-3 py-1 text-xs font-medium rounded cursor-pointer transition-all ${!useSavedRoute ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
+                                            className={`flex-1 sm:flex-initial px-3 py-1.5 text-xs font-medium rounded-lg cursor-pointer transition-all text-center ${!useSavedRoute ? 'bg-sky-500 text-white shadow-md shadow-sky-500/30 font-bold' : 'text-slate-400 hover:text-white'}`}
                                             onClick={() => {
                                                 setUseSavedRoute(false);
                                                 setSelectedRouteId('');
@@ -1103,10 +1103,10 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                         >
                                             Yeni Rota
                                         </button>
-                                        <div className="w-[1px] h-3 bg-white/10 mx-1"></div>
+                                        <div className="w-[1px] h-3.5 bg-white/10 mx-0.5"></div>
                                         <button
                                             type="button"
-                                            className="px-2 py-1 text-[10px] font-bold text-sky-400 hover:text-sky-300 uppercase tracking-tighter cursor-pointer"
+                                            className="px-2.5 py-1.5 text-[10px] font-bold text-sky-400 hover:text-sky-300 uppercase tracking-tighter cursor-pointer"
                                             onClick={() => setIsRouteManagerOpen(true)}
                                         >
                                             Yönet
@@ -1431,11 +1431,11 @@ const Trips = ({ onOpenMenu, isMobile }) => {
 
             {/* ─── ROTA SEÇİCİ MODAL (YENİ PENCERE) ─── */}
             {isRouteSelectorOpen && createPortal(
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-                    <div className="glass-panel w-full max-w-lg p-0 relative animate-in zoom-in-95 duration-200 border-sky-500/30 overflow-hidden flex flex-col h-[80vh] md:h-auto md:max-h-[85vh]">
+                <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md pt-[calc(0.75rem+env(safe-area-inset-top,0px))] sm:pt-4">
+                    <div className="glass-panel w-full max-w-lg p-0 relative animate-in zoom-in-95 duration-200 border-sky-500/30 overflow-hidden flex flex-col h-[calc(100dvh-1.5rem-env(safe-area-inset-top,0px))] sm:h-auto sm:max-h-[85vh]">
                         {/* Modal Header */}
-                        <div className="p-4 flex items-center justify-between border-b border-white/5 bg-white/5 shrink-0">
-                            <h3 className="text-lg font-bold text-white flex items-center">
+                        <div className="p-3.5 sm:p-4 flex items-center justify-between border-b border-white/5 bg-white/5 shrink-0">
+                            <h3 className="text-base sm:text-lg font-bold text-white flex items-center">
                                 <Search className="mr-2 text-sky-400" size={18} /> Rota Seç
                             </h3>
                             <button

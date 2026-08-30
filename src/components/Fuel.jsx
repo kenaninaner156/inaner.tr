@@ -340,10 +340,10 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
             avgLtPer100km, 
             avgCostPerKm, 
             avgPricePerLiter, 
-        summaryStats,
-        receiptCount: filteredRecords.length
-    };
-}, [filteredRecords]);
+            totalDistanceForConsumption,
+            receiptCount: filteredRecords.length
+        };
+    }, [filteredRecords]);
 
 const uniqueStations = [...new Set(activeFuelRecords.filter(r => r.station).map(r => toTitleCase(r.station)))];
 
