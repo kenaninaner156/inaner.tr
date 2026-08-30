@@ -498,7 +498,7 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
     };
 
     return (
-        <div className="flex flex-col h-full w-full gap-3 md:gap-4 overflow-hidden animate-in fade-in duration-500 pb-ios-nav">
+        <div className="flex flex-col h-full w-full gap-3 md:gap-4 overflow-hidden animate-in fade-in duration-500 pb-1 sm:pb-2">
 
             {/* ─── ENTEGRE TEK SATIR HEADER BAR ─── */}
             <div 
