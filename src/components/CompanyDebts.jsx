@@ -892,17 +892,6 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
     const [selectedCreditorKey, setSelectedCreditorKey] = useState(null);
     const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
 
-    // Mobil görünümde seçili alacaklının tüm borçları silinir/kapanırsa veya liste boşalırsa alacaklılar listesine geri dön
-    useEffect(() => {
-        if (isMobileDetailOpen && selectedCreditorKey) {
-            const exists = groupedOpenDebts.some(g => g.key === selectedCreditorKey);
-            if (!exists) {
-                setIsMobileDetailOpen(false);
-                setSelectedCreditorKey(null);
-            }
-        }
-    }, [groupedOpenDebts, isMobileDetailOpen, selectedCreditorKey]);
-
     // Kart üzerinde ekli belgeleri açıp kapatma
     const [openDocsDebtId, setOpenDocsDebtId] = useState(null);
     const toggleDebtDocs = (debtId) => {
@@ -1288,6 +1277,17 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
         }
         return groupedOpenDebts[0] || null;
     }, [groupedOpenDebts, selectedCreditorKey]);
+
+    // Mobil görünümde seçili alacaklının tüm borçları silinir/kapanırsa veya liste boşalırsa alacaklılar listesine geri dön
+    useEffect(() => {
+        if (isMobileDetailOpen && selectedCreditorKey) {
+            const exists = groupedOpenDebts.some(g => g.key === selectedCreditorKey);
+            if (!exists) {
+                setIsMobileDetailOpen(false);
+                setSelectedCreditorKey(null);
+            }
+        }
+    }, [groupedOpenDebts, isMobileDetailOpen, selectedCreditorKey]);
 
     // ─── KİLİT EKRANI (ŞİFRE GİRİLMEMİŞSE GÖSTERİLİR) ───
     if (!isUnlocked) {
