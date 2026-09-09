@@ -13,6 +13,8 @@ import {
     CheckCircle2, 
     AlertCircle, 
     Clock, 
+    History,
+    Minus,
     Trash2, 
     Pencil, 
     X, 
@@ -20,16 +22,21 @@ import {
     RefreshCw, 
     ChevronDown, 
     ChevronUp, 
+    ChevronLeft,
+    ChevronRight,
     DollarSign, 
     Truck, 
     User, 
     Building2, 
+    ScrollText,
     Menu, 
     Sparkles, 
     FileText, 
     ExternalLink,
     HelpCircle,
-    ArrowRight
+    ArrowRight,
+    RotateCcw,
+    Paperclip
 } from 'lucide-react';
 import { db } from '../services/firebaseConfig';
 import { collection, onSnapshot, query, where, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
@@ -39,6 +46,8 @@ import { DataContext } from '../context/DataContext';
 import PinLockOverlay from './PinLockOverlay';
 import CustomDatePicker from './CustomDatePicker';
 import CustomSelect from './CustomSelect';
+import FileUpload from './FileUpload';
+import { uploadToCloudinary } from '../services/cloudinaryService';
 import { 
     fetchLiveRates, 
     getStoredRates, 
@@ -48,9 +57,10 @@ import {
 } from '../services/currencyService';
 
 const LOAN_TYPES = [
-    { id: 'bireysel', label: 'Bireysel Kredi (İhtiyaç / Konut / Şahsi)', icon: User },
-    { id: 'ticari', label: 'Ticari / Şirket Kredisi', icon: Building2 },
-    { id: 'tasit', label: 'Taşıt Kredisi (Araç / Çekici / Dorse)', icon: Truck },
+    { id: 'bireysel', label: 'Bireysel Kredi', icon: User },
+    { id: 'ticari', label: 'Ticari Kredi', icon: Building2 },
+    { id: 'tasit', label: 'Taşıt Kredisi', icon: Truck },
+    { id: 'senet', label: 'Senetli Borç / Senet', icon: ScrollText },
 ];
 
 const CURRENCY_TYPES = [
@@ -86,6 +96,114 @@ const getCurrencyMeta = (currencyId) => {
         return { label: `Miktar (${shortName})`, placeholder: '', suffix: 'Adet' };
     }
     return { label: 'Borç Miktarı', placeholder: '', suffix: cur.symbol || '' };
+};
+
+const formatDebtAge = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+        const debtDate = new Date(dateStr);
+        if (isNaN(debtDate.getTime())) return '';
+        const now = new Date();
+        const d1 = new Date(debtDate.getFullYear(), debtDate.getMonth(), debtDate.getDate());
+        const d2 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const diffMs = d2 - d1;
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        if (diffDays <= 0) return 'Bugün alındı';
+        if (diffDays < 30) return `${diffDays} gündür borçlu`;
+        
+        const months = Math.floor(diffDays / 30.4375);
+        const remDays = Math.floor(diffDays % 30.4375);
+        if (diffDays < 365) {
+            if (remDays === 0) return `${months} aydır borçlu`;
+            return `${months} ay ${remDays} gündür borçlu`;
+        }
+        const years = Math.floor(diffDays / 365.25);
+        const remMonths = Math.floor((diffDays % 365.25) / 30.4375);
+        if (remMonths === 0) return `${years} yıldır borçlu`;
+        return `${years} yıl ${remMonths} aydır borçlu`;
+    } catch {
+        return '';
+    }
+};
+
+const formatTurkishDate = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+        const parts = dateStr.split('-');
+        if (parts.length === 3) {
+            return `${parts[2]}.${parts[1]}.${parts[0]}`;
+        }
+        return dateStr;
+    } catch {
+        return dateStr;
+    }
+};
+
+const openAttachment = (f) => {
+    if (!f) return;
+    const url = f.data || f.url;
+    if (!url) return;
+    if ((f.type === 'application/pdf' || f.name?.toLowerCase().endsWith('.pdf')) && url.startsWith('data:')) {
+        try {
+            const byteStr = atob(url.split(',')[1]);
+            const arr = new Uint8Array(byteStr.length);
+            for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
+            const blob = new Blob([arr], { type: 'application/pdf' });
+            window.open(URL.createObjectURL(blob));
+            return;
+        } catch (e) {
+            console.error("PDF açılamadı:", e);
+        }
+    }
+    window.open(url, '_blank');
+};
+
+const processSelectedFiles = async (fileList, maxSizeMB = 5) => {
+    const files = Array.from(fileList || []);
+    const maxBytes = maxSizeMB * 1024 * 1024;
+    const processed = [];
+
+    for (const file of files) {
+        if (file.size > maxBytes) {
+            alert(`"${file.name}" dosyası ${maxSizeMB}MB sınırını aşıyor.`);
+            continue;
+        }
+        const isPdf = file.type === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf');
+        try {
+            let dataUrl;
+            if (isPdf) {
+                dataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            } else {
+                try {
+                    const result = await uploadToCloudinary(file);
+                    dataUrl = result.url;
+                } catch {
+                    dataUrl = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                    });
+                }
+            }
+            processed.push({
+                id: Date.now() + Math.random(),
+                name: file.name,
+                type: file.type || (isPdf ? 'application/pdf' : 'image/jpeg'),
+                size: file.size,
+                data: dataUrl
+            });
+        } catch (err) {
+            console.error("Dosya işlenemedi:", err);
+            alert(`"${file.name}" dosyası yüklenemedi.`);
+        }
+    }
+    return processed;
 };
 
 const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
@@ -212,10 +330,59 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
         truckId: '',
         monthlyAmount: '',
         monthsCount: '',
-        startDate: new Date().toISOString().split('T')[0],
+        startDate: '',
         totalAmount: '',
-        notes: ''
+        notes: '',
+        files: []
     });
+
+    const handleOpenNewLoan = () => {
+        setEditingLoanId(null);
+        setLoanFormErrors({});
+        setLoanForm({
+            bankName: '',
+            loanTitle: '',
+            loanType: 'bireysel',
+            truckId: '',
+            monthlyAmount: '',
+            monthsCount: '',
+            startDate: '',
+            totalAmount: '',
+            notes: '',
+            files: []
+        });
+        setIsLoanFormOpen(true);
+    };
+
+    const handleOpenEditLoan = (loan) => {
+        setEditingLoanId(loan.id);
+        setLoanFormErrors({});
+        setLoanForm({
+            bankName: loan.bankName || '',
+            loanTitle: loan.loanTitle || '',
+            loanType: loan.loanType || 'bireysel',
+            truckId: loan.truckId || '',
+            monthlyAmount: loan.monthlyAmount ? String(loan.monthlyAmount) : '',
+            monthsCount: loan.monthsCount ? String(loan.monthsCount) : (loan.installments ? String(loan.installments.length) : ''),
+            startDate: loan.startDate || '',
+            totalAmount: loan.totalAmount ? String(loan.totalAmount) : '',
+            notes: loan.notes || '',
+            files: loan.files || []
+        });
+        setIsLoanFormOpen(true);
+    };
+
+    const handleReopenLoan = async (loanId) => {
+        if (!window.confirm("Bu krediyi yeniden 'Aktif' duruma getirmek istiyor musunuz?")) return;
+        try {
+            await updateDoc(doc(db, 'loans', loanId), {
+                status: 'active',
+                updatedAt: new Date().toISOString()
+            });
+        } catch (err) {
+            console.error("Kredi aktif edilemedi:", err);
+        }
+    };
 
     // Otomatik Toplam Hesaplama (Aylık tutar veya ay sayısı değiştikçe)
     const handleMonthlyOrMonthsChange = (mAmount, mCount) => {
@@ -225,7 +392,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
             ...prev,
             monthlyAmount: mAmount,
             monthsCount: mCount,
-            totalAmount: (amt * count > 0) ? String(amt * count) : prev.totalAmount
+            totalAmount: (amt > 0 && count > 0) ? String(amt * count) : ''
         }));
         setLoanFormErrors(prev => {
             const next = { ...prev };
@@ -257,7 +424,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                 // Mevcut krediyi güncelle
                 await updateDoc(doc(db, 'loans', editingLoanId), {
                     bankName: loanForm.bankName.trim(),
-                    loanTitle: loanForm.loanTitle.trim() || `${loanForm.bankName} Kredisi`,
+                    loanTitle: loanForm.loanTitle.trim(),
                     loanType: loanForm.loanType,
                     truckId: loanForm.loanType === 'tasit' ? loanForm.truckId : '',
                     monthlyAmount: monthly,
@@ -265,6 +432,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                     startDate: loanForm.startDate,
                     totalAmount: parseFloat(loanForm.totalAmount) || (monthly * months),
                     notes: loanForm.notes || '',
+                    files: loanForm.files || [],
                     updatedAt: new Date().toISOString()
                 });
             } else {
@@ -287,14 +455,15 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                         status: 'pending', // 'pending' | 'paid' | 'overdue' | 'early_closed'
                         paidDate: null,
                         paidAmount: null,
-                        note: ''
+                        note: '',
+                        files: []
                     });
                 }
 
                 await addDoc(collection(db, 'loans'), {
                     companyId: activeCompanyId,
                     bankName: loanForm.bankName.trim(),
-                    loanTitle: loanForm.loanTitle.trim() || `${loanForm.bankName} Kredisi`,
+                    loanTitle: loanForm.loanTitle.trim(),
                     loanType: loanForm.loanType,
                     truckId: loanForm.loanType === 'tasit' ? loanForm.truckId : '',
                     monthlyAmount: monthly,
@@ -302,6 +471,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                     startDate: loanForm.startDate,
                     totalAmount: parseFloat(loanForm.totalAmount) || (monthly * months),
                     notes: loanForm.notes || '',
+                    files: loanForm.files || [],
                     status: 'active', // 'active' | 'closed'
                     installments: installments,
                     createdAt: new Date().toISOString()
@@ -316,10 +486,11 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                 loanType: 'bireysel',
                 truckId: '',
                 monthlyAmount: '',
-                monthsCount: 18,
-                startDate: new Date().toISOString().split('T')[0],
+                monthsCount: '',
+                startDate: '',
                 totalAmount: '',
-                notes: ''
+                notes: '',
+                files: []
             });
         } catch (err) {
             console.error("Kredi kaydedilirken hata:", err);
@@ -332,7 +503,8 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
     const [payModalForm, setPayModalForm] = useState({
         paidDate: new Date().toISOString().split('T')[0],
         paidAmount: '',
-        note: ''
+        note: '',
+        files: []
     });
 
     const handleOpenPayModal = (loanId, inst) => {
@@ -340,8 +512,9 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
         setPayModalErrors({});
         setPayModalForm({
             paidDate: inst.paidDate || new Date().toISOString().split('T')[0],
-            paidAmount: inst.paidAmount !== null ? String(inst.paidAmount) : String(inst.amount),
-            note: inst.note || ''
+            paidAmount: inst.paidAmount !== null && inst.paidAmount !== undefined ? String(inst.paidAmount) : String(inst.amount),
+            note: inst.note || '',
+            files: inst.files || []
         });
     };
 
@@ -371,7 +544,8 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                     status: 'paid',
                     paidDate: payModalForm.paidDate,
                     paidAmount: paidAmt,
-                    note: payModalForm.note.trim()
+                    note: payModalForm.note.trim(),
+                    files: payModalForm.files || []
                 };
             }
             return item;
@@ -384,6 +558,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
             await updateDoc(doc(db, 'loans', loanId), {
                 installments: updatedInstallments,
                 status: allPaid ? 'closed' : 'active',
+                ...(allPaid ? { closedAt: new Date().toISOString() } : {}),
                 updatedAt: new Date().toISOString()
             });
             setSelectedInstallment(null);
@@ -407,7 +582,8 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                     status: 'pending',
                     paidDate: null,
                     paidAmount: null,
-                    note: ''
+                    note: '',
+                    files: []
                 };
             }
             return item;
@@ -424,17 +600,19 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
         }
     };
 
-    // Kredi Taksitini Manuel Düzenleme (Tutar veya Tarih Değiştirme)
+    // Kredi Taksitini Manuel Düzenleme (Tutar, Tarih, Not veya Dekont/Dosya Değiştirme)
     const [editingInstallmentItem, setEditingInstallmentItem] = useState(null); // { loanId, inst }
     const [editInstErrors, setEditInstErrors] = useState({});
-    const [editInstForm, setEditInstForm] = useState({ dueDate: '', amount: '' });
+    const [editInstForm, setEditInstForm] = useState({ dueDate: '', amount: '', note: '', files: [] });
 
     const handleOpenEditInstallment = (loanId, inst) => {
         setEditingInstallmentItem({ loanId, inst });
         setEditInstErrors({});
         setEditInstForm({
             dueDate: inst.dueDate,
-            amount: String(inst.amount)
+            amount: String(inst.amount),
+            note: inst.note || '',
+            files: inst.files || []
         });
     };
 
@@ -461,7 +639,9 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                 return {
                     ...item,
                     dueDate: editInstForm.dueDate,
-                    amount: newAmount
+                    amount: newAmount,
+                    note: editInstForm.note.trim(),
+                    files: editInstForm.files || []
                 };
             }
             return item;
@@ -503,6 +683,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
             await updateDoc(doc(db, 'loans', loanId), {
                 installments: updatedInstallments,
                 status: 'closed',
+                closedAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
             });
         } catch (err) {
@@ -530,11 +711,208 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
         creditor: '',
         currency: 'TL',
         initialAmount: '',
-        date: new Date().toISOString().split('T')[0],
+        date: '',
         isVadesiz: true,
         dueDate: '',
-        notes: ''
+        notes: '',
+        goldCalcMode: 'total', // 'total' | 'pieces'
+        pieceCount: '',
+        pieceGram: '',
+        files: []
     });
+
+    // Dosya Seçim Refleri & İşleyicileri
+    const debtFileInputRef = useRef(null);
+    const payFileInputRef = useRef(null);
+    const directDebtFileInputRef = useRef(null);
+    const [directUploadDebtId, setDirectUploadDebtId] = useState(null);
+
+    const handleDebtFileSelect = async (e) => {
+        const selected = e.target.files;
+        if (!selected || selected.length === 0) return;
+        const newFiles = await processSelectedFiles(selected);
+        if (newFiles.length > 0) {
+            setDebtForm(prev => ({ ...prev, files: [...(prev.files || []), ...newFiles] }));
+        }
+        e.target.value = '';
+    };
+
+    const handlePayFileSelect = async (e) => {
+        const selected = e.target.files;
+        if (!selected || selected.length === 0) return;
+        const newFiles = await processSelectedFiles(selected);
+        if (newFiles.length > 0) {
+            setPartialPayForm(prev => ({ ...prev, files: [...(prev.files || []), ...newFiles] }));
+        }
+        e.target.value = '';
+    };
+
+    const triggerDebtUpload = (debtId) => {
+        setDirectUploadDebtId(debtId);
+        setTimeout(() => directDebtFileInputRef.current?.click(), 50);
+    };
+
+    const handleDirectDebtFileSelect = async (e) => {
+        const selected = e.target.files;
+        if (!selected || selected.length === 0 || !directUploadDebtId) return;
+        const targetDebt = openDebts.find(d => d.id === directUploadDebtId);
+        if (!targetDebt) return;
+        const newFiles = await processSelectedFiles(selected);
+        if (newFiles.length > 0) {
+            const updatedFiles = [...(targetDebt.files || []), ...newFiles];
+            try {
+                await updateDoc(doc(db, 'open_debts', directUploadDebtId), {
+                    files: updatedFiles,
+                    updatedAt: new Date().toISOString()
+                });
+                setOpenDocsDebtId(directUploadDebtId);
+            } catch (err) {
+                console.error("Belge eklenemedi:", err);
+            }
+        }
+        e.target.value = '';
+        setDirectUploadDebtId(null);
+    };
+
+    // Alacaklı kişi önerileri & Otomatik Tamamlama
+    const creditorDropdownRef = useRef(null);
+    const [isCreditorDropdownOpen, setIsCreditorDropdownOpen] = useState(false);
+
+    // Dışarı tıklanınca dropdown kapat
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (creditorDropdownRef.current && !creditorDropdownRef.current.contains(event.target)) {
+                setIsCreditorDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Daha önce kaydedilmiş benzersiz alacaklılar listesi (Sadece açık/kapanmamış borcu olanlar)
+    const existingCreditors = useMemo(() => {
+        const set = new Set();
+        (openDebts || []).forEach(d => {
+            const initialAmt = Number(d.initialAmount) || 0;
+            const remainingAmt = d.remainingAmount !== undefined ? Number(d.remainingAmount) : initialAmt;
+            const isSettled = d.status === 'settled' || remainingAmt <= 0;
+
+            if (!isSettled && d.creditor && typeof d.creditor === 'string') {
+                const trimmed = d.creditor.trim();
+                if (trimmed) set.add(trimmed);
+            }
+        });
+        (loans || []).forEach(l => {
+            const insts = l.installments || [];
+            const hasPending = insts.some(i => i.status === 'pending');
+            if (l.loanType === 'senet' && hasPending && l.bankName && typeof l.bankName === 'string') {
+                const trimmed = l.bankName.trim();
+                if (trimmed) set.add(trimmed);
+            }
+        });
+        return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'));
+    }, [openDebts, loans]);
+
+    // Filtrelenmiş öneriler
+    const filteredCreditors = useMemo(() => {
+        const q = (debtForm.creditor || '').trim().toLocaleLowerCase('tr');
+        if (!q) return existingCreditors;
+        return existingCreditors.filter(c => c.toLocaleLowerCase('tr').includes(q));
+    }, [existingCreditors, debtForm.creditor]);
+
+    const handleOpenNewDebt = () => {
+        setEditingDebtId(null);
+        setDebtFormErrors({});
+        setIsCreditorDropdownOpen(false);
+        setDebtForm({
+            creditor: '',
+            currency: 'TL',
+            initialAmount: '',
+            date: '',
+            isVadesiz: true,
+            dueDate: '',
+            notes: '',
+            goldCalcMode: 'total',
+            pieceCount: '',
+            pieceGram: '',
+            files: []
+        });
+        setIsDebtFormOpen(true);
+    };
+
+    // Belirli bir alacaklıya hızlı yeni kalem ekleme
+    const handleOpenNewDebtForCreditor = (creditorName) => {
+        setEditingDebtId(null);
+        setDebtFormErrors({});
+        setIsCreditorDropdownOpen(false);
+        setDebtForm({
+            creditor: creditorName || '',
+            currency: 'TL',
+            initialAmount: '',
+            date: '',
+            isVadesiz: true,
+            dueDate: '',
+            notes: '',
+            goldCalcMode: 'total',
+            pieceCount: '',
+            pieceGram: '',
+            files: []
+        });
+        setIsDebtFormOpen(true);
+    };
+
+    // Mevcut bir borcu düzenleme
+    const handleOpenEditDebt = (debt) => {
+        setEditingDebtId(debt.id);
+        setDebtFormErrors({});
+        setIsCreditorDropdownOpen(false);
+        setDebtForm({
+            creditor: debt.creditor || '',
+            currency: debt.currency || 'TL',
+            initialAmount: String(debt.initialAmount || ''),
+            date: debt.date || '',
+            isVadesiz: !debt.dueDate,
+            dueDate: debt.dueDate || '',
+            notes: debt.notes || '',
+            goldCalcMode: (debt.pieceCount && debt.pieceGram) ? 'pieces' : 'total',
+            pieceCount: debt.pieceCount ? String(debt.pieceCount) : '',
+            pieceGram: debt.pieceGram ? String(debt.pieceGram) : '',
+            files: debt.files || []
+        });
+        setIsDebtFormOpen(true);
+    };
+
+    // Ödeme geçmişini kart üzerinde açıp kapatma
+    const [expandedDebtHistoryId, setExpandedDebtHistoryId] = useState(null);
+    const toggleDebtHistory = (debtId) => {
+        setExpandedDebtHistoryId(prev => (prev === debtId ? null : debtId));
+    };
+
+    // Master-Detail Seçili Alacaklı & Mobil Görünüm State
+    const [selectedCreditorKey, setSelectedCreditorKey] = useState(null);
+    const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
+
+    // Kart üzerinde ekli belgeleri açıp kapatma
+    const [openDocsDebtId, setOpenDocsDebtId] = useState(null);
+    const toggleDebtDocs = (debtId) => {
+        setOpenDocsDebtId(prev => (prev === debtId ? null : debtId));
+    };
+
+    // Kart üzerinden ekli belge silme
+    const handleDeleteDebtFile = async (debtId, fileIndex) => {
+        if (!window.confirm("Bu belgeyi silmek istediğinizden emin misiniz?")) return;
+        const target = openDebts.find(d => d.id === debtId);
+        if (!target) return;
+        const updatedFiles = (target.files || []).filter((_, i) => i !== fileIndex);
+        try {
+            await updateDoc(doc(db, 'open_debts', debtId), {
+                files: updatedFiles,
+                updatedAt: new Date().toISOString()
+            });
+        } catch (err) {
+            console.error("Belge silinemedi:", err);
+        }
+    };
 
     // Kısmi Ödeme Modalı
     const [selectedDebtForPayment, setSelectedDebtForPayment] = useState(null);
@@ -542,7 +920,8 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
     const [partialPayForm, setPartialPayForm] = useState({
         amount: '',
         date: new Date().toISOString().split('T')[0],
-        note: ''
+        note: '',
+        files: []
     });
 
     // Vadesiz Borç Ekle / Düzenle
@@ -562,15 +941,32 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
         }
 
         const effectiveDueDate = (!debtForm.isVadesiz && debtForm.dueDate) ? debtForm.dueDate : null;
+        const isPiecesMode = debtForm.goldCalcMode === 'pieces' && debtForm.pieceCount && debtForm.pieceGram;
+        const pieceCountVal = isPiecesMode ? Number(debtForm.pieceCount) : null;
+        const pieceGramVal = isPiecesMode ? Number(debtForm.pieceGram) : null;
 
         try {
             if (editingDebtId) {
+                const debt = openDebts.find(d => d.id === editingDebtId);
+                let remaining = amt;
+                if (debt && debt.payments && debt.payments.length > 0) {
+                    const totalPaid = debt.payments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+                    remaining = Math.max(0, amt - totalPaid);
+                }
+                const isSettled = remaining <= 0;
+
                 await updateDoc(doc(db, 'open_debts', editingDebtId), {
                     creditor: debtForm.creditor.trim(),
                     currency: debtForm.currency,
+                    initialAmount: amt,
+                    remainingAmount: remaining,
+                    pieceCount: pieceCountVal,
+                    pieceGram: pieceGramVal,
+                    status: isSettled ? 'settled' : 'active',
                     date: debtForm.date,
                     dueDate: effectiveDueDate,
                     notes: debtForm.notes.trim(),
+                    files: debtForm.files || [],
                     updatedAt: new Date().toISOString()
                 });
             } else {
@@ -580,10 +976,13 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                     currency: debtForm.currency,
                     initialAmount: amt,
                     remainingAmount: amt,
-                    payments: [], // [{ id, date, amount, note }]
+                    pieceCount: pieceCountVal,
+                    pieceGram: pieceGramVal,
+                    payments: [], // [{ id, date, amount, note, files }]
                     date: debtForm.date,
                     dueDate: effectiveDueDate,
                     notes: debtForm.notes.trim(),
+                    files: debtForm.files || [],
                     status: 'active', // 'active' | 'settled'
                     createdAt: new Date().toISOString()
                 });
@@ -596,10 +995,14 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                 creditor: '',
                 currency: 'TL',
                 initialAmount: '',
-                date: new Date().toISOString().split('T')[0],
+                date: '',
                 isVadesiz: true,
                 dueDate: '',
-                notes: ''
+                notes: '',
+                goldCalcMode: 'total',
+                pieceCount: '',
+                pieceGram: '',
+                files: []
             });
         } catch (err) {
             console.error("Vadesiz borç kaydedilemedi:", err);
@@ -633,6 +1036,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
             amount: payAmt,
             date: partialPayForm.date,
             note: partialPayForm.note.trim(),
+            files: partialPayForm.files || [],
             createdAt: new Date().toISOString()
         };
 
@@ -651,7 +1055,8 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
             setPartialPayForm({
                 amount: '',
                 date: new Date().toISOString().split('T')[0],
-                note: ''
+                note: '',
+                files: []
             });
         } catch (err) {
             console.error("Ödeme kaydedilemedi:", err);
@@ -731,6 +1136,148 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
         };
     }, [loans, openDebts, effectiveRates]);
 
+    // Kredileri Sırala: Devam edenler üstte, kapananlar altta; yeni kapananlar kendi içinde en üstte
+    const sortedLoans = useMemo(() => {
+        return [...loans].sort((a, b) => {
+            const instsA = a.installments || [];
+            const totalA = instsA.length;
+            const paidA = instsA.filter(i => i.status === 'paid' || i.status === 'early_closed').length;
+            const isClosedA = a.status === 'closed' || (totalA > 0 && totalA === paidA);
+
+            const instsB = b.installments || [];
+            const totalB = instsB.length;
+            const paidB = instsB.filter(i => i.status === 'paid' || i.status === 'early_closed').length;
+            const isClosedB = b.status === 'closed' || (totalB > 0 && totalB === paidB);
+
+            // 1. Kapananlar listenin en altına geçsin
+            if (!isClosedA && isClosedB) return -1;
+            if (isClosedA && !isClosedB) return 1;
+
+            // 2. Kapananlar kendi arasında: Yeni kapananlar üstte kalsın (azalan tarih)
+            if (isClosedA && isClosedB) {
+                const getClosedTimestamp = (loan) => {
+                    let latestPaid = '';
+                    (loan.installments || []).forEach(i => {
+                        if (i.paidDate && i.paidDate > latestPaid) latestPaid = i.paidDate;
+                    });
+                    const dStr = loan.closedAt || loan.updatedAt || latestPaid || loan.createdAt || 0;
+                    return new Date(dStr).getTime() || 0;
+                };
+                return getClosedTimestamp(b) - getClosedTimestamp(a);
+            }
+
+            // 3. Devam edenler kendi arasında: En yeni eklenen en üstte
+            return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        });
+    }, [loans]);
+
+    // Vadesiz Borçları Kişilere Göre Grupla (Master-Detail Modeli İçin Türkçe Karakter Toleranslı)
+    const groupedOpenDebts = useMemo(() => {
+        const map = new Map();
+
+        const normalizeCreditorKey = (name) => {
+            if (!name) return 'diger';
+            return name
+                .trim()
+                .replace(/İ/g, 'i')
+                .replace(/I/g, 'i')
+                .replace(/ı/g, 'i')
+                .toLocaleLowerCase('tr')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '');
+        };
+
+        (openDebts || []).forEach(debt => {
+            const rawCreditor = (debt.creditor || 'Diğer').trim();
+            const key = normalizeCreditorKey(rawCreditor);
+
+            if (!map.has(key)) {
+                map.set(key, {
+                    key,
+                    creditor: rawCreditor,
+                    debts: [],
+                    totalTRY: 0,
+                    activeCount: 0,
+                    settledCount: 0,
+                    oldestActiveDate: null,
+                    latestActivity: debt.updatedAt || debt.createdAt || debt.date || ''
+                });
+            }
+
+            const group = map.get(key);
+            // Eğer mevcut isim küçük harfle başlamış ama yenisi düzgün yazılmışsa başlığı güzelleştir
+            if (rawCreditor.charAt(0) === rawCreditor.charAt(0).toUpperCase() && group.creditor.charAt(0) !== group.creditor.charAt(0).toUpperCase()) {
+                group.creditor = rawCreditor;
+            }
+
+            group.debts.push(debt);
+
+            const initialAmt = Number(debt.initialAmount) || 0;
+            const remainingAmt = debt.remainingAmount !== undefined ? Number(debt.remainingAmount) : initialAmt;
+            const isSettled = debt.status === 'settled' || remainingAmt <= 0;
+
+            if (isSettled) {
+                group.settledCount += 1;
+            } else {
+                group.activeCount += 1;
+                const tryEq = calculateTryEquivalent(remainingAmt, debt.currency, effectiveRates);
+                group.totalTRY += tryEq;
+
+                if (debt.date) {
+                    if (!group.oldestActiveDate || debt.date < group.oldestActiveDate) {
+                        group.oldestActiveDate = debt.date;
+                    }
+                }
+            }
+
+            const actDate = debt.updatedAt || debt.createdAt || debt.date || '';
+            if (actDate > group.latestActivity) {
+                group.latestActivity = actDate;
+            }
+        });
+
+        // Her grubun borçlarını sırala: Devam edenler üstte, eski borçlar üstte (yeni borçlar alta eklenir), kapalılar en altta
+        const result = Array.from(map.values()).map(group => {
+            const sortedDebts = [...group.debts].sort((a, b) => {
+                const remA = a.remainingAmount !== undefined ? Number(a.remainingAmount) : (Number(a.initialAmount) || 0);
+                const isSettledA = a.status === 'settled' || remA <= 0;
+                const remB = b.remainingAmount !== undefined ? Number(b.remainingAmount) : (Number(b.initialAmount) || 0);
+                const isSettledB = b.status === 'settled' || remB <= 0;
+
+                if (!isSettledA && isSettledB) return -1;
+                if (isSettledA && !isSettledB) return 1;
+
+                // Eski borç üstte olsun: oluşturulma/tarih sırasına göre artan (eskiden yeniye)
+                const timeA = new Date(a.createdAt || a.date || 0).getTime();
+                const timeB = new Date(b.createdAt || b.date || 0).getTime();
+                if (timeA !== timeB) return timeA - timeB;
+
+                return (a.date || '').localeCompare(b.date || '');
+            });
+
+            return {
+                ...group,
+                debts: sortedDebts
+            };
+        });
+
+        // Grupları filtrele: Sadece aktif borcu olan kişiler listelenir (Borcu olmayanlar gösterilmez/silinir)
+        const activeGroups = result.filter(group => group.activeCount > 0);
+        activeGroups.sort((a, b) => b.totalTRY - a.totalTRY);
+
+        return activeGroups;
+    }, [openDebts, effectiveRates]);
+
+    // Aktif Seçili Alacaklı Grubu (Varsayılan olarak ilk/en yüksek borçlu kişi)
+    const activeCreditorGroup = useMemo(() => {
+        if (!groupedOpenDebts || groupedOpenDebts.length === 0) return null;
+        if (selectedCreditorKey) {
+            const found = groupedOpenDebts.find(g => g.key === selectedCreditorKey);
+            if (found) return found;
+        }
+        return groupedOpenDebts[0] || null;
+    }, [groupedOpenDebts, selectedCreditorKey]);
+
     // ─── KİLİT EKRANI (ŞİFRE GİRİLMEMİŞSE GÖSTERİLİR) ───
     if (!isUnlocked) {
         return (
@@ -762,74 +1309,75 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                     </h2>
                 </div>
 
-                {/* Sağ Aksiyon: Sadece Kilit Simgesi */}
-                <div className="flex items-center gap-2">
+                {/* Sağ Aksiyon: Sekmeler + Yeni Ekle (+) + Kilit Butonu */}
+                <div className="flex items-center gap-2 shrink-0">
+                    {/* Sekme Seçimi (Vadeli Borçlar & Vadesiz Borçlar) */}
+                    <div className="flex items-center p-0.5 sm:p-1 rounded-xl bg-[#0a0d14] border border-white/[0.06] relative">
+                        <button
+                            onClick={() => setActiveSubTab('loans')}
+                            className={`relative flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg text-xs font-semibold transition-colors duration-200 cursor-pointer ${
+                                activeSubTab === 'loans'
+                                    ? 'text-black font-bold'
+                                    : 'text-slate-400 hover:text-white'
+                            }`}
+                        >
+                            {activeSubTab === 'loans' && (
+                                <motion.div
+                                    layoutId="debts-subtab-pill"
+                                    className="absolute inset-0 bg-amber-500 rounded-lg shadow-sm"
+                                    style={{ zIndex: 0 }}
+                                    initial={false}
+                                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                                />
+                            )}
+                            <span className="relative z-10 flex items-center gap-1.5 sm:gap-2">
+                                <CreditCard size={14} />
+                                <span>Vadeli Borçlar</span>
+                            </span>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveSubTab('open_debts')}
+                            className={`relative flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg text-xs font-semibold transition-colors duration-200 cursor-pointer ${
+                                activeSubTab === 'open_debts'
+                                    ? 'text-black font-bold'
+                                    : 'text-slate-400 hover:text-white'
+                            }`}
+                        >
+                            {activeSubTab === 'open_debts' && (
+                                <motion.div
+                                    layoutId="debts-subtab-pill"
+                                    className="absolute inset-0 bg-amber-500 rounded-lg shadow-sm"
+                                    style={{ zIndex: 0 }}
+                                    initial={false}
+                                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                                />
+                            )}
+                            <span className="relative z-10 flex items-center gap-1.5 sm:gap-2">
+                                <Coins size={14} />
+                                <span>Vadesiz Borçlar</span>
+                            </span>
+                        </button>
+                    </div>
+
+                    {/* Yeni Ekle (+) Butonu (Vadeli Borçlar: Yeni Kredi/Senet, Vadesiz Borçlar: Yeni Borç) */}
+                    <button
+                        onClick={activeSubTab === 'loans' ? handleOpenNewLoan : handleOpenNewDebt}
+                        className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/[0.08] flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
+                        title={activeSubTab === 'loans' ? "Yeni Kredi / Senet Ekle" : "Yeni Vadesiz Borç Ekle"}
+                    >
+                        <Plus size={15} />
+                    </button>
+
+                    {/* Kasayı Kilitle Butonu */}
                     <button
                         onClick={handleLock}
-                        className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/[0.08] flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+                        className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/[0.08] flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
                         title="Kasayı Kilitle"
                     >
                         <Lock size={15} />
                     </button>
                 </div>
-            </div>
-
-            {/* ── Döviz & Altın Kurları Bantı ── */}
-            <div className="shrink-0 flex items-center justify-between gap-2 overflow-x-auto custom-scrollbar py-2 px-3 sm:px-4 rounded-2xl bg-[#0a0d14] border border-white/[0.06] text-xs">
-                {/* Kur Mikro Kartları (Döviz & Altın) */}
-                <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar py-0.5">
-                    {/* USD */}
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-white/20 transition-all font-mono whitespace-nowrap">
-                        <span className="text-slate-400 font-sans font-semibold text-[11px]">USD</span>
-                        <span className="font-bold text-white">₺{effectiveRates.USD}</span>
-                    </div>
-
-                    {/* EUR */}
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-white/20 transition-all font-mono whitespace-nowrap">
-                        <span className="text-slate-400 font-sans font-semibold text-[11px]">EUR</span>
-                        <span className="font-bold text-white">₺{effectiveRates.EUR}</span>
-                    </div>
-
-                    {/* Gram Altın (24A Has) */}
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-white/20 transition-all font-mono whitespace-nowrap">
-                        <span className="text-slate-400 font-sans font-semibold text-[11px]">Gram (24A)</span>
-                        <span className="font-bold text-white">₺{effectiveRates.GOLD_GRAM_24?.toLocaleString('tr-TR')}</span>
-                    </div>
-
-                    {/* 22A Bilezik */}
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-white/20 transition-all font-mono whitespace-nowrap">
-                        <span className="text-slate-400 font-sans font-semibold text-[11px]">22A Bilezik</span>
-                        <span className="font-bold text-white">₺{effectiveRates.GOLD_BILEZIK_22?.toLocaleString('tr-TR')}</span>
-                    </div>
-
-                    {/* Çeyrek */}
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-white/20 transition-all font-mono whitespace-nowrap">
-                        <span className="text-slate-400 font-sans font-semibold text-[11px]">Çeyrek</span>
-                        <span className="font-bold text-white">₺{effectiveRates.GOLD_CEYREK?.toLocaleString('tr-TR')}</span>
-                    </div>
-
-                    {/* Yarım */}
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-white/20 transition-all font-mono whitespace-nowrap">
-                        <span className="text-slate-400 font-sans font-semibold text-[11px]">Yarım</span>
-                        <span className="font-bold text-white">₺{effectiveRates.GOLD_YARIM?.toLocaleString('tr-TR')}</span>
-                    </div>
-
-                    {/* Ata / Ziynet */}
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-white/20 transition-all font-mono whitespace-nowrap">
-                        <span className="text-slate-400 font-sans font-semibold text-[11px]">Ata / Ziynet</span>
-                        <span className="font-bold text-white">₺{effectiveRates.GOLD_ATA?.toLocaleString('tr-TR')}</span>
-                    </div>
-                </div>
-
-                {/* Sağ: Sadece Yenile Butonu */}
-                <button
-                    onClick={handleRefreshRates}
-                    disabled={isRefreshingRates}
-                    className="h-7 w-7 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/[0.08] flex items-center justify-center transition cursor-pointer shrink-0 ml-2"
-                    title="Kurları Yenile"
-                >
-                    <RefreshCw size={12} className={isRefreshingRates ? 'animate-spin text-amber-400' : ''} />
-                </button>
             </div>
 
             {/* ── 1. Bento KPI Kartları (Sade & Zarif 60-30-10 - Mobilde 2x2 Kompakt Grid) ── */}
@@ -875,148 +1423,44 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                 </div>
 
                 {/* 4. KART: Geciken Taksitler */}
-                <div className={`relative overflow-hidden rounded-xl sm:rounded-2xl border p-2.5 sm:p-4 flex flex-col justify-center ${
-                    kpiMetrics.overdueCount > 0 
-                        ? 'bg-rose-950/15 border-rose-500/25' 
-                        : 'bg-[#0a0d14] border-white/[0.06]'
-                }`}>
+                <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-white/[0.06] p-2.5 sm:p-4 bg-[#0a0d14] flex flex-col justify-center">
                     <div className="flex items-center mb-1 sm:mb-1.5">
-                        <span className="text-[11px] sm:text-xs font-semibold flex items-center gap-1.5 truncate text-slate-400">
-                            <Clock size={13} className={`${kpiMetrics.overdueCount > 0 ? 'text-rose-400' : 'text-slate-400'} shrink-0`} />
+                        <span className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center gap-1.5 truncate">
+                            <Clock size={13} className="text-slate-400 shrink-0" />
                             <span className="truncate">Geciken Taksitler</span>
                         </span>
                     </div>
-                    <h3 className={`text-base sm:text-xl lg:text-2xl font-bold font-mono tracking-tight truncate ${
-                        kpiMetrics.overdueCount > 0 ? 'text-rose-400' : 'text-white'
-                    }`}>
+                    <h3 className="text-base sm:text-xl lg:text-2xl font-bold text-white font-mono tracking-tight truncate">
                         {kpiMetrics.overdueCount > 0 ? formatMoney(kpiMetrics.overdueTL) : '₺0'}
                     </h3>
                 </div>
             </div>
 
-            {/* ── 2. Segmentli Sekme Butonları & Yeni Ekle Butonları ── */}
-            <div className="flex items-center justify-between gap-3 shrink-0 pb-1">
-                {/* Sol: Sekme Seçimi (Kayan animasyonlu indicator) */}
-                <div className="flex items-center p-1 rounded-xl bg-[#0a0d14] border border-white/[0.06] relative">
-                    <button
-                        onClick={() => setActiveSubTab('loans')}
-                        className={`relative flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors duration-200 cursor-pointer ${
-                            activeSubTab === 'loans'
-                                ? 'text-black font-bold'
-                                : 'text-slate-400 hover:text-white'
-                        }`}
-                    >
-                        {activeSubTab === 'loans' && (
-                            <motion.div
-                                layoutId="debts-subtab-pill"
-                                className="absolute inset-0 bg-amber-500 rounded-lg shadow-sm"
-                                style={{ zIndex: 0 }}
-                                initial={false}
-                                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                            />
-                        )}
-                        <span className="relative z-10 flex items-center gap-2">
-                            <CreditCard size={14} />
-                            <span>Taksitli Krediler</span>
-                        </span>
-                    </button>
-
-                    <button
-                        onClick={() => setActiveSubTab('open_debts')}
-                        className={`relative flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors duration-200 cursor-pointer ${
-                            activeSubTab === 'open_debts'
-                                ? 'text-black font-bold'
-                                : 'text-slate-400 hover:text-white'
-                        }`}
-                    >
-                        {activeSubTab === 'open_debts' && (
-                            <motion.div
-                                layoutId="debts-subtab-pill"
-                                className="absolute inset-0 bg-amber-500 rounded-lg shadow-sm"
-                                style={{ zIndex: 0 }}
-                                initial={false}
-                                transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                            />
-                        )}
-                        <span className="relative z-10 flex items-center gap-2">
-                            <Coins size={14} />
-                            <span>Vadesiz Borçlar</span>
-                        </span>
-                    </button>
-                </div>
-
-                {/* Sağ: Yeni Ekle Butonu (Sabit Genişlik: w-36 ile sıçrama yapmaz) */}
-                {activeSubTab === 'loans' ? (
-                    <button
-                        onClick={() => {
-                            setEditingLoanId(null);
-                            setLoanFormErrors({});
-                            setLoanForm({
-                                bankName: '',
-                                loanTitle: '',
-                                loanType: 'bireysel',
-                                truckId: '',
-                                monthlyAmount: '',
-                                monthsCount: '',
-                                startDate: new Date().toISOString().split('T')[0],
-                                totalAmount: '',
-                                notes: ''
-                            });
-                            setIsLoanFormOpen(true);
-                        }}
-                        className="h-8 w-36 justify-center rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm shrink-0"
-                    >
-                        <Plus size={15} />
-                        <span>Yeni Kredi Ekle</span>
-                    </button>
-                ) : (
-                    <button
-                        onClick={() => {
-                            setEditingDebtId(null);
-                            setDebtFormErrors({});
-                            setDebtForm({
-                                creditor: '',
-                                currency: 'TL',
-                                initialAmount: '',
-                                date: new Date().toISOString().split('T')[0],
-                                isVadesiz: true,
-                                dueDate: '',
-                                notes: ''
-                            });
-                            setIsDebtFormOpen(true);
-                        }}
-                        className="h-8 w-36 justify-center rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm shrink-0"
-                    >
-                        <Plus size={15} />
-                        <span>Yeni Borç Ekle</span>
-                    </button>
-                )}
-            </div>
-
-            {/* ── 3. ANA İÇERİK LİSTESİ (KAYDIRILABİLİR) ── */}
-            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-0.5 space-y-4">
+            {/* ── 2. ANA İÇERİK ALANI ── */}
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                 
-                {/* ── SEKME 1: KREDİLER & TAKSİT PLANI ── */}
+                {/* ── SEKME 1: VADELİ BORÇLAR (KREDİLER & SENETLER) ── */}
                 {activeSubTab === 'loans' && (
-                    <div className="space-y-4">
+                    <div className="space-y-4 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-0.5">
                         {loans.length === 0 ? (
                             <div className="bg-[#0a0d14] border border-white/[0.06] rounded-2xl p-8 sm:p-12 text-center flex flex-col items-center justify-center">
                                 <div className="w-12 h-12 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-slate-400 mb-3">
                                     <CreditCard size={22} />
                                 </div>
-                                <h4 className="text-sm font-semibold text-white mb-1">Henüz Kayıtlı Kredi Bulunmuyor</h4>
+                                <h4 className="text-sm font-semibold text-white mb-1">Henüz Kayıtlı Vadeli Borç / Kredi Bulunmuyor</h4>
                                 <p className="text-xs text-slate-500 max-w-sm mb-4">
-                                    Bireysel, ticari veya araç kredilerinizi ekleyerek aylık taksit itfa takvimini ve kalan borçlarınızı anlık takip edebilirsiniz.
+                                    Bireysel, ticari, araç kredilerinizi veya senetli borçlarınızı ekleyerek aylık ödeme planını ve kalan borçlarınızı anlık takip edebilirsiniz.
                                 </p>
                                 <button
-                                    onClick={() => setIsLoanFormOpen(true)}
+                                    onClick={handleOpenNewLoan}
                                     className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs rounded-xl transition cursor-pointer shadow-sm"
                                 >
-                                    İlk Kredinizi Ekleyin
+                                    İlk Kaydı Ekleyin
                                 </button>
                             </div>
                         ) : (
-                            loans.map((loan) => {
+                            sortedLoans.map((loan) => {
+                                const todayStr = new Date().toISOString().split('T')[0];
                                 const installments = loan.installments || [];
                                 const totalCount = installments.length;
                                 const paidInstallments = installments.filter(i => i.status === 'paid' || i.status === 'early_closed');
@@ -1029,117 +1473,136 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
 
                                 const isExpanded = expandedLoanId === loan.id;
                                 const truckObj = trucks.find(t => t.id === loan.truckId);
+                                const isClosed = loan.status === 'closed' || (totalCount > 0 && remainingCount === 0);
+                                const hasOverdue = !isClosed && installments.some(i => i.status === 'pending' && i.dueDate < todayStr);
 
                                 return (
                                     <div 
                                         key={loan.id}
-                                        className="bg-[#070a0f] border border-white/[0.08] hover:border-white/[0.15] rounded-2xl overflow-hidden transition-all duration-200 shadow-md shadow-black/40"
+                                        className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+                                            isClosed 
+                                                ? 'bg-[#080b11] border-white/[0.04]' 
+                                                : hasOverdue
+                                                    ? 'bg-[#0a0d14] border-amber-500/60 shadow-sm shadow-amber-500/10'
+                                                    : 'bg-[#0a0d14] border-white/[0.06] hover:border-white/[0.12]'
+                                        }`}
                                     >
-                                        {/* Kredi Üst Kart Başlığı */}
-                                        <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-white/[0.02] to-transparent">
-                                            <div className="flex items-start gap-3 min-w-0">
-                                                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
-                                                    {loan.loanType === 'tasit' ? <Truck size={18} /> : loan.loanType === 'ticari' ? <Building2 size={18} /> : <User size={18} />}
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                                                        <h4 className="text-sm sm:text-base font-bold text-white tracking-tight truncate">
-                                                            {loan.bankName} - {loan.loanTitle}
+                                        {/* Kredi Üst Kart Başlığı - İnce & Zarif Bar Tasarımı */}
+                                        <div className="px-4 py-3 sm:px-5 sm:py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-transparent">
+                                            <div className="flex items-center min-w-0">
+                                                <div className="min-w-0 flex flex-col justify-center">
+                                                    <div className="flex items-center gap-2 flex-wrap leading-tight">
+                                                        <h4 className={`text-sm sm:text-base font-bold tracking-tight truncate leading-tight ${
+                                                            isClosed ? 'text-slate-400' : 'text-white'
+                                                        }`}>
+                                                            {loan.loanTitle ? `${loan.bankName} ${loan.loanTitle}` : loan.bankName}
                                                         </h4>
-                                                        {loan.status === 'closed' ? (
-                                                            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
-                                                                TAMAMLANDI
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
-                                                                ÖDENİYOR
+                                                        {isClosed && (
+                                                            <span className="text-[10px] bg-white/[0.04] text-slate-400 border border-white/[0.08] px-2 py-0.5 rounded-full font-semibold tracking-wide">
+                                                                KAPANDI
                                                             </span>
                                                         )}
-                                                        <span className="text-[10px] bg-white/5 text-slate-400 border border-white/10 px-2 py-0.5 rounded-full font-medium">
-                                                            {loan.loanType === 'tasit' ? `Taşıt (${truckObj?.plate || 'Araç'})` : loan.loanType === 'ticari' ? 'Ticari / Şirket' : 'Bireysel / Şahsi'}
-                                                        </span>
+                                                        {hasOverdue && (
+                                                            <span className="text-[10px] bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-semibold tracking-wide flex items-center gap-1">
+                                                                <AlertCircle size={10} className="text-amber-400" />
+                                                                <span>GECİKEN TAKSİT</span>
+                                                            </span>
+                                                        )}
                                                     </div>
 
-                                                    <div className="flex items-center gap-4 text-xs text-slate-400">
-                                                        <span>Aylık Taksit: <strong className="text-white font-mono">{formatMoney(loan.monthlyAmount)}</strong></span>
-                                                        <span>•</span>
-                                                        <span>Kalan: <strong className="text-amber-400 font-mono">{remainingCount} Ay</strong> / {totalCount} Ay</span>
+                                                    <div className="flex items-center gap-x-3 sm:gap-x-4 gap-y-1 flex-wrap text-xs text-slate-400 leading-tight mt-1">
+                                                        {/* Kolon 1: Aylık Taksit / Senet (Sabit Genişlik - Dikey Hizalama İçin) */}
+                                                        <div className="sm:w-[135px] sm:shrink-0 flex items-center">
+                                                            <span>{loan.loanType === 'senet' ? 'Aylık Senet: ' : 'Aylık Taksit: '}<strong className={`font-mono font-medium ${isClosed ? 'text-slate-400' : 'text-white'}`}>{formatMoney(loan.monthlyAmount)}</strong></span>
+                                                        </div>
+
+                                                        {/* Kolon 2: Kalan Ay / Senet (Sabit Genişlik - Simetrik Font ve Boşluk) */}
+                                                        {!isClosed && (
+                                                            <div className="sm:w-[115px] sm:shrink-0 flex items-center">
+                                                                <span>Kalan: <strong className="text-amber-400 font-semibold tabular-nums">{remainingCount} {loan.loanType === 'senet' ? 'Senet' : 'Ay'}</strong> <span className="text-slate-500">/</span> <span className="tabular-nums">{totalCount} {loan.loanType === 'senet' ? 'Senet' : 'Ay'}</span></span>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Kapanan Kredilerde Kolon Hizalama Boşluğu */}
+                                                        {isClosed && (
+                                                            <div className="hidden sm:block sm:w-[115px] sm:shrink-0" />
+                                                        )}
+
+                                                        {/* Kolon 3: Kredi Notu */}
+                                                        {loan.notes && (
+                                                            <div className="text-[11px] text-slate-400 flex items-center gap-1.5 italic truncate max-w-[180px] sm:max-w-[240px] sm:shrink-0" title={loan.notes}>
+                                                                <FileText size={12} className="text-amber-400/80 shrink-0" />
+                                                                <span className="truncate">{loan.notes}</span>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Kolon 4: Kredi Sözleşmesi & PDF Dosyaları */}
+                                                        {loan.files && loan.files.length > 0 && (
+                                                            <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                                                                {loan.files.map((file, fIdx) => (
+                                                                    <button
+                                                                        key={file.id || fIdx}
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            openAttachment(file);
+                                                                        }}
+                                                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-[10px] font-medium transition cursor-pointer"
+                                                                        title={`${file.name || 'Ek.pdf'} - Görüntüle`}
+                                                                    >
+                                                                        <FileText size={10} />
+                                                                        <span className="max-w-[85px] truncate">{file.name || 'Ek.pdf'}</span>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
 
                                             {/* Sağ Tutar & Aksiyon Butonları */}
                                             <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/[0.06]">
-                                                <div className="text-left sm:text-right">
-                                                    <div className="text-[11px] text-slate-400 font-medium">Kalan Kredi Borcu</div>
-                                                    <div className="text-base sm:text-lg font-black text-white font-mono">
+                                                <div className="text-left sm:text-right min-h-10 flex flex-col justify-center leading-tight">
+                                                    <div className="text-[11px] text-slate-500 font-medium leading-tight">{loan.loanType === 'senet' ? 'Kalan Senet Borcu' : 'Kalan Kredi Borcu'}</div>
+                                                    <div className={`text-base sm:text-lg font-bold font-mono leading-tight mt-0.5 ${
+                                                        isClosed ? 'text-slate-500' : 'text-white'
+                                                    }`}>
                                                         {formatMoney(totalRemainingTL)}
                                                     </div>
                                                 </div>
 
                                                 <div className="flex items-center gap-1.5">
-                                                    {loan.status !== 'closed' && (
-                                                        <button
-                                                            onClick={() => handleCloseLoanEarly(loan.id)}
-                                                            className="h-8 px-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/[0.08] text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer"
-                                                            title="Kalan borcu erken kapat"
-                                                        >
-                                                            <CheckCircle2 size={13} className="text-emerald-400" />
-                                                            <span className="hidden sm:inline">Erken Kapat</span>
-                                                        </button>
-                                                    )}
-
+                                                    {/* SİLME SİMGESİ YERİNE DÜZENLEME & YÖNETME SİMGESİ */}
                                                     <button
-                                                        onClick={() => handleDeleteLoan(loan.id, loan.bankName)}
-                                                        className="p-2 text-slate-500 hover:text-rose-400 rounded-xl hover:bg-rose-500/10 transition cursor-pointer"
-                                                        title="Krediyi Sil"
+                                                        onClick={() => handleOpenEditLoan(loan)}
+                                                        className="w-8 h-8 rounded-xl text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 flex items-center justify-center transition cursor-pointer"
+                                                        title="Düzenle, Kapat veya Sil"
                                                     >
-                                                        <Trash2 size={15} />
+                                                        <Pencil size={15} />
                                                     </button>
 
                                                     <button
                                                         onClick={() => setExpandedLoanId(isExpanded ? null : loan.id)}
-                                                        className="h-8 px-3 rounded-xl bg-[#0d1117] hover:bg-white/[0.08] text-white text-xs font-bold border border-white/[0.08] flex items-center gap-1 transition cursor-pointer"
+                                                        className={`h-8 px-3 rounded-xl text-xs font-semibold border flex items-center gap-1 transition cursor-pointer ${
+                                                            isClosed 
+                                                                ? 'bg-white/[0.02] hover:bg-white/[0.05] text-slate-400 border-white/[0.05]' 
+                                                                : 'bg-white/[0.04] hover:bg-white/[0.08] text-white border-white/[0.08]'
+                                                        }`}
                                                     >
-                                                        <span>{isExpanded ? 'Taksitleri Gizle' : 'Taksit Planı'}</span>
+                                                        <span>{loan.loanType === 'senet' ? 'Senet Planı' : 'Taksit Planı'}</span>
                                                         {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                                                     </button>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* İlerleme Çubuğu (Progress Bar) */}
-                                        <div className="px-4 sm:px-5 pb-3">
-                                            <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
-                                                <span>Ödenen: {formatMoney(totalPaidTL)} ({paidCount} Taksit)</span>
-                                                <span className="font-bold text-amber-400">%{progressPercent} Tamamlandı</span>
-                                            </div>
-                                            <div className="w-full h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-                                                <div 
-                                                    className="h-full bg-gradient-to-r from-amber-500 to-emerald-400 transition-all duration-500 rounded-full"
-                                                    style={{ width: `${progressPercent}%` }}
-                                                />
-                                            </div>
-                                        </div>
-
                                         {/* Açılır Taksit Tablosu */}
                                         {isExpanded && (
                                             <div className="border-t border-white/[0.08] bg-[#05070a] p-3 sm:p-5 animate-in fade-in duration-200">
-                                                <div className="flex items-center justify-between pb-2 mb-3 border-b border-white/[0.06]">
-                                                    <h5 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                                                        <Calendar size={13} className="text-amber-400" />
-                                                        <span>Taksit Takvimi & Ödeme Durumları ({installments.length} Ay)</span>
-                                                    </h5>
-                                                    <span className="text-[11px] text-slate-400">
-                                                        Taksit tutarını veya tarihini sağdaki düzenle butonuyla değiştirebilirsiniz.
-                                                    </span>
-                                                </div>
-
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2">
                                                     {installments.map((inst) => {
                                                         const isPaid = inst.status === 'paid';
                                                         const isEarlyClosed = inst.status === 'early_closed';
-                                                        const todayStr = new Date().toISOString().split('T')[0];
                                                         const isOverdue = !isPaid && !isEarlyClosed && inst.dueDate < todayStr;
                                                         const isCurrentMonth = !isPaid && !isEarlyClosed && (inst.dueDate || '').substring(0, 7) === todayStr.substring(0, 7);
 
@@ -1148,11 +1611,11 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                                                 key={inst.no}
                                                                 className={`rounded-xl p-3 border transition flex flex-col justify-between ${
                                                                     isPaid
-                                                                        ? 'bg-emerald-950/15 border-emerald-500/30'
+                                                                        ? 'bg-[#0a0d13] border-white/[0.06]'
                                                                         : isEarlyClosed
                                                                             ? 'bg-white/[0.02] border-white/[0.06] opacity-60'
                                                                             : isOverdue
-                                                                                ? 'bg-rose-950/20 border-rose-500/40 shadow-sm shadow-rose-500/10'
+                                                                                ? 'bg-amber-500/10 border-amber-500/60 shadow-sm shadow-amber-500/10'
                                                                                 : isCurrentMonth
                                                                                     ? 'bg-amber-950/20 border-amber-500/35 shadow-sm shadow-amber-500/10'
                                                                                     : 'bg-[#0a0d13] border-white/[0.06]'
@@ -1161,10 +1624,10 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                                                 <div className="flex items-center justify-between mb-1.5">
                                                                     <div className="flex items-center gap-1.5">
                                                                         <span className="text-xs font-bold font-mono text-white">
-                                                                            {inst.no}. Taksit
+                                                                            {inst.no}. {loan.loanType === 'senet' ? 'Senet' : 'Taksit'}
                                                                         </span>
                                                                         {isPaid && (
-                                                                            <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded font-bold">
+                                                                            <span className="text-[9px] bg-white/[0.06] text-slate-300 border border-white/[0.08] px-1.5 py-0.2 rounded font-bold">
                                                                                 ÖDENDİ
                                                                             </span>
                                                                         )}
@@ -1174,7 +1637,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                                                             </span>
                                                                         )}
                                                                         {isOverdue && (
-                                                                            <span className="text-[9px] bg-rose-500/20 text-rose-300 px-1.5 py-0.2 rounded font-bold animate-pulse">
+                                                                            <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded font-bold animate-pulse">
                                                                                 GECİKTİ
                                                                             </span>
                                                                         )}
@@ -1188,7 +1651,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                                                     <button
                                                                         onClick={() => handleOpenEditInstallment(loan.id, inst)}
                                                                         className="text-slate-500 hover:text-white p-1 rounded hover:bg-white/5 transition cursor-pointer"
-                                                                        title="Taksit Detayını Düzenle"
+                                                                        title="Taksit Detayını Düzenle & Dekont/Not Ekle"
                                                                     >
                                                                         <Pencil size={11} />
                                                                     </button>
@@ -1203,8 +1666,37 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                                                         <span>Vade: {inst.dueDate}</span>
                                                                     </div>
                                                                     {isPaid && inst.paidDate && (
-                                                                        <div className="text-[10px] text-emerald-400/90 mt-0.5 font-medium">
+                                                                        <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
                                                                             ✓ Ödendi: {inst.paidDate} ({formatMoney(inst.paidAmount || inst.amount)})
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Taksit Notu */}
+                                                                    {inst.note && (
+                                                                        <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1 truncate" title={inst.note}>
+                                                                            <FileText size={10} className="text-amber-400/80 shrink-0" />
+                                                                            <span className="truncate">{inst.note}</span>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Taksit Dekont & PDF Dosyaları */}
+                                                                    {inst.files && inst.files.length > 0 && (
+                                                                        <div className="flex flex-wrap gap-1 mt-1.5">
+                                                                            {inst.files.map((file, idx) => (
+                                                                                <button
+                                                                                    key={file.id || idx}
+                                                                                    type="button"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        openAttachment(file);
+                                                                                    }}
+                                                                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-[10px] font-medium transition cursor-pointer"
+                                                                                    title={`${file.name} - Dekontu Görüntüle`}
+                                                                                >
+                                                                                    <FileText size={10} />
+                                                                                    <span className="max-w-[85px] truncate">{file.name || 'Dekont.pdf'}</span>
+                                                                                </button>
+                                                                            ))}
                                                                         </div>
                                                                     )}
                                                                 </div>
@@ -1214,7 +1706,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                                                     {isPaid ? (
                                                                         <button
                                                                             onClick={() => handleCancelPayment(loan.id, inst.no)}
-                                                                            className="w-full h-7 rounded-lg bg-white/[0.03] hover:bg-rose-500/15 text-slate-400 hover:text-rose-300 text-[10px] font-semibold transition cursor-pointer flex items-center justify-center gap-1"
+                                                                            className="w-full h-7 rounded-lg bg-white/[0.03] hover:bg-amber-500/15 text-slate-400 hover:text-amber-300 text-[10px] font-semibold transition cursor-pointer flex items-center justify-center gap-1"
                                                                         >
                                                                             <X size={11} /> Ödemeyi Geri Al
                                                                         </button>
@@ -1222,11 +1714,9 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                                                         <button
                                                                             onClick={() => handleOpenPayModal(loan.id, inst)}
                                                                             className={`w-full h-7 rounded-lg text-[10px] font-bold transition cursor-pointer flex items-center justify-center gap-1 ${
-                                                                                isOverdue
-                                                                                    ? 'bg-rose-500 hover:bg-rose-400 text-white shadow-sm shadow-rose-500/20'
-                                                                                    : isCurrentMonth
-                                                                                        ? 'bg-amber-500 hover:bg-amber-400 text-black shadow-sm shadow-amber-500/20'
-                                                                                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                                                                                isOverdue || isCurrentMonth
+                                                                                    ? 'bg-amber-500 hover:bg-amber-400 text-black shadow-sm shadow-amber-500/20'
+                                                                                    : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border border-white/[0.08]'
                                                                             }`}
                                                                         >
                                                                             <Check size={12} /> Ödendi Olarak İşle
@@ -1248,159 +1738,485 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
 
                 {/* ── SEKME 2: VADESİZ BORÇLAR (TL, DÖVİZ, ALTIN TÜRLERİ) ── */}
                 {activeSubTab === 'open_debts' && (
-                    <div className="space-y-4">
-                        {openDebts.length === 0 ? (
-                            <div className="bg-[#0a0d14] border border-white/[0.06] rounded-2xl p-8 sm:p-12 text-center flex flex-col items-center justify-center">
+                    <div className="flex-1 min-h-0 flex flex-col h-full">
+                        {groupedOpenDebts.length === 0 ? (
+                            <div className="bg-[#0a0d14] border border-white/[0.06] rounded-2xl p-8 sm:p-12 text-center flex flex-col items-center justify-center my-auto">
                                 <div className="w-12 h-12 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center text-slate-400 mb-3">
                                     <Coins size={22} />
                                 </div>
-                                <h4 className="text-sm font-semibold text-white mb-1">Henüz Vadesiz Borç Kaydı Yok</h4>
+                                <h4 className="text-sm font-semibold text-white mb-1">Henüz Aktif Vadesiz Borç Kaydı Yok</h4>
                                 <p className="text-xs text-slate-500 max-w-sm mb-4">
-                                    Kişilere, esnafa veya kurumlara olan TL, Dolar, Euro veya Altın (22A Bilezik, Gram, Çeyrek) borçlarınızı canlı kurlarla kaydedip anlık TL karşılığını görebilirsiniz.
+                                    Kişilere, esnafa veya kurumlara olan TL, Dolar, Euro veya Altın borçlarınızı kaydedip anlık TL karşılıklarıyla takip edebilirsiniz.
                                 </p>
                                 <button
-                                    onClick={() => setIsDebtFormOpen(true)}
+                                    onClick={handleOpenNewDebt}
                                     className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs rounded-xl transition cursor-pointer shadow-sm"
                                 >
                                     İlk Borç Kaydını Ekleyin
                                 </button>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
-                                {openDebts.map((debt) => {
-                                    const initialAmt = Number(debt.initialAmount) || 0;
-                                    const remainingAmt = debt.remainingAmount !== undefined ? Number(debt.remainingAmount) : initialAmt;
-                                    const paidAmt = initialAmt - remainingAmt;
-
-                                    const curInfo = CURRENCY_TYPES.find(c => c.id === debt.currency) || CURRENCY_TYPES[0];
-                                    const tryEquivalent = calculateTryEquivalent(remainingAmt, debt.currency, effectiveRates);
-
-                                    const payments = debt.payments || [];
-                                    const isSettled = remainingAmt <= 0;
-
-                                    return (
-                                        <div 
-                                            key={debt.id}
-                                            className={`rounded-2xl p-4 sm:p-5 border transition-all flex flex-col justify-between shadow-md shadow-black/40 ${
-                                                isSettled
-                                                    ? 'bg-[#06080d] border-white/[0.04] opacity-75'
-                                                    : 'bg-[#070a0f] border-white/[0.08] hover:border-amber-500/30'
-                                            }`}
+                            <div className="flex flex-col lg:flex-row gap-4 items-stretch w-full flex-1 min-h-0 h-full">
+                                {/* ── SOL PANEL: KİŞİLER & ALACAKLILAR LİSTESİ (MASTER) ── */}
+                                <div className={`w-full lg:w-80 xl:w-96 shrink-0 bg-[#0a0d14] border border-white/[0.06] rounded-2xl overflow-hidden flex flex-col h-full min-h-0 ${
+                                    isMobileDetailOpen ? 'hidden lg:flex' : 'flex'
+                                }`}>
+                                    {/* Panel Başlığı */}
+                                    <div className="p-3.5 sm:p-4 border-b border-white/[0.06] flex items-center justify-between bg-white/[0.01] shrink-0">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-6 h-6 rounded-lg bg-white/[0.04] text-slate-300 border border-white/[0.08] flex items-center justify-center">
+                                                <User size={13} />
+                                            </div>
+                                            <h4 className="text-xs sm:text-sm font-bold text-white">Alacaklılar</h4>
+                                            <span className="px-2 py-0.5 rounded-full bg-white/[0.05] border border-white/[0.06] text-[10px] font-mono font-semibold text-slate-400">
+                                                {groupedOpenDebts.length}
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleOpenNewDebt}
+                                            className="h-7 px-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-[11px] font-bold flex items-center gap-1 transition cursor-pointer shadow-sm"
+                                            title="Yeni Borç Kaydı Ekle"
                                         >
-                                            <div>
-                                                {/* Üst Kısım: Alacaklı & Durum Rozeti */}
-                                                <div className="flex items-start justify-between gap-2 mb-3">
-                                                    <div>
-                                                        <span className="text-[10px] font-bold text-amber-400 tracking-wider uppercase">
-                                                            {curInfo.group} Borcu
-                                                        </span>
-                                                        <h4 className="text-sm sm:text-base font-bold text-white tracking-tight">
-                                                            {debt.creditor}
-                                                        </h4>
-                                                    </div>
+                                            <Plus size={12} /> Borç Ekle
+                                        </button>
+                                    </div>
 
-                                                    <div className="flex items-center gap-1.5">
-                                                        {isSettled ? (
-                                                            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold border border-emerald-500/30">
-                                                                KAPANDI
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-[10px] bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded-full font-bold border border-amber-500/30">
-                                                                AKTİF
-                                                            </span>
-                                                        )}
-
-                                                        <button
-                                                            onClick={() => handleDeleteOpenDebt(debt.id, debt.creditor)}
-                                                            className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition cursor-pointer"
-                                                            title="Kaydı Sil"
-                                                        >
-                                                            <Trash2 size={13} />
-                                                        </button>
-                                                    </div>
-                                                </div>
-
-                                                {/* Kalan Borç Tutarı & Canlı TL Karşılığı */}
-                                                <div className="bg-[#0b0f17] border border-white/[0.05] rounded-xl p-3 mb-3">
-                                                    <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-                                                        <span>Kalan Miktar:</span>
-                                                        <span className="font-bold text-white font-mono text-sm">
-                                                            {remainingAmt.toLocaleString('tr-TR')} {curInfo.symbol}
-                                                        </span>
-                                                    </div>
-
-                                                    {debt.currency !== 'TL' && (
-                                                        <div className="flex items-center justify-between pt-1 border-t border-white/[0.05]">
-                                                            <span className="text-[11px] text-amber-400/90 font-medium">Güncel TL Değeri:</span>
-                                                            <span className="font-black text-amber-400 font-mono text-sm sm:text-base">
-                                                                {formatMoney(tryEquivalent)}
-                                                            </span>
+                                    {/* Kişi Satırları Listesi */}
+                                    <div className="divide-y divide-white/[0.04] flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+                                        {groupedOpenDebts.map((group) => {
+                                            const isSelected = activeCreditorGroup?.key === group.key;
+                                            return (
+                                                <div
+                                                    key={group.key}
+                                                    onClick={() => {
+                                                        setSelectedCreditorKey(group.key);
+                                                        setIsMobileDetailOpen(true);
+                                                    }}
+                                                    className={`p-3 sm:p-3.5 flex items-center justify-between gap-3 cursor-pointer transition select-none border-l-2 ${
+                                                        isSelected
+                                                            ? 'bg-white/[0.06] border-l-amber-400 text-white'
+                                                            : 'border-l-transparent hover:bg-white/[0.02] text-slate-300'
+                                                    }`}
+                                                >
+                                                    {/* Sol: Avatar + İsim */}
+                                                    <div className="flex items-center gap-2.5 min-w-0">
+                                                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs uppercase shrink-0 transition ${
+                                                            isSelected 
+                                                                ? 'bg-amber-400/10 text-amber-300 border border-amber-400/30' 
+                                                                : 'bg-white/[0.04] text-slate-300 border border-white/[0.08]'
+                                                        }`}>
+                                                            {group.creditor.charAt(0) || <User size={13} />}
                                                         </div>
-                                                    )}
-
-                                                    {initialAmt > remainingAmt && (
-                                                        <div className="mt-1.5 text-[10px] text-emerald-400/80">
-                                                            ✓ {paidAmt.toLocaleString('tr-TR')} {curInfo.symbol} ödendi (Başlangıç: {initialAmt} {curInfo.symbol})
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* Açıklama & Tarih */}
-                                                <div className="space-y-1 text-xs text-slate-400 mb-3">
-                                                    {debt.notes && (
-                                                        <p className="italic text-slate-300 bg-white/[0.02] p-2 rounded-lg text-[11px] border border-white/[0.04]">
-                                                            "{debt.notes}"
-                                                        </p>
-                                                    )}
-                                                    <div className="flex items-center justify-between text-[11px] pt-1">
-                                                        <span>Alınma: {debt.date}</span>
-                                                        {debt.dueDate ? (
-                                                            <span className="text-slate-300 font-mono">Vade: {debt.dueDate}</span>
-                                                        ) : (
-                                                            <span className="text-emerald-400 font-medium">Vadesiz (Esnek)</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                {/* Ödeme Geçmişi Özeti */}
-                                                {payments.length > 0 && (
-                                                    <div className="mb-3 space-y-1">
-                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                                            Ödeme Geçmişi ({payments.length})
-                                                        </span>
-                                                        <div className="max-h-24 overflow-y-auto custom-scrollbar space-y-1 pr-1">
-                                                            {payments.map(p => (
-                                                                <div key={p.id} className="text-[10px] flex items-center justify-between p-1.5 rounded bg-white/[0.02] border border-white/[0.04]">
-                                                                    <span className="text-slate-300">{p.date}: {p.note || 'Ödeme'}</span>
-                                                                    <span className="font-bold text-emerald-400 font-mono">
-                                                                        -{p.amount} {curInfo.symbol}
-                                                                    </span>
-                                                                </div>
-                                                            ))}
+                                                        <div className="min-w-0">
+                                                            <h5 className={`text-xs sm:text-sm font-bold truncate ${isSelected ? 'text-white' : 'text-slate-200'}`}>
+                                                                {group.creditor}
+                                                            </h5>
                                                         </div>
                                                     </div>
-                                                )}
+
+                                                    {/* Sağ: Toplam Borç TL */}
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        <div className="text-right">
+                                                            <div className="font-mono text-xs sm:text-sm font-black text-white tracking-tight">
+                                                                {formatMoney(group.totalTRY)}
+                                                            </div>
+                                                            <div className="text-[9px] text-slate-400 font-medium">
+                                                                Toplam
+                                                            </div>
+                                                        </div>
+                                                        <ChevronRight size={14} className={`shrink-0 transition-colors ${isSelected ? 'text-amber-400' : 'text-slate-500'}`} />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* ── SAĞ PANEL: SEÇİLİ KİŞİNİN HESAP DEFTERİ (DETAIL) ── */}
+                                <div className={`flex-1 min-w-0 w-full bg-[#0a0d14] border border-white/[0.06] rounded-2xl p-4 sm:p-5 flex flex-col h-full min-h-0 ${
+                                    isMobileDetailOpen ? 'flex' : 'hidden lg:flex'
+                                }`}>
+                                    {!activeCreditorGroup ? (
+                                        <div className="py-16 text-center text-slate-500 text-xs my-auto">
+                                            Lütfen detaylarını görüntülemek için soldan bir alacaklı seçin.
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {/* Mobil Geri Dön Butonu */}
+                                            <div className="lg:hidden mb-3 shrink-0">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsMobileDetailOpen(false)}
+                                                    className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-white transition cursor-pointer"
+                                                >
+                                                    <ChevronLeft size={16} /> Alacaklılar Listesine Dön
+                                                </button>
                                             </div>
 
-                                            {/* Alt Aksiyon Butonu */}
-                                            {!isSettled && (
-                                                <button
-                                                    onClick={() => {
-                                                        setSelectedDebtForPayment(debt);
-                                                        setPartialPayForm({
-                                                            amount: '',
-                                                            date: new Date().toISOString().split('T')[0],
-                                                            note: ''
-                                                        });
-                                                    }}
-                                                    className="w-full h-8 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
-                                                >
-                                                    <Plus size={14} /> Ödeme Düş / Kapat
-                                                </button>
-                                            )}
-                                        </div>
-                                    );
-                                })}
+                                            {/* Defter Üst Başlığı */}
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/[0.06] shrink-0">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/[0.08] text-white flex items-center justify-center font-black text-sm uppercase shrink-0">
+                                                        {activeCreditorGroup.creditor.charAt(0) || <User size={16} />}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <h3 className="text-base sm:text-lg font-black text-white tracking-tight truncate">
+                                                            {activeCreditorGroup.creditor}
+                                                        </h3>
+                                                    </div>
+                                                </div>
+
+                                                {/* Sağ: Toplam Değer & Kalem Ekle Butonu */}
+                                                <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
+                                                    <div className="text-right">
+                                                        <div className="text-[10px] text-slate-400 font-medium">Toplam Değer</div>
+                                                        <div className="font-mono text-base sm:text-xl font-black text-white tracking-tight">
+                                                            {formatMoney(activeCreditorGroup.totalTRY)}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenNewDebtForCreditor(activeCreditorGroup.creditor)}
+                                                        className="h-8 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-sm"
+                                                        title={`${activeCreditorGroup.creditor} adına yeni kalem ekle`}
+                                                    >
+                                                        <Plus size={13} /> Kalem Ekle
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Kalemler Listesi */}
+                                            <div className="space-y-3 mt-4 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
+                                                {activeCreditorGroup.debts.map((debt) => {
+                                                    const initialAmt = Number(debt.initialAmount) || 0;
+                                                    const remainingAmt = debt.remainingAmount !== undefined ? Number(debt.remainingAmount) : initialAmt;
+                                                    const paidAmt = initialAmt - remainingAmt;
+                                                    const curInfo = CURRENCY_TYPES.find(c => c.id === debt.currency) || CURRENCY_TYPES[0];
+                                                    const tryEquivalent = calculateTryEquivalent(remainingAmt, debt.currency, effectiveRates);
+                                                    const isSettled = debt.status === 'settled' || remainingAmt <= 0;
+                                                    const payments = debt.payments || [];
+                                                    const isHistoryOpen = expandedDebtHistoryId === debt.id;
+
+                                                    const subtitle = debt.currency.startsWith('GOLD_')
+                                                        ? (debt.pieceCount && debt.pieceGram 
+                                                            ? `${debt.pieceCount} Adet × ${debt.pieceGram} gr (${curInfo.label.split('(')[0].trim()})`
+                                                            : curInfo.label.split('(')[0].trim())
+                                                        : (debt.currency === 'USD'
+                                                            ? 'Dolar'
+                                                            : debt.currency === 'EUR'
+                                                                ? 'Euro'
+                                                                : debt.currency === 'TL'
+                                                                    ? 'Türk Lirası'
+                                                                    : curInfo.label.split('(')[0].trim());
+
+                                                    return (
+                                                        <div 
+                                                            key={debt.id}
+                                                            className={`rounded-xl p-3.5 sm:p-4 border transition-all ${
+                                                                isSettled 
+                                                                    ? 'bg-white/[0.015] border-white/[0.03] opacity-60' 
+                                                                    : isHistoryOpen
+                                                                        ? 'bg-[#07090e] border-white/[0.15]'
+                                                                        : 'bg-[#07090e] border-white/[0.06] hover:border-white/[0.12]'
+                                                            }`}
+                                                        >
+                                                            {/* 1. Üst Satır: Borç Tutarı, Güncel Değer & Saat Simgesi (Tıklanabilir) */}
+                                                            <div 
+                                                                onClick={() => toggleDebtHistory(debt.id)}
+                                                                className="flex items-center justify-between gap-3 cursor-pointer select-none"
+                                                            >
+                                                                {/* Sol: Borç Tutarı & Altında Para Birimi / Altın Türü */}
+                                                                <div className="min-w-0">
+                                                                    <div className={`font-mono text-base sm:text-lg font-black tracking-tight ${isSettled ? 'text-slate-400 line-through' : 'text-white'}`}>
+                                                                        {remainingAmt.toLocaleString('tr-TR')} {curInfo.symbol}
+                                                                    </div>
+                                                                    <div className="text-xs text-slate-400 truncate mt-0.5">
+                                                                        {subtitle}
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Sağ: Güncel TL Değeri & Saat/Geçmiş Butonu */}
+                                                                <div className="flex items-center gap-3 shrink-0">
+                                                                    {debt.currency !== 'TL' && !isSettled && (
+                                                                        <div className="text-right">
+                                                                            <div className="font-mono text-sm sm:text-base font-bold text-slate-200">
+                                                                                {formatMoney(tryEquivalent)}
+                                                                            </div>
+                                                                            <div className="text-[10px] text-slate-500 font-medium">
+                                                                                Güncel Değer
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Saat İkonu (Geçmiş ve İşlemleri Açar) */}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            toggleDebtHistory(debt.id);
+                                                                        }}
+                                                                        className={`h-7.5 px-2 rounded-lg border transition cursor-pointer flex items-center gap-1 shrink-0 ${
+                                                                            isHistoryOpen 
+                                                                                ? 'bg-white/[0.08] border-white/[0.15] text-white' 
+                                                                                : 'bg-white/[0.04] border-white/[0.06] text-slate-400 hover:text-slate-200 hover:bg-white/[0.08]'
+                                                                        }`}
+                                                                        title="Borç Geçmişi ve İşlemler"
+                                                                    >
+                                                                        <History size={13} />
+                                                                        <ChevronDown size={11} className={`transition-transform duration-200 ${isHistoryOpen ? 'rotate-180 text-white' : 'text-slate-500'}`} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* 2. GEÇMİŞ VE İŞLEMLER DETAYI (Açılır/Kapanır) */}
+                                                            {isHistoryOpen && (
+                                                                <div className="mt-3.5 pt-3.5 border-t border-white/[0.06] space-y-2.5 text-[11px] animate-in fade-in duration-150">
+                                                                    {/* Başlangıç Borcu & Alınış Tarihi/Süresi */}
+                                                                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+                                                                        <div>
+                                                                            <div className="text-[10px] text-slate-500 font-medium">Başlangıç Borcu</div>
+                                                                            <div className="font-mono font-bold text-slate-200 text-xs sm:text-sm">
+                                                                                {initialAmt.toLocaleString('tr-TR')} {curInfo.symbol}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            <div className="text-[10px] text-slate-500 font-medium">Alınış Tarihi</div>
+                                                                            <div className="text-slate-300 font-medium text-[11px]">
+                                                                                {formatTurkishDate(debt.date) || '-'}
+                                                                            </div>
+                                                                            {!isSettled && debt.date && (
+                                                                                <div className="text-[10px] text-slate-500">
+                                                                                    {formatDebtAge(debt.date)}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Hedef Vade (varsa) */}
+                                                                    {debt.dueDate && (
+                                                                        <div className="flex items-center justify-between text-slate-400 px-2.5 py-1.5 bg-white/[0.02] rounded-lg border border-white/[0.04]">
+                                                                            <span className="text-slate-500">Hedef Vade:</span>
+                                                                            <span className="font-mono text-slate-300 font-medium">{formatTurkishDate(debt.dueDate)}</span>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Borç Notu / Açıklama (varsa) */}
+                                                                    {debt.notes && (
+                                                                        <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] text-slate-300 italic">
+                                                                            <span className="not-italic text-slate-500 font-medium mr-1.5">Açıklama:</span>
+                                                                            "{debt.notes}"
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Ödeme Hareketleri */}
+                                                                    <div>
+                                                                        <div className="text-[10px] text-slate-500 font-semibold mb-1.5 flex items-center justify-between px-1">
+                                                                            <span>Ödeme Hareketleri</span>
+                                                                            <span>{payments.length} İşlem</span>
+                                                                        </div>
+
+                                                                        {payments.length === 0 ? (
+                                                                            <div className="text-[10px] text-slate-500 italic py-2 text-center bg-white/[0.01] rounded-lg border border-white/[0.02]">
+                                                                                Henüz yapılmış bir ödeme bulunmuyor.
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
+                                                                                {payments.map(p => (
+                                                                                    <div key={p.id} className="flex items-center justify-between p-1.5 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                                                                                        <div className="flex items-center gap-1.5 min-w-0">
+                                                                                            <span className="text-slate-400 font-mono text-[10px] shrink-0">{formatTurkishDate(p.date)}</span>
+                                                                                            <span className="text-slate-300 truncate text-[11px]">{p.note || 'Ödeme'}</span>
+                                                                                            {p.files && p.files.length > 0 && (
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={(e) => {
+                                                                                                        e.stopPropagation();
+                                                                                                        openAttachment(p.files[0]);
+                                                                                                    }}
+                                                                                                    className="flex items-center gap-0.5 px-1 py-0.5 rounded bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white shrink-0 transition cursor-pointer"
+                                                                                                    title={`${p.files.length} Dekont / Belge`}
+                                                                                                >
+                                                                                                    <FileText size={10} className="text-red-400" />
+                                                                                                    <span className="text-[9px]">Dekont</span>
+                                                                                                </button>
+                                                                                            )}
+                                                                                        </div>
+                                                                                        <span className="font-bold text-slate-200 font-mono shrink-0 ml-2 text-[11px]">
+                                                                                            -{Number(p.amount).toLocaleString('tr-TR')} {curInfo.symbol}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {/* Özet: Toplam Ödenen */}
+                                                                    {paidAmt > 0 && (
+                                                                        <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] flex items-center justify-between text-xs">
+                                                                            <span className="text-slate-400 font-medium">Toplam Ödenen:</span>
+                                                                            <span className="font-mono font-bold text-slate-200">
+                                                                                {paidAmt.toLocaleString('tr-TR')} {curInfo.symbol}
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* 3. İŞLEM BUTONLARI: Ödeme Düş, Belge, Düzenle, Sil */}
+                                                                    <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between gap-1.5">
+                                                                        {/* Sol: Ödeme Düş */}
+                                                                        {!isSettled ? (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setSelectedDebtForPayment(debt);
+                                                                                    setPartialPayForm({
+                                                                                        amount: '',
+                                                                                        date: new Date().toISOString().split('T')[0],
+                                                                                        note: '',
+                                                                                        files: []
+                                                                                    });
+                                                                                }}
+                                                                                className="h-7 px-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 hover:text-white border border-white/[0.08] text-[11px] font-medium flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0"
+                                                                                title="Kısmi veya Tam Ödeme Düş"
+                                                                            >
+                                                                                <Coins size={12} /> Ödeme Düş
+                                                                            </button>
+                                                                        ) : (
+                                                                            <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1 whitespace-nowrap shrink-0">
+                                                                                <Check size={13} /> Borç Kapandı
+                                                                            </span>
+                                                                        )}
+
+                                                                        {/* Sağ: Belge, Düzenle & Sil */}
+                                                                        <div className="flex items-center gap-1 shrink-0">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    toggleDebtDocs(debt.id);
+                                                                                }}
+                                                                                className={`h-7 px-2 rounded-lg border text-[11px] font-medium flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0 ${
+                                                                                    openDocsDebtId === debt.id
+                                                                                        ? 'bg-white/[0.12] border-white/[0.2] text-white font-semibold'
+                                                                                        : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/[0.08]'
+                                                                                }`}
+                                                                                title="Ekli Belgeleri Görüntüle / Yeni Belge Ekle"
+                                                                            >
+                                                                                <Paperclip size={12} />
+                                                                                <span>{debt.files && debt.files.length > 0 ? `Belgeler (${debt.files.length})` : 'Belge'}</span>
+                                                                                <ChevronDown size={10} className={`transition-transform duration-200 ${openDocsDebtId === debt.id ? 'rotate-180 text-white' : 'text-slate-500'}`} />
+                                                                            </button>
+
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleOpenEditDebt(debt);
+                                                                                }}
+                                                                                className="h-7 px-2 text-slate-300 hover:text-white rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-[11px] font-medium flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0"
+                                                                                title="Kalemi Düzenle"
+                                                                            >
+                                                                                <Pencil size={11} /> Düzenle
+                                                                            </button>
+
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleDeleteOpenDebt(debt.id, debt.creditor);
+                                                                                }}
+                                                                                className="h-7 w-7 text-slate-400 hover:text-rose-400 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-rose-500/20 text-xs font-medium flex items-center justify-center transition cursor-pointer shrink-0"
+                                                                                title="Kalemi Sil"
+                                                                            >
+                                                                                <Trash2 size={12} />
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* 4. TIKLANINCA AÇILAN EKLİ BELGELER ALANI */}
+                                                                    {openDocsDebtId === debt.id && (
+                                                                        <div className="mt-2.5 pt-2.5 border-t border-white/[0.06] space-y-2 animate-in fade-in duration-150">
+                                                                            <div className="flex items-center justify-between gap-2 px-0.5">
+                                                                                <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-1.5">
+                                                                                    <Paperclip size={11} className="text-slate-400" />
+                                                                                    <span>Ekli Belgeler</span>
+                                                                                    {debt.files?.length > 0 && (
+                                                                                        <span className="text-[10px] font-mono text-slate-500">({debt.files.length})</span>
+                                                                                    )}
+                                                                                </span>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        triggerDebtUpload(debt.id);
+                                                                                    }}
+                                                                                    className="h-6 px-2.5 rounded-md bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/[0.08] text-[10px] font-medium flex items-center gap-1 transition cursor-pointer"
+                                                                                    title="Yeni PDF / Dekont Ekle"
+                                                                                >
+                                                                                    <Plus size={10} /> Belge Ekle
+                                                                                </button>
+                                                                            </div>
+
+                                                                            {(!debt.files || debt.files.length === 0) ? (
+                                                                                <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04] text-center">
+                                                                                    <p className="text-[11px] text-slate-400">Bu borca ait henüz ekli belge bulunmuyor.</p>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            triggerDebtUpload(debt.id);
+                                                                                        }}
+                                                                                        className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 hover:text-amber-300 transition cursor-pointer"
+                                                                                    >
+                                                                                        <Plus size={12} /> PDF / Belge Yükle
+                                                                                    </button>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                                                                    {debt.files.map((file, idx) => (
+                                                                                        <div
+                                                                                            key={idx}
+                                                                                            className="group flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] hover:border-white/[0.15] text-[11px] text-slate-200 transition"
+                                                                                        >
+                                                                                            <div
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    openAttachment(file);
+                                                                                                }}
+                                                                                                className="flex items-center gap-1.5 cursor-pointer max-w-[150px]"
+                                                                                                title={file.name || 'Belgeyi Aç'}
+                                                                                            >
+                                                                                                <FileText size={12} className="text-red-400 shrink-0" />
+                                                                                                <span className="truncate">{file.name || `Belge ${idx + 1}`}</span>
+                                                                                                <ExternalLink size={10} className="text-slate-500 group-hover:text-slate-300 shrink-0 ml-0.5" />
+                                                                                            </div>
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    handleDeleteDebtFile(debt.id, idx);
+                                                                                                }}
+                                                                                                className="text-slate-500 hover:text-rose-400 p-0.5 rounded hover:bg-white/[0.06] transition cursor-pointer ml-1"
+                                                                                                title="Belgeyi Sil"
+                                                                                            >
+                                                                                                <X size={11} />
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -1415,7 +2231,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                         <div className="p-4 border-b border-white/[0.06] flex items-center justify-between shrink-0">
                             <h4 className="text-sm font-bold text-white flex items-center gap-2">
                                 <CreditCard size={16} className="text-amber-400" />
-                                <span>{editingLoanId ? 'Krediyi Düzenle' : 'Yeni Kredi Tanımla'}</span>
+                                <span>{editingLoanId ? 'Krediyi Düzenle' : 'Yeni Kredi Ekle'}</span>
                             </h4>
                             <button onClick={() => { setIsLoanFormOpen(false); setLoanFormErrors({}); }} className="text-slate-400 hover:text-white p-1 cursor-pointer">
                                 <X size={16} />
@@ -1424,12 +2240,12 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
 
                         {/* Form Gövdesi */}
                         <form onSubmit={handleSaveLoan} noValidate className="p-4 sm:p-5 overflow-y-auto space-y-3.5 custom-scrollbar">
-                            {/* Kredi Türü */}
+                            {/* Tür Seçimi */}
                             <div>
-                                <label className="block text-xs font-medium text-slate-300 mb-1.5">Kredi Türü</label>
-                                <div className="grid grid-cols-3 gap-2">
+                                <label className="block text-xs font-medium text-slate-300 mb-1.5">Borç / Kredi Türü</label>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                     {LOAN_TYPES.map(type => (
-                                        <button
+                                         <button
                                             key={type.id}
                                             type="button"
                                             onClick={() => setLoanForm(prev => ({ ...prev, loanType: type.id }))}
@@ -1446,27 +2262,12 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                 </div>
                             </div>
 
-                            {/* Taşıt Kredisi ise Araç Seçimi */}
-                            {loanForm.loanType === 'tasit' && (
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-300 mb-1">İlgili Araç (Plaka)</label>
-                                    <select
-                                        value={loanForm.truckId}
-                                        onChange={e => setLoanForm(prev => ({ ...prev, truckId: e.target.value }))}
-                                        className="w-full h-10 bg-[#0d1117] border border-white/[0.08] rounded-xl px-3 text-xs text-white focus:border-amber-500 outline-none"
-                                    >
-                                        <option value="">Genel Taşıt (Plaka Seçilmedi)</option>
-                                        {trucks.map(t => (
-                                             <option key={t.id} value={t.id}>{t.plate} - {t.brand || 'Araç'}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
-
-                            {/* Banka Adı & Başlık */}
+                            {/* Banka / Alacaklı Adı & Başlık */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-300 mb-1">Banka / Finansman Kurumu *</label>
+                                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                                        {loanForm.loanType === 'senet' ? 'Alacaklı (Kişi / Firma / Kurum) *' : 'Banka / Finansman Kurumu *'}
+                                    </label>
                                     <input
                                         type="text"
                                         placeholder=""
@@ -1483,7 +2284,9 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-300 mb-1">Kredi Adı / Tanımı</label>
+                                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                                        {loanForm.loanType === 'senet' ? 'Senet / Borç Başlığı (İsteğe Bağlı)' : 'Kredi Adı / Tanımı'}
+                                    </label>
                                     <input
                                         type="text"
                                         placeholder=""
@@ -1497,7 +2300,9 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                             {/* Aylık Taksit & Vade Sayısı */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-300 mb-1">Aylık Taksit Tutarı (TL) *</label>
+                                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                                        {loanForm.loanType === 'senet' ? 'Aylık Senet Tutarı (TL) *' : 'Aylık Taksit Tutarı (TL) *'}
+                                    </label>
                                     <input
                                         type="number"
                                         step="any"
@@ -1512,7 +2317,9 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-300 mb-1">Vade / Ay Sayısı *</label>
+                                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                                        {loanForm.loanType === 'senet' ? 'Senet Sayısı (Vade) *' : 'Vade / Ay Sayısı *'}
+                                    </label>
                                     <input
                                         type="number"
                                         min="1"
@@ -1532,7 +2339,9 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                             {/* İlk Taksit Tarihi & Toplam Geri Ödeme */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-300 mb-1">İlk Taksit Tarihi *</label>
+                                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                                        {loanForm.loanType === 'senet' ? 'İlk Senet Vade Tarihi *' : 'İlk Taksit Tarihi *'}
+                                    </label>
                                     <CustomDatePicker
                                         value={loanForm.startDate}
                                         onChange={val => {
@@ -1547,7 +2356,9 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-300 mb-1">Toplam Geri Ödeme (TL)</label>
+                                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                                        {loanForm.loanType === 'senet' ? 'Toplam Senet Borcu (TL)' : 'Toplam Geri Ödeme (TL)'}
+                                    </label>
                                     <input
                                         type="number"
                                         step="any"
@@ -1560,7 +2371,9 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
 
                             {/* Notlar */}
                             <div>
-                                <label className="block text-xs font-medium text-slate-300 mb-1">Özel Notlar</label>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">
+                                    {loanForm.loanType === 'senet' ? 'Senet Notu / Açıklama' : 'Özel Notlar'}
+                                </label>
                                 <textarea
                                     rows="2"
                                     placeholder=""
@@ -1569,6 +2382,72 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                     className="w-full bg-[#0d1117] border border-white/[0.08] rounded-xl p-3 text-xs text-white focus:border-amber-500 outline-none resize-none"
                                 />
                             </div>
+
+                            {/* Kredi Sözleşmesi & Dosyalar (PDF / Görsel) */}
+                            <div>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">
+                                    {loanForm.loanType === 'senet' ? 'Senet Görseli / Evrak (PDF veya Görsel)' : 'Kredi Sözleşmesi & Evraklar (PDF / Görsel)'}
+                                </label>
+                                <FileUpload
+                                    files={loanForm.files || []}
+                                    onChange={f => setLoanForm(prev => ({ ...prev, files: f }))}
+                                    maxSizeMB={5}
+                                    hideHint={true}
+                                />
+                            </div>
+
+                            {/* Krediyi / Senedi Kapatma & Silme Butonları (Yalnızca Düzenleme Modunda) */}
+                            {editingLoanId && (() => {
+                                const targetLoan = loans.find(l => l.id === editingLoanId);
+                                const isClosed = targetLoan?.status === 'closed';
+                                const isSenet = loanForm.loanType === 'senet';
+                                return (
+                                    <div className="pt-3 border-t border-white/[0.08] space-y-2">
+                                        <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                                            {isSenet ? 'Senet Durumu & Hızlı İşlemler' : 'Kredi Durumu & Hızlı İşlemler'}
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            {!isClosed ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        await handleCloseLoanEarly(editingLoanId);
+                                                        setIsLoanFormOpen(false);
+                                                    }}
+                                                    className="h-9 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                                                >
+                                                    <CheckCircle2 size={14} />
+                                                    <span>{isSenet ? 'Senetleri Kapat (Tümünü Bitir)' : 'Krediyi Kapat (Tümünü Bitir)'}</span>
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        await handleReopenLoan(editingLoanId);
+                                                        setIsLoanFormOpen(false);
+                                                    }}
+                                                    className="h-9 px-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 border border-white/[0.08] text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                                                >
+                                                    <RotateCcw size={14} />
+                                                    <span>{isSenet ? 'Senetleri Yeniden Aktif Et' : 'Krediyi Yeniden Aktif Et'}</span>
+                                                </button>
+                                            )}
+
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    handleDeleteLoan(editingLoanId, loanForm.bankName);
+                                                    setIsLoanFormOpen(false);
+                                                }}
+                                                className="h-9 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                                            >
+                                                <Trash2 size={14} />
+                                                <span>{isSenet ? 'Kaydı Kalıcı Olarak Sil' : 'Krediyi Kalıcı Olarak Sil'}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
 
                             {/* Butonlar */}
                             <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.06]">
@@ -1584,7 +2463,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                     className="h-9 px-5 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/20"
                                 >
                                     <Check size={14} />
-                                    <span>{editingLoanId ? 'Değişiklikleri Kaydet' : 'Krediyi ve Taksitleri Oluştur'}</span>
+                                    <span>{editingLoanId ? 'Değişiklikleri Kaydet' : (loanForm.loanType === 'senet' ? 'Senetleri ve Planı Oluştur' : 'Krediyi ve Taksitleri Oluştur')}</span>
                                 </button>
                             </div>
                         </form>
@@ -1607,14 +2486,29 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                         </div>
 
                         <form onSubmit={handleSaveOpenDebt} noValidate className="p-4 sm:p-5 overflow-y-auto space-y-3.5 custom-scrollbar">
-                            <div>
-                                <label className="block text-xs font-medium text-slate-300 mb-1">Alacaklı Kişi / Kurum / Esnaf *</label>
+                            <div className="relative" ref={creditorDropdownRef}>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-xs font-medium text-slate-300">Alacaklı Kişi / Kurum / Esnaf *</label>
+                                    {existingCreditors.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsCreditorDropdownOpen(prev => !prev)}
+                                            className="text-[10px] text-amber-400 hover:text-amber-300 font-semibold cursor-pointer"
+                                        >
+                                            {isCreditorDropdownOpen ? 'Listeyi Gizle' : `Kayıtlı Kişiler (${existingCreditors.length})`}
+                                        </button>
+                                    )}
+                                </div>
                                 <input
                                     type="text"
                                     placeholder=""
                                     value={debtForm.creditor}
+                                    onFocus={() => {
+                                        if (existingCreditors.length > 0) setIsCreditorDropdownOpen(true);
+                                    }}
                                     onChange={e => {
                                         setDebtForm(prev => ({ ...prev, creditor: e.target.value }));
+                                        setIsCreditorDropdownOpen(true);
                                         if (debtFormErrors.creditor) setDebtFormErrors(prev => ({ ...prev, creditor: false }));
                                     }}
                                     className={`w-full h-10 bg-[#0d1117] rounded-xl px-3 text-xs text-white focus:border-amber-500 outline-none transition-all ${
@@ -1623,6 +2517,30 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                             : 'border border-white/[0.08]'
                                     }`}
                                 />
+
+                                {/* Alacaklı Öneri Listesi (Hafıza / Otomatik Tamamlama) */}
+                                {isCreditorDropdownOpen && filteredCreditors.length > 0 && (
+                                    <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-[#10141e] border border-white/10 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar p-1">
+                                        <div className="text-[10px] uppercase font-bold text-slate-500 px-2 py-1 tracking-wider">
+                                            Kayıtlı Alacaklılar
+                                        </div>
+                                        {filteredCreditors.map((c) => (
+                                            <button
+                                                key={c}
+                                                type="button"
+                                                onClick={() => {
+                                                    setDebtForm(prev => ({ ...prev, creditor: c }));
+                                                    setIsCreditorDropdownOpen(false);
+                                                    if (debtFormErrors.creditor) setDebtFormErrors(prev => ({ ...prev, creditor: false }));
+                                                }}
+                                                className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-slate-200 hover:bg-amber-500/15 hover:text-amber-300 flex items-center justify-between cursor-pointer transition"
+                                            >
+                                                <span className="font-medium truncate">{c}</span>
+                                                <span className="text-[10px] text-slate-500 shrink-0">Seç</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Borç Cinsi (TL, Dolar, Euro, Altın Türleri) */}
@@ -1645,56 +2563,157 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                             {(() => {
                                 const meta = getCurrencyMeta(debtForm.currency);
                                 return (
-                                    <div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {/* Miktar */}
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-300 mb-1">
-                                                    {meta.label} *
-                                                </label>
-                                                <div className="relative flex items-center">
-                                                    <input
-                                                        type="number"
-                                                        step="any"
-                                                        placeholder=""
-                                                        value={debtForm.initialAmount}
-                                                        onChange={e => {
-                                                            setDebtForm(prev => ({ ...prev, initialAmount: e.target.value }));
-                                                            if (debtFormErrors.initialAmount) setDebtFormErrors(prev => ({ ...prev, initialAmount: false }));
+                                    <div className="space-y-3">
+                                        {/* Altın Türlerinde (gr) Adet x Gram Seçeneği */}
+                                        {meta.suffix === 'gr' && (
+                                            <div className="flex items-center gap-1.5 p-1 bg-[#0a0d14] border border-white/[0.06] rounded-xl">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDebtForm(prev => ({ ...prev, goldCalcMode: 'total' }))}
+                                                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                                                        debtForm.goldCalcMode !== 'pieces'
+                                                            ? 'bg-white/[0.08] text-white font-bold'
+                                                            : 'text-slate-400 hover:text-white'
+                                                    }`}
+                                                >
+                                                    Toplam Gram
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setDebtForm(prev => {
+                                                            const count = prev.pieceCount || '';
+                                                            const gram = prev.pieceGram || '';
+                                                            const calcTotal = (count && gram) ? (Number(count) * Number(gram)).toString() : prev.initialAmount;
+                                                            return { ...prev, goldCalcMode: 'pieces', initialAmount: calcTotal };
+                                                        });
+                                                    }}
+                                                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                                                        debtForm.goldCalcMode === 'pieces'
+                                                            ? 'bg-white/[0.08] text-white font-bold'
+                                                            : 'text-slate-400 hover:text-white'
+                                                    }`}
+                                                >
+                                                    Adet × Gram (Örn: 3 Adet 12 gr)
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Adet x Gram Modu */}
+                                        {meta.suffix === 'gr' && debtForm.goldCalcMode === 'pieces' ? (
+                                            <div className="space-y-2">
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-xs font-medium text-slate-300 mb-1">Adet *</label>
+                                                        <input
+                                                            type="number"
+                                                            step="any"
+                                                            placeholder=""
+                                                            value={debtForm.pieceCount}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                const gram = debtForm.pieceGram;
+                                                                const total = (val && gram) ? (Number(val) * Number(gram)).toString() : '';
+                                                                setDebtForm(prev => ({ ...prev, pieceCount: val, initialAmount: total }));
+                                                                if (debtFormErrors.initialAmount) setDebtFormErrors(prev => ({ ...prev, initialAmount: false }));
+                                                            }}
+                                                            className="w-full h-10 bg-[#0d1117] border border-white/[0.08] rounded-xl px-3 text-xs text-white font-mono font-bold focus:border-amber-500 outline-none"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-medium text-slate-300 mb-1">Birim Gramı (gr) *</label>
+                                                        <input
+                                                            type="number"
+                                                            step="any"
+                                                            placeholder=""
+                                                            value={debtForm.pieceGram}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                const count = debtForm.pieceCount;
+                                                                const total = (val && count) ? (Number(count) * Number(val)).toString() : '';
+                                                                setDebtForm(prev => ({ ...prev, pieceGram: val, initialAmount: total }));
+                                                                if (debtFormErrors.initialAmount) setDebtFormErrors(prev => ({ ...prev, initialAmount: false }));
+                                                            }}
+                                                            className="w-full h-10 bg-[#0d1117] border border-white/[0.08] rounded-xl px-3 text-xs text-white font-mono font-bold focus:border-amber-500 outline-none"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {debtForm.pieceCount && debtForm.pieceGram && (
+                                                    <div className="text-xs text-slate-300 font-mono flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/[0.05]">
+                                                        <span>Hesaplanan Toplam:</span>
+                                                        <span className="font-bold text-white">{debtForm.initialAmount} gr</span>
+                                                    </div>
+                                                )}
+
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-300 mb-1">Borç Alınma Tarihi *</label>
+                                                    <CustomDatePicker
+                                                        value={debtForm.date}
+                                                        onChange={val => {
+                                                            setDebtForm(prev => ({ ...prev, date: val }));
+                                                            if (debtFormErrors.date) setDebtFormErrors(prev => ({ ...prev, date: false }));
                                                         }}
-                                                        className={`w-full h-10 bg-[#0d1117] rounded-xl pl-3 pr-12 text-xs text-white font-mono font-bold focus:border-amber-500 outline-none transition-all ${
-                                                            debtFormErrors.initialAmount
+                                                        className={`w-full h-10 bg-[#0d1117] rounded-xl px-2 text-xs text-white focus-within:border-amber-500 transition-all ${
+                                                            debtFormErrors.date
                                                                 ? 'border-2 border-amber-500 ring-2 ring-amber-500/30 bg-amber-500/[0.04]'
                                                                 : 'border border-white/[0.08]'
                                                         }`}
                                                     />
-                                                    <span className="absolute right-3 text-xs font-bold text-slate-400 font-mono pointer-events-none select-none">
-                                                        {meta.suffix}
-                                                    </span>
                                                 </div>
                                             </div>
+                                        ) : (
+                                            /* Normal Tekil Miktar & Tarih Modu */
+                                            <div className="grid grid-cols-2 gap-3">
+                                                {/* Miktar */}
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                                                        {meta.label} *
+                                                    </label>
+                                                    <div className="relative flex items-center">
+                                                        <input
+                                                            type="number"
+                                                            step="any"
+                                                            placeholder=""
+                                                            value={debtForm.initialAmount}
+                                                            onChange={e => {
+                                                                setDebtForm(prev => ({ ...prev, initialAmount: e.target.value }));
+                                                                if (debtFormErrors.initialAmount) setDebtFormErrors(prev => ({ ...prev, initialAmount: false }));
+                                                            }}
+                                                            className={`w-full h-10 bg-[#0d1117] rounded-xl pl-3 pr-12 text-xs text-white font-mono font-bold focus:border-amber-500 outline-none transition-all ${
+                                                                debtFormErrors.initialAmount
+                                                                    ? 'border-2 border-amber-500 ring-2 ring-amber-500/30 bg-amber-500/[0.04]'
+                                                                    : 'border border-white/[0.08]'
+                                                            }`}
+                                                        />
+                                                        <span className="absolute right-3 text-xs font-bold text-slate-400 font-mono pointer-events-none select-none">
+                                                            {meta.suffix}
+                                                        </span>
+                                                    </div>
+                                                </div>
 
-                                            {/* Borç Alınma Tarihi */}
-                                            <div>
-                                                <label className="block text-xs font-medium text-slate-300 mb-1">Borç Alınma Tarihi *</label>
-                                                <CustomDatePicker
-                                                    value={debtForm.date}
-                                                    onChange={val => {
-                                                        setDebtForm(prev => ({ ...prev, date: val }));
-                                                        if (debtFormErrors.date) setDebtFormErrors(prev => ({ ...prev, date: false }));
-                                                    }}
-                                                    className={`w-full h-10 bg-[#0d1117] rounded-xl px-2 text-xs text-white focus-within:border-amber-500 transition-all ${
-                                                        debtFormErrors.date
-                                                            ? 'border-2 border-amber-500 ring-2 ring-amber-500/30 bg-amber-500/[0.04]'
-                                                            : 'border border-white/[0.08]'
-                                                    }`}
-                                                />
+                                                {/* Borç Alınma Tarihi */}
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-300 mb-1">Borç Alınma Tarihi *</label>
+                                                    <CustomDatePicker
+                                                        value={debtForm.date}
+                                                        onChange={val => {
+                                                            setDebtForm(prev => ({ ...prev, date: val }));
+                                                            if (debtFormErrors.date) setDebtFormErrors(prev => ({ ...prev, date: false }));
+                                                        }}
+                                                        className={`w-full h-10 bg-[#0d1117] rounded-xl px-2 text-xs text-white focus-within:border-amber-500 transition-all ${
+                                                            debtFormErrors.date
+                                                                ? 'border-2 border-amber-500 ring-2 ring-amber-500/30 bg-amber-500/[0.04]'
+                                                                : 'border border-white/[0.08]'
+                                                        }`}
+                                                    />
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
 
                                         {debtForm.initialAmount && debtForm.currency !== 'TL' && (
-                                            <div className="mt-1 text-[11px] text-amber-400 font-mono">
-                                                ≈ Güncel Değer: {formatMoney(calculateTryEquivalent(debtForm.initialAmount, debtForm.currency, effectiveRates))}
+                                            <div className="text-[11px] text-slate-300 font-mono">
+                                                Güncel Değer: {formatMoney(calculateTryEquivalent(debtForm.initialAmount, debtForm.currency, effectiveRates))}
                                             </div>
                                         )}
                                     </div>
@@ -1765,6 +2784,58 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                 />
                             </div>
 
+                            {/* PDF / Belge Ekleme (Kompakt Simgeli, Geniş Bar Yok) */}
+                            <div>
+                                <input
+                                    ref={debtFileInputRef}
+                                    type="file"
+                                    multiple
+                                    accept="application/pdf,image/*"
+                                    className="hidden"
+                                    onChange={handleDebtFileSelect}
+                                />
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
+                                        <Paperclip size={12} className="text-slate-400" />
+                                        <span>PDF / Dosya Ekle</span>
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => debtFileInputRef.current?.click()}
+                                        className="h-6.5 px-2.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-[11px] text-slate-300 hover:text-white flex items-center gap-1 transition cursor-pointer"
+                                    >
+                                        <Plus size={11} /> Belge Seç
+                                    </button>
+                                </div>
+                                {debtForm.files && debtForm.files.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1.5 pt-1">
+                                        {debtForm.files.map((file, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg bg-white/[0.04] border border-white/[0.08] text-[11px] text-slate-300"
+                                            >
+                                                <FileText size={11} className="text-red-400 shrink-0" />
+                                                <span className="max-w-[140px] truncate">{file.name || `Belge ${idx + 1}`}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDebtForm(prev => ({
+                                                        ...prev,
+                                                        files: prev.files.filter((_, i) => i !== idx)
+                                                    }))}
+                                                    className="text-slate-500 hover:text-rose-400 p-0.5 rounded hover:bg-white/[0.06] cursor-pointer"
+                                                >
+                                                    <X size={11} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-[10px] text-slate-500 italic">
+                                        İsteğe bağlı borç senedi, sözleşme veya PDF ekleyebilirsiniz.
+                                    </p>
+                                )}
+                            </div>
+
                             <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.06]">
                                 <button
                                     type="button"
@@ -1789,18 +2860,18 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
             {/* ── MODAL: TAKSİTİ ÖDENDİ YAP ── */}
             {selectedInstallment && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-[#07090e] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
-                        <div className="p-4 border-b border-white/[0.06] flex items-center justify-between">
+                    <div className="bg-[#07090e] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                        <div className="p-4 border-b border-white/[0.06] flex items-center justify-between shrink-0">
                             <h4 className="text-xs font-bold text-white flex items-center gap-2">
-                                <CheckCircle2 size={16} className="text-emerald-400" />
-                                <span>{selectedInstallment.inst.no}. Taksit Ödemesi</span>
+                                <CheckCircle2 size={16} className="text-amber-400" />
+                                <span>{selectedInstallment.inst.no}. {loans.find(l => l.id === selectedInstallment.loanId)?.loanType === 'senet' ? 'Senet Ödemesi' : 'Taksit Ödemesi'}</span>
                             </h4>
                             <button onClick={() => { setSelectedInstallment(null); setPayModalErrors({}); }} className="text-slate-400 hover:text-white p-1 cursor-pointer">
                                 <X size={15} />
                             </button>
                         </div>
 
-                        <form onSubmit={handleConfirmPayment} noValidate className="p-4 space-y-3">
+                        <form onSubmit={handleConfirmPayment} noValidate className="p-4 space-y-3 overflow-y-auto custom-scrollbar">
                             <div>
                                 <label className="block text-xs font-medium text-slate-300 mb-1">Gerçek Ödeme Tarihi *</label>
                                 <CustomDatePicker
@@ -1809,7 +2880,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                         setPayModalForm(prev => ({ ...prev, paidDate: val }));
                                         if (payModalErrors.paidDate) setPayModalErrors(prev => ({ ...prev, paidDate: false }));
                                     }}
-                                    className={`w-full h-10 bg-[#0d1117] rounded-xl px-2 text-xs text-white focus-within:border-emerald-500 transition-all ${
+                                    className={`w-full h-10 bg-[#0d1117] rounded-xl px-2 text-xs text-white focus-within:border-amber-500 transition-all ${
                                         payModalErrors.paidDate
                                             ? 'border-2 border-amber-500 ring-2 ring-amber-500/30 bg-amber-500/[0.04]'
                                             : 'border border-white/[0.08]'
@@ -1828,7 +2899,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                         setPayModalForm(prev => ({ ...prev, paidAmount: e.target.value }));
                                         if (payModalErrors.paidAmount) setPayModalErrors(prev => ({ ...prev, paidAmount: false }));
                                     }}
-                                    className={`w-full h-10 bg-[#0d1117] rounded-xl px-3 text-xs text-white font-mono font-bold focus:border-emerald-500 outline-none transition-all ${
+                                    className={`w-full h-10 bg-[#0d1117] rounded-xl px-3 text-xs text-white font-mono font-bold focus:border-amber-500 outline-none transition-all ${
                                         payModalErrors.paidAmount
                                             ? 'border-2 border-amber-500 ring-2 ring-amber-500/30 bg-amber-500/[0.04]'
                                             : 'border border-white/[0.08]'
@@ -1837,13 +2908,25 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-medium text-slate-300 mb-1">Ödeme Notu / Dekont No</label>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">Ödeme Notu / Açıklama</label>
                                 <input
                                     type="text"
                                     placeholder=""
                                     value={payModalForm.note}
                                     onChange={e => setPayModalForm(prev => ({ ...prev, note: e.target.value }))}
-                                    className="w-full h-10 bg-[#0d1117] border border-white/[0.08] rounded-xl px-3 text-xs text-white focus:border-emerald-500 outline-none"
+                                    className="w-full h-10 bg-[#0d1117] border border-white/[0.08] rounded-xl px-3 text-xs text-white focus:border-amber-500 outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">
+                                    Ödeme Dekontu / Belgesi (PDF veya Görsel)
+                                </label>
+                                <FileUpload
+                                    files={payModalForm.files || []}
+                                    onChange={files => setPayModalForm(prev => ({ ...prev, files }))}
+                                    maxSizeMB={5}
+                                    hideHint={true}
                                 />
                             </div>
 
@@ -1857,7 +2940,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="h-8 px-4 bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20"
+                                    className="h-8 px-4 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/20"
                                 >
                                     <Check size={14} />
                                     <span>Ödendi Olarak Kaydet</span>
@@ -1868,21 +2951,21 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                 </div>
             )}
 
-            {/* ── MODAL: TAKSİT TUTAR / TARİH DÜZENLEME ── */}
+            {/* ── MODAL: TAKSİT TUTAR / TARİH / NOT / DEKONT DÜZENLEME ── */}
             {editingInstallmentItem && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-[#07090e] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
-                        <div className="p-4 border-b border-white/[0.06] flex items-center justify-between">
+                    <div className="bg-[#07090e] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                        <div className="p-4 border-b border-white/[0.06] flex items-center justify-between shrink-0">
                             <h4 className="text-xs font-bold text-white flex items-center gap-2">
                                 <Pencil size={14} className="text-amber-400" />
-                                <span>{editingInstallmentItem.inst.no}. Taksit Bilgilerini Düzenle</span>
+                                <span>{editingInstallmentItem.inst.no}. {loans.find(l => l.id === editingInstallmentItem.loanId)?.loanType === 'senet' ? 'Senet Bilgilerini Düzenle' : 'Taksit Bilgilerini Düzenle'}</span>
                             </h4>
                             <button onClick={() => { setEditingInstallmentItem(null); setEditInstErrors({}); }} className="text-slate-400 hover:text-white p-1 cursor-pointer">
                                 <X size={15} />
                             </button>
                         </div>
 
-                        <form onSubmit={handleSaveEditInstallment} noValidate className="p-4 space-y-3">
+                        <form onSubmit={handleSaveEditInstallment} noValidate className="p-4 space-y-3 overflow-y-auto custom-scrollbar">
                             <div>
                                 <label className="block text-xs font-medium text-slate-300 mb-1">Vade Tarihi *</label>
                                 <CustomDatePicker
@@ -1901,7 +2984,9 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-medium text-slate-300 mb-1">Taksit Tutarı (TL) *</label>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">
+                                    {loans.find(l => l.id === editingInstallmentItem.loanId)?.loanType === 'senet' ? 'Senet Tutarı (TL) *' : 'Taksit Tutarı (TL) *'}
+                                </label>
                                 <input
                                     type="number"
                                     step="any"
@@ -1916,6 +3001,29 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                             ? 'border-2 border-amber-500 ring-2 ring-amber-500/30 bg-amber-500/[0.04]'
                                             : 'border border-white/[0.08]'
                                     }`}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">Not / Açıklama</label>
+                                <input
+                                    type="text"
+                                    placeholder=""
+                                    value={editInstForm.note}
+                                    onChange={e => setEditInstForm(prev => ({ ...prev, note: e.target.value }))}
+                                    className="w-full h-10 bg-[#0d1117] border border-white/[0.08] rounded-xl px-3 text-xs text-white focus:border-amber-500 outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-medium text-slate-300 mb-1">
+                                    Dekont / Evrak (PDF veya Görsel)
+                                </label>
+                                <FileUpload
+                                    files={editInstForm.files || []}
+                                    onChange={files => setEditInstForm(prev => ({ ...prev, files }))}
+                                    maxSizeMB={5}
+                                    hideHint={true}
                                 />
                             </div>
 
@@ -1957,8 +3065,15 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                         <form onSubmit={handleAddPartialPayment} noValidate className="p-4 space-y-3">
                             <div className="bg-[#0b0f17] p-2.5 rounded-xl border border-white/[0.05] text-xs">
                                 <div className="text-slate-400">Kalan Borç:</div>
-                                <div className="text-base font-bold text-white font-mono mt-0.5">
-                                    {(selectedDebtForPayment.remainingAmount !== undefined ? selectedDebtForPayment.remainingAmount : selectedDebtForPayment.initialAmount).toLocaleString('tr-TR')} {selectedDebtForPayment.currency}
+                                <div className="flex items-baseline justify-between mt-0.5">
+                                    <div className="text-base font-bold text-white font-mono">
+                                        {(selectedDebtForPayment.remainingAmount !== undefined ? selectedDebtForPayment.remainingAmount : selectedDebtForPayment.initialAmount).toLocaleString('tr-TR')} {selectedDebtForPayment.currency}
+                                    </div>
+                                    {selectedDebtForPayment.currency !== 'TL' && (
+                                        <div className="text-xs font-mono text-slate-300 font-bold">
+                                            {formatMoney(calculateTryEquivalent(selectedDebtForPayment.remainingAmount !== undefined ? selectedDebtForPayment.remainingAmount : selectedDebtForPayment.initialAmount, selectedDebtForPayment.currency, effectiveRates))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -1973,7 +3088,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                             <input
                                                 type="number"
                                                 step="any"
-                                                placeholder={meta.placeholder}
+                                                placeholder=""
                                                 value={partialPayForm.amount}
                                                 onChange={e => {
                                                     setPartialPayForm(prev => ({ ...prev, amount: e.target.value }));
@@ -2020,6 +3135,58 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                 />
                             </div>
 
+                            {/* PDF / Dekont Ekleme (Kompakt Simgeli, Geniş Bar Yok) */}
+                            <div>
+                                <input
+                                    ref={payFileInputRef}
+                                    type="file"
+                                    multiple
+                                    accept="application/pdf,image/*"
+                                    className="hidden"
+                                    onChange={handlePayFileSelect}
+                                />
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
+                                        <Paperclip size={12} className="text-slate-400" />
+                                        <span>Dekont / Belge</span>
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => payFileInputRef.current?.click()}
+                                        className="h-6.5 px-2.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-[11px] text-slate-300 hover:text-white flex items-center gap-1 transition cursor-pointer"
+                                    >
+                                        <Plus size={11} /> Belge Seç
+                                    </button>
+                                </div>
+                                {partialPayForm.files && partialPayForm.files.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1.5 pt-1">
+                                        {partialPayForm.files.map((file, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg bg-white/[0.04] border border-white/[0.08] text-[11px] text-slate-300"
+                                            >
+                                                <FileText size={11} className="text-red-400 shrink-0" />
+                                                <span className="max-w-[140px] truncate">{file.name || `Belge ${idx + 1}`}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPartialPayForm(prev => ({
+                                                        ...prev,
+                                                        files: prev.files.filter((_, i) => i !== idx)
+                                                    }))}
+                                                    className="text-slate-500 hover:text-rose-400 p-0.5 rounded hover:bg-white/[0.06] cursor-pointer"
+                                                >
+                                                    <X size={11} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-[10px] text-slate-500 italic">
+                                        İsteğe bağlı banka dekontu veya makbuz PDF'i ekleyebilirsiniz.
+                                    </p>
+                                )}
+                            </div>
+
                             <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.06]">
                                 <button
                                     type="button"
@@ -2040,6 +3207,16 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                     </div>
                 </div>
             )}
+
+            {/* Doğrudan Kart Üzerinden Belge/PDF Yükleme İçin Gizli Input */}
+            <input
+                ref={directDebtFileInputRef}
+                type="file"
+                multiple
+                accept="application/pdf,image/*"
+                className="hidden"
+                onChange={handleDirectDebtFileSelect}
+            />
 
         </div>
     );

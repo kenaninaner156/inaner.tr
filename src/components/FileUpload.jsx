@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Paperclip, X, FileText, Image, Loader2 } from 'lucide-react';
 import { uploadToCloudinary } from '../services/cloudinaryService';
 
-const FileUpload = ({ files = [], onChange, maxSizeMB = 3 }) => {
+const FileUpload = ({ files = [], onChange, maxSizeMB = 3, hideHint = false }) => {
     const inputRef = useRef();
     const [uploading, setUploading] = useState(false);
 
@@ -114,7 +114,9 @@ const FileUpload = ({ files = [], onChange, maxSizeMB = 3 }) => {
                 className="hidden"
                 onChange={handleFileSelect}
             />
-            <p className="text-xs text-slate-600 text-center">Maks {maxSizeMB}MB · JPG, PNG, PDF desteklenir</p>
+            {!hideHint && (
+                <p className="text-xs text-slate-600 text-center">Maks {maxSizeMB}MB · JPG, PNG, PDF desteklenir</p>
+            )}
         </div>
     );
 };
