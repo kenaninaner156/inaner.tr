@@ -892,6 +892,17 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
     const [selectedCreditorKey, setSelectedCreditorKey] = useState(null);
     const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
 
+    // Mobil görünümde seçili alacaklının tüm borçları silinir/kapanırsa veya liste boşalırsa alacaklılar listesine geri dön
+    useEffect(() => {
+        if (isMobileDetailOpen && selectedCreditorKey) {
+            const exists = groupedOpenDebts.some(g => g.key === selectedCreditorKey);
+            if (!exists) {
+                setIsMobileDetailOpen(false);
+                setSelectedCreditorKey(null);
+            }
+        }
+    }, [groupedOpenDebts, isMobileDetailOpen, selectedCreditorKey]);
+
     // Kart üzerinde ekli belgeleri açıp kapatma
     const [openDocsDebtId, setOpenDocsDebtId] = useState(null);
     const toggleDebtDocs = (debtId) => {
@@ -1304,8 +1315,9 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                             <Menu size={22} />
                         </button>
                     )}
-                    <h2 className="text-base sm:text-lg font-bold tracking-tight text-white">
-                        Kredi & Borç Yönetimi
+                    <h2 className="text-sm sm:text-lg font-bold tracking-tight text-white truncate">
+                        <span className="hidden sm:inline">Kredi & Borç Yönetimi</span>
+                        <span className="sm:hidden">Borçlar</span>
                     </h2>
                 </div>
 
@@ -1332,7 +1344,8 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                             )}
                             <span className="relative z-10 flex items-center gap-1.5 sm:gap-2">
                                 <CreditCard size={14} />
-                                <span>Vadeli Borçlar</span>
+                                <span className="hidden sm:inline">Vadeli Borçlar</span>
+                                <span className="sm:hidden">Vadeli</span>
                             </span>
                         </button>
 
@@ -1355,7 +1368,8 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                             )}
                             <span className="relative z-10 flex items-center gap-1.5 sm:gap-2">
                                 <Coins size={14} />
-                                <span>Vadesiz Borçlar</span>
+                                <span className="hidden sm:inline">Vadesiz Borçlar</span>
+                                <span className="sm:hidden">Vadesiz</span>
                             </span>
                         </button>
                     </div>
@@ -1380,8 +1394,8 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                 </div>
             </div>
 
-            {/* ── 1. Bento KPI Kartları (Sade & Zarif 60-30-10 - Mobilde 2x2 Kompakt Grid) ── */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 shrink-0">
+            {/* ── 1. Bento KPI Kartları (Sade & Zarif 60-30-10 - Mobilde 2x2 Kompakt Grid, Tablet & Masaüstünde Tek Sıra) ── */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 shrink-0">
                 {/* 1. KART: Toplam Borç Stoku */}
                 <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-white/[0.06] p-2.5 sm:p-4 bg-[#0a0d14] flex flex-col justify-center">
                     <div className="flex items-center mb-1 sm:mb-1.5">
@@ -1706,20 +1720,20 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                                                     {isPaid ? (
                                                                         <button
                                                                             onClick={() => handleCancelPayment(loan.id, inst.no)}
-                                                                            className="w-full h-7 rounded-lg bg-white/[0.03] hover:bg-amber-500/15 text-slate-400 hover:text-amber-300 text-[10px] font-semibold transition cursor-pointer flex items-center justify-center gap-1"
+                                                                            className="w-full h-8 sm:h-7 rounded-lg bg-white/[0.03] hover:bg-amber-500/15 text-slate-400 hover:text-amber-300 text-[11px] sm:text-[10px] font-semibold transition cursor-pointer flex items-center justify-center gap-1 active:scale-[0.98]"
                                                                         >
-                                                                            <X size={11} /> Ödemeyi Geri Al
+                                                                            <X size={12} /> Ödemeyi Geri Al
                                                                         </button>
                                                                     ) : (
                                                                         <button
                                                                             onClick={() => handleOpenPayModal(loan.id, inst)}
-                                                                            className={`w-full h-7 rounded-lg text-[10px] font-bold transition cursor-pointer flex items-center justify-center gap-1 ${
+                                                                            className={`w-full h-8 sm:h-7 rounded-lg text-[11px] sm:text-[10px] font-bold transition cursor-pointer flex items-center justify-center gap-1 active:scale-[0.98] ${
                                                                                 isOverdue || isCurrentMonth
                                                                                     ? 'bg-amber-500 hover:bg-amber-400 text-black shadow-sm shadow-amber-500/20'
                                                                                     : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 border border-white/[0.08]'
                                                                             }`}
                                                                         >
-                                                                            <Check size={12} /> Ödendi Olarak İşle
+                                                                            <Check size={13} /> Ödendi Olarak İşle
                                                                         </button>
                                                                     )}
                                                                 </div>
@@ -1838,8 +1852,16 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                     isMobileDetailOpen ? 'flex' : 'hidden lg:flex'
                                 }`}>
                                     {!activeCreditorGroup ? (
-                                        <div className="py-16 text-center text-slate-500 text-xs my-auto">
-                                            Lütfen detaylarını görüntülemek için soldan bir alacaklı seçin.
+                                        <div className="py-16 text-center text-slate-500 text-xs my-auto flex flex-col items-center justify-center gap-3">
+                                            <span>Lütfen detaylarını görüntülemek için soldan bir alacaklı seçin.</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsMobileDetailOpen(false)}
+                                                className="lg:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/10 text-white text-xs font-semibold cursor-pointer active:scale-95"
+                                            >
+                                                <ChevronLeft size={14} className="text-amber-400" />
+                                                <span>Alacaklılar Listesine Dön</span>
+                                            </button>
                                         </div>
                                     ) : (
                                         <>
@@ -1848,9 +1870,10 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                                 <button
                                                     type="button"
                                                     onClick={() => setIsMobileDetailOpen(false)}
-                                                    className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-white transition cursor-pointer"
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-xs font-semibold text-slate-300 hover:text-white transition cursor-pointer active:scale-95"
                                                 >
-                                                    <ChevronLeft size={16} /> Alacaklılar Listesine Dön
+                                                    <ChevronLeft size={15} className="text-amber-400" />
+                                                    <span>Alacaklılar Listesine Dön</span>
                                                 </button>
                                             </div>
 
@@ -2062,7 +2085,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                                                     )}
 
                                                                     {/* 3. İŞLEM BUTONLARI: Ödeme Düş, Belge, Düzenle, Sil */}
-                                                                    <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between gap-1.5">
+                                                                    <div className="pt-2 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-2">
                                                                         {/* Sol: Ödeme Düş */}
                                                                         {!isSettled ? (
                                                                             <button
@@ -2077,26 +2100,26 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                                                                         files: []
                                                                                     });
                                                                                 }}
-                                                                                className="h-7 px-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 hover:text-white border border-white/[0.08] text-[11px] font-medium flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0"
+                                                                                className="h-8 sm:h-7 px-2.5 sm:px-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-200 hover:text-white border border-white/[0.08] text-xs sm:text-[11px] font-medium flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap shrink-0 active:scale-95"
                                                                                 title="Kısmi veya Tam Ödeme Düş"
                                                                             >
-                                                                                <Coins size={12} /> Ödeme Düş
+                                                                                <Coins size={13} className="text-amber-400" /> <span>Ödeme Düş</span>
                                                                             </button>
                                                                         ) : (
-                                                                            <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1 whitespace-nowrap shrink-0">
+                                                                            <span className="text-xs sm:text-[11px] text-slate-400 font-semibold flex items-center gap-1 whitespace-nowrap shrink-0">
                                                                                 <Check size={13} /> Borç Kapandı
                                                                             </span>
                                                                         )}
 
                                                                         {/* Sağ: Belge, Düzenle & Sil */}
-                                                                        <div className="flex items-center gap-1 shrink-0">
+                                                                        <div className="flex items-center gap-1.5 sm:gap-1 shrink-0">
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
                                                                                     toggleDebtDocs(debt.id);
                                                                                 }}
-                                                                                className={`h-7 px-2 rounded-lg border text-[11px] font-medium flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0 ${
+                                                                                className={`h-8 sm:h-7 px-2.5 sm:px-2 rounded-lg border text-xs sm:text-[11px] font-medium flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0 active:scale-95 ${
                                                                                     openDocsDebtId === debt.id
                                                                                         ? 'bg-white/[0.12] border-white/[0.2] text-white font-semibold'
                                                                                         : 'bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/[0.08]'
@@ -2114,10 +2137,10 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                                                                     e.stopPropagation();
                                                                                     handleOpenEditDebt(debt);
                                                                                 }}
-                                                                                className="h-7 px-2 text-slate-300 hover:text-white rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-[11px] font-medium flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0"
+                                                                                className="h-8 sm:h-7 px-2.5 sm:px-2 text-slate-300 hover:text-white rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-xs sm:text-[11px] font-medium flex items-center gap-1 transition cursor-pointer whitespace-nowrap shrink-0 active:scale-95"
                                                                                 title="Kalemi Düzenle"
                                                                             >
-                                                                                <Pencil size={11} /> Düzenle
+                                                                                <Pencil size={11} /> <span>Düzenle</span>
                                                                             </button>
 
                                                                             <button
@@ -2126,10 +2149,10 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                                                                     e.stopPropagation();
                                                                                     handleDeleteOpenDebt(debt.id, debt.creditor);
                                                                                 }}
-                                                                                className="h-7 w-7 text-slate-400 hover:text-rose-400 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-rose-500/20 text-xs font-medium flex items-center justify-center transition cursor-pointer shrink-0"
+                                                                                className="h-8 w-8 sm:h-7 sm:w-7 text-slate-400 hover:text-rose-400 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-rose-500/20 text-xs font-medium flex items-center justify-center transition cursor-pointer shrink-0 active:scale-95"
                                                                                 title="Kalemi Sil"
                                                                             >
-                                                                                <Trash2 size={12} />
+                                                                                <Trash2 size={13} />
                                                                             </button>
                                                                         </div>
                                                                     </div>
@@ -3051,8 +3074,8 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
             {/* ── MODAL: VADESİZ BORCA KISMİ / TAM ÖDEME DÜŞ ── */}
             {selectedDebtForPayment && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-[#07090e] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
-                        <div className="p-4 border-b border-white/[0.06] flex items-center justify-between">
+                    <div className="bg-[#07090e] border border-white/10 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                        <div className="p-4 border-b border-white/[0.06] flex items-center justify-between shrink-0">
                             <h4 className="text-xs font-bold text-white flex items-center gap-2">
                                 <Coins size={15} className="text-amber-400" />
                                 <span>{selectedDebtForPayment.creditor} - Ödeme Düş</span>
@@ -3062,7 +3085,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                             </button>
                         </div>
 
-                        <form onSubmit={handleAddPartialPayment} noValidate className="p-4 space-y-3">
+                        <form onSubmit={handleAddPartialPayment} noValidate className="p-4 space-y-3 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                             <div className="bg-[#0b0f17] p-2.5 rounded-xl border border-white/[0.05] text-xs">
                                 <div className="text-slate-400">Kalan Borç:</div>
                                 <div className="flex items-baseline justify-between mt-0.5">
@@ -3187,7 +3210,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
                                 )}
                             </div>
 
-                            <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.06]">
+                            <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.06] shrink-0">
                                 <button
                                     type="button"
                                     onClick={() => { setSelectedDebtForPayment(null); setPartialPayErrors({}); }}
