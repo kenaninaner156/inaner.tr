@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
-const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', className }) => {
+const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', className, showToday = true }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [currentMonth, setCurrentMonth] = useState(() => value ? new Date(value) : new Date());
     
@@ -184,7 +184,7 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                 <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); toggleOpen(); }}
-                    className="shrink-0 px-2 py-2 hover:bg-orange-500/15 text-slate-400 hover:text-orange-400 transition-colors border-l border-white/[0.06] flex items-center justify-center cursor-pointer"
+                    className="shrink-0 px-2.5 py-2 hover:bg-amber-500/15 text-slate-400 hover:text-amber-400 transition-colors border-l border-white/[0.06] flex items-center justify-center cursor-pointer"
                 >
                     <Calendar size={14} />
                 </button>
@@ -192,22 +192,23 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
 
             {isOpen && createPortal(
                 <div 
-                    className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-150" 
+                    className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-150 select-none" 
                     onClick={() => setIsOpen(false)}
                 >
                     <div 
-                        className="bg-[#07090e] border border-white/[0.1] rounded-3xl shadow-2xl shadow-black/95 p-5 w-full max-w-sm animate-in zoom-in-95 duration-150"
+                        className="bg-[#07090e] border border-white/10 rounded-3xl shadow-2xl shadow-black/95 p-5 w-full max-w-sm animate-in zoom-in-95 duration-150"
                         onClick={e => e.stopPropagation()}
                     >
+                        {/* Başlık & Ay/Yıl Seçimi */}
                         <div className="flex justify-between items-center mb-4">
-                            <button type="button" onClick={handlePrevMonth} className="p-2 bg-white/[0.04] hover:bg-orange-500/20 text-slate-400 hover:text-orange-400 rounded-xl transition-colors cursor-pointer border border-white/[0.06]">
+                            <button type="button" onClick={handlePrevMonth} className="p-2 bg-white/[0.04] hover:bg-amber-500/20 text-slate-400 hover:text-amber-400 rounded-xl transition-colors cursor-pointer border border-white/[0.06]">
                                 <ChevronLeft size={16} />
                             </button>
                             <div className="font-bold text-white flex items-center gap-1.5">
                                 <select 
                                     value={currentMonth.getMonth()} 
                                     onChange={handleMonthSelect}
-                                    className="bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2 py-1 text-xs outline-none cursor-pointer hover:border-orange-500/50 transition-colors"
+                                    className="bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2.5 py-1 text-xs outline-none cursor-pointer hover:border-amber-500/50 transition-colors font-medium"
                                 >
                                     {monthNames.map((m, i) => <option key={m} value={i} className="bg-[#07090e] text-white">{m}</option>)}
                                 </select>
@@ -215,20 +216,22 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                                     type="number" 
                                     value={currentMonth.getFullYear()} 
                                     onChange={handleYearInputForCalendar}
-                                    className="w-16 bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2 py-1 text-xs outline-none hover:border-orange-500/50 transition-colors text-center font-mono font-bold"
+                                    className="w-16 bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2 py-1 text-xs outline-none hover:border-amber-500/50 transition-colors text-center font-mono font-bold"
                                 />
                             </div>
-                            <button type="button" onClick={handleNextMonth} className="p-2 bg-white/[0.04] hover:bg-orange-500/20 text-slate-400 hover:text-orange-400 rounded-xl transition-colors cursor-pointer border border-white/[0.06]">
+                            <button type="button" onClick={handleNextMonth} className="p-2 bg-white/[0.04] hover:bg-amber-500/20 text-slate-400 hover:text-amber-400 rounded-xl transition-colors cursor-pointer border border-white/[0.06]">
                                 <ChevronRight size={16} />
                             </button>
                         </div>
 
+                        {/* Gün Başlıkları */}
                         <div className="grid grid-cols-7 gap-1 mb-2">
                             {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map(d => (
                                 <div key={d} className="text-center text-[11px] font-bold text-slate-500 uppercase">{d}</div>
                             ))}
                         </div>
 
+                        {/* Günler Tablosu */}
                         <div className="grid grid-cols-7 gap-1">
                             {days.map((d, idx) => {
                                 let isSelected = false;
@@ -252,8 +255,8 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                                                 type="button"
                                                 onClick={() => handleSelectDate(d)}
                                                 className={`w-full h-full flex items-center justify-center rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                                                    isSelected ? 'bg-gradient-to-tr from-orange-500 to-amber-500 text-white font-bold shadow-lg shadow-orange-500/30' : 
-                                                    isToday ? 'bg-orange-500/15 text-orange-400 font-bold border border-orange-500/30' : 
+                                                    isSelected ? 'bg-amber-500 text-black font-bold shadow-lg shadow-amber-500/30' : 
+                                                    isToday ? 'bg-amber-500/15 text-amber-400 font-bold border border-amber-500/30' : 
                                                     'text-slate-300 hover:bg-white/[0.06] hover:text-white'
                                                 }`}
                                             >
@@ -263,6 +266,45 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                                     </div>
                                 )
                             })}
+                        </div>
+
+                        {/* Alt Butonlar: Temizle, Bugün, Kapat */}
+                        <div className="flex items-center justify-between pt-3 mt-3 border-t border-white/[0.08]">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onChange('');
+                                    setIsOpen(false);
+                                }}
+                                className="text-xs font-semibold text-slate-400 hover:text-rose-400 transition-colors cursor-pointer px-2 py-1 rounded-lg hover:bg-white/5"
+                            >
+                                Temizle
+                            </button>
+                            <div className="flex items-center gap-2">
+                                {showToday && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const today = new Date();
+                                            const y = today.getFullYear();
+                                            const m = String(today.getMonth() + 1).padStart(2, '0');
+                                            const d = String(today.getDate()).padStart(2, '0');
+                                            onChange(`${y}-${m}-${d}`);
+                                            setIsOpen(false);
+                                        }}
+                                        className="text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors cursor-pointer px-2.5 py-1 rounded-lg hover:bg-amber-500/10 border border-amber-500/20"
+                                    >
+                                        Bugün
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setIsOpen(false)}
+                                    className="text-xs font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer px-2.5 py-1 rounded-lg hover:bg-white/5"
+                                >
+                                    Kapat
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>,

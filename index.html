@@ -10,7 +10,9 @@
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#0B0E14" id="theme-color-meta" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="format-detection" content="telephone=no" />
   <!-- SEO ve Arama Motoru Optimizasyonu -->
   <title>İnaner Lojistik | Profesyonel Filo ve Sefer Yönetim Sistemi</title>
   <meta name="description" content="İnaner Lojistik Yönetim Paneli. Araç bakımları, sefer takipleri, mazot fişleri ve detaylı kâr/zarar analizlerinizi tek bir platformdan, güvenle yönetin." />
@@ -65,9 +67,27 @@
       if (!t || (t !== 'dark' && t !== 'light')) { localStorage.removeItem('tir_theme'); }
     })();
   </script>
+  <style>
+    :root {
+      --bg-base: #030712;
+      --text-primary: #f8fafc;
+    }
+    html, body {
+      background-color: #030712 !important;
+      color: #f8fafc !important;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    #root {
+      background-color: #030712;
+      min-height: 100vh;
+    }
+  </style>
 </head>
 
-<body style="background-color:var(--bg-base); margin:0; padding:0;">
+<body style="background-color: #030712; color: #f8fafc; margin: 0; padding: 0;">
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>

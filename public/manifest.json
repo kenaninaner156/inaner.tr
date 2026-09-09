@@ -4,7 +4,7 @@
   "description": "TIR ve Kamyon Taşımacılığı Filo Yönetim Uygulaması",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "background_color": "#0B0E14",
   "theme_color": "#0B0E14",
   "icons": [

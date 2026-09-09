@@ -216,12 +216,12 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.3 }}
-                        className="fixed top-0 right-0 bottom-0 left-0 md:left-[288px] bg-[#030712]/80 backdrop-blur-md z-[99]"
+                        className="fixed top-0 right-0 bottom-0 left-0 lg:left-72 bg-[#030712]/80 backdrop-blur-md z-[99]"
                         onClick={onClose}
                     />
 
                     {/* 2. Sınırlandırılmış Modal Taşıyıcı (Sidebar alanını hariç tutar) */}
-                    <div className="fixed top-0 right-0 bottom-0 left-0 md:left-[288px] z-[100] flex items-center justify-center p-4 sm:p-6 pointer-events-none">
+                    <div className="fixed top-0 right-0 bottom-0 left-0 lg:left-72 z-[100] flex items-center justify-center p-3 sm:p-6 pointer-events-none">
                         
                         {/* 3. Modal İçeriği */}
                         <motion.div 
@@ -229,7 +229,7 @@ const ProfitAnalysisModal = ({ isOpen, onClose, data }) => {
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.96, y: 10 }}
                             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                            className="bg-[#0B0E14] border border-white/10 rounded-3xl w-[96%] max-w-7xl h-[85vh] flex flex-col shadow-2xl relative pointer-events-auto overflow-hidden"
+                            className="bg-[#0B0E14] border border-white/10 rounded-3xl w-[96%] max-w-7xl h-[88dvh] sm:h-[85vh] flex flex-col shadow-2xl relative pointer-events-auto overflow-hidden"
                         >
                         {/* Soft Glows */}
                         <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-[100px] pointer-events-none mix-blend-screen"></div>

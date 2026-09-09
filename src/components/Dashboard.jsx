@@ -450,7 +450,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     if (isLandscape) {
         return (
             <div 
-                className="h-screen w-screen fixed inset-0 z-50 bg-[#07090e] p-2.5 sm:p-4 flex flex-col justify-between overflow-hidden select-none"
+                className="h-[100dvh] w-screen fixed inset-0 z-50 bg-[#07090e] p-2.5 sm:p-4 flex flex-col justify-between overflow-hidden select-none"
                 style={{
                     paddingLeft: 'calc(1.25rem + env(safe-area-inset-left, 0px))',
                     paddingRight: 'calc(1.25rem + env(safe-area-inset-right, 0px))',

@@ -98,7 +98,8 @@ service cloud.firestore {
           'invoices', 'payouts', 'spare_parts', 'mechanics', 'shopping_list', 
           'geofences', 'manual_splits', 'manual_merges', 'manual_deletes', 
           'custom_route_names', 'maintenance_folders', 'company_data',
-          'trucks', 'vehicle_daily_stats', 'company_notifications'
+          'trucks', 'vehicle_daily_stats', 'company_notifications',
+          'loans', 'open_debts'
         ];
       }
       
@@ -118,6 +119,8 @@ service cloud.firestore {
         isSuperAdmin() ||
         // Yeni veri eklerken kendi şirket ID'sini yazmak zorundadır
         (request.resource != null && request.resource.data.companyId == getCompanyId()) ||
+        // Mevcut şirket verisini silerken veya güncellerken aitlik kontrolü
+        (resource != null && resource.data.companyId == getCompanyId()) ||
         // company_data dökümanları için yetkilendirme
         (collectionName == 'company_data' && (
           document.matches('^' + getCompanyId() + '.*') || 

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 import {
   Menu, X, Truck, MapPin, FileText, Droplet, Wrench,
-  CreditCard, PieChart, Calendar, Settings, Shield, LogOut, Bell, AlertTriangle, Sun, Moon, Waves, ChevronDown, Building2, Server, Users, Receipt
+  CreditCard, PieChart, Calendar, Settings, Shield, LogOut, Bell, AlertTriangle, Sun, Moon, Waves, ChevronDown, Building2, Server, Users, Receipt, Landmark
 } from 'lucide-react'
 import Dashboard from './components/Dashboard'
 import Trips from './components/Trips'
@@ -12,6 +12,7 @@ import Invoices from './components/Invoices'
 import Fuel from './components/Fuel'
 import Maintenance from './components/Maintenance'
 import Payments from './components/Payments'
+import CompanyDebts from './components/CompanyDebts'
 import SettingsPage from './components/Settings'
 import Login from './components/Login'
 import Detaylar from './components/Detaylar'
@@ -81,8 +82,8 @@ function App() {
       setIsMenuOpen(false);
     }
     // Swipe right to open:
-    // Sadece ekranın en sol kenarından (ilk 45px) başlayıp en az 140px sağa kaydırıldığında açılsın
-    if (distanceX < -140 && !isMenuOpen && isMobile && startX <= 45) {
+    // Sadece ekranın en sol kenarından (ilk 30px) başlayıp en az 140px sağa kaydırıldığında açılsın
+    if (distanceX < -140 && !isMenuOpen && isMobile && startX <= 30) {
       setIsMenuOpen(true);
     }
   };
@@ -407,6 +408,7 @@ function App() {
     { id: 'invoices', label: 'Fatura Durumu', icon: <FileText size={20} />, theme: 'bg-gradient-to-r from-indigo-600 to-sky-400 border-indigo-400/40 shadow-[0_0_20px_rgba(99,102,241,0.35)] text-white', hoverText: 'group-hover:text-sky-400' },
     { id: 'earsiv', label: 'E-Arşiv Fatura', icon: <Receipt size={20} />, theme: 'bg-gradient-to-r from-orange-600 to-amber-500 border-orange-400/40 shadow-[0_0_20px_rgba(249,115,22,0.35)] text-white', hoverText: 'group-hover:text-orange-400' },
     { id: 'payments', label: 'Ödeme Takibi', icon: <CreditCard size={20} />, theme: 'bg-gradient-to-r from-emerald-600 to-teal-500 border-emerald-400/40 shadow-[0_0_20px_rgba(16,185,129,0.35)] text-white', hoverText: 'group-hover:text-emerald-400' },
+    { id: 'company_debts', label: 'Borç & Kredi', icon: <Landmark size={20} />, theme: 'bg-gradient-to-r from-amber-600 to-yellow-500 border-amber-400/40 shadow-[0_0_20px_rgba(245,158,11,0.35)] text-white', hoverText: 'group-hover:text-amber-400' },
     { id: 'personel', label: 'Personel', icon: <Users size={20} />, theme: 'bg-gradient-to-r from-orange-600 to-amber-500 border-orange-400/40 shadow-[0_0_20px_rgba(249,115,22,0.35)] text-white', hoverText: 'group-hover:text-orange-400' },
     { id: 'map', label: 'Harita', icon: <MapPin size={20} />, theme: 'bg-gradient-to-r from-blue-600 to-indigo-500 border-blue-400/40 shadow-[0_0_20px_rgba(37,99,235,0.35)] text-white', hoverText: 'group-hover:text-blue-400' },
     { id: 'company_admin', label: 'Şirket Yönetimi', icon: <Building2 size={20} />, theme: 'bg-gradient-to-r from-indigo-600 to-violet-500 border-indigo-400/40 shadow-[0_0_20px_rgba(99,102,241,0.35)] text-white', hoverText: 'group-hover:text-indigo-400' },
@@ -427,7 +429,7 @@ function App() {
     }
 
     // Default 'şoför' (Sürücü) -> Sadece operasyonel sekmeleri görür
-    return !['super_admin', 'company_admin', 'map', 'personel', 'earsiv'].includes(item.id);
+    return !['super_admin', 'company_admin', 'map', 'personel', 'earsiv', 'company_debts'].includes(item.id);
   })
 
   // Login ekranı
@@ -501,10 +503,12 @@ function App() {
       )}
 
       {/* Sidebar - Avant Garde Minimalist Layout */}
-      <aside className={`fixed top-0 left-0 h-full w-72 z-[9995] flex flex-col transition-transform duration-500 ease-in-out ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+      <aside className={`fixed top-0 left-0 h-full z-[9995] flex flex-col transition-transform duration-500 ease-in-out ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
         style={{
           background: 'var(--bg-sidebar)',
           borderRight: `1px solid var(--border-color)`,
+          paddingLeft: 'env(safe-area-inset-left, 0px)',
+          width: 'calc(18rem + env(safe-area-inset-left, 0px))',
         }}>
         {/* Header - Premium Logo */}
         <div className="pb-2 flex flex-col"
@@ -644,7 +648,7 @@ function App() {
             {currentUser.username}
           </button>
           <div className="flex items-center gap-2">
-            <button onClick={handleLogout} title="Oturumu Kapat" className="p-2 rounded-full text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-300">
+            <button onClick={handleLogout} title="Oturumu Kapat" className="p-2 rounded-full text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-300 cursor-pointer">
               <LogOut size={14} />
             </button>
           </div>
@@ -652,11 +656,11 @@ function App() {
       </aside>
 
       {/* Main Content */}
-      <main className={`${['dashboard', 'map', 'invoices', 'earsiv'].includes(activeTab) ? 'h-[100dvh] md:h-screen overflow-hidden' : 'min-h-screen'} ${mainPaddingLeft}`}>
-        <div className={`flex flex-col w-full ${['dashboard', 'map', 'invoices', 'earsiv'].includes(activeTab) ? 'h-full overflow-hidden' : 'min-h-screen'}`}>
+      <main className={`${['dashboard', 'map', 'invoices', 'earsiv', 'company_debts'].includes(activeTab) ? 'h-[100dvh] lg:h-screen overflow-hidden' : 'min-h-screen'} ${mainPaddingLeft}`}>
+        <div className={`flex flex-col w-full ${['dashboard', 'map', 'invoices', 'earsiv', 'company_debts'].includes(activeTab) ? 'h-full overflow-hidden' : 'min-h-screen'}`}>
 
           {/* Header - Simple & Clean (sticky) */}
-          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map', 'trips', 'dashboard', 'maintenance', 'detaylar', 'invoices', 'earsiv', 'payments', 'personel', 'settings', 'company_admin', 'super_admin'].includes(activeTab) ? 'hidden' : ''}`}
+          <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map', 'trips', 'dashboard', 'maintenance', 'detaylar', 'invoices', 'earsiv', 'payments', 'personel', 'settings', 'company_admin', 'super_admin', 'company_debts'].includes(activeTab) ? 'hidden' : ''}`}
             style={{
               paddingTop: 'calc(0.75rem + var(--safe-top))'
             }}
@@ -680,17 +684,17 @@ function App() {
                 ? 'p-0 h-full overflow-hidden' 
                 : activeTab === 'dashboard'
                   ? 'pb-3 sm:pb-4 px-3 sm:px-5 md:px-6 h-full overflow-hidden flex flex-col' 
-                  : ['invoices', 'earsiv'].includes(activeTab)
-                    ? 'p-3 sm:p-4 md:p-5 h-full overflow-hidden flex flex-col'
+                  : ['invoices', 'earsiv', 'company_debts'].includes(activeTab)
+                    ? 'p-2.5 sm:p-4 md:p-5 h-full overflow-hidden flex flex-col'
                     : 'p-3 sm:p-4 md:p-6 xl:p-8'
             }`}
             style={activeTab === 'dashboard' ? {
-              paddingTop: 'calc(1.35rem + var(--safe-top))',
+              paddingTop: isMobile ? '0' : 'calc(1.35rem + var(--safe-top))',
               paddingRight: 'calc(1.25rem + env(safe-area-inset-right, 0px))',
               paddingLeft: 'calc(1.25rem + env(safe-area-inset-left, 0px))'
             } : undefined}
           >
-            <div key={activeTab} className={['map', 'dashboard'].includes(activeTab) ? 'h-full w-full overflow-hidden' : ['invoices', 'earsiv'].includes(activeTab) ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
+            <div key={activeTab} className={['map', 'dashboard'].includes(activeTab) ? 'h-full w-full overflow-hidden' : ['invoices', 'earsiv', 'company_debts'].includes(activeTab) ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
               {activeTab === 'dashboard' && <Dashboard onOpenMenu={() => setIsMenuOpen(true)} onNavigate={setActiveTab} isMobile={isMobile} />}
               {activeTab === 'trips' && <Trips onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'fuel' && <Fuel onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
@@ -699,6 +703,7 @@ function App() {
               {activeTab === 'invoices' && <Invoices onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'earsiv' && <EArsiv onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'payments' && <Payments onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
+              {activeTab === 'company_debts' && <CompanyDebts onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'personel' && <Personnel onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'settings' && <SettingsPage onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'company_admin' && <CompanyAdmin onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
