@@ -1511,29 +1511,30 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center justify-between py-2">
-                                                        <span className="text-slate-400">Acil Durum Yakını:</span>
-                                                        {selectedPersonnel.emergencyContact?.phone ? (
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-slate-200 truncate max-w-[140px]">
+                                                        <span className="text-slate-400 shrink-0">Acil Durum Yakını:</span>
+                                                        {selectedPersonnel.emergencyContact?.phone || selectedPersonnel.emergencyContact?.name ? (
+                                                            <div className="flex items-center gap-2 text-right">
+                                                                <span className="text-white font-medium">
                                                                     {selectedPersonnel.emergencyContact?.name || ''}
-                                                                    {selectedPersonnel.emergencyContact?.relation ? ` (${selectedPersonnel.emergencyContact.relation})` : ''}
+                                                                    {selectedPersonnel.emergencyContact?.relation && (
+                                                                        <span className="text-slate-400 text-[11px] font-normal ml-1.5">
+                                                                            ({selectedPersonnel.emergencyContact.relation})
+                                                                        </span>
+                                                                    )}
                                                                 </span>
-                                                                <a
-                                                                    href={`tel:${selectedPersonnel.emergencyContact.phone}`}
-                                                                    className="font-mono text-slate-300 hover:text-amber-400 hover:underline flex items-center gap-1"
-                                                                    title="Ara"
-                                                                >
-                                                                    <Phone size={10} className="text-slate-400" />
-                                                                    <span>{selectedPersonnel.emergencyContact.phone}</span>
-                                                                </a>
+                                                                {selectedPersonnel.emergencyContact?.phone && (
+                                                                    <a
+                                                                        href={`tel:${selectedPersonnel.emergencyContact.phone}`}
+                                                                        className="font-mono text-white hover:text-amber-400 flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-xs shrink-0"
+                                                                        title="Ara"
+                                                                    >
+                                                                        <Phone size={11} className="text-slate-400" />
+                                                                        <span>{selectedPersonnel.emergencyContact.phone}</span>
+                                                                    </a>
+                                                                )}
                                                             </div>
                                                         ) : (
-                                                            <button
-                                                                onClick={() => openEditPersonnelModal(selectedPersonnel, 'identity')}
-                                                                className="text-[11px] text-slate-400 hover:text-amber-400 hover:underline cursor-pointer"
-                                                            >
-                                                                + Kişi Ekle
-                                                            </button>
+                                                            <span className="text-slate-500 font-mono text-xs"></span>
                                                         )}
                                                     </div>
                                                 </div>
