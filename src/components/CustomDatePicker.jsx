@@ -196,7 +196,7 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                     onClick={() => setIsOpen(false)}
                 >
                     <div 
-                        className="bg-[#07090e] border border-white/10 rounded-3xl shadow-2xl shadow-black/95 p-5 w-full max-w-sm animate-in zoom-in-95 duration-150"
+                        className="bg-[#08080a] border border-white/10 rounded-3xl shadow-2xl shadow-black/95 p-5 w-full max-w-sm animate-in zoom-in-95 duration-150"
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Başlık & Ay/Yıl Seçimi */}
@@ -208,15 +208,15 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                                 <select 
                                     value={currentMonth.getMonth()} 
                                     onChange={handleMonthSelect}
-                                    className="bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2.5 py-1 text-xs outline-none cursor-pointer hover:border-amber-500/50 transition-colors font-medium"
+                                    className="bg-[#08080a] border border-white/[0.08] text-white rounded-lg px-2.5 py-1 text-xs outline-none cursor-pointer hover:border-amber-500/50 transition-colors font-medium"
                                 >
-                                    {monthNames.map((m, i) => <option key={m} value={i} className="bg-[#07090e] text-white">{m}</option>)}
+                                    {monthNames.map((m, i) => <option key={m} value={i} className="bg-[#08080a] text-white">{m}</option>)}
                                 </select>
                                 <input 
                                     type="number" 
                                     value={currentMonth.getFullYear()} 
                                     onChange={handleYearInputForCalendar}
-                                    className="w-16 bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2 py-1 text-xs outline-none hover:border-amber-500/50 transition-colors text-center font-mono font-bold"
+                                    className="w-16 bg-[#08080a] border border-white/[0.08] text-white rounded-lg px-2 py-1 text-xs outline-none hover:border-amber-500/50 transition-colors text-center font-mono font-bold"
                                 />
                             </div>
                             <button type="button" onClick={handleNextMonth} className="p-2 bg-white/[0.04] hover:bg-amber-500/20 text-slate-400 hover:text-amber-400 rounded-xl transition-colors cursor-pointer border border-white/[0.06]">

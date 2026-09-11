@@ -145,7 +145,7 @@ const getPersonnelCompleteness = (person) => {
 const EmbeddedPdfViewer = ({ files, title = 'Belge İnceleme' }) => {
     return (
         <div className="w-full flex flex-col rounded-xl overflow-hidden border border-white/[0.08] shadow-2xl h-full bg-[#08080a]">
-            <div className="flex items-center justify-between px-4 py-2.5 bg-[#0c0c0e] border-b border-white/[0.08] shrink-0">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-[#08080a] border-b border-white/[0.08] shrink-0">
                 <div className="flex items-center gap-2">
                     <FileText size={15} className="text-amber-400 shrink-0" />
                     <span className="text-xs sm:text-sm font-semibold text-white truncate">
@@ -996,7 +996,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         setActiveSubTab('directory');
                         setStatusFilter('all');
                     }}
-                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#0c0c0e] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
+                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#08080a] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
                 >
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 shrink-0">
@@ -1015,7 +1015,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         setActiveSubTab('directory');
                         setRoleFilter('driver');
                     }}
-                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#0c0c0e] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
+                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#08080a] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
                 >
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 shrink-0">
@@ -1034,7 +1034,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         setActiveSubTab('directory');
                         setStatusFilter('all');
                     }}
-                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#0c0c0e] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
+                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#08080a] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
                 >
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 shrink-0">
@@ -1052,7 +1052,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                 {/* 4. SGK Prim Vadesi */}
                 <div
                     onClick={() => setActiveSubTab('payments')}
-                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#0c0c0e] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
+                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#08080a] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
                 >
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 shrink-0">
@@ -1085,7 +1085,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 value={directorySearch}
                                 onChange={(e) => setDirectorySearch(e.target.value)}
                                 placeholder="Personel veya plaka ara..."
-                                className="w-full pl-8 pr-7 py-2 rounded-xl bg-[#0c0c0e] border border-white/[0.06] text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/40 transition-colors"
+                                className="w-full pl-8 pr-7 py-2 rounded-xl bg-[#08080a] border border-white/[0.06] text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/40 transition-colors"
                             />
                             {directorySearch && (
                                 <button onClick={() => setDirectorySearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
@@ -1109,8 +1109,8 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             }}
                                             className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 ${
                                                 isSelected
-                                                    ? 'bg-[#16161a] border-amber-500/50 shadow-sm'
-                                                    : 'bg-[#0c0c0e] border-white/[0.06] hover:bg-white/[0.03] hover:border-white/10'
+                                                    ? 'bg-[#08080a] border-amber-500/50 shadow-sm'
+                                                    : 'bg-[#08080a] border-white/[0.06] hover:bg-white/[0.03] hover:border-white/10'
                                             }`}
                                         >
                                             <div className="flex items-center gap-2.5 min-w-0">
@@ -1132,7 +1132,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                     );
                                 })
                             ) : (
-                                <div className="p-8 text-center rounded-xl bg-[#0c0c0e] border border-white/[0.06] text-slate-500 flex flex-col items-center justify-center gap-2">
+                                <div className="p-8 text-center rounded-xl bg-[#08080a] border border-white/[0.06] text-slate-500 flex flex-col items-center justify-center gap-2">
                                     <Users size={24} className="text-slate-600" />
                                     <p className="text-xs">Personel bulunamadı.</p>
                                 </div>
@@ -1145,7 +1145,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         {selectedPersonnel ? (
                             <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                                 {/* ── 1. ÜST EXECUTIVE PROFILE HEADER (Ferah, Geniş & Şık) ── */}
-                                <div className="px-4 py-3 border-b border-white/[0.08] bg-[#0b0b0e] flex flex-wrap items-center justify-between gap-3 shrink-0">
+                                <div className="px-4 py-3 border-b border-white/[0.08] bg-[#08080a] flex flex-wrap items-center justify-between gap-3 shrink-0">
                                     <div className="flex items-center gap-3.5 min-w-0">
                                         <button
                                             onClick={() => setMobileView('list')}
@@ -1241,7 +1241,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             const st = getDocumentStatus(selectedPersonnel.licenseExpiry);
                                             const classes = selectedPersonnel.licenseClasses?.length ? selectedPersonnel.licenseClasses.join(', ') : '';
                                             return (
-                                                <div className="p-2.5 rounded-xl bg-[#0c0c0e] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
+                                                <div className="p-2.5 rounded-xl bg-[#08080a] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-xs font-semibold text-white">Sürücü Belgesi</span>
                                                         {st.label && (
@@ -1265,7 +1265,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             const st = getDocumentStatus(selectedPersonnel.srcExpiry);
                                             const srcTypes = selectedPersonnel.srcTypes?.length ? selectedPersonnel.srcTypes.join(', ') : '';
                                             return (
-                                                <div className="p-2.5 rounded-xl bg-[#0c0c0e] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
+                                                <div className="p-2.5 rounded-xl bg-[#08080a] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-xs font-semibold text-white">SRC Belgesi</span>
                                                         {st.label && (
@@ -1288,7 +1288,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         {(() => {
                                             const st = getDocumentStatus(selectedPersonnel.psikoteknikExpiry);
                                             return (
-                                                <div className="p-2.5 rounded-xl bg-[#0c0c0e] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
+                                                <div className="p-2.5 rounded-xl bg-[#08080a] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-xs font-semibold text-white">Psikoteknik</span>
                                                         {st.label && (
@@ -1312,7 +1312,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             const st = getDocumentStatus(selectedPersonnel.tachographExpiry);
                                             const cardNo = selectedPersonnel.tachographCardNo || '';
                                             return (
-                                                <div className="p-2.5 rounded-xl bg-[#0c0c0e] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
+                                                <div className="p-2.5 rounded-xl bg-[#08080a] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-xs font-semibold text-white">Dijital Takograf</span>
                                                         {st.label && (
@@ -1334,7 +1334,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 </div>
 
                                 {/* ── 3. İÇ SEKME BAŞLIKLARI (Dossier Tabs Header) ── */}
-                                <div className="px-4 pt-2.5 pb-2 bg-[#0b0b0e] border-b border-white/[0.06] flex items-center justify-between shrink-0">
+                                <div className="px-4 pt-2.5 pb-2 bg-[#08080a] border-b border-white/[0.06] flex items-center justify-between shrink-0">
                                     <div className="flex items-center gap-1">
                                         <button
                                             onClick={() => setDetailRightTab('overview')}
@@ -1401,7 +1401,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                     {(detailRightTab === 'overview' || detailRightTab === 'notes') && (
                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 flex-1 min-h-0">
                                             {/* SOL SÜTUN: SGK & BORDRO FİNANSI */}
-                                            <div className="rounded-xl bg-[#0c0c0e] border border-white/[0.06] p-4 flex flex-col h-full">
+                                            <div className="rounded-xl bg-[#08080a] border border-white/[0.06] p-4 flex flex-col h-full">
                                                 <div className="flex items-center justify-between pb-2.5 border-b border-white/[0.06] shrink-0">
                                                     <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                                                         <Briefcase size={13} className="text-amber-400" />
@@ -1470,7 +1470,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             </div>
 
                                             {/* SAĞ SÜTUN: KİMLİK & ACİL DURUM İLETİŞİMİ */}
-                                            <div className="rounded-xl bg-[#0c0c0e] border border-white/[0.06] p-4 flex flex-col h-full">
+                                            <div className="rounded-xl bg-[#08080a] border border-white/[0.06] p-4 flex flex-col h-full">
                                                 <div className="flex items-center justify-between pb-2.5 border-b border-white/[0.06] shrink-0">
                                                     <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                                                         <Phone size={13} className="text-amber-400" />
@@ -1511,26 +1511,26 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center justify-between py-2">
-                                                        <span className="text-red-400 font-medium">Acil Durum Yakını:</span>
+                                                        <span className="text-slate-400">Acil Durum Yakını:</span>
                                                         {selectedPersonnel.emergencyContact?.phone ? (
                                                             <div className="flex items-center gap-2">
-                                                                <span className="text-red-300 truncate max-w-[140px]">
+                                                                <span className="text-slate-200 truncate max-w-[140px]">
                                                                     {selectedPersonnel.emergencyContact?.name || ''}
                                                                     {selectedPersonnel.emergencyContact?.relation ? ` (${selectedPersonnel.emergencyContact.relation})` : ''}
                                                                 </span>
                                                                 <a
                                                                     href={`tel:${selectedPersonnel.emergencyContact.phone}`}
-                                                                    className="font-mono text-red-400 hover:text-red-300 hover:underline flex items-center gap-1"
+                                                                    className="font-mono text-slate-300 hover:text-amber-400 hover:underline flex items-center gap-1"
                                                                     title="Ara"
                                                                 >
-                                                                    <Phone size={10} />
+                                                                    <Phone size={10} className="text-slate-400" />
                                                                     <span>{selectedPersonnel.emergencyContact.phone}</span>
                                                                 </a>
                                                             </div>
                                                         ) : (
                                                             <button
                                                                 onClick={() => openEditPersonnelModal(selectedPersonnel, 'identity')}
-                                                                className="text-[11px] text-red-400 hover:text-red-300 hover:underline cursor-pointer font-medium"
+                                                                className="text-[11px] text-slate-400 hover:text-amber-400 hover:underline cursor-pointer"
                                                             >
                                                                 + Kişi Ekle
                                                             </button>
@@ -1549,7 +1549,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                     {(selectedPersonnel.documents || []).map((docItem, idx) => (
                                                         <div
                                                             key={idx}
-                                                            className="p-3 rounded-xl bg-[#0c0c0e] border border-white/[0.06] hover:border-amber-500/30 flex items-center justify-between gap-3 transition-colors"
+                                                            className="p-3 rounded-xl bg-[#08080a] border border-white/[0.06] hover:border-amber-500/30 flex items-center justify-between gap-3 transition-colors"
                                                         >
                                                             <div className="flex items-center gap-3 min-w-0">
                                                                 <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 shrink-0">
@@ -1584,7 +1584,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                     ))}
                                                 </div>
                                             ) : (
-                                                <div className="py-12 text-center text-slate-500 text-xs border border-dashed border-white/10 rounded-2xl bg-[#0c0c0e]/50 flex flex-col items-center justify-center gap-2">
+                                                <div className="py-12 text-center text-slate-500 text-xs border border-dashed border-white/10 rounded-2xl bg-[#08080a]/50 flex flex-col items-center justify-center gap-2">
                                                     <Paperclip size={24} className="text-slate-600" />
                                                     <p>Bu personele ait sisteme yüklenmiş dijital özlük belgesi (ehliyet fotokopisi, adli sicil, sözleşme) bulunmuyor.</p>
                                                     <button
@@ -1602,7 +1602,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                     {detailRightTab === 'notes_drawer' && (
                                         <div className="flex flex-col gap-3">
                                             {/* Hızlı Not Ekleme */}
-                                            <div className="p-3 rounded-xl bg-[#0c0c0e] border border-white/[0.06] flex gap-2">
+                                            <div className="p-3 rounded-xl bg-[#08080a] border border-white/[0.06] flex gap-2">
                                                 <input
                                                     type="text"
                                                     value={newNoteText}
@@ -1625,7 +1625,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                     {(selectedPersonnel.notes || []).map((n) => (
                                                         <div
                                                             key={n.id}
-                                                            className="p-3 rounded-xl bg-[#0c0c0e] border border-white/[0.06] flex items-start justify-between gap-3 group"
+                                                            className="p-3 rounded-xl bg-[#08080a] border border-white/[0.06] flex items-start justify-between gap-3 group"
                                                         >
                                                             <div className="flex-1">
                                                                 <p className="text-xs text-slate-200 leading-relaxed">{n.text}</p>
@@ -1644,7 +1644,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                     ))}
                                                 </div>
                                             ) : (
-                                                <div className="py-8 text-center text-slate-500 text-xs border border-dashed border-white/10 rounded-2xl bg-[#0c0c0e]/50">
+                                                <div className="py-8 text-center text-slate-500 text-xs border border-dashed border-white/10 rounded-2xl bg-[#08080a]/50">
                                                     Bu personele ait henüz eklenmiş bir zimmet veya operasyon notu bulunmuyor.
                                                 </div>
                                             )}
@@ -1661,7 +1661,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                         handleViewPayout(po);
                                                         setActiveSubTab('payouts');
                                                     }}
-                                                    className="p-3.5 rounded-xl bg-[#0c0c0e] border border-white/[0.06] hover:border-amber-500/30 cursor-pointer flex items-center justify-between transition-colors"
+                                                    className="p-3.5 rounded-xl bg-[#08080a] border border-white/[0.06] hover:border-amber-500/30 cursor-pointer flex items-center justify-between transition-colors"
                                                 >
                                                     <div>
                                                         <span className="text-xs font-bold text-amber-400 block font-mono">{po.docId || 'HAK EDİŞ'}</span>
@@ -1728,7 +1728,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             setActiveSubTab('directory');
                                             setMobileView('detail');
                                         }}
-                                        className="p-3.5 sm:p-4 rounded-xl bg-[#0c0c0e] border border-white/[0.06] hover:border-amber-500/30 transition-colors flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 cursor-pointer"
+                                        className="p-3.5 sm:p-4 rounded-xl bg-[#08080a] border border-white/[0.06] hover:border-amber-500/30 transition-colors flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 cursor-pointer"
                                     >
                                         {/* Sürücü & Araç */}
                                         <div className="flex items-center gap-3 min-w-[200px]">
@@ -1816,7 +1816,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                     {/* Sol Sütun: SGK Prim Vadesi & Maaş Takvimi */}
                     <div className="w-full lg:w-1/2 flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-0.5">
                         {/* SGK Prim Vadesi Paneli */}
-                        <div className="p-4 sm:p-5 rounded-2xl bg-[#0c0c0e] border border-white/[0.08] flex flex-col gap-3">
+                        <div className="p-4 sm:p-5 rounded-2xl bg-[#08080a] border border-white/[0.08] flex flex-col gap-3">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                     <Calendar size={16} className="text-sky-400" />
@@ -1934,7 +1934,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         {isSgkFormOpen && (
                             <form
                                 onSubmit={handleSaveSgkPayment}
-                                className="p-3.5 rounded-xl bg-[#0c0c0e] border border-amber-500/30 flex flex-col gap-3 shrink-0 animate-in fade-in duration-200"
+                                className="p-3.5 rounded-xl bg-[#08080a] border border-amber-500/30 flex flex-col gap-3 shrink-0 animate-in fade-in duration-200"
                             >
                                 <div className="flex items-center justify-between pb-1 border-b border-white/[0.06]">
                                     <span className="text-xs font-bold text-white">
@@ -2085,7 +2085,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 return sgkRecords.map((rec) => (
                                     <div
                                         key={rec.id}
-                                        className="p-3 rounded-xl bg-[#0c0c0e] border border-white/[0.06] hover:border-white/10 transition-colors flex items-center justify-between gap-3 group"
+                                        className="p-3 rounded-xl bg-[#08080a] border border-white/[0.06] hover:border-white/10 transition-colors flex items-center justify-between gap-3 group"
                                     >
                                         <div className="min-w-0">
                                             <div className="flex items-center gap-2">
@@ -2253,7 +2253,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                 onClick={() => handleViewPayout(p)}
                                                 className={`p-3 rounded-xl border transition-all cursor-pointer ${
                                                     isActive
-                                                        ? 'bg-[#16161a] border-amber-500/40'
+                                                        ? 'bg-[#08080a] border-amber-500/40'
                                                         : 'bg-white/[0.02] border-white/[0.04] hover:bg-white/[0.05]'
                                                 }`}
                                             >
@@ -2352,7 +2352,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Modal Başlık */}
-                        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#0c0c0e] shrink-0">
+                        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#08080a] shrink-0">
                             <div className="flex items-center gap-2.5">
                                 <span className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
                                     <UserPlus size={16} />
@@ -2482,9 +2482,9 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                     </div>
 
                                     {/* Acil Durum İletişim */}
-                                    <div className="p-3.5 rounded-xl bg-red-500/[0.03] border border-red-500/20 space-y-2">
-                                        <h4 className="text-xs font-bold text-red-400 flex items-center gap-1.5">
-                                            <Phone size={12} className="text-red-400" />
+                                    <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-2">
+                                        <h4 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                            <Phone size={12} className="text-amber-400" />
                                             <span>Acil Durum Yakını</span>
                                         </h4>
                                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -2817,7 +2817,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         </form>
 
                         {/* Alt Aksiyon Butonları (Sabit Footer) */}
-                        <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-t border-white/[0.08] bg-[#0c0c0e]">
+                        <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-t border-white/[0.08] bg-[#08080a]">
                             <div className="flex items-center gap-2">
                                 {personnelFormTab !== 'identity' && (
                                     <button
@@ -2880,7 +2880,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         className="bg-[#08080a] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] overflow-hidden flex flex-col my-auto"
                         onClick={e => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.08] bg-[#0c0c0e] shrink-0">
+                        <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.08] bg-[#08080a] shrink-0">
                             <div className="flex items-center gap-2">
                                 <FileText size={16} className="text-amber-400" />
                                 <h3 className="text-sm font-bold text-white truncate">{previewDoc.name || 'Belge İnceleme'}</h3>
@@ -2939,7 +2939,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             {/* 5. Hak Ediş Not / Belge Düzenleme Modalı (Mevcut Sistem) */}
             {noteModalPayout && typeof document !== 'undefined' && createPortal(
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" onClick={() => setNoteModalPayout(null)}>
-                    <div className="bg-[#0c0c0e] rounded-2xl border border-amber-500/20 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col my-auto" onClick={e => e.stopPropagation()}>
+                    <div className="bg-[#08080a] rounded-2xl border border-amber-500/20 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col my-auto" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center px-5 py-4 border-b border-white/5 shrink-0">
                             <h3 className="font-bold flex items-center gap-2.5 text-white">
                                 <StickyNote size={14} className="text-amber-400" />

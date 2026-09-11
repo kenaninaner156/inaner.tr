@@ -133,7 +133,7 @@ const CustomSelect = ({
                 type="button"
                 disabled={disabled}
                 onClick={handleToggle}
-                className={`w-full bg-[#0d1117] border border-white/[0.08] hover:border-white/[0.16] focus:border-amber-500/70 text-white rounded-xl px-3 py-1.5 text-xs font-semibold flex items-center justify-between gap-2 transition outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                className={`w-full bg-[#08080a] border border-white/[0.08] hover:border-white/[0.16] focus:border-amber-500/70 text-white rounded-xl px-3 py-1.5 text-xs font-semibold flex items-center justify-between gap-2 transition outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                     isOpen ? 'border-amber-500/70 shadow-[0_0_12px_rgba(249,115,22,0.15)]' : ''
                 } ${buttonClassName}`}
             >
@@ -164,7 +164,7 @@ const CustomSelect = ({
                         maxWidth: 'min(440px, 90vw)',
                         zIndex: 999999
                     }}
-                    className={`bg-[#07090e] border border-white/[0.1] rounded-2xl shadow-2xl shadow-black/95 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150 ${menuClassName}`}
+                    className={`bg-[#08080a] border border-white/[0.1] rounded-2xl shadow-2xl shadow-black/95 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150 ${menuClassName}`}
                     onClick={(e) => e.stopPropagation()}
                 >
                     {/* Optional Search Input */}
@@ -178,7 +178,7 @@ const CustomSelect = ({
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     placeholder="Filtrele..."
-                                    className="w-full bg-[#0d1117] border border-white/[0.08] text-white rounded-lg pl-7 pr-7 py-1 text-xs outline-none focus:border-orange-500/70 placeholder:text-slate-500"
+                                    className="w-full bg-[#08080a] border border-white/[0.08] text-white rounded-lg pl-7 pr-7 py-1 text-xs outline-none focus:border-orange-500/70 placeholder:text-slate-500"
                                 />
                                 {searchTerm && (
                                     <button
