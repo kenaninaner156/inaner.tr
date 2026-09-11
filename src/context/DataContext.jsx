@@ -31,6 +31,7 @@ export const DataProvider = ({ children }) => {
     const [payouts, setPayouts] = useState([]);
     const [premiums, setPremiums] = useState([]);
     const [companyNotifications, setCompanyNotifications] = useState([]);
+    const [personnelList, setPersonnelList] = useState([]);
 
     const [vehicleInfo, setVehicleInfo] = useState({
         plate: '06 FTN 692', trailerPlate: '06 ABC 123', driverName: 'Ahmet Şoför',
@@ -387,6 +388,15 @@ export const DataProvider = ({ children }) => {
                 list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
                 setCompanyNotifications(list);
             }, (e2) => console.warn('fallback company_notifications error:', e2)));
+        }));
+
+        // 11.10 Personnel config
+        unsubs.push(onSnapshot(query(collection(db, 'personnel'), where('companyId', '==', activeCompanyId)), (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            data.sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '', 'tr'));
+            setPersonnelList(data);
+        }, (err) => {
+            console.error('Personnel subscription error:', err);
         }));
 
         // 12. Docs config
@@ -1252,16 +1262,59 @@ export const DataProvider = ({ children }) => {
         }
     }, [companyNotifications]);
 
+    const addPersonnel = useCallback(async (data) => {
+        try {
+            const docRef = await addDoc(collection(db, 'personnel'), {
+                ...data,
+                companyId: activeCompanyId,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            });
+            return { id: docRef.id, ...data };
+        } catch (e) {
+            console.error('Error adding personnel:', e);
+            throw e;
+        }
+    }, [activeCompanyId]);
+
+    const updatePersonnel = useCallback(async (id, data) => {
+        try {
+            await updateDoc(doc(db, 'personnel', id), {
+                ...data,
+                updatedAt: new Date().toISOString(),
+            });
+            return { success: true };
+        } catch (e) {
+            console.error('Error updating personnel:', e);
+            throw e;
+        }
+    }, []);
+
+    const deletePersonnel = useCallback(async (id) => {
+        try {
+            await deleteDoc(doc(db, 'personnel', id));
+            return { success: true };
+        } catch (e) {
+            console.error('Error deleting personnel:', e);
+            throw e;
+        }
+    }, []);
+
     const refreshUsers = useCallback(() => { }, []);
 
-    // Unified drivers list: merge manual drivers + approved şöför users
+    // Unified drivers list: merge manual drivers + approved şöför users + active personnel drivers
     const allDrivers = useMemo(() => {
         const userDrivers = (approvedUsers || []).filter(u => u.role === 'şoför').map(u => ({ id: u.id, name: u.username, phone: '', isSystem: true }));
-        const manualNames = userDrivers.map(u => u.name.toLowerCase());
+        const personnelDrivers = (personnelList || [])
+            .filter(p => p.employmentStatus === 'active' && (!p.role || p.role.includes('driver')))
+            .map(p => ({ id: p.id, name: p.fullName, phone: p.phone || '', tc: p.tcNo || '', isPersonnel: true }));
+        const existingNames = new Set([...userDrivers.map(u => u.name.toLowerCase()), ...personnelDrivers.map(p => p.name.toLowerCase())]);
         // eslint-disable-next-line react-hooks/purity
-        const manualDrivers = (drivers || []).filter(d => !manualNames.includes((d.name || '').toLowerCase())).map(d => ({ ...d, id: d.id || `manual_${Math.random().toString(36).substr(2, 9)}`, isSystem: false }));
-        return [...userDrivers, ...manualDrivers];
-    }, [approvedUsers, drivers]);
+        const manualDrivers = (drivers || [])
+            .filter(d => !existingNames.has((d.name || '').toLowerCase()))
+            .map(d => ({ ...d, id: d.id || `manual_${Math.random().toString(36).substr(2, 9)}`, isSystem: false }));
+        return [...personnelDrivers, ...userDrivers, ...manualDrivers];
+    }, [approvedUsers, drivers, personnelList]);
 
     return (
         <DataContext.Provider value={{
@@ -1301,7 +1354,8 @@ export const DataProvider = ({ children }) => {
             manualDeletes, addManualDelete,
             customRouteNames, setCustomRouteName,
             companyNotifications, acknowledgeNotification, markNotificationAsRead,
-            deleteCompanyNotification, clearAllCompanyNotifications
+            deleteCompanyNotification, clearAllCompanyNotifications,
+            personnelList, addPersonnel, updatePersonnel, deletePersonnel
         }}>
             {children}
         </DataContext.Provider>

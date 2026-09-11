@@ -1,64 +1,187 @@
-import React, { useContext, useState, useRef, useEffect } from 'react';
+import React, { useContext, useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Printer, Save, PlusCircle, CheckCircle, Clock, Trash2, StickyNote, Paperclip, FileText, Menu } from 'lucide-react';
+import {
+    Users, Truck, ShieldAlert, Calendar, Plus, Search, Filter, Phone, Mail,
+    MapPin, CreditCard, FileText, CheckCircle2, AlertTriangle, Clock, Trash2,
+    Edit3, ExternalLink, Download, ChevronLeft, ChevronRight, X, UserPlus,
+    Printer, Save, PlusCircle, Paperclip, StickyNote, Copy, Check, Eye,
+    DollarSign, Briefcase, HeartPulse, Award, FileCheck, Shield, ChevronDown,
+    Menu, AlertCircle, ArrowUpRight, ArrowDownLeft, UploadCloud, RefreshCw
+} from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
+import { useCompany } from '../context/CompanyContext';
 import PersonnelPeriodModal from './PersonnelPeriodModal';
 import A4PersonnelPreview from './A4PersonnelPreview';
 import FileUpload from './FileUpload';
-import { doc, writeBatch } from 'firebase/firestore';
+import { doc, writeBatch, collection, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { sendDiscordAlert } from '../services/discordWebhook';
 import { parseTonnageInTons } from '../utils/tonnageUtils';
+import { uploadToCloudinary } from '../services/cloudinaryService';
 
-// PDF Görüntüleme Bileşeni
-const PdfViewer = ({ files }) => {
+// Sabit Seçenekler ve Roller (Türkçe ve Emojisiz)
+const ROLE_OPTIONS = [
+    { value: 'driver_long', label: 'Ağır Vasıta Şoförü (Uzunyol)', isDriver: true },
+    { value: 'driver_local', label: 'Ağır Vasıta Şoförü (Yurtiçi)', isDriver: true },
+    { value: 'dispatcher', label: 'Sevkiyat & Filo Yöneticisi', isDriver: false },
+    { value: 'mechanic', label: 'Kademe / Başusta', isDriver: false },
+    { value: 'office', label: 'Muhasebe / Ofis Personeli', isDriver: false },
+    { value: 'other', label: 'Diğer Personel', isDriver: false },
+];
+
+const STATUS_OPTIONS = [
+    { value: 'active', label: 'Aktif Çalışan', badgeClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+    { value: 'on_leave', label: 'Yıllık İzinde', badgeClass: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+    { value: 'medical_leave', label: 'Raporlu', badgeClass: 'text-sky-400 bg-sky-500/10 border-sky-500/20' },
+    { value: 'terminated', label: 'Ayrıldı', badgeClass: 'text-slate-400 bg-slate-500/10 border-slate-500/20' },
+];
+
+const LICENSE_CLASS_OPTIONS = ['CE', 'C', 'D', 'B', 'A2'];
+const SRC_TYPE_OPTIONS = ['SRC 1', 'SRC 2', 'SRC 3 (Uluslararası)', 'SRC 4 (Yurtiçi)', 'SRC 5 (ADR)'];
+const BLOOD_TYPES = ['A+', '0+', 'B+', 'AB+', 'A-', '0-', 'B-', 'AB-'];
+
+// Kıdem Hesaplama Yardımcısı
+const calculateSeniority = (hireDate, leaveDate) => {
+    if (!hireDate) return '—';
+    const start = new Date(hireDate);
+    const end = leaveDate ? new Date(leaveDate) : new Date();
+    if (isNaN(start.getTime())) return '—';
+    let years = end.getFullYear() - start.getFullYear();
+    let months = end.getMonth() - start.getMonth();
+    let days = end.getDate() - start.getDate();
+    if (days < 0) {
+        months -= 1;
+        const prevMonth = new Date(end.getFullYear(), end.getMonth(), 0);
+        days += prevMonth.getDate();
+    }
+    if (months < 0) {
+        years -= 1;
+        months += 12;
+    }
+    const parts = [];
+    if (years > 0) parts.push(`${years} Yıl`);
+    if (months > 0) parts.push(`${months} Ay`);
+    if (parts.length === 0) parts.push(`${days} Gün`);
+    return parts.join(' ');
+};
+
+// Evrak Durum & Radar Analizi
+const getDocumentStatus = (expiryDate) => {
+    if (!expiryDate) return { status: 'missing', label: 'Kayıt Yok', days: null, badgeClass: 'text-slate-500 bg-slate-500/10 border-slate-500/20' };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const exp = new Date(expiryDate);
+    exp.setHours(0, 0, 0, 0);
+    const diffTime = exp.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+        return { status: 'expired', label: 'Süresi Doldu', days: diffDays, badgeClass: 'text-red-400 bg-red-500/10 border-red-500/20' };
+    }
+    if (diffDays <= 30) {
+        return { status: 'critical', label: `${diffDays} Gün Kaldı`, days: diffDays, badgeClass: 'text-amber-400 bg-amber-500/10 border-amber-500/20' };
+    }
+    if (diffDays <= 90) {
+        return { status: 'approaching', label: `${diffDays} Gün Kaldı`, days: diffDays, badgeClass: 'text-sky-400 bg-sky-500/10 border-sky-500/20' };
+    }
+    return { status: 'valid', label: `${diffDays} Gün Kaldı`, days: diffDays, badgeClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' };
+};
+
+// SGK Kanuni Vade ve Kalan Gün Hesaplama (Takip eden ayın son günü)
+const getSgkDueDate = () => {
+    const now = new Date();
+    // Takip eden ayın son günü
+    const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const diffTime = nextMonthEnd.getTime() - now.getTime();
+    const daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    const dateFormatted = nextMonthEnd.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' });
+    const periodName = nextMonthEnd.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
+    return { nextMonthEnd, daysRemaining, dateFormatted, periodName };
+};
+
+// PDF Görüntüleme Bileşeni (Hak Ediş ve Belgeler İçin)
+const EmbeddedPdfViewer = ({ files, title = 'Belge İnceleme' }) => {
     return (
-        <div className="w-full flex flex-col rounded-xl overflow-hidden border border-[var(--border-color)] shadow-lg" style={{ height: '100%' }}>
-            <div className="flex items-center gap-2.5 px-4 py-2.5 shrink-0"
-                style={{ background: 'var(--bg-panel)', borderBottom: '1px solid var(--border-color)' }}>
-                <FileText size={14} className="text-red-400 shrink-0" />
-                <span className="text-sm font-semibold text-[var(--text-primary)] truncate flex-1">
-                    {files[0]?.name || 'Hak Ediş Belgesi'}
-                </span>
+        <div className="w-full flex flex-col rounded-xl overflow-hidden border border-white/[0.08] shadow-2xl h-full bg-[#0a0d14]">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-[#0f131d] border-b border-white/[0.08] shrink-0">
+                <div className="flex items-center gap-2">
+                    <FileText size={15} className="text-amber-400 shrink-0" />
+                    <span className="text-xs sm:text-sm font-semibold text-white truncate">
+                        {files[0]?.name || title}
+                    </span>
+                </div>
                 {files.length > 1 && (
-                    <span className="text-xs text-slate-500 shrink-0">{files.length} dosya</span>
+                    <span className="text-xs text-slate-400 px-2 py-0.5 rounded-md bg-white/5">{files.length} dosya</span>
                 )}
             </div>
-            <div style={{ minHeight: 0, overflow: 'hidden', flex: 1, position: 'relative' }}>
+            <div className="relative flex-1 min-h-0 bg-slate-950 overflow-hidden">
                 {files.map((f, i) => (
                     <iframe
                         key={i}
-                        src={`${f.data}#toolbar=0&navpanes=0&view=FitH`}
-                        title={f.name || `Ek ${i + 1}`}
-                        scrolling="no"
-                        style={{
-                            display: 'block',
-                            position: 'absolute',
-                            top: 0, left: 0,
-                            width: 'focus:w-full w-full',
-                            height: '100%',
-                            border: 'none',
-                        }}
+                        src={`${f.data || f.url}#toolbar=0&navpanes=0&view=FitH`}
+                        title={f.name || `Belge ${i + 1}`}
+                        className="w-full h-full border-none block"
                     />
                 ))}
-            </div>
-            <div className="text-center text-[10px] text-slate-600 py-1.5 shrink-0"
-                style={{ background: 'var(--bg-panel)', borderTop: '1px solid var(--border-color)' }}>
-                Sefer dökümüne dönmek için hak ediş kartına tekrar tıklayın
             </div>
         </div>
     );
 };
 
 const Personnel = ({ onOpenMenu, isMobile } = {}) => {
-    const { trips, payouts, addPayout, deletePayout, updatePayout, addLog, allDrivers } = useContext(DataContext);
-    const { activeTruckData } = useTruck();
+    const {
+        trips, payouts, addPayout, deletePayout, updatePayout, addLog, allDrivers,
+        personnelList, addPersonnel, updatePersonnel, deletePersonnel
+    } = useContext(DataContext);
+    const { activeTruckData, trucks } = useTruck();
+    const { activeCompanyId } = useCompany();
     const payoutPrintRef = useRef(null);
 
-    const [isPeriodModalOpen, setIsPeriodModalOpen] = useState(false);
+    // Ana Alt Sekmeler: 'directory' (Özlük & Rehber), 'radar' (Evrak Radarı), 'payments' (Ödeme & SGK), 'payouts' (Prim Hak Edişi)
+    const [activeSubTab, setActiveSubTab] = useState('directory');
 
-    // Aktif Düzenlenen Hak Ediş State'i (Taslak LocalStorage'da tutulur)
+    // Master-Detail Seçili Personel
+    const [selectedPersonnelId, setSelectedPersonnelId] = useState(null);
+    const [mobileView, setMobileView] = useState('list'); // 'list' | 'detail'
+
+    // Rehber Filtreleri
+    const [directorySearch, setDirectorySearch] = useState('');
+    const [roleFilter, setRoleFilter] = useState('all');
+    const [statusFilter, setStatusFilter] = useState('active');
+
+    // Evrak Radarı Filtresi
+    const [radarFilter, setRadarFilter] = useState('all'); // 'all' | 'expired' | 'critical' | 'approaching'
+    const [radarSearch, setRadarSearch] = useState('');
+
+    // Modal State'leri
+    const [isPersonnelModalOpen, setIsPersonnelModalOpen] = useState(false);
+    const [personnelModalMode, setPersonnelModalMode] = useState('add'); // 'add' | 'edit'
+    const [personnelFormTab, setPersonnelFormTab] = useState('identity'); // 'identity' | 'sgk' | 'documents' | 'assets' | 'files'
+    const [editingPersonnel, setEditingPersonnel] = useState(null);
+    const [isSavingPersonnel, setIsSavingPersonnel] = useState(false);
+
+    // Avans Ekleme Modalı
+    const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
+    const [advancePersonnelId, setAdvancePersonnelId] = useState('');
+    const [advanceAmount, setAdvanceAmount] = useState('');
+    const [advanceDate, setAdvanceDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [advanceDesc, setAdvanceDesc] = useState('');
+    const [advanceFiles, setAdvanceFiles] = useState([]);
+    const [isSavingAdvance, setIsSavingAdvance] = useState(false);
+
+    // Not Ekleme State'i
+    const [isAddingNote, setIsAddingNote] = useState(false);
+    const [newNoteText, setNewNoteText] = useState('');
+
+    // Belge Önizleme Modalı
+    const [previewDoc, setPreviewDoc] = useState(null);
+
+    // Kopyalama Toast State'i
+    const [copiedField, setCopiedField] = useState(null);
+
+    // ── Hak Ediş (Mevcut Payout Engine) State'leri ──
+    const [isPeriodModalOpen, setIsPeriodModalOpen] = useState(false);
     const [activePayoutState, setActivePayoutState] = useState(() => {
         try {
             const saved = localStorage.getItem('tir_draft_payout');
@@ -67,25 +190,453 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             return null;
         }
     });
-
     const [isSavingNote, setIsSavingNote] = useState(false);
     const [noteModalPayout, setNoteModalPayout] = useState(null);
     const [modalNote, setModalNote] = useState('');
     const [modalFiles, setModalFiles] = useState([]);
-    const [netPrice, setNetPrice] = useState(0); 
-
-    const [viewMode, setViewMode] = useState('sefer'); // 'sefer' | 'pdf'
-    const [viewModePayoutId, setViewModePayoutId] = useState(null); 
-
+    const [netPrice, setNetPrice] = useState(0);
+    const [viewMode, setViewMode] = useState('sefer');
+    const [viewModePayoutId, setViewModePayoutId] = useState(null);
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
     const [isViewingOldPayout, setIsViewingOldPayout] = useState(false);
     const [showOldPayoutWarning, setShowOldPayoutWarning] = useState(false);
 
-    const { activeTruckId } = useTruck();
-
     // Sadece Hak Ediş Bekleyen Seferler listesi
-    const availableTrips = (trips || []).filter(t => !t.deleted && t.premiumStatus !== 'paid' && (Number(t.premiumAmount) > 0 || t.premiumId));
+    const availableTrips = useMemo(() => {
+        return (trips || []).filter(t => !t.deleted && t.premiumStatus !== 'paid' && (Number(t.premiumAmount) > 0 || t.premiumId));
+    }, [trips]);
 
+    // Seçili personeli otomatik ilk kayda ata
+    useEffect(() => {
+        if (!selectedPersonnelId && personnelList && personnelList.length > 0) {
+            setSelectedPersonnelId(personnelList[0].id);
+        }
+    }, [personnelList, selectedPersonnelId]);
+
+    // Seçili Personel Nesnesi
+    const selectedPersonnel = useMemo(() => {
+        return (personnelList || []).find(p => p.id === selectedPersonnelId) || null;
+    }, [personnelList, selectedPersonnelId]);
+
+    // Kopyalama Fonksiyonu
+    const handleCopy = (text, fieldName) => {
+        if (!text) return;
+        navigator.clipboard.writeText(text);
+        setCopiedField(fieldName);
+        setTimeout(() => setCopiedField(null), 2000);
+    };
+
+    // ── FORM STATE BAŞLATMA (Personel Ekle/Düzenle) ──
+    const [formData, setFormData] = useState({
+        fullName: '',
+        tcNo: '',
+        phone: '',
+        email: '',
+        birthDate: '',
+        bloodType: '',
+        address: '',
+        emergencyContact: { name: '', relation: '', phone: '' },
+        avatarUrl: '',
+        role: 'driver_long',
+        employmentStatus: 'active',
+        hireDate: new Date().toISOString().split('T')[0],
+        leaveDate: '',
+        terminationReason: '',
+        sgkNo: '',
+        sgkOccupationCode: '8332.01',
+        baseSalary: '',
+        salaryDay: '5',
+        bankName: '',
+        iban: '',
+        licenseClasses: ['CE'],
+        licenseExpiry: '',
+        srcTypes: ['SRC 3', 'SRC 4'],
+        srcExpiry: '',
+        psikoteknikExpiry: '',
+        tachographCardNo: '',
+        tachographExpiry: '',
+        healthReportExpiry: '',
+        criminalRecordDate: '',
+        assignedTruckPlate: '',
+        assignedTrailerPlate: '',
+        assignedPhone: '',
+        assignedFuelCard: '',
+        assignedHgs: '',
+        inventoryNotes: '',
+        documents: [],
+        notes: [],
+        advances: []
+    });
+
+    const openAddPersonnelModal = () => {
+        setPersonnelModalMode('add');
+        setPersonnelFormTab('identity');
+        setFormData({
+            fullName: '',
+            tcNo: '',
+            phone: '',
+            email: '',
+            birthDate: '',
+            bloodType: 'A+',
+            address: '',
+            emergencyContact: { name: '', relation: '', phone: '' },
+            avatarUrl: '',
+            role: 'driver_long',
+            employmentStatus: 'active',
+            hireDate: new Date().toISOString().split('T')[0],
+            leaveDate: '',
+            terminationReason: '',
+            sgkNo: '',
+            sgkOccupationCode: '8332.01',
+            baseSalary: '',
+            salaryDay: '5',
+            bankName: '',
+            iban: '',
+            licenseClasses: ['CE', 'C'],
+            licenseExpiry: '',
+            srcTypes: ['SRC 3', 'SRC 4'],
+            srcExpiry: '',
+            psikoteknikExpiry: '',
+            tachographCardNo: '',
+            tachographExpiry: '',
+            healthReportExpiry: '',
+            criminalRecordDate: '',
+            assignedTruckPlate: activeTruckData?.plate || '',
+            assignedTrailerPlate: activeTruckData?.trailerPlate || '',
+            assignedPhone: '',
+            assignedFuelCard: '',
+            assignedHgs: '',
+            inventoryNotes: '',
+            documents: [],
+            notes: [],
+            advances: []
+        });
+        setIsPersonnelModalOpen(true);
+    };
+
+    const openEditPersonnelModal = (person) => {
+        setPersonnelModalMode('edit');
+        setEditingPersonnel(person);
+        setPersonnelFormTab('identity');
+        setFormData({
+            fullName: person.fullName || '',
+            tcNo: person.tcNo || '',
+            phone: person.phone || '',
+            email: person.email || '',
+            birthDate: person.birthDate || '',
+            bloodType: person.bloodType || 'A+',
+            address: person.address || '',
+            emergencyContact: person.emergencyContact || { name: '', relation: '', phone: '' },
+            avatarUrl: person.avatarUrl || '',
+            role: person.role || 'driver_long',
+            employmentStatus: person.employmentStatus || 'active',
+            hireDate: person.hireDate || '',
+            leaveDate: person.leaveDate || '',
+            terminationReason: person.terminationReason || '',
+            sgkNo: person.sgkNo || '',
+            sgkOccupationCode: person.sgkOccupationCode || '8332.01',
+            baseSalary: person.baseSalary || '',
+            salaryDay: person.salaryDay || '5',
+            bankName: person.bankName || '',
+            iban: person.iban || '',
+            licenseClasses: person.licenseClasses || ['CE'],
+            licenseExpiry: person.licenseExpiry || '',
+            srcTypes: person.srcTypes || ['SRC 3', 'SRC 4'],
+            srcExpiry: person.srcExpiry || '',
+            psikoteknikExpiry: person.psikoteknikExpiry || '',
+            tachographCardNo: person.tachographCardNo || '',
+            tachographExpiry: person.tachographExpiry || '',
+            healthReportExpiry: person.healthReportExpiry || '',
+            criminalRecordDate: person.criminalRecordDate || '',
+            assignedTruckPlate: person.assignedTruckPlate || '',
+            assignedTrailerPlate: person.assignedTrailerPlate || '',
+            assignedPhone: person.assignedPhone || '',
+            assignedFuelCard: person.assignedFuelCard || '',
+            assignedHgs: person.assignedHgs || '',
+            inventoryNotes: person.inventoryNotes || '',
+            documents: person.documents || [],
+            notes: person.notes || [],
+            advances: person.advances || []
+        });
+        setIsPersonnelModalOpen(true);
+    };
+
+    const handleSavePersonnel = async (e) => {
+        e?.preventDefault();
+        if (!formData.fullName.trim()) {
+            alert('Lütfen personelin adını ve soyadını giriniz.');
+            return;
+        }
+
+        setIsSavingPersonnel(true);
+        try {
+            const payload = {
+                ...formData,
+                fullName: formData.fullName.trim(),
+                tcNo: formData.tcNo.trim(),
+                baseSalary: formData.baseSalary ? Number(formData.baseSalary) : 0,
+            };
+
+            if (personnelModalMode === 'add') {
+                const newRecord = await addPersonnel(payload);
+                addLog('PERSONEL_EKLE', `${payload.fullName} personel özlük kaydı oluşturuldu.`);
+                setSelectedPersonnelId(newRecord.id);
+            } else if (personnelModalMode === 'edit' && editingPersonnel) {
+                await updatePersonnel(editingPersonnel.id, payload);
+                addLog('PERSONEL_GUNCELLE', `${payload.fullName} personel özlük kaydı güncellendi.`);
+            }
+
+            setIsPersonnelModalOpen(false);
+            setEditingPersonnel(null);
+        } catch (err) {
+            console.error('Personel kaydedilirken hata:', err);
+            alert('Personel kaydedilirken bir hata oluştu.');
+        } finally {
+            setIsSavingPersonnel(false);
+        }
+    };
+
+    const handleDeletePersonnel = async (person) => {
+        if (window.confirm(`${person.fullName} isimli personelin özlük dosyasını silmek istediğinize emin misiniz?`)) {
+            try {
+                await deletePersonnel(person.id);
+                addLog('PERSONEL_SIL', `${person.fullName} personel kaydı silindi.`);
+                if (selectedPersonnelId === person.id) {
+                    const remaining = personnelList.filter(p => p.id !== person.id);
+                    setSelectedPersonnelId(remaining[0]?.id || null);
+                }
+                setMobileView('list');
+            } catch (err) {
+                console.error('Personel silinirken hata:', err);
+                alert('Personel silinirken bir hata oluştu.');
+            }
+        }
+    };
+
+    // Profil Fotoğrafı Yükleme
+    const handleAvatarUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            const uploaded = await uploadToCloudinary(file);
+            if (uploaded?.url) {
+                setFormData(prev => ({ ...prev, avatarUrl: uploaded.url }));
+                if (editingPersonnel) {
+                    await updatePersonnel(editingPersonnel.id, { avatarUrl: uploaded.url });
+                }
+            }
+        } catch (err) {
+            console.error('Fotoğraf yüklenemedi:', err);
+            alert('Fotoğraf yüklenirken hata oluştu.');
+        }
+    };
+
+    // Seçili Personele Hızlı Not Ekleme
+    const handleAddNoteToPersonnel = async () => {
+        if (!newNoteText.trim() || !selectedPersonnel) return;
+        try {
+            const updatedNotes = [
+                {
+                    id: Date.now().toString(),
+                    text: newNoteText.trim(),
+                    createdAt: new Date().toISOString(),
+                    author: 'Yönetici'
+                },
+                ...(selectedPersonnel.notes || [])
+            ];
+            await updatePersonnel(selectedPersonnel.id, { notes: updatedNotes });
+            setNewNoteText('');
+            setIsAddingNote(false);
+            addLog('PERSONEL_NOT', `${selectedPersonnel.fullName} için yeni not eklendi.`);
+        } catch (err) {
+            console.error('Not eklenirken hata:', err);
+        }
+    };
+
+    const handleDeletePersonnelNote = async (noteId) => {
+        if (!selectedPersonnel) return;
+        try {
+            const updatedNotes = (selectedPersonnel.notes || []).filter(n => n.id !== noteId);
+            await updatePersonnel(selectedPersonnel.id, { notes: updatedNotes });
+        } catch (err) {
+            console.error('Not silinirken hata:', err);
+        }
+    };
+
+    // Seçili Personele Avans Ekleme
+    const handleSaveAdvance = async () => {
+        const targetId = advancePersonnelId || selectedPersonnelId;
+        const targetPerson = (personnelList || []).find(p => p.id === targetId);
+        if (!targetPerson) {
+            alert('Lütfen bir personel seçiniz.');
+            return;
+        }
+        const amt = Number(advanceAmount);
+        if (!amt || amt <= 0) {
+            alert('Lütfen geçerli bir avans tutarı giriniz.');
+            return;
+        }
+
+        setIsSavingAdvance(true);
+        try {
+            const newAdvance = {
+                id: Date.now().toString(),
+                date: advanceDate,
+                amount: amt,
+                description: advanceDesc.trim() || 'Personel Avansı',
+                receiptFiles: advanceFiles || [],
+                isDeducted: false,
+                createdAt: new Date().toISOString()
+            };
+            const updatedAdvances = [newAdvance, ...(targetPerson.advances || [])];
+            await updatePersonnel(targetPerson.id, { advances: updatedAdvances });
+            addLog('PERSONEL_AVANS', `${targetPerson.fullName} personeline ₺${amt.toLocaleString('tr-TR')} tutarında avans verildi.`);
+
+            setIsAdvanceModalOpen(false);
+            setAdvanceAmount('');
+            setAdvanceDesc('');
+            setAdvanceFiles([]);
+        } catch (err) {
+            console.error('Avans kaydedilirken hata:', err);
+            alert('Avans kaydedilirken hata oluştu.');
+        } finally {
+            setIsSavingAdvance(false);
+        }
+    };
+
+    const handleToggleAdvanceDeducted = async (person, advanceId) => {
+        try {
+            const updated = (person.advances || []).map(adv => {
+                if (adv.id === advanceId) {
+                    return { ...adv, isDeducted: !adv.isDeducted };
+                }
+                return adv;
+            });
+            await updatePersonnel(person.id, { advances: updated });
+        } catch (err) {
+            console.error('Avans durumu güncellenemedi:', err);
+        }
+    };
+
+    const handleDeleteAdvance = async (person, advanceId) => {
+        if (!window.confirm('Bu avans kaydını silmek istediğinize emin misiniz?')) return;
+        try {
+            const updated = (person.advances || []).filter(adv => adv.id !== advanceId);
+            await updatePersonnel(person.id, { advances: updated });
+        } catch (err) {
+            console.error('Avans silinemedi:', err);
+        }
+    };
+
+    // ── BENTO KPI METRİKLERİ ──
+    const kpiMetrics = useMemo(() => {
+        const list = personnelList || [];
+        const totalEmployees = list.length;
+        const activeEmployees = list.filter(p => p.employmentStatus === 'active').length;
+        const onLeaveEmployees = list.filter(p => p.employmentStatus === 'on_leave').length;
+        const terminatedEmployees = list.filter(p => p.employmentStatus === 'terminated').length;
+
+        const drivers = list.filter(p => p.employmentStatus === 'active' && (p.role === 'driver_long' || p.role === 'driver_local'));
+        const assignedTruckCount = list.filter(p => p.employmentStatus === 'active' && p.assignedTruckPlate).length;
+
+        // Evrak Radarı Denetimi
+        let expiredDocCount = 0;
+        let criticalDocCount = 0;
+
+        list.forEach(p => {
+            if (p.employmentStatus !== 'active') return;
+            const docDates = [p.licenseExpiry, p.srcExpiry, p.psikoteknikExpiry, p.tachographExpiry, p.healthReportExpiry];
+            docDates.forEach(d => {
+                if (!d) return;
+                const st = getDocumentStatus(d);
+                if (st.status === 'expired') expiredDocCount++;
+                if (st.status === 'critical') criticalDocCount++;
+            });
+        });
+
+        // Maaş ve SGK Yaklaşan Yükümlülükler
+        const totalNetSalary = list.filter(p => p.employmentStatus === 'active').reduce((acc, p) => acc + (Number(p.baseSalary) || 0), 0);
+        // Tahmini SGK prim yükü (Türkiye standartlarında yaklaşık %37.5 brüt işveren/işçi toplam payı veya baz katsayı)
+        const estimatedSgkTotal = Math.round(totalNetSalary * 0.42);
+
+        // Bu ay verilen toplam avanslar
+        const currentYearMonth = new Date().toISOString().slice(0, 7);
+        let monthlyAdvancesTotal = 0;
+        list.forEach(p => {
+            (p.advances || []).forEach(adv => {
+                if (adv.date && adv.date.startsWith(currentYearMonth)) {
+                    monthlyAdvancesTotal += Number(adv.amount) || 0;
+                }
+            });
+        });
+
+        const sgkDueDateInfo = getSgkDueDate();
+
+        return {
+            totalEmployees,
+            activeEmployees,
+            onLeaveEmployees,
+            terminatedEmployees,
+            activeDriversCount: drivers.length,
+            assignedTruckCount,
+            expiredDocCount,
+            criticalDocCount,
+            totalNetSalary,
+            estimatedSgkTotal,
+            monthlyAdvancesTotal,
+            sgkDueDateInfo
+        };
+    }, [personnelList]);
+
+    // Filtrelenmiş Personel Listesi (Rehber İçin)
+    const filteredPersonnelList = useMemo(() => {
+        return (personnelList || []).filter(p => {
+            if (statusFilter !== 'all' && p.employmentStatus !== statusFilter) return false;
+            if (roleFilter !== 'all') {
+                if (roleFilter === 'driver' && !(p.role === 'driver_long' || p.role === 'driver_local')) return false;
+                if (roleFilter !== 'driver' && p.role !== roleFilter) return false;
+            }
+            if (directorySearch.trim()) {
+                const q = directorySearch.toLowerCase();
+                const matchName = (p.fullName || '').toLowerCase().includes(q);
+                const matchTc = (p.tcNo || '').includes(q);
+                const matchPhone = (p.phone || '').includes(q);
+                const matchPlate = (p.assignedTruckPlate || '').toLowerCase().includes(q);
+                if (!matchName && !matchTc && !matchPhone && !matchPlate) return false;
+            }
+            return true;
+        });
+    }, [personnelList, statusFilter, roleFilter, directorySearch]);
+
+    // Evrak Radarı İçin Sürücü Listesi
+    const radarDriversList = useMemo(() => {
+        return (personnelList || [])
+            .filter(p => p.employmentStatus === 'active')
+            .filter(p => {
+                if (radarSearch.trim()) {
+                    const q = radarSearch.toLowerCase();
+                    return (p.fullName || '').toLowerCase().includes(q) || (p.assignedTruckPlate || '').toLowerCase().includes(q);
+                }
+                return true;
+            })
+            .filter(p => {
+                if (radarFilter === 'all') return true;
+                const docDates = [p.licenseExpiry, p.srcExpiry, p.psikoteknikExpiry, p.tachographExpiry, p.healthReportExpiry];
+                const statuses = docDates.map(d => getDocumentStatus(d).status);
+                if (radarFilter === 'expired') return statuses.includes('expired');
+                if (radarFilter === 'critical') return statuses.includes('critical');
+                if (radarFilter === 'approaching') return statuses.includes('approaching');
+                return true;
+            });
+    }, [personnelList, radarSearch, radarFilter]);
+
+    // Seçili Personelin Geçmiş Hak Ediş Ödemeleri
+    const personnelPayoutHistory = useMemo(() => {
+        if (!selectedPersonnel) return [];
+        return (payouts || []).filter(p => !p.deleted && (p.driverName || '').toLowerCase() === (selectedPersonnel.fullName || '').toLowerCase());
+    }, [payouts, selectedPersonnel]);
+
+    // ── HAK EDİŞ (A4 SEFER HESAPLAYICI) MANTIĞI ──
     const saveDraftPayout = (draft) => {
         setActivePayoutState(draft);
         if (draft) {
@@ -100,7 +651,6 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
         localStorage.removeItem('tir_draft_payout');
     };
 
-    // Uyarıyı 3 saniye sonra kapat
     useEffect(() => {
         if (showOldPayoutWarning) {
             const timer = setTimeout(() => setShowOldPayoutWarning(false), 3000);
@@ -108,62 +658,16 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
         }
     }, [showOldPayoutWarning]);
 
-    // Araç değiştiğinde önizlemeyi sıfırla
-    useEffect(() => {
-        setActivePayoutState(null);
-        setIsViewingOldPayout(false);
-        setNetPrice(0);
-        setViewMode('sefer');
-        setViewModePayoutId(null);
-    }, [activeTruckId]);
-
-    // Payout listesi değişince aktif görüntülemenin geçerli olup olmadığını kontrol et
-    useEffect(() => {
-        if (isViewingOldPayout && activePayoutState) {
-            const stillExists = (payouts || []).some(p =>
-                !p.deleted && (p.id === activePayoutState.id || (p.docId && p.docId === activePayoutState.docId))
-            );
-            if (!stillExists) {
-                setActivePayoutState(null);
-                setIsViewingOldPayout(false);
-            }
-        } else if (!activePayoutState && !isViewingOldPayout) {
-            const draft = localStorage.getItem('tir_draft_payout');
-            if (draft) {
-                const parsed = JSON.parse(draft);
-                setActivePayoutState(parsed);
-                setNetPrice(parsed.grandTotal ?? 0);
-                setIsViewingOldPayout(false);
-            } else {
-                const last = (payouts || []).filter(p => !p.deleted)[0];
-                if (last) {
-                    setActivePayoutState(last);
-                    setNetPrice(last.grandTotal ?? 0);
-                    setIsViewingOldPayout(true);
-                    setShowOldPayoutWarning(true);
-                    setViewMode('sefer');
-                    setViewModePayoutId(last.id);
-                }
-            }
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [payouts]);
-
-    // Hak ediş periyodu değiştiğinde netPrice güncelle
     useEffect(() => {
         if (activePayoutState) {
             if (activePayoutState.grandTotal !== undefined) {
                 setNetPrice(activePayoutState.grandTotal);
             } else {
-                const total = activePayoutState.trips.reduce((acc, t) => acc + (Number(t.premiumAmount) || 0), 0);
+                const total = (activePayoutState.trips || []).reduce((acc, t) => acc + (Number(t.premiumAmount) || 0), 0);
                 setNetPrice(total);
             }
         }
     }, [activePayoutState]);
-
-    const handleOpenPeriodModal = () => {
-        setIsPeriodModalOpen(true);
-    };
 
     const handleSelectPeriod = ({ startDate, endDate, driverName, trips: selectedTrips }) => {
         const newDraft = {
@@ -198,8 +702,8 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
     };
 
     const handleSavePayout = async () => {
-        if (!activePayoutState || activePayoutState.trips.length === 0) {
-            alert("Kaydedilecek sefer bulunamadı.");
+        if (!activePayoutState || !activePayoutState.trips || activePayoutState.trips.length === 0) {
+            alert('Kaydedilecek sefer bulunamadı.');
             return;
         }
 
@@ -210,11 +714,11 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             startDate: activePayoutState.startDate,
             endDate: activePayoutState.endDate,
             driverName: activePayoutState.driverName,
-            trips: (activePayoutState.trips || []).map(t => ({ 
-                id: t.id, 
-                date: t.date, 
-                from: t.from, 
-                to: t.to, 
+            trips: (activePayoutState.trips || []).map(t => ({
+                id: t.id,
+                date: t.date,
+                from: t.from,
+                to: t.to,
                 tonnage: t.tonnage,
                 premiumAmount: t.premiumAmount,
                 premiumName: t.premiumName || 'Özel Prim'
@@ -229,15 +733,14 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
         try {
             await addPayout(newPayoutData);
 
-            // P1: Hak ediş bildirimi
             sendDiscordAlert({
-              type: 'success',
-              title: '💵 Prim Hak Edişi Oluşturuldu',
-              description: 'Personel prim hak edişi kaydedildi.',
-              fields: [
-                { name: '👤 Personel', value: String(newPayoutData?.driverName || '—'), inline: true },
-                { name: '💰 Tutar', value: String(newPayoutData?.grandTotal || newPayoutData?.calculatedTotal || '—') + ' ₺', inline: true },
-              ]
+                type: 'success',
+                title: 'Prim Hak Edişi Oluşturuldu',
+                description: 'Personel prim hak edişi onaylandı ve kaydedildi.',
+                fields: [
+                    { name: 'Personel', value: String(newPayoutData?.driverName || '—'), inline: true },
+                    { name: 'Tutar', value: String(newPayoutData?.grandTotal || newPayoutData?.calculatedTotal || '—') + ' TL', inline: true },
+                ]
             });
 
             const batch = writeBatch(db);
@@ -251,28 +754,27 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             setActivePayoutState({ ...newPayoutData, id: newPayoutData.docId });
             setIsViewingOldPayout(false);
         } catch {
-            alert("Hak ediş kaydedilirken bir hata oluştu.");
+            alert('Hak ediş kaydedilirken bir hata oluştu.');
         }
     };
 
     const handleDeletePayout = async (payoutId, docId, e) => {
         e.stopPropagation();
-        const isMobile = window.innerWidth < 768;
+        const isMobileScreen = window.innerWidth < 768;
 
-        if (isMobile || window.confirm(`${docId} numaralı personel hak ediş kaydını silmek istediğinize emin misiniz? (İlgili seferlerin prim durumları ödenmemiş hale dönecektir)`)) {
+        if (isMobileScreen || window.confirm(`${docId} numaralı hak ediş kaydını silmek istediğinize emin misiniz? (İlgili seferler ödenmemiş duruma dönecektir)`)) {
             try {
                 const deletedPayout = payouts.find(p => p.id === payoutId);
                 await deletePayout(payoutId);
 
-                // P2: Hak ediş silme bildirimi
                 sendDiscordAlert({
-                  type: 'warning',
-                  title: '🗑️ Hak Ediş Silindi',
-                  description: 'Bir prim hak ediş kaydı silindi.',
-                  fields: [
-                    { name: '👤 Personel', value: String(deletedPayout?.driverName || '—'), inline: true },
-                    { name: '💰 Tutar', value: String(deletedPayout?.grandTotal || deletedPayout?.calculatedTotal || '—') + ' ₺', inline: true },
-                  ]
+                    type: 'warning',
+                    title: 'Hak Ediş Silindi',
+                    description: 'Prim hak ediş kaydı silindi.',
+                    fields: [
+                        { name: 'Personel', value: String(deletedPayout?.driverName || '—'), inline: true },
+                        { name: 'Tutar', value: String(deletedPayout?.grandTotal || deletedPayout?.calculatedTotal || '—') + ' TL', inline: true },
+                    ]
                 });
 
                 if (deletedPayout && deletedPayout.trips) {
@@ -289,7 +791,6 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
 
     const handlePrintPDF = () => {
         if (!payoutPrintRef.current) return;
-
         const printContent = payoutPrintRef.current;
         const printWindow = window.open('', '', 'width=900,height=1200');
         printWindow.document.write('<html><head><title>Hak Ediş Yazdır</title>');
@@ -309,222 +810,2007 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
     };
 
     return (
-        <div 
-            className="flex flex-col lg:flex-row lg:h-[calc(100vh-64px)] gap-4 lg:gap-8 animate-in fade-in duration-500 overflow-y-auto lg:overflow-hidden pb-4 lg:pb-0"
-            style={{
-                paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
-            }}
-        >
-            {/* Sol Panel: Kontrol Merkezi */}
-            <div className="w-full lg:w-[45%] xl:w-[40%] flex flex-col gap-3 lg:gap-6 lg:overflow-y-auto custom-scrollbar lg:pr-2">
+        <div className="flex-1 flex flex-col h-full w-full p-2 sm:p-4 lg:p-6 overflow-hidden gap-3 max-w-[1920px] mx-auto select-none">
 
-                {/* Panel Başlık (Masaüstü & Mobil) */}
-                <div className="flex glass-panel px-4 py-3 items-center justify-between shadow-sm border border-[var(--border-color)] backdrop-blur-md rounded-2xl shrink-0">
-                    <div className="flex items-center gap-2.5">
-                        {isMobile && onOpenMenu && (
-                            <button 
-                                onClick={onOpenMenu} 
-                                className="p-1.5 -ml-1 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors md:hidden cursor-pointer"
-                                title="Menüyü Aç"
-                            >
-                                <Menu size={20} />
-                            </button>
-                        )}
-                        <h2 className="text-base sm:text-lg font-bold tracking-tight text-[var(--text-primary)]">Personel Prim Hak Edişi</h2>
-                    </div>
-                </div>
-
-                <div className="glass-panel p-4 overflow-hidden relative">
-                    <div className="absolute -right-10 -top-10 w-32 h-32 bg-orange-500/5 blur-3xl rounded-full pointer-events-none"></div>
-                    
-                    <motion.button
-                        whileHover={{ scale: 1.01 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={handleOpenPeriodModal}
-                        className="relative w-full bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 hover:text-orange-300 py-2.5 px-4 rounded-xl font-semibold flex items-center justify-center transition-all duration-300 shadow-sm hover:shadow-[0_4px_20px_rgba(249,115,22,0.15)] text-sm group overflow-hidden border border-orange-500/20"
-                    >
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out" />
-                        <PlusCircle className="mr-2 relative z-10 transition-transform duration-300 group-hover:scale-110" size={17} /> 
-                        <span className="relative z-10 tracking-wide font-semibold">Yeni Hak Ediş Dönemi Seç</span>
-                    </motion.button>
-                    
-                    <AnimatePresence>
-                        {activePayoutState && activePayoutState.status === 'Draft' && (
-                            <motion.div 
-                                initial={{ opacity: 0, height: 0, marginTop: 0 }} 
-                                animate={{ opacity: 1, height: 'auto', marginTop: 12 }} 
-                                exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                                className="overflow-hidden"
-                            >
-                                <div className="p-3 bg-orange-500/5 border border-orange-500/20 rounded-xl relative overflow-hidden">
-                                    <motion.div 
-                                        animate={{ opacity: [0.2, 0.4, 0.2] }} 
-                                        transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-                                        className="absolute top-0 right-0 w-24 h-24 bg-orange-400/5 blur-2xl rounded-full pointer-events-none"
-                                    />
-                                    <div className="flex justify-between items-center mb-1 relative z-10">
-                                        <h4 className="flex items-center text-orange-400 font-semibold text-sm">
-                                            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 4, ease: "linear" }}>
-                                                <Clock size={14} className="mr-1.5" />
-                                            </motion.div>
-                                            Hak Ediş Taslağı
-                                        </h4>
-                                        <button
-                                            onClick={() => setShowCancelConfirm(true)}
-                                            className="text-xs bg-red-500/10 px-2 py-1 rounded-md text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-colors cursor-pointer"
-                                        >
-                                            İptal Et
-                                        </button>
-                                    </div>
-                                    <p className="text-xs text-[var(--text-primary)] font-semibold mt-1 relative z-10">
-                                        Şoför: {activePayoutState.driverName}
-                                    </p>
-                                    <p className="text-xs text-slate-400 mt-0.5 relative z-10">
-                                        Periyot: {new Date(activePayoutState.startDate).toLocaleDateString('tr-TR')} - {new Date(activePayoutState.endDate).toLocaleDateString('tr-TR')}
-                                    </p>
-                                    <p className="text-[10px] text-slate-500 mt-1 relative z-10">{activePayoutState.trips.length} sefer dahil edildi.</p>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
-                    {/* Aktif Hak Ediş Aksiyonları */}
-                    {activePayoutState && (
-                        <div className="mt-3 flex flex-row gap-2">
-                            <button
-                                onClick={handlePrintPDF}
-                                className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-slate-700 hover:bg-slate-600 text-[var(--text-primary)] rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                            >
-                                <Printer size={14} /> PDF / Yazdır
-                            </button>
-                            {activePayoutState.status === 'Approved' ? (
-                                <button disabled className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-[var(--bg-panel-hover)] text-emerald-400 rounded-lg text-xs font-semibold border border-emerald-500/30 opacity-80">
-                                    <CheckCircle size={14} /> Ödendi / Onaylandı
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={handleSavePayout}
-                                    className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-orange-600 hover:bg-orange-500 text-[var(--text-primary)] rounded-lg text-xs font-semibold transition-colors border border-orange-500 shadow-lg shadow-orange-500/20 cursor-pointer"
-                                >
-                                    <Save size={14} /> Ödemeyi Yap & Onayla
-                                </button>
-                            )}
-                        </div>
+            {/* ── 1. Üst Başlık ve Kontrol Barı ── */}
+            <div
+                className="flex items-center justify-between gap-3 pb-2 border-b border-white/[0.06] shrink-0"
+                style={{ paddingTop: isMobile ? 'calc(0.5rem + env(safe-area-inset-top, 0px))' : '0' }}
+            >
+                <div className="flex items-center gap-2.5 min-w-0">
+                    {isMobile && onOpenMenu && (
+                        <button
+                            onClick={onOpenMenu}
+                            className="p-1.5 -ml-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 cursor-pointer"
+                        >
+                            <Menu size={22} />
+                        </button>
                     )}
+                    <div className="flex flex-col">
+                        <h2 className="text-sm sm:text-lg font-bold tracking-tight text-white flex items-center gap-2 truncate">
+                            <Users size={20} className="text-amber-400 shrink-0" />
+                            <span>Personel & Sürücü Yönetimi</span>
+                        </h2>
+                    </div>
                 </div>
 
-                {/* Geçmiş Hak Edişler Listesi */}
-                <div className="glass-panel flex-1 min-h-0 flex flex-col">
-                    <div className="p-3 border-b border-[var(--border-color)] sticky top-0 bg-[var(--bg-panel)] backdrop-blur z-10 rounded-t-xl">
-                        <h4 className="font-bold text-[var(--text-primary)] flex items-center text-sm">
-                            <CheckCircle className="mr-2 text-orange-400" size={16} />
-                            Geçmiş Ödemeler
-                        </h4>
-                    </div>
-                    <div className="p-3 flex-1 overflow-y-auto custom-scrollbar space-y-2 relative">
-                        {(payouts || []).length > 0 ? (payouts || []).filter(p => !p.deleted).map((p) => {
-                            const isActive = activePayoutState?.id === p.id && isViewingOldPayout;
+                {/* Sağ Aksiyonlar: Sekme Seçimi & Yeni Ekle */}
+                <div className="flex items-center gap-2 shrink-0">
+                    {/* 4'lü Alt Sekme Hap Butonları */}
+                    <div className="flex items-center p-0.5 sm:p-1 rounded-xl bg-[#0a0d14] border border-white/[0.06] relative overflow-x-auto max-w-[calc(100vw-120px)] sm:max-w-none">
+                        {[
+                            { id: 'directory', label: 'Rehber & Özlük', shortLabel: 'Rehber', icon: Users },
+                            { id: 'radar', label: 'Evrak Radarı', shortLabel: 'Radar', icon: ShieldAlert, badge: (kpiMetrics.expiredDocCount + kpiMetrics.criticalDocCount) > 0 ? (kpiMetrics.expiredDocCount + kpiMetrics.criticalDocCount) : null },
+                            { id: 'payments', label: 'Ödeme & SGK', shortLabel: 'Ödemeler', icon: Calendar },
+                            { id: 'payouts', label: 'Prim Hak Edişi', shortLabel: 'Hak Ediş', icon: CreditCard }
+                        ].map((tab) => {
+                            const IconComponent = tab.icon;
+                            const isActive = activeSubTab === tab.id;
                             return (
                                 <button
-                                    key={p.id}
-                                    onClick={() => handleViewPayout(p)}
-                                    className={`w-full text-left p-3 rounded-xl transition-all duration-300 group relative cursor-pointer outline-none overflow-hidden block ${isActive ? 'border-transparent' : 'border border-[var(--border-color)] bg-white/5 hover:bg-white/10'}`}
+                                    key={tab.id}
+                                    onClick={() => {
+                                        setActiveSubTab(tab.id);
+                                        setMobileView('list');
+                                    }}
+                                    className={`relative flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg text-xs font-semibold transition-colors duration-200 cursor-pointer shrink-0 ${
+                                        isActive ? 'text-black font-bold' : 'text-slate-400 hover:text-white'
+                                    }`}
                                 >
-                                    {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors duration-300 -z-10" />}
                                     {isActive && (
-                                        <motion.div layoutId="payout-active-apple"
-                                            className={`absolute inset-0 bg-gradient-to-br rounded-xl border ${viewMode === 'pdf' ? 'from-indigo-500/10 to-indigo-600/5 border-indigo-500/30 shadow-[0_2px_15px_rgba(99,102,241,0.15)]' : 'from-orange-500/10 to-orange-600/5 border-orange-500/30 shadow-[0_2px_15px_rgba(249,115,22,0.15)]'}`}
-                                            style={{ zIndex: 0 }} initial={false}
-                                            transition={{ type: 'spring', stiffness: 400, damping: 35, mass: 0.8 }}
+                                        <motion.div
+                                            layoutId="personnel-subtab-pill"
+                                            className="absolute inset-0 bg-amber-500 rounded-lg shadow-sm"
+                                            style={{ zIndex: 0 }}
+                                            initial={false}
+                                            transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                                         />
                                     )}
-                                    
-                                    <div className="relative z-10 flex flex-col gap-1">
-                                        <div className="flex justify-between items-center mb-1">
-                                            <span 
-                                                className={`font-semibold text-sm transition-colors ${isActive ? (viewMode === 'pdf' ? 'text-indigo-300' : 'text-orange-400') : 'text-slate-300 group-hover:text-orange-400'}`}
-                                            >
-                                                {p.docId || 'HAK EDİŞ'}
+                                    <span className="relative z-10 flex items-center gap-1.5">
+                                        <IconComponent size={14} />
+                                        <span className="hidden md:inline">{tab.label}</span>
+                                        <span className="md:hidden">{tab.shortLabel}</span>
+                                        {tab.badge && (
+                                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${isActive ? 'bg-black text-amber-400' : 'bg-red-500 text-white'}`}>
+                                                {tab.badge}
                                             </span>
-                                            <div className="flex items-center gap-1">
-                                                <span className={`text-[10px] transition-colors ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>{new Date(p.endDate).toLocaleDateString('tr-TR')}</span>
-                                                {p.files?.length > 0 && (
-                                                    <span className={`${isActive ? 'text-indigo-300' : 'text-orange-500/60'}`} title="PDF eki var">
-                                                        <Paperclip size={12} />
-                                                    </span>
-                                                )}
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setNoteModalPayout(p); setModalNote(p.note || ''); setModalFiles(p.files || []); }}
-                                                    className={`p-1 rounded transition-colors ${p.note || p.files?.length > 0 ? (isActive ? 'text-white hover:text-orange-300' : 'text-orange-500/80') : (isActive ? 'text-white/50 hover:text-white' : 'text-slate-600 hover:text-orange-400')}`}
-                                                    title="Düzenle / Not & Belge"
-                                                >
-                                                    <StickyNote size={14} />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => handleDeletePayout(p.id, p.docId || 'Hak Ediş', e)}
-                                                    className={`p-1 transition-colors ${isActive ? 'text-white/50 hover:text-red-400' : 'text-slate-500 hover:text-red-400'}`}
-                                                >
-                                                    <Trash2 size={14} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="flex justify-between items-end">
-                                            <div>
-                                                <div className={`text-xs font-semibold ${isActive ? 'text-orange-200' : 'text-slate-300'}`}>{p.driverName}</div>
-                                                <div className={`text-[10px] transition-colors ${isActive ? 'text-white/60' : 'text-slate-500'}`}>{p.trips?.length || 0} Sefer | {p.totalTonnage?.toFixed(2)} Ton</div>
-                                            </div>
-                                            <motion.div 
-                                                className={`text-sm font-black tracking-wide ${isActive ? 'text-white drop-shadow-md' : 'text-[var(--text-primary)]'}`}
-                                                animate={{ scale: isActive ? 1.02 : 1, originX: 0 }}
-                                                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                                            >
-                                                ₺{p.grandTotal?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-                                            </motion.div>
-                                        </div>
-                                    </div>
+                                        )}
+                                    </span>
                                 </button>
                             );
-                        }) : (
-                            <div className="text-center py-8 text-slate-500 text-sm absolute inset-0 flex flex-col items-center justify-center">
-                                <FileText size={24} className="mx-auto mb-2 opacity-50 text-orange-500" />
-                                Henüz hak ediş ödemesi yapılmamış.
-                            </div>
-                        )}
+                        })}
                     </div>
-                </div>
-            </div>
 
-            {/* Sağ Panel: A4 Hak Ediş Görünümü veya Ek PDF */}
-            <div className="w-full lg:w-[55%] xl:w-[60%] relative flex flex-col overflow-hidden lg:min-h-0 pl-0 lg:pl-4" style={{ minHeight: '70vh' }}>
-                <div className="w-full relative overflow-hidden flex flex-col" style={{ flex: 1, minHeight: '70vh' }}>
-                    {activePayoutState ? (
-                        viewMode === 'pdf' && activePayoutState.files && activePayoutState.files.length > 0 ? (
-                            <div className="absolute inset-0">
-                                <PdfViewer files={activePayoutState.files} />
-                            </div>
-                        ) : (
-                            <A4PersonnelPreview
-                                ref={payoutPrintRef}
-                                payoutData={activePayoutState}
-                                vehicleInfo={{ plate: activeTruckData?.plate, trailerPlate: activeTruckData?.trailerPlate }}
-                                netPrice={netPrice}
-                                onChangeNetPrice={setNetPrice}
-                                onSavePrice={activePayoutState?.status === 'Approved' && isViewingOldPayout ? async () => {
-                                    await updatePayout(activePayoutState.id, { grandTotal: netPrice });
-                                    addLog('FATURA_FIYAT', `${activePayoutState.docId} net fiyat güncellendi: ₺${netPrice?.toLocaleString('tr-TR')}`);
-                                } : undefined}
-                            />
-                        )
+                    {/* Yeni Personel / Yeni Avans Ekle Butonu */}
+                    {activeSubTab === 'payments' ? (
+                        <button
+                            onClick={() => {
+                                setAdvancePersonnelId(selectedPersonnelId || (personnelList[0]?.id || ''));
+                                setIsAdvanceModalOpen(true);
+                            }}
+                            className="h-8 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer shrink-0"
+                        >
+                            <Plus size={14} />
+                            <span className="hidden sm:inline">Avans Ver</span>
+                        </button>
                     ) : (
-                        <div className="text-center flex flex-col items-center justify-center text-slate-500 pt-20">
-                            <Users size={48} className="mb-4 opacity-30 text-orange-500" />
-                            <p className="text-lg font-semibold text-[var(--text-primary)] mb-2">Önizleme Yok</p>
-                            <p className="text-sm">Sol panelden "Yeni Hak Ediş Dönemi Seç" butonuna tıklayarak taslak oluşturabilirsiniz.</p>
-                        </div>
+                        <button
+                            onClick={openAddPersonnelModal}
+                            className="h-8 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer shrink-0"
+                            title="Yeni Personel Özlük Dosyası Oluştur"
+                        >
+                            <UserPlus size={14} />
+                            <span className="hidden sm:inline">Yeni Personel</span>
+                        </button>
                     )}
                 </div>
             </div>
 
+            {/* ── 2. Bento KPI Özet Kartları (4'lü Grid) ── */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 shrink-0">
+                {/* 1. Toplam Personel */}
+                <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-white/[0.06] p-2.5 sm:p-3.5 bg-[#0a0d14] flex flex-col justify-center">
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+                            <Users size={13} className="text-slate-400" />
+                            <span>Toplam Kadro</span>
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 font-mono">
+                            {kpiMetrics.activeEmployees} Aktif
+                        </span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                        <h3 className="text-lg sm:text-2xl font-bold text-white font-mono tracking-tight">
+                            {kpiMetrics.totalEmployees}
+                        </h3>
+                        <span className="text-[11px] text-slate-400">kişi</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                        {kpiMetrics.onLeaveEmployees} İzinli · {kpiMetrics.terminatedEmployees} Ayrılan
+                    </p>
+                </div>
+
+                {/* 2. Direksiyon Başındakiler & Filo */}
+                <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-white/[0.06] p-2.5 sm:p-3.5 bg-[#0a0d14] flex flex-col justify-center">
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+                            <Truck size={13} className="text-amber-400" />
+                            <span>Aktif Sürücüler</span>
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/5 text-slate-300 font-mono">
+                            {kpiMetrics.assignedTruckCount} Araç
+                        </span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                        <h3 className="text-lg sm:text-2xl font-bold text-white font-mono tracking-tight">
+                            {kpiMetrics.activeDriversCount}
+                        </h3>
+                        <span className="text-[11px] text-slate-400">kaptan</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                        Zimmetli Çekici & Dorse Takibi
+                    </p>
+                </div>
+
+                {/* 3. Evrak Radarı Uyarısı */}
+                <div
+                    onClick={() => setActiveSubTab('radar')}
+                    className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-white/[0.06] p-2.5 sm:p-3.5 bg-[#0a0d14] flex flex-col justify-center cursor-pointer hover:border-amber-500/30 transition-colors"
+                >
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+                            <ShieldAlert size={13} className={kpiMetrics.expiredDocCount > 0 ? 'text-red-400' : 'text-amber-400'} />
+                            <span>Evrak Radarı</span>
+                        </span>
+                        {kpiMetrics.expiredDocCount > 0 ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-red-500/20 text-red-400 font-bold animate-pulse">
+                                Acil Yenileme
+                            </span>
+                        ) : (
+                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/5 text-emerald-400">
+                                Güvenli
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                        <h3 className={`text-lg sm:text-2xl font-bold font-mono tracking-tight ${kpiMetrics.expiredDocCount > 0 ? 'text-red-400' : 'text-white'}`}>
+                            {kpiMetrics.expiredDocCount + kpiMetrics.criticalDocCount}
+                        </h3>
+                        <span className="text-[11px] text-slate-400">evrak alarmı</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                        {kpiMetrics.expiredDocCount} Süresi Dolan · {kpiMetrics.criticalDocCount} Kritik (≤30 Gün)
+                    </p>
+                </div>
+
+                {/* 4. Yaklaşan SGK & Maaş Yükü */}
+                <div
+                    onClick={() => setActiveSubTab('payments')}
+                    className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-white/[0.06] p-2.5 sm:p-3.5 bg-[#0a0d14] flex flex-col justify-center cursor-pointer hover:border-amber-500/30 transition-colors"
+                >
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] sm:text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+                            <Calendar size={13} className="text-sky-400" />
+                            <span>SGK Prim Vadesi</span>
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-400 font-mono">
+                            {kpiMetrics.sgkDueDateInfo.daysRemaining} Gün Kaldı
+                        </span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                        <h3 className="text-base sm:text-xl font-bold text-white font-mono tracking-tight">
+                            ₺{kpiMetrics.totalNetSalary.toLocaleString('tr-TR')}
+                        </h3>
+                        <span className="text-[11px] text-slate-400">bordro</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                        Son Ödeme: {kpiMetrics.sgkDueDateInfo.dateFormatted}
+                    </p>
+                </div>
+            </div>
+
+            {/* ── 3. ALT SEKME İÇERİKLERİ ── */}
+
+            {/* ═════════════ SUB-TAB 1: ÖZLÜK & REHBER (MASTER-DETAIL) ═════════════ */}
+            {activeSubTab === 'directory' && (
+                <div className="flex-1 flex flex-col md:flex-row gap-3 min-h-0 overflow-hidden">
+                    
+                    {/* SOL PANEL: Personel Listesi (Master - Mobilde 'list' görünümünde tam ekran) */}
+                    <div className={`w-full md:w-[360px] xl:w-[400px] flex flex-col gap-2 shrink-0 h-full ${mobileView === 'detail' ? 'hidden md:flex' : 'flex'}`}>
+                        {/* Arama ve Filtre Çubuğu */}
+                        <div className="p-2.5 rounded-xl bg-[#0a0d14] border border-white/[0.06] flex flex-col gap-2 shrink-0">
+                            <div className="relative">
+                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                                <input
+                                    type="text"
+                                    value={directorySearch}
+                                    onChange={(e) => setDirectorySearch(e.target.value)}
+                                    placeholder="İsim, T.C., telefon veya plaka ile ara..."
+                                    className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/40 transition-colors"
+                                />
+                                {directorySearch && (
+                                    <button onClick={() => setDirectorySearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
+                                        <X size={12} />
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Departman ve Durum Filtre Hapları */}
+                            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar">
+                                {[
+                                    { id: 'active', label: 'Aktif' },
+                                    { id: 'all', label: 'Tümü' },
+                                    { id: 'on_leave', label: 'İzinde' },
+                                    { id: 'terminated', label: 'Ayrılanlar' }
+                                ].map(f => (
+                                    <button
+                                        key={f.id}
+                                        onClick={() => setStatusFilter(f.id)}
+                                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                                            statusFilter === f.id ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-white/5 text-slate-400 hover:text-white border border-transparent'
+                                        }`}
+                                    >
+                                        {f.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Personel Kart Listesi */}
+                        <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar min-h-0">
+                            {filteredPersonnelList.length > 0 ? (
+                                filteredPersonnelList.map((person) => {
+                                    const isSelected = selectedPersonnelId === person.id;
+                                    const roleObj = ROLE_OPTIONS.find(r => r.value === person.role);
+                                    const statusObj = STATUS_OPTIONS.find(s => s.value === person.employmentStatus);
+                                    
+                                    // Evrak Sağlık Durumu (Ehliyet, SRC vb.)
+                                    const docDates = [person.licenseExpiry, person.srcExpiry, person.psikoteknikExpiry, person.tachographExpiry];
+                                    const statuses = docDates.filter(Boolean).map(d => getDocumentStatus(d).status);
+                                    const hasExpired = statuses.includes('expired');
+                                    const hasCritical = statuses.includes('critical');
+
+                                    return (
+                                        <div
+                                            key={person.id}
+                                            onClick={() => {
+                                                setSelectedPersonnelId(person.id);
+                                                setMobileView('detail');
+                                            }}
+                                            className={`p-3 rounded-xl border transition-all cursor-pointer relative group ${
+                                                isSelected
+                                                    ? 'bg-[#121622] border-amber-500/40 shadow-lg shadow-black/40'
+                                                    : 'bg-[#0a0d14] border-white/[0.06] hover:bg-white/[0.03] hover:border-white/10'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                {/* Avatar */}
+                                                <div className="relative shrink-0">
+                                                    {person.avatarUrl ? (
+                                                        <img
+                                                            src={person.avatarUrl}
+                                                            alt={person.fullName}
+                                                            className="w-11 h-11 rounded-xl object-cover border border-white/10"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 border border-white/10 flex items-center justify-center font-bold text-sm text-amber-300">
+                                                            {person.fullName ? person.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : 'P'}
+                                                        </div>
+                                                    )}
+                                                    {/* Evrak Sağlık Işığı */}
+                                                    <span
+                                                        className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0a0d14] ${
+                                                            hasExpired ? 'bg-red-500' : hasCritical ? 'bg-amber-400' : 'bg-emerald-500'
+                                                        }`}
+                                                        title={hasExpired ? 'Süresi dolmuş evrak var' : hasCritical ? '30 gün içinde dolacak evrak var' : 'Tüm evraklar geçerli'}
+                                                    />
+                                                </div>
+
+                                                {/* Bilgiler */}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center justify-between gap-1">
+                                                        <h4 className={`text-sm font-bold truncate ${isSelected ? 'text-amber-300' : 'text-white group-hover:text-amber-300'} transition-colors`}>
+                                                            {person.fullName}
+                                                        </h4>
+                                                        {person.assignedTruckPlate && (
+                                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-slate-300 font-mono font-semibold shrink-0">
+                                                                {person.assignedTruckPlate}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className="text-[11px] text-slate-400 truncate">
+                                                            {roleObj?.label || 'Personel'}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400 font-mono">
+                                                        <span>Kıdem: {calculateSeniority(person.hireDate, person.leaveDate)}</span>
+                                                        <span className={`px-1.5 py-0.2 rounded ${statusObj?.badgeClass || 'text-slate-400 bg-white/5'}`}>
+                                                            {statusObj?.label || 'Aktif'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div className="p-8 text-center rounded-xl bg-[#0a0d14] border border-white/[0.06] text-slate-500 flex flex-col items-center justify-center gap-2">
+                                    <Users size={28} className="text-slate-600" />
+                                    <p className="text-xs">Kayıtlı personel bulunamadı.</p>
+                                    <button
+                                        onClick={openAddPersonnelModal}
+                                        className="mt-2 text-xs text-amber-400 hover:underline font-semibold"
+                                    >
+                                        + Yeni Personel Ekle
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* SAĞ PANEL: Seçili Personelin Dijital Özlük Dosyası (Detail) */}
+                    <div className={`flex-1 flex flex-col rounded-2xl bg-[#0a0d14] border border-white/[0.06] overflow-hidden min-h-0 ${mobileView === 'list' ? 'hidden md:flex' : 'flex'}`}>
+                        {selectedPersonnel ? (
+                            <div className="flex-1 flex flex-col overflow-y-auto custom-scrollbar p-3 sm:p-5 lg:p-6 gap-4 sm:gap-5">
+                                
+                                {/* Üst Bar: Mobilde Geri Butonu + Aksiyonlar */}
+                                <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setMobileView('list')}
+                                            className="md:hidden flex items-center gap-1 text-xs text-slate-400 hover:text-white px-2 py-1 rounded-lg bg-white/5 cursor-pointer"
+                                        >
+                                            <ChevronLeft size={16} />
+                                            <span>Personel Listesi</span>
+                                        </button>
+                                        <span className="text-xs text-slate-500 font-mono hidden md:inline">
+                                            Özlük Dosyası: {selectedPersonnel.tcNo || '—'}
+                                        </span>
+                                    </div>
+
+                                    {/* Sağ Aksiyon Butonları */}
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => openEditPersonnelModal(selectedPersonnel)}
+                                            className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white text-xs font-semibold flex items-center gap-1.5 border border-white/10 transition-colors cursor-pointer"
+                                        >
+                                            <Edit3 size={13} className="text-amber-400" />
+                                            <span>Düzenle</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setAdvancePersonnelId(selectedPersonnel.id);
+                                                setIsAdvanceModalOpen(true);
+                                            }}
+                                            className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white text-xs font-semibold flex items-center gap-1.5 border border-white/10 transition-colors cursor-pointer"
+                                        >
+                                            <CreditCard size={13} className="text-sky-400" />
+                                            <span>Avans Ver</span>
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeletePersonnel(selectedPersonnel)}
+                                            className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors cursor-pointer"
+                                            title="Personeli Sil"
+                                        >
+                                            <Trash2 size={15} />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Profil Başlık Kartı */}
+                                <div className="p-4 sm:p-5 rounded-xl bg-gradient-to-br from-[#0f131d] to-[#0a0d14] border border-white/[0.08] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                    <div className="flex items-center gap-4">
+                                        {/* Avatar & Yükleme Tetikleyici */}
+                                        <div className="relative group">
+                                            {selectedPersonnel.avatarUrl ? (
+                                                <img
+                                                    src={selectedPersonnel.avatarUrl}
+                                                    alt={selectedPersonnel.fullName}
+                                                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-white/10"
+                                                />
+                                            ) : (
+                                                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 border-2 border-white/10 flex items-center justify-center font-bold text-xl sm:text-2xl text-amber-300">
+                                                    {selectedPersonnel.fullName ? selectedPersonnel.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : 'P'}
+                                                </div>
+                                            )}
+                                            <label className="absolute inset-0 bg-black/60 rounded-2xl opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white text-[10px] cursor-pointer transition-opacity">
+                                                <UploadCloud size={16} />
+                                                <span>Değiştir</span>
+                                                <input type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
+                                            </label>
+                                        </div>
+
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-base sm:text-xl font-bold text-white tracking-tight">
+                                                    {selectedPersonnel.fullName}
+                                                </h3>
+                                                {selectedPersonnel.bloodType && (
+                                                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-500/15 text-red-400 border border-red-500/25">
+                                                        {selectedPersonnel.bloodType}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                                                <span>{ROLE_OPTIONS.find(r => r.value === selectedPersonnel.role)?.label || 'Personel'}</span>
+                                                <span className="text-slate-600">·</span>
+                                                <span className="text-slate-300 font-mono">İşe Giriş: {selectedPersonnel.hireDate ? new Date(selectedPersonnel.hireDate).toLocaleDateString('tr-TR') : '—'}</span>
+                                                <span className="text-slate-600">·</span>
+                                                <span className="text-amber-400 font-semibold font-mono">Kıdem: {calculateSeniority(selectedPersonnel.hireDate, selectedPersonnel.leaveDate)}</span>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 mt-1">
+                                                {selectedPersonnel.phone && (
+                                                    <a
+                                                        href={`tel:${selectedPersonnel.phone}`}
+                                                        className="px-2 py-1 rounded-md bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs flex items-center gap-1 border border-white/10 transition-colors"
+                                                    >
+                                                        <Phone size={11} className="text-emerald-400" />
+                                                        <span>{selectedPersonnel.phone}</span>
+                                                    </a>
+                                                )}
+                                                {selectedPersonnel.phone && (
+                                                    <a
+                                                        href={`https://wa.me/${selectedPersonnel.phone.replace(/[^0-9]/g, '')}`}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="px-2 py-1 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs flex items-center gap-1 border border-emerald-500/20 transition-colors"
+                                                    >
+                                                        <span>WhatsApp</span>
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Atanmış Filo Özeti */}
+                                    <div className="flex flex-col sm:items-end gap-1.5 text-xs text-slate-400 font-mono">
+                                        <div className="flex items-center gap-2">
+                                            <Truck size={14} className="text-amber-400" />
+                                            <span className="text-slate-500">Çekici:</span>
+                                            <span className="text-white font-bold">{selectedPersonnel.assignedTruckPlate || 'Atanmadı'}</span>
+                                        </div>
+                                        {selectedPersonnel.assignedTrailerPlate && (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-slate-500">Dorse:</span>
+                                                <span className="text-slate-300">{selectedPersonnel.assignedTrailerPlate}</span>
+                                            </div>
+                                        )}
+                                        <div className="flex items-center gap-2">
+                                            <DollarSign size={14} className="text-emerald-400" />
+                                            <span className="text-slate-500">Net Maaş:</span>
+                                            <span className="text-emerald-400 font-bold">
+                                                {selectedPersonnel.baseSalary ? `₺${Number(selectedPersonnel.baseSalary).toLocaleString('tr-TR')}` : '—'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ── BÖLÜM 1: SÜRÜCÜ YASAL EVRAK RADARI ── */}
+                                <div className="space-y-2.5">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                                            <Shield size={14} className="text-amber-400" />
+                                            <span>Sürücü Yasal Evrak Radarı</span>
+                                        </h4>
+                                        <span className="text-[11px] text-slate-500">Ağır Vasıta Uygunluk Matrisi</span>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                                        {/* Ehliyet */}
+                                        {(() => {
+                                            const st = getDocumentStatus(selectedPersonnel.licenseExpiry);
+                                            return (
+                                                <div className="p-3 rounded-xl bg-[#0f131d] border border-white/[0.06] flex flex-col justify-between gap-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                                            <Award size={13} className="text-amber-400" />
+                                                            <span>Sürücü Belgesi</span>
+                                                        </span>
+                                                        <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold border ${st.badgeClass}`}>
+                                                            {st.label}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[11px] text-slate-400">
+                                                        Sınıflar: <span className="text-white font-semibold">{selectedPersonnel.licenseClasses?.join(', ') || 'CE'}</span>
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 font-mono">
+                                                        Geçerlilik: {selectedPersonnel.licenseExpiry ? new Date(selectedPersonnel.licenseExpiry).toLocaleDateString('tr-TR') : 'Belirtilmedi'}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* SRC */}
+                                        {(() => {
+                                            const st = getDocumentStatus(selectedPersonnel.srcExpiry);
+                                            return (
+                                                <div className="p-3 rounded-xl bg-[#0f131d] border border-white/[0.06] flex flex-col justify-between gap-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                                            <FileCheck size={13} className="text-amber-400" />
+                                                            <span>SRC Belgesi</span>
+                                                        </span>
+                                                        <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold border ${st.badgeClass}`}>
+                                                            {st.label}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[11px] text-slate-400 truncate">
+                                                        Tür: <span className="text-white font-semibold">{selectedPersonnel.srcTypes?.join(', ') || 'SRC 3, 4'}</span>
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 font-mono">
+                                                        Geçerlilik: {selectedPersonnel.srcExpiry ? new Date(selectedPersonnel.srcExpiry).toLocaleDateString('tr-TR') : 'Belirtilmedi'}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* Psikoteknik */}
+                                        {(() => {
+                                            const st = getDocumentStatus(selectedPersonnel.psikoteknikExpiry);
+                                            return (
+                                                <div className="p-3 rounded-xl bg-[#0f131d] border border-white/[0.06] flex flex-col justify-between gap-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                                            <HeartPulse size={13} className="text-amber-400" />
+                                                            <span>Psikoteknik</span>
+                                                        </span>
+                                                        <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold border ${st.badgeClass}`}>
+                                                            {st.label}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[11px] text-slate-400">
+                                                        Sağlık & Refleks Testi
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 font-mono">
+                                                        Geçerlilik: {selectedPersonnel.psikoteknikExpiry ? new Date(selectedPersonnel.psikoteknikExpiry).toLocaleDateString('tr-TR') : 'Belirtilmedi'}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* Dijital Takograf Kartı */}
+                                        {(() => {
+                                            const st = getDocumentStatus(selectedPersonnel.tachographExpiry);
+                                            return (
+                                                <div className="p-3 rounded-xl bg-[#0f131d] border border-white/[0.06] flex flex-col justify-between gap-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                                                            <CreditCard size={13} className="text-amber-400" />
+                                                            <span>Takograf Kartı</span>
+                                                        </span>
+                                                        <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold border ${st.badgeClass}`}>
+                                                            {st.label}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[11px] text-slate-400 font-mono truncate">
+                                                        Kart: {selectedPersonnel.tachographCardNo || '—'}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 font-mono">
+                                                        Geçerlilik: {selectedPersonnel.tachographExpiry ? new Date(selectedPersonnel.tachographExpiry).toLocaleDateString('tr-TR') : 'Belirtilmedi'}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+
+                                {/* ── BÖLÜM 2: SGK, FİNANS VE İLETİŞİM BİLGİLERİ ── */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {/* SGK & Finans */}
+                                    <div className="p-4 rounded-xl bg-[#0f131d] border border-white/[0.06] flex flex-col gap-3">
+                                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                            <Briefcase size={14} className="text-amber-400" />
+                                            <span>SGK & Bordro Bilgileri</span>
+                                        </h4>
+
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                                                <span className="text-[10px] text-slate-500 block">SGK Sicil No</span>
+                                                <span className="font-mono text-white font-semibold">{selectedPersonnel.sgkNo || '—'}</span>
+                                            </div>
+                                            <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                                                <span className="text-[10px] text-slate-500 block">Meslek Kodu</span>
+                                                <span className="font-mono text-white font-semibold">{selectedPersonnel.sgkOccupationCode || '8332.01'}</span>
+                                            </div>
+                                            <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                                                <span className="text-[10px] text-slate-500 block">Aylık Net Maaş</span>
+                                                <span className="font-mono text-emerald-400 font-bold">
+                                                    {selectedPersonnel.baseSalary ? `₺${Number(selectedPersonnel.baseSalary).toLocaleString('tr-TR')}` : '—'}
+                                                </span>
+                                            </div>
+                                            <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                                                <span className="text-[10px] text-slate-500 block">Maaş Ödeme Günü</span>
+                                                <span className="font-mono text-white font-semibold">Her ayın {selectedPersonnel.salaryDay || '5'}. günü</span>
+                                            </div>
+                                        </div>
+
+                                        {/* IBAN Bilgisi */}
+                                        <div className="p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04] flex items-center justify-between gap-2">
+                                            <div className="min-w-0">
+                                                <span className="text-[10px] text-slate-500 block">Banka & IBAN</span>
+                                                <p className="font-mono text-xs text-white truncate">
+                                                    {selectedPersonnel.iban ? `${selectedPersonnel.bankName ? selectedPersonnel.bankName + ' - ' : ''}${selectedPersonnel.iban}` : 'IBAN Girilmedi'}
+                                                </p>
+                                            </div>
+                                            {selectedPersonnel.iban && (
+                                                <button
+                                                    onClick={() => handleCopy(selectedPersonnel.iban, 'iban')}
+                                                    className="p-1.5 rounded-md bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0"
+                                                    title="IBAN Kopyala"
+                                                >
+                                                    {copiedField === 'iban' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Kimlik & Acil Durum */}
+                                    <div className="p-4 rounded-xl bg-[#0f131d] border border-white/[0.06] flex flex-col gap-3">
+                                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                            <Phone size={14} className="text-amber-400" />
+                                            <span>Kimlik & Acil Durum İletişimi</span>
+                                        </h4>
+
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                                                <span className="text-[10px] text-slate-500 block">T.C. Kimlik No</span>
+                                                <span className="font-mono text-white font-semibold">{selectedPersonnel.tcNo || '—'}</span>
+                                            </div>
+                                            <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                                                <span className="text-[10px] text-slate-500 block">Doğum Tarihi</span>
+                                                <span className="font-mono text-white font-semibold">
+                                                    {selectedPersonnel.birthDate ? new Date(selectedPersonnel.birthDate).toLocaleDateString('tr-TR') : '—'}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                                            <span className="text-[10px] text-slate-500 block">İkametgah Adresi</span>
+                                            <p className="text-xs text-slate-300 mt-0.5">{selectedPersonnel.address || 'Adres bilgisi girilmedi.'}</p>
+                                        </div>
+
+                                        <div className="p-2.5 rounded-lg bg-red-500/5 border border-red-500/15 flex items-center justify-between">
+                                            <div>
+                                                <span className="text-[10px] text-red-400/80 block">Acil Durum Yakını</span>
+                                                <span className="text-xs font-semibold text-white">
+                                                    {selectedPersonnel.emergencyContact?.name || '—'}
+                                                    {selectedPersonnel.emergencyContact?.relation ? ` (${selectedPersonnel.emergencyContact.relation})` : ''}
+                                                </span>
+                                            </div>
+                                            {selectedPersonnel.emergencyContact?.phone && (
+                                                <a
+                                                    href={`tel:${selectedPersonnel.emergencyContact.phone}`}
+                                                    className="px-2.5 py-1 rounded-md bg-red-500/20 text-red-300 hover:text-white text-xs flex items-center gap-1 font-mono transition-colors"
+                                                >
+                                                    <Phone size={11} />
+                                                    <span>{selectedPersonnel.emergencyContact.phone}</span>
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ── BÖLÜM 3: DİJİTAL ÖZLÜK ARŞİVİ (PDF & FOTOĞRAFLAR) ── */}
+                                <div className="p-4 rounded-xl bg-[#0f131d] border border-white/[0.06] flex flex-col gap-3">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                            <Paperclip size={14} className="text-amber-400" />
+                                            <span>Dijital Özlük Arşivi & Belgeler</span>
+                                        </h4>
+                                        <button
+                                            onClick={() => openEditPersonnelModal(selectedPersonnel)}
+                                            className="text-xs text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                                        >
+                                            <Plus size={12} /> Belge Yükle
+                                        </button>
+                                    </div>
+
+                                    {(selectedPersonnel.documents || []).length > 0 ? (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                            {(selectedPersonnel.documents || []).map((docItem, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    className="p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.06] hover:border-amber-500/30 flex items-center justify-between gap-2 group transition-colors"
+                                                >
+                                                    <div className="flex items-center gap-2.5 min-w-0">
+                                                        <FileText size={16} className="text-amber-400 shrink-0" />
+                                                        <div className="min-w-0">
+                                                            <p className="text-xs font-semibold text-white truncate">{docItem.name || 'Belge'}</p>
+                                                            <span className="text-[10px] text-slate-500 block">
+                                                                {docItem.uploadedAt ? new Date(docItem.uploadedAt).toLocaleDateString('tr-TR') : 'Ekli Belge'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        <button
+                                                            onClick={() => setPreviewDoc(docItem)}
+                                                            className="p-1 rounded text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                                                            title="İncele"
+                                                        >
+                                                            <Eye size={13} />
+                                                        </button>
+                                                        <a
+                                                            href={docItem.url || docItem.data}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="p-1 rounded text-slate-400 hover:text-amber-400 hover:bg-white/10 transition-colors cursor-pointer"
+                                                            title="Yeni Sekmede Aç"
+                                                        >
+                                                            <ExternalLink size={13} />
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="py-6 text-center text-slate-500 text-xs border border-dashed border-white/10 rounded-lg">
+                                            Bu personele ait yüklenmiş dijital özlük belgesi bulunmuyor.
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ── BÖLÜM 4: ÖZEL NOTLAR & OPERASYON DEFTİRİ ── */}
+                                <div className="p-4 rounded-xl bg-[#0f131d] border border-white/[0.06] flex flex-col gap-3">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                            <StickyNote size={14} className="text-amber-400" />
+                                            <span>Özel Notlar & Zimmet Defteri</span>
+                                        </h4>
+                                        <span className="text-[11px] text-slate-500">{(selectedPersonnel.notes || []).length} Not</span>
+                                    </div>
+
+                                    {/* Hızlı Not Ekleme */}
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={newNoteText}
+                                            onChange={(e) => setNewNoteText(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleAddNoteToPersonnel()}
+                                            placeholder="Bu personele özel operasyonel not veya zimmet açıklaması yazın..."
+                                            className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/40 transition-colors"
+                                        />
+                                        <button
+                                            onClick={handleAddNoteToPersonnel}
+                                            className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs transition-colors cursor-pointer shrink-0"
+                                        >
+                                            Ekle
+                                        </button>
+                                    </div>
+
+                                    {/* Notlar Listesi */}
+                                    {(selectedPersonnel.notes || []).length > 0 && (
+                                        <div className="space-y-2 mt-1">
+                                            {(selectedPersonnel.notes || []).map((n) => (
+                                                <div
+                                                    key={n.id}
+                                                    className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04] flex items-start justify-between gap-3 group"
+                                                >
+                                                    <div className="flex-1">
+                                                        <p className="text-xs text-slate-200">{n.text}</p>
+                                                        <span className="text-[10px] text-slate-500 font-mono mt-1 block">
+                                                            {n.createdAt ? new Date(n.createdAt).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleDeletePersonnelNote(n.id)}
+                                                        className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1 cursor-pointer"
+                                                        title="Notu Sil"
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ── BÖLÜM 5: BU SÜRÜCÜYE AİT SEFER PRİM HAK EDİŞLERİ ── */}
+                                {personnelPayoutHistory.length > 0 && (
+                                    <div className="p-4 rounded-xl bg-[#0f131d] border border-white/[0.06] flex flex-col gap-3">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                                <CreditCard size={14} className="text-amber-400" />
+                                                <span>Ödenen Prim Hak Edişleri Geçmişi</span>
+                                            </h4>
+                                            <button
+                                                onClick={() => setActiveSubTab('payouts')}
+                                                className="text-xs text-amber-400 hover:underline flex items-center gap-1"
+                                            >
+                                                <span>Hak Ediş Modülü</span>
+                                                <ArrowUpRight size={12} />
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                            {personnelPayoutHistory.map((po) => (
+                                                <div
+                                                    key={po.id}
+                                                    onClick={() => {
+                                                        handleViewPayout(po);
+                                                        setActiveSubTab('payouts');
+                                                    }}
+                                                    className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04] hover:border-amber-500/30 cursor-pointer flex items-center justify-between transition-colors"
+                                                >
+                                                    <div>
+                                                        <span className="text-xs font-bold text-amber-400 block font-mono">{po.docId || 'HAK EDİŞ'}</span>
+                                                        <span className="text-[10px] text-slate-400">
+                                                            {po.trips?.length || 0} Sefer · {po.totalTonnage?.toFixed(1)} Ton
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-right font-mono">
+                                                        <span className="text-xs font-bold text-white block">
+                                                            ₺{po.grandTotal?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-500">{new Date(po.endDate).toLocaleDateString('tr-TR')}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-500 gap-3">
+                                <Users size={40} className="text-slate-700" />
+                                <h4 className="text-sm font-semibold text-slate-300">İncelenecek Personel Seçilmedi</h4>
+                                <p className="text-xs max-w-sm">
+                                    Sol listeden bir personelin üzerine tıklayarak özlük dosyasını, sürücü evrak durumunu ve ödeme geçmişini görüntüleyebilirsiniz.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* ═════════════ SUB-TAB 2: EVRAK RADARI (FİLO YASAL MATRİSİ) ═════════════ */}
+            {activeSubTab === 'radar' && (
+                <div className="flex-1 flex flex-col rounded-2xl bg-[#0a0d14] border border-white/[0.06] p-3 sm:p-5 gap-3 overflow-hidden min-h-0">
+                    {/* Üst Filtre Barı */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.06] shrink-0">
+                        <div className="relative w-full sm:w-72">
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                            <input
+                                type="text"
+                                value={radarSearch}
+                                onChange={(e) => setRadarSearch(e.target.value)}
+                                placeholder="Sürücü veya plaka ara..."
+                                className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/40 transition-colors"
+                            />
+                        </div>
+
+                        {/* Aciliyet Filtreleri */}
+                        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+                            {[
+                                { id: 'all', label: 'Tüm Sürücüler' },
+                                { id: 'expired', label: 'Süresi Bitenler', count: kpiMetrics.expiredDocCount, color: 'text-red-400 bg-red-500/10 border-red-500/30' },
+                                { id: 'critical', label: '30 Gün Kalanlar', count: kpiMetrics.criticalDocCount, color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' },
+                                { id: 'approaching', label: '90 Gün Kalanlar' },
+                            ].map(f => (
+                                <button
+                                    key={f.id}
+                                    onClick={() => setRadarFilter(f.id)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 cursor-pointer ${
+                                        radarFilter === f.id
+                                            ? (f.color || 'bg-amber-500/20 text-amber-400 border border-amber-500/30')
+                                            : 'bg-white/5 text-slate-400 hover:text-white border border-transparent'
+                                    }`}
+                                >
+                                    <span>{f.label}</span>
+                                    {f.count > 0 && (
+                                        <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-white/10 font-mono">
+                                            {f.count}
+                                        </span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Radar Tablosu / Kart Matrisi */}
+                    <div className="flex-1 overflow-y-auto space-y-2.5 custom-scrollbar min-h-0 pr-1">
+                        {radarDriversList.length > 0 ? (
+                            radarDriversList.map((driver) => {
+                                const licSt = getDocumentStatus(driver.licenseExpiry);
+                                const srcSt = getDocumentStatus(driver.srcExpiry);
+                                const psiSt = getDocumentStatus(driver.psikoteknikExpiry);
+                                const takoSt = getDocumentStatus(driver.tachographExpiry);
+
+                                return (
+                                    <div
+                                        key={driver.id}
+                                        className="p-3.5 sm:p-4 rounded-xl bg-[#0f131d] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3"
+                                    >
+                                        {/* Sürücü & Araç */}
+                                        <div className="flex items-center gap-3 min-w-[200px]">
+                                            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-bold text-amber-300 text-xs shrink-0">
+                                                {driver.fullName ? driver.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : 'S'}
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-bold text-white truncate">{driver.fullName}</h4>
+                                                <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
+                                                    <Truck size={12} className="text-amber-400" />
+                                                    {driver.assignedTruckPlate || 'Araç Zimmeti Yok'}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* 4 Ana Evrak Kolonu */}
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1 w-full lg:w-auto">
+                                            {/* Ehliyet */}
+                                            <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between">
+                                                <span className="text-[10px] text-slate-400 block font-semibold">Ehliyet ({driver.licenseClasses?.join(',') || 'CE'})</span>
+                                                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border mt-1 text-center ${licSt.badgeClass}`}>
+                                                    {licSt.label}
+                                                </span>
+                                            </div>
+
+                                            {/* SRC */}
+                                            <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between">
+                                                <span className="text-[10px] text-slate-400 block font-semibold truncate">SRC Belgesi</span>
+                                                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border mt-1 text-center ${srcSt.badgeClass}`}>
+                                                    {srcSt.label}
+                                                </span>
+                                            </div>
+
+                                            {/* Psikoteknik */}
+                                            <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between">
+                                                <span className="text-[10px] text-slate-400 block font-semibold">Psikoteknik</span>
+                                                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border mt-1 text-center ${psiSt.badgeClass}`}>
+                                                    {psiSt.label}
+                                                </span>
+                                            </div>
+
+                                            {/* Takograf */}
+                                            <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between">
+                                                <span className="text-[10px] text-slate-400 block font-semibold truncate">Takograf Kartı</span>
+                                                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border mt-1 text-center ${takoSt.badgeClass}`}>
+                                                    {takoSt.label}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Aksiyon */}
+                                        <div className="flex items-center gap-2 self-end lg:self-center shrink-0">
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedPersonnelId(driver.id);
+                                                    setActiveSubTab('directory');
+                                                    setMobileView('detail');
+                                                }}
+                                                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                                            >
+                                                <span>Özlük Dosyası</span>
+                                                <ChevronRight size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div className="py-12 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-2">
+                                <ShieldAlert size={32} className="text-slate-600" />
+                                <p>Filtreye uygun sürücü evrak kaydı bulunamadı.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* ═════════════ SUB-TAB 3: ÖDEME & SGK TAKVİMİ ═════════════ */}
+            {activeSubTab === 'payments' && (
+                <div className="flex-1 flex flex-col lg:flex-row gap-3 min-h-0 overflow-hidden">
+                    
+                    {/* Sol Sütun: SGK Prim Vadesi & Maaş Takvimi */}
+                    <div className="w-full lg:w-1/2 flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-0.5">
+                        {/* SGK Prim Vadesi Paneli */}
+                        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-[#0f131d] to-[#0a0d14] border border-white/[0.08] flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Calendar size={16} className="text-sky-400" />
+                                    <h3 className="text-sm sm:text-base font-bold text-white">Yasal SGK Prim Vadesi</h3>
+                                </div>
+                                <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 font-bold border border-sky-500/20">
+                                    {kpiMetrics.sgkDueDateInfo.daysRemaining} Gün Kaldı
+                                </span>
+                            </div>
+
+                            <p className="text-xs text-slate-400">
+                                Kanuni mevzuat uyarınca her ayın SGK prim bildirimi ve ödemesi, takip eden ayın son günü mesai bitimine kadar gerçekleştirilir.
+                            </p>
+
+                            <div className="grid grid-cols-2 gap-2 mt-1">
+                                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+                                    <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Son Ödeme Günü</span>
+                                    <span className="text-sm font-bold text-white font-mono">{kpiMetrics.sgkDueDateInfo.dateFormatted}</span>
+                                </div>
+                                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+                                    <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Aktif Sigortalı</span>
+                                    <span className="text-sm font-bold text-emerald-400 font-mono">{kpiMetrics.activeEmployees} Personel</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Personel Maaş Günleri Tablosu */}
+                        <div className="p-4 rounded-2xl bg-[#0a0d14] border border-white/[0.06] flex-1 flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                    <DollarSign size={14} className="text-emerald-400" />
+                                    <span>Aylık Personel Maaş Listesi</span>
+                                </h4>
+                                <span className="text-xs font-mono font-bold text-white">
+                                    Toplam: ₺{kpiMetrics.totalNetSalary.toLocaleString('tr-TR')}
+                                </span>
+                            </div>
+
+                            <div className="space-y-2 overflow-y-auto max-h-[340px] custom-scrollbar pr-0.5">
+                                {(personnelList || []).filter(p => p.employmentStatus === 'active').map(p => (
+                                    <div
+                                        key={p.id}
+                                        className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04] flex items-center justify-between gap-2"
+                                    >
+                                        <div className="min-w-0">
+                                            <h5 className="text-xs font-bold text-white truncate">{p.fullName}</h5>
+                                            <span className="text-[10px] text-slate-400 font-mono">
+                                                Her ayın {p.salaryDay || '5'}. günü
+                                            </span>
+                                        </div>
+                                        <div className="text-right font-mono shrink-0">
+                                            <span className="text-xs font-bold text-emerald-400 block">
+                                                ₺{(Number(p.baseSalary) || 0).toLocaleString('tr-TR')}
+                                            </span>
+                                            <span className="text-[10px] text-slate-500">{p.bankName || 'Banka'}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Sağ Sütun: Avans Defteri */}
+                    <div className="w-full lg:w-1/2 p-4 sm:p-5 rounded-2xl bg-[#0a0d14] border border-white/[0.06] flex flex-col gap-3 min-h-0">
+                        <div className="flex items-center justify-between pb-2 border-b border-white/[0.06] shrink-0">
+                            <div className="flex items-center gap-2">
+                                <CreditCard size={16} className="text-amber-400" />
+                                <h3 className="text-sm sm:text-base font-bold text-white">Verilen Avanslar</h3>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setAdvancePersonnelId(selectedPersonnelId || (personnelList[0]?.id || ''));
+                                    setIsAdvanceModalOpen(true);
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                            >
+                                <Plus size={13} />
+                                <span>Yeni Avans Kaydı</span>
+                            </button>
+                        </div>
+
+                        {/* Avanslar Listesi */}
+                        <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar min-h-0 pr-1">
+                            {(() => {
+                                // Tüm personellerin avanslarını topla ve tarihe göre sırala
+                                const allAdvances = [];
+                                (personnelList || []).forEach(p => {
+                                    (p.advances || []).forEach(adv => {
+                                        allAdvances.push({ ...adv, person: p });
+                                    });
+                                });
+                                allAdvances.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+                                if (allAdvances.length === 0) {
+                                    return (
+                                        <div className="py-12 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-2">
+                                            <CreditCard size={32} className="text-slate-600" />
+                                            <p>Henüz kayıtlı avans bulunmuyor.</p>
+                                        </div>
+                                    );
+                                }
+
+                                return allAdvances.map((adv) => (
+                                    <div
+                                        key={adv.id}
+                                        className="p-3 rounded-xl bg-[#0f131d] border border-white/[0.06] flex items-center justify-between gap-3 group"
+                                    >
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <h5 className="text-xs font-bold text-white truncate">{adv.person?.fullName}</h5>
+                                                <span className={`text-[10px] px-2 py-0.2 rounded font-mono ${
+                                                    adv.isDeducted ? 'text-emerald-400 bg-emerald-500/10' : 'text-amber-400 bg-amber-500/10'
+                                                }`}>
+                                                    {adv.isDeducted ? 'Maaştan Düşüldü' : 'Mahsup Bekliyor'}
+                                                </span>
+                                            </div>
+                                            <p className="text-[11px] text-slate-400 mt-0.5 truncate">{adv.description || 'Avans'}</p>
+                                            <span className="text-[10px] text-slate-500 font-mono">{adv.date ? new Date(adv.date).toLocaleDateString('tr-TR') : '—'}</span>
+                                        </div>
+
+                                        <div className="flex items-center gap-3 shrink-0">
+                                            <span className="text-sm font-bold text-white font-mono">
+                                                ₺{Number(adv.amount).toLocaleString('tr-TR')}
+                                            </span>
+                                            <button
+                                                onClick={() => handleToggleAdvanceDeducted(adv.person, adv.id)}
+                                                className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                                    adv.isDeducted ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' : 'border-white/10 text-slate-400 hover:text-white'
+                                                }`}
+                                                title={adv.isDeducted ? 'Mahsup edildi (Geri al)' : 'Maaştan mahsup et'}
+                                            >
+                                                <CheckCircle2 size={14} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteAdvance(adv.person, adv.id)}
+                                                className="text-slate-600 hover:text-red-400 p-1 transition-colors cursor-pointer"
+                                                title="Sil"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ));
+                            })()}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═════════════ SUB-TAB 4: PRİM HAK EDİŞİ (MEVCUT A4 SİSTEMİ) ═════════════ */}
+            {activeSubTab === 'payouts' && (
+                <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-0 overflow-hidden">
+                    
+                    {/* Sol Panel: Hak Ediş Dönemleri ve Geçmiş Ödemeler */}
+                    <div className="w-full lg:w-[45%] xl:w-[40%] flex flex-col gap-3 lg:overflow-y-auto custom-scrollbar lg:pr-2">
+                        
+                        {/* Yeni Dönem Seçimi Butonu & Taslak Kartı */}
+                        <div className="p-3.5 rounded-2xl bg-[#0a0d14] border border-white/[0.06] flex flex-col gap-3 shrink-0">
+                            <motion.button
+                                whileHover={{ scale: 1.01 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => setIsPeriodModalOpen(true)}
+                                className="w-full bg-amber-500 hover:bg-amber-400 text-black font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/20 text-xs sm:text-sm cursor-pointer"
+                            >
+                                <PlusCircle size={17} />
+                                <span>Yeni Hak Ediş Dönemi Seç</span>
+                            </motion.button>
+
+                            {/* Aktif Taslak Durumu */}
+                            <AnimatePresence>
+                                {activePayoutState && activePayoutState.status === 'Draft' && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="overflow-hidden"
+                                    >
+                                        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl relative">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <h4 className="flex items-center text-amber-400 font-bold text-xs">
+                                                    <Clock size={13} className="mr-1.5" />
+                                                    Hak Ediş Taslağı Hazır
+                                                </h4>
+                                                <button
+                                                    onClick={() => setShowCancelConfirm(true)}
+                                                    className="text-[10px] bg-red-500/10 px-2 py-0.5 rounded text-red-400 hover:bg-red-500/20 transition-colors cursor-pointer"
+                                                >
+                                                    İptal Et
+                                                </button>
+                                            </div>
+                                            <p className="text-xs text-white font-semibold mt-1">
+                                                Şoför: {activePayoutState.driverName}
+                                            </p>
+                                            <p className="text-[11px] text-slate-400 mt-0.5 font-mono">
+                                                {new Date(activePayoutState.startDate).toLocaleDateString('tr-TR')} - {new Date(activePayoutState.endDate).toLocaleDateString('tr-TR')}
+                                            </p>
+                                            <p className="text-[10px] text-slate-500 mt-1 font-mono">
+                                                {activePayoutState.trips?.length || 0} sefer dahil edildi.
+                                            </p>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+
+                            {/* Taslak Aksiyonları */}
+                            {activePayoutState && (
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={handlePrintPDF}
+                                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-white/5 hover:bg-white/10 text-white rounded-lg text-xs font-semibold border border-white/10 transition-colors cursor-pointer"
+                                    >
+                                        <Printer size={14} /> PDF / Yazdır
+                                    </button>
+                                    {activePayoutState.status === 'Approved' ? (
+                                        <button disabled className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-emerald-500/10 text-emerald-400 rounded-lg text-xs font-semibold border border-emerald-500/30">
+                                            <CheckCircle2 size={14} /> Ödendi
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={handleSavePayout}
+                                            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-amber-500 hover:bg-amber-400 text-black rounded-lg text-xs font-bold shadow-lg shadow-amber-500/20 transition-colors cursor-pointer"
+                                        >
+                                            <Save size={14} /> Onayla & Kaydet
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Geçmiş Hak Edişler Arşivi */}
+                        <div className="p-3.5 rounded-2xl bg-[#0a0d14] border border-white/[0.06] flex-1 flex flex-col min-h-0">
+                            <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/[0.06]">
+                                <h4 className="font-bold text-white text-xs flex items-center gap-1.5">
+                                    <CheckCircle2 size={14} className="text-amber-400" />
+                                    <span>Onaylanmış Hak Edişler</span>
+                                </h4>
+                                <span className="text-[10px] text-slate-500 font-mono">
+                                    {(payouts || []).filter(p => !p.deleted).length} Kayıt
+                                </span>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1.5 pr-0.5">
+                                {(payouts || []).length > 0 ? (
+                                    (payouts || []).filter(p => !p.deleted).map((p) => {
+                                        const isActive = activePayoutState?.id === p.id && isViewingOldPayout;
+                                        return (
+                                            <div
+                                                key={p.id}
+                                                onClick={() => handleViewPayout(p)}
+                                                className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                                                    isActive
+                                                        ? 'bg-[#121622] border-amber-500/40'
+                                                        : 'bg-white/[0.02] border-white/[0.04] hover:bg-white/[0.05]'
+                                                }`}
+                                            >
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="text-xs font-bold text-amber-400 font-mono">
+                                                        {p.docId || 'HAK EDİŞ'}
+                                                    </span>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-[10px] text-slate-500 font-mono">
+                                                            {new Date(p.endDate).toLocaleDateString('tr-TR')}
+                                                        </span>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setNoteModalPayout(p);
+                                                                setModalNote(p.note || '');
+                                                                setModalFiles(p.files || []);
+                                                            }}
+                                                            className="p-1 text-slate-400 hover:text-white"
+                                                            title="Düzenle / Not & Belge"
+                                                        >
+                                                            <StickyNote size={13} />
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => handleDeletePayout(p.id, p.docId || 'Hak Ediş', e)}
+                                                            className="p-1 text-slate-500 hover:text-red-400"
+                                                        >
+                                                            <Trash2 size={13} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-end justify-between">
+                                                    <div>
+                                                        <div className="text-xs font-semibold text-white">{p.driverName}</div>
+                                                        <div className="text-[10px] text-slate-500 font-mono">
+                                                            {p.trips?.length || 0} Sefer · {p.totalTonnage?.toFixed(2)} Ton
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-sm font-bold text-white font-mono">
+                                                        ₺{p.grandTotal?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="py-8 text-center text-slate-500 text-xs">
+                                        Henüz onaylanmış hak ediş kaydı yok.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Sağ Panel: A4 Önizleme veya PDF Belgesi */}
+                    <div className="w-full lg:w-[55%] xl:w-[60%] flex flex-col rounded-2xl bg-[#0a0d14] border border-white/[0.06] overflow-hidden min-h-0">
+                        {activePayoutState ? (
+                            viewMode === 'pdf' && activePayoutState.files && activePayoutState.files.length > 0 ? (
+                                <EmbeddedPdfViewer files={activePayoutState.files} />
+                            ) : (
+                                <div className="flex-1 overflow-y-auto p-2 sm:p-4">
+                                    <A4PersonnelPreview
+                                        ref={payoutPrintRef}
+                                        payoutData={activePayoutState}
+                                        vehicleInfo={{ plate: activeTruckData?.plate, trailerPlate: activeTruckData?.trailerPlate }}
+                                        netPrice={netPrice}
+                                        onChangeNetPrice={setNetPrice}
+                                        onSavePrice={activePayoutState?.status === 'Approved' && isViewingOldPayout ? async () => {
+                                            await updatePayout(activePayoutState.id, { grandTotal: netPrice });
+                                            addLog('HAK_EDIS_FIYAT', `${activePayoutState.docId} net tutarı güncellendi: ₺${netPrice?.toLocaleString('tr-TR')}`);
+                                        } : undefined}
+                                    />
+                                </div>
+                            )
+                        ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-500 gap-3">
+                                <CreditCard size={40} className="text-slate-700" />
+                                <h4 className="text-sm font-semibold text-slate-300">Önizleme Yok</h4>
+                                <p className="text-xs max-w-sm">
+                                    Sol taraftan "Yeni Hak Ediş Dönemi Seç" butonuna tıklayarak taslak oluşturabilir veya geçmiş ödemelerden birini seçebilirsiniz.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* ═════════════ MODALLAR ═════════════ */}
+
+            {/* 1. Personel Ekle / Düzenle Modalı (5 Sekmeli / Wizard Form) */}
+            {isPersonnelModalOpen && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-2 sm:p-4 overflow-y-auto">
+                    <div
+                        className="bg-[#0a0d14] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh] my-auto"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Modal Başlık */}
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.08] bg-[#0f131d] shrink-0">
+                            <div className="flex items-center gap-2.5">
+                                <span className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                                    <UserPlus size={16} />
+                                </span>
+                                <div>
+                                    <h3 className="text-sm sm:text-base font-bold text-white">
+                                        {personnelModalMode === 'add' ? 'Yeni Personel Özlük Dosyası' : `${formData.fullName || 'Personel'} Düzenle`}
+                                    </h3>
+                                    <span className="text-[10px] text-slate-500">Lojistik Personel ve Sürücü Kayıt Formu</span>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsPersonnelModalOpen(false)}
+                                className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        {/* Sekmeler (Form İçi Gezinme) */}
+                        <div className="flex items-center px-4 pt-3 border-b border-white/[0.06] bg-[#0a0d14] gap-1 overflow-x-auto no-scrollbar shrink-0">
+                            {[
+                                { id: 'identity', label: '1. Kimlik & İletişim', icon: Users },
+                                { id: 'sgk', label: '2. SGK & Çalışma', icon: Briefcase },
+                                { id: 'documents', label: '3. Sürücü Evrakları', icon: Shield },
+                                { id: 'assets', label: '4. Zimmet & Finans', icon: Truck },
+                                { id: 'files', label: '5. Belgeler & PDF', icon: Paperclip }
+                            ].map(tab => {
+                                const IconComp = tab.icon;
+                                const isActive = personnelFormTab === tab.id;
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        type="button"
+                                        onClick={() => setPersonnelFormTab(tab.id)}
+                                        className={`px-3 py-2 text-xs font-semibold rounded-t-lg border-b-2 flex items-center gap-1.5 whitespace-nowrap transition-colors cursor-pointer ${
+                                            isActive
+                                                ? 'border-amber-400 text-amber-300 bg-white/[0.02]'
+                                                : 'border-transparent text-slate-400 hover:text-white'
+                                        }`}
+                                    >
+                                        <IconComp size={13} />
+                                        <span>{tab.label}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Form İçeriği */}
+                        <form onSubmit={handleSavePersonnel} className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 space-y-4">
+                            
+                            {/* SEKME 1: KİMLİK & İLETİŞİM */}
+                            {personnelFormTab === 'identity' && (
+                                <div className="space-y-4 animate-in fade-in duration-200">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Adı Soyadı *</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                value={formData.fullName}
+                                                onChange={e => setFormData({ ...formData, fullName: e.target.value })}
+                                                placeholder="Örn: Ahmet Yılmaz"
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500/40"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">T.C. Kimlik No</label>
+                                            <input
+                                                type="text"
+                                                maxLength={11}
+                                                value={formData.tcNo}
+                                                onChange={e => setFormData({ ...formData, tcNo: e.target.value })}
+                                                placeholder="11 Haneli T.C. No"
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500/40 font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Telefon Numarası</label>
+                                            <input
+                                                type="tel"
+                                                value={formData.phone}
+                                                onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                                                placeholder="05XX XXX XX XX"
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500/40 font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">E-Posta Adresi</label>
+                                            <input
+                                                type="email"
+                                                value={formData.email}
+                                                onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                                placeholder="ahmet@example.com"
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500/40"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Doğum Tarihi</label>
+                                            <input
+                                                type="date"
+                                                value={formData.birthDate}
+                                                onChange={e => setFormData({ ...formData, birthDate: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40 font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Kan Grubu</label>
+                                            <select
+                                                value={formData.bloodType}
+                                                onChange={e => setFormData({ ...formData, bloodType: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
+                                            >
+                                                <option value="">Seçiniz</option>
+                                                {BLOOD_TYPES.map(bt => <option key={bt} value={bt}>{bt}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs text-slate-400 mb-1 block">İkametgah / Açık Adres</label>
+                                        <textarea
+                                            rows={2}
+                                            value={formData.address}
+                                            onChange={e => setFormData({ ...formData, address: e.target.value })}
+                                            placeholder="Ev / İkametgah adresi..."
+                                            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500/40 resize-none"
+                                        />
+                                    </div>
+
+                                    {/* Acil Durum İletişim */}
+                                    <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.04] space-y-2">
+                                        <h4 className="text-xs font-bold text-red-400 flex items-center gap-1">
+                                            <Phone size={12} />
+                                            <span>Acil Durum İrtibat Bilgisi</span>
+                                        </h4>
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                            <input
+                                                type="text"
+                                                value={formData.emergencyContact?.name || ''}
+                                                onChange={e => setFormData({
+                                                    ...formData,
+                                                    emergencyContact: { ...formData.emergencyContact, name: e.target.value }
+                                                })}
+                                                placeholder="İsim Soyisim"
+                                                className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={formData.emergencyContact?.relation || ''}
+                                                onChange={e => setFormData({
+                                                    ...formData,
+                                                    emergencyContact: { ...formData.emergencyContact, relation: e.target.value }
+                                                })}
+                                                placeholder="Yakınlık (Eşi, Kardeşi vb.)"
+                                                className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none"
+                                            />
+                                            <input
+                                                type="tel"
+                                                value={formData.emergencyContact?.phone || ''}
+                                                onChange={e => setFormData({
+                                                    ...formData,
+                                                    emergencyContact: { ...formData.emergencyContact, phone: e.target.value }
+                                                })}
+                                                placeholder="Acil Durum Tel"
+                                                className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none font-mono"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* SEKME 2: SGK & ÇALIŞMA */}
+                            {personnelFormTab === 'sgk' && (
+                                <div className="space-y-4 animate-in fade-in duration-200">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Görev / Pozisyon *</label>
+                                            <select
+                                                value={formData.role}
+                                                onChange={e => setFormData({ ...formData, role: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
+                                            >
+                                                {ROLE_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Çalışma Durumu *</label>
+                                            <select
+                                                value={formData.employmentStatus}
+                                                onChange={e => setFormData({ ...formData, employmentStatus: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
+                                            >
+                                                {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">İşe Başlama Tarihi *</label>
+                                            <input
+                                                type="date"
+                                                required
+                                                value={formData.hireDate}
+                                                onChange={e => setFormData({ ...formData, hireDate: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40 font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">SGK Sicil Numarası</label>
+                                            <input
+                                                type="text"
+                                                value={formData.sgkNo}
+                                                onChange={e => setFormData({ ...formData, sgkNo: e.target.value })}
+                                                placeholder="SGK Sicil No"
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">SGK Meslek Kodu</label>
+                                            <input
+                                                type="text"
+                                                value={formData.sgkOccupationCode}
+                                                onChange={e => setFormData({ ...formData, sgkOccupationCode: e.target.value })}
+                                                placeholder="Örn: 8332.01 Ağır Vasıta Şoförü"
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Aylık Net Maaş (₺)</label>
+                                            <input
+                                                type="number"
+                                                value={formData.baseSalary}
+                                                onChange={e => setFormData({ ...formData, baseSalary: e.target.value })}
+                                                placeholder="Örn: 35000"
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Maaş Ödeme Günü (1-31)</label>
+                                            <input
+                                                type="number"
+                                                min={1}
+                                                max={31}
+                                                value={formData.salaryDay}
+                                                onChange={e => setFormData({ ...formData, salaryDay: e.target.value })}
+                                                placeholder="Örn: 5"
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">İşten Ayrılış Tarihi (Varsa)</label>
+                                            <input
+                                                type="date"
+                                                value={formData.leaveDate}
+                                                onChange={e => setFormData({ ...formData, leaveDate: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none font-mono"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {formData.employmentStatus === 'terminated' && (
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">İşten Ayrılış Nedeni</label>
+                                            <input
+                                                type="text"
+                                                value={formData.terminationReason}
+                                                onChange={e => setFormData({ ...formData, terminationReason: e.target.value })}
+                                                placeholder="İstifa, sözleşme feshi vb."
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* SEKME 3: SÜRÜCÜ EVRAKLARI */}
+                            {personnelFormTab === 'documents' && (
+                                <div className="space-y-4 animate-in fade-in duration-200">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Sürücü Belgesi (Ehliyet) Bitiş Tarihi</label>
+                                            <input
+                                                type="date"
+                                                value={formData.licenseExpiry}
+                                                onChange={e => setFormData({ ...formData, licenseExpiry: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">SRC Belgesi Bitiş Tarihi</label>
+                                            <input
+                                                type="date"
+                                                value={formData.srcExpiry}
+                                                onChange={e => setFormData({ ...formData, srcExpiry: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Psikoteknik Bitiş Tarihi</label>
+                                            <input
+                                                type="date"
+                                                value={formData.psikoteknikExpiry}
+                                                onChange={e => setFormData({ ...formData, psikoteknikExpiry: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Dijital Takograf Kartı Bitiş Tarihi</label>
+                                            <input
+                                                type="date"
+                                                value={formData.tachographExpiry}
+                                                onChange={e => setFormData({ ...formData, tachographExpiry: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Dijital Takograf Kart No</label>
+                                            <input
+                                                type="text"
+                                                value={formData.tachographCardNo}
+                                                onChange={e => setFormData({ ...formData, tachographCardNo: e.target.value })}
+                                                placeholder="Örn: T01234567"
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Sağlık Raporu Bitiş Tarihi</label>
+                                            <input
+                                                type="date"
+                                                value={formData.healthReportExpiry}
+                                                onChange={e => setFormData({ ...formData, healthReportExpiry: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none font-mono"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* SEKME 4: ZİMMET & FİNANS */}
+                            {personnelFormTab === 'assets' && (
+                                <div className="space-y-4 animate-in fade-in duration-200">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Atanmış Çekici Plakası</label>
+                                            <select
+                                                value={formData.assignedTruckPlate}
+                                                onChange={e => setFormData({ ...formData, assignedTruckPlate: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
+                                            >
+                                                <option value="">Araç Atanmadı</option>
+                                                {(trucks || []).map(t => (
+                                                    <option key={t.id} value={t.plate}>{t.plate} {t.model ? `(${t.model})` : ''}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Atanmış Dorse Plakası</label>
+                                            <input
+                                                type="text"
+                                                value={formData.assignedTrailerPlate}
+                                                onChange={e => setFormData({ ...formData, assignedTrailerPlate: e.target.value })}
+                                                placeholder="Örn: 06 DB 1234"
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Şirket Telefonu</label>
+                                            <input
+                                                type="text"
+                                                value={formData.assignedPhone}
+                                                onChange={e => setFormData({ ...formData, assignedPhone: e.target.value })}
+                                                placeholder="Zimmetli hat no"
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Taşıt Tanıma / Yakıt Kartı</label>
+                                            <input
+                                                type="text"
+                                                value={formData.assignedFuelCard}
+                                                onChange={e => setFormData({ ...formData, assignedFuelCard: e.target.value })}
+                                                placeholder="Petrol Ofisi / Opet Kart No"
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">HGS Cihaz / Etiket No</label>
+                                            <input
+                                                type="text"
+                                                value={formData.assignedHgs}
+                                                onChange={e => setFormData({ ...formData, assignedHgs: e.target.value })}
+                                                placeholder="HGS No"
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-slate-400 mb-1 block">Banka Adı</label>
+                                            <input
+                                                type="text"
+                                                value={formData.bankName}
+                                                onChange={e => setFormData({ ...formData, bankName: e.target.value })}
+                                                placeholder="Ziraat, Garanti vb."
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs text-slate-400 mb-1 block">IBAN Numarası</label>
+                                        <input
+                                            type="text"
+                                            value={formData.iban}
+                                            onChange={e => setFormData({ ...formData, iban: e.target.value })}
+                                            placeholder="TRXX XXXX XXXX XXXX XXXX XXXX XX"
+                                            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none font-mono"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs text-slate-400 mb-1 block">Ek Zimmet Notları</label>
+                                        <textarea
+                                            rows={2}
+                                            value={formData.inventoryNotes}
+                                            onChange={e => setFormData({ ...formData, inventoryNotes: e.target.value })}
+                                            placeholder="İş kıyafeti, tablet, takım çantası zimmetleri..."
+                                            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none resize-none"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* SEKME 5: BELGELER & PDF */}
+                            {personnelFormTab === 'files' && (
+                                <div className="space-y-4 animate-in fade-in duration-200">
+                                    <div className="p-3 bg-white/[0.02] border border-white/[0.04] rounded-xl">
+                                        <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-1.5">
+                                            <Paperclip size={13} className="text-amber-400" />
+                                            <span>Dijital Özlük Dosyası Ekleri (PDF / Görsel)</span>
+                                        </h4>
+                                        <p className="text-[11px] text-slate-400 mb-3">
+                                            İşe giriş bildirgesi, ehliyet fotokopisi, SRC taraması, sağlık raporu veya adli sicil belgelerini ekleyebilirsiniz.
+                                        </p>
+                                        <FileUpload
+                                            files={formData.documents || []}
+                                            onChange={files => setFormData({ ...formData, documents: files })}
+                                            maxSizeMB={8}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Alt Aksiyon Butonları */}
+                            <div className="flex items-center justify-between pt-4 border-t border-white/[0.08] shrink-0">
+                                <div className="flex items-center gap-2">
+                                    {personnelFormTab !== 'identity' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const tabs = ['identity', 'sgk', 'documents', 'assets', 'files'];
+                                                const prevIdx = tabs.indexOf(personnelFormTab) - 1;
+                                                if (prevIdx >= 0) setPersonnelFormTab(tabs[prevIdx]);
+                                            }}
+                                            className="px-3 py-1.5 rounded-lg bg-white/5 text-slate-300 text-xs hover:text-white"
+                                        >
+                                            Geri
+                                        </button>
+                                    )}
+                                    {personnelFormTab !== 'files' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const tabs = ['identity', 'sgk', 'documents', 'assets', 'files'];
+                                                const nextIdx = tabs.indexOf(personnelFormTab) + 1;
+                                                if (nextIdx < tabs.length) setPersonnelFormTab(tabs[nextIdx]);
+                                            }}
+                                            className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs hover:bg-white/15"
+                                        >
+                                            İleri
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsPersonnelModalOpen(false)}
+                                        className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white"
+                                    >
+                                        Vazgeç
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSavingPersonnel}
+                                        className="px-5 py-2 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 disabled:opacity-50 cursor-pointer"
+                                    >
+                                        {isSavingPersonnel ? 'Kaydediliyor...' : (personnelModalMode === 'add' ? 'Personeli Kaydet' : 'Değişiklikleri Güncelle')}
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* 2. Avans Verme Modalı */}
+            {isAdvanceModalOpen && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+                    <div
+                        className="bg-[#0a0d14] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col p-5 gap-4"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+                            <div className="flex items-center gap-2">
+                                <CreditCard size={16} className="text-amber-400" />
+                                <h3 className="text-sm font-bold text-white">Personel Avansı Ver</h3>
+                            </div>
+                            <button
+                                onClick={() => setIsAdvanceModalOpen(false)}
+                                className="w-7 h-7 rounded-lg bg-white/5 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
+                            >
+                                <X size={15} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div>
+                                <label className="text-xs text-slate-400 mb-1 block">Personel *</label>
+                                <select
+                                    value={advancePersonnelId}
+                                    onChange={e => setAdvancePersonnelId(e.target.value)}
+                                    className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
+                                >
+                                    {(personnelList || []).filter(p => p.employmentStatus === 'active').map(p => (
+                                        <option key={p.id} value={p.id}>{p.fullName} ({p.role ? ROLE_OPTIONS.find(r => r.value === p.role)?.label : 'Personel'})</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="text-xs text-slate-400 mb-1 block">Avans Tutarı (₺) *</label>
+                                <input
+                                    type="number"
+                                    required
+                                    value={advanceAmount}
+                                    onChange={e => setAdvanceAmount(e.target.value)}
+                                    placeholder="Örn: 5000"
+                                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm font-bold text-emerald-400 font-mono outline-none focus:border-amber-500/40"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-xs text-slate-400 mb-1 block">Ödeme Tarihi</label>
+                                <input
+                                    type="date"
+                                    value={advanceDate}
+                                    onChange={e => setAdvanceDate(e.target.value)}
+                                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none font-mono"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-xs text-slate-400 mb-1 block">Açıklama / Sebep</label>
+                                <input
+                                    type="text"
+                                    value={advanceDesc}
+                                    onChange={e => setAdvanceDesc(e.target.value)}
+                                    placeholder="Yol harçlığı, acil ihtiyaç vb."
+                                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-xs text-slate-400 mb-1.5 block">Dekont / Belge Ekle</label>
+                                <FileUpload files={advanceFiles} onChange={setAdvanceFiles} maxSizeMB={5} />
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/[0.08]">
+                            <button
+                                onClick={() => setIsAdvanceModalOpen(false)}
+                                className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white"
+                            >
+                                İptal
+                            </button>
+                            <button
+                                onClick={handleSaveAdvance}
+                                disabled={isSavingAdvance}
+                                className="px-5 py-2 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 disabled:opacity-50 cursor-pointer"
+                            >
+                                {isSavingAdvance ? 'Kaydediliyor...' : 'Avansı Kaydet'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 3. Belge / PDF / Fotoğraf Önizleme Modalı */}
+            {previewDoc && (
+                <div
+                    className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-[110] p-2 sm:p-6"
+                    onClick={() => setPreviewDoc(null)}
+                >
+                    <div
+                        className="bg-[#0a0d14] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] overflow-hidden flex flex-col"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.08] bg-[#0f131d] shrink-0">
+                            <div className="flex items-center gap-2">
+                                <FileText size={16} className="text-amber-400" />
+                                <h3 className="text-sm font-bold text-white truncate">{previewDoc.name || 'Belge İnceleme'}</h3>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <a
+                                    href={previewDoc.url || previewDoc.data}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-1.5 rounded-lg bg-white/5 text-slate-300 hover:text-white transition-colors"
+                                    title="Yeni Sekmede Aç"
+                                >
+                                    <ExternalLink size={15} />
+                                </a>
+                                <button
+                                    onClick={() => setPreviewDoc(null)}
+                                    className="w-7 h-7 rounded-lg bg-white/5 text-slate-400 hover:text-white flex items-center justify-center"
+                                >
+                                    <X size={15} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 bg-slate-950 overflow-hidden relative">
+                            {previewDoc.type?.startsWith('image/') || previewDoc.url?.match(/\.(jpeg|jpg|png|webp)/i) ? (
+                                <div className="w-full h-full flex items-center justify-center p-4">
+                                    <img
+                                        src={previewDoc.url || previewDoc.data}
+                                        alt={previewDoc.name}
+                                        className="max-w-full max-h-full object-contain rounded-lg"
+                                    />
+                                </div>
+                            ) : (
+                                <iframe
+                                    src={`${previewDoc.url || previewDoc.data}#toolbar=0&navpanes=0`}
+                                    title={previewDoc.name || 'Belge'}
+                                    className="w-full h-full border-none block"
+                                />
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 4. Hak Ediş Periyot Modalı (Mevcut Sistem) */}
             <PersonnelPeriodModal
                 isOpen={isPeriodModalOpen}
                 onClose={() => setIsPeriodModalOpen(false)}
@@ -534,28 +2820,26 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                 allDrivers={allDrivers}
             />
 
-            {/* Düzenle / Not & Belge Modalı */}
+            {/* 5. Hak Ediş Not / Belge Düzenleme Modalı (Mevcut Sistem) */}
             {noteModalPayout && (
-                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => setNoteModalPayout(null)}>
-                    <div className="bg-[#0f1117] rounded-2xl border border-orange-500/20 shadow-2xl shadow-orange-955/20 w-full max-w-lg overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => setNoteModalPayout(null)}>
+                    <div className="bg-[#0f1117] rounded-2xl border border-amber-500/20 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center px-5 py-4 border-b border-white/5">
-                            <h3 className="font-bold flex items-center gap-2.5 text-[var(--text-primary)]">
-                                <span className="w-7 h-7 rounded-lg bg-orange-500/15 border border-orange-500/25 flex items-center justify-center flex-shrink-0">
-                                    <StickyNote size={14} className="text-orange-400" />
-                                </span>
+                            <h3 className="font-bold flex items-center gap-2.5 text-white">
+                                <StickyNote size={14} className="text-amber-400" />
                                 <span>{noteModalPayout.docId} <span className="text-slate-500 font-normal">— Düzenle</span></span>
                             </h3>
-                            <button onClick={() => setNoteModalPayout(null)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-white hover:bg-white/10 transition-all text-lg cursor-pointer">&times;</button>
+                            <button onClick={() => setNoteModalPayout(null)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-white transition-all text-lg cursor-pointer">&times;</button>
                         </div>
                         <div className="p-5 space-y-4">
                             <div>
-                                <p className="text-xs text-slate-400 mb-1.5 flex items-center gap-1"><Save size={11} /> Net Ödeme Tutarı (₺)</p>
+                                <p className="text-xs text-slate-400 mb-1.5 flex items-center gap-1">Net Ödeme Tutarı (₺)</p>
                                 <input
                                     type="number"
                                     step="0.01"
                                     value={noteModalPayout._editPrice ?? noteModalPayout.grandTotal ?? 0}
                                     onChange={(e) => setNoteModalPayout(prev => ({ ...prev, _editPrice: parseFloat(e.target.value) || 0 }))}
-                                    className="w-full bg-white/5 border border-white/10 focus:border-orange-500/40 rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] outline-none transition-colors"
+                                    className="w-full bg-white/5 border border-white/10 focus:border-amber-500/40 rounded-lg px-3 py-2 text-sm text-white outline-none font-mono"
                                 />
                             </div>
                             <div>
@@ -563,19 +2847,19 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 <textarea
                                     value={modalNote}
                                     onChange={(e) => setModalNote(e.target.value)}
-                                    className="w-full bg-white/5 border border-white/10 focus:border-orange-500/40 rounded-lg p-3 text-sm text-[var(--text-primary)] placeholder-slate-600 outline-none min-h-[80px] resize-none transition-colors"
-                                    placeholder="Hak ediş ile ilgili not ekleyin..."
+                                    className="w-full bg-white/5 border border-white/10 focus:border-amber-500/40 rounded-lg p-3 text-sm text-white placeholder-slate-600 outline-none min-h-[80px] resize-none"
+                                    placeholder="Hak ediş notu..."
                                 />
                             </div>
                             <div>
-                                <p className="text-xs text-slate-400 mb-2 flex items-center gap-1"><Paperclip size={11} /> Dekont / Belge Ekle (PDF / Resim)</p>
+                                <p className="text-xs text-slate-400 mb-2 flex items-center gap-1">Dekont / Belge Ekle (PDF / Resim)</p>
                                 <FileUpload files={modalFiles} onChange={setModalFiles} maxSizeMB={10} />
                             </div>
                         </div>
                         <div className="px-5 py-4 border-t border-white/5 flex justify-end gap-3">
                             <button
                                 onClick={() => setNoteModalPayout(null)}
-                                className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white hover:bg-white/8 transition-colors cursor-pointer"
+                                className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
                             >
                                 İptal
                             </button>
@@ -586,13 +2870,13 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         const newPrice = noteModalPayout._editPrice ?? noteModalPayout.grandTotal ?? 0;
                                         await updatePayout(noteModalPayout.id, { note: modalNote, files: modalFiles, grandTotal: newPrice });
                                         if (activePayoutState?.id === noteModalPayout.id) setNetPrice(newPrice);
-                                        addLog('FATURA_NOT', `${noteModalPayout.docId} personel kaydı güncellendi`);
+                                        addLog('HAK_EDIS_NOT', `${noteModalPayout.docId} hak ediş güncellendi`);
                                         setNoteModalPayout(null);
                                     } catch { /* empty */ }
                                     setIsSavingNote(false);
                                 }}
                                 disabled={isSavingNote}
-                                className="px-5 py-2 rounded-lg text-sm font-bold bg-orange-600 hover:bg-orange-500 text-white transition-colors shadow-lg shadow-orange-900/40 disabled:opacity-50 cursor-pointer"
+                                className="px-5 py-2 rounded-lg text-sm font-bold bg-amber-500 hover:bg-amber-400 text-black transition-colors disabled:opacity-50 cursor-pointer"
                             >
                                 {isSavingNote ? 'Kaydediliyor...' : 'Kaydet'}
                             </button>
@@ -601,20 +2885,19 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                 </div>
             )}
 
-            {/* Taslak İptal Onay Modalı */}
+            {/* 6. Hak Ediş Taslak İptal Onay Modalı (Mevcut Sistem) */}
             {showCancelConfirm && (
-                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-                    <div className="bg-[var(--bg-panel)] rounded-xl border border-[var(--border-color)] shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 text-center animate-in zoom-in-95 duration-200">
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+                    <div className="bg-[#0a0d14] rounded-xl border border-white/[0.08] shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 text-center animate-in zoom-in-95 duration-200">
                         <div className="mx-auto w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4 border border-red-500/20">
                             <Trash2 className="text-red-400" size={24} />
                         </div>
-                        <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">Taslağı İptal Et</h3>
-                        <p className="text-slate-400 text-sm mb-6">İşlem bekleyen bu personel hak ediş taslağını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.</p>
-                        
+                        <h3 className="text-base font-bold text-white mb-2">Taslağı İptal Et</h3>
+                        <p className="text-slate-400 text-xs mb-6">İşlem bekleyen bu personel prim hak ediş taslağını silmek istediğinize emin misiniz?</p>
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setShowCancelConfirm(false)}
-                                className="flex-1 py-2.5 rounded-lg font-bold w-full text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-all text-sm cursor-pointer"
+                                className="flex-1 py-2 rounded-lg font-bold text-slate-300 bg-white/5 hover:bg-white/10 text-xs cursor-pointer"
                             >
                                 Vazgeç
                             </button>
@@ -624,7 +2907,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                     setActivePayoutState(null);
                                     setShowCancelConfirm(false);
                                 }}
-                                className="flex-1 py-2.5 rounded-lg font-bold w-full bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 transition-all text-sm cursor-pointer"
+                                className="flex-1 py-2 rounded-lg font-bold bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs cursor-pointer"
                             >
                                 Evet, İptal Et
                             </button>

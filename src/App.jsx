@@ -684,7 +684,7 @@ function App() {
                 ? 'p-0 h-full overflow-hidden' 
                 : activeTab === 'dashboard'
                   ? 'pb-3 sm:pb-4 px-3 sm:px-5 md:px-6 h-full overflow-hidden flex flex-col' 
-                  : ['invoices', 'earsiv', 'company_debts'].includes(activeTab)
+                  : ['invoices', 'earsiv', 'company_debts', 'personel'].includes(activeTab)
                     ? 'p-2.5 sm:p-4 md:p-5 h-full overflow-hidden flex flex-col'
                     : 'p-3 sm:p-4 md:p-6 xl:p-8'
             }`}
@@ -694,7 +694,7 @@ function App() {
               paddingLeft: 'calc(1.25rem + env(safe-area-inset-left, 0px))'
             } : undefined}
           >
-            <div key={activeTab} className={['map', 'dashboard'].includes(activeTab) ? 'h-full w-full overflow-hidden' : ['invoices', 'earsiv', 'company_debts'].includes(activeTab) ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
+            <div key={activeTab} className={['map', 'dashboard'].includes(activeTab) ? 'h-full w-full overflow-hidden' : ['invoices', 'earsiv', 'company_debts', 'personel'].includes(activeTab) ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
               {activeTab === 'dashboard' && <Dashboard onOpenMenu={() => setIsMenuOpen(true)} onNavigate={setActiveTab} isMobile={isMobile} />}
               {activeTab === 'trips' && <Trips onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
               {activeTab === 'fuel' && <Fuel onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}

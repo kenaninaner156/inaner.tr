@@ -99,7 +99,7 @@ service cloud.firestore {
           'geofences', 'manual_splits', 'manual_merges', 'manual_deletes', 
           'custom_route_names', 'maintenance_folders', 'company_data',
           'trucks', 'vehicle_daily_stats', 'company_notifications',
-          'loans', 'open_debts'
+          'loans', 'open_debts', 'personnel'
         ];
       }
       
