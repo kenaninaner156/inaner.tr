@@ -44,10 +44,10 @@ const BLOOD_TYPES = ['A+', '0+', 'B+', 'AB+', 'A-', '0-', 'B-', 'AB-'];
 
 // Kıdem Hesaplama Yardımcısı
 const calculateSeniority = (hireDate, leaveDate) => {
-    if (!hireDate) return '—';
+    if (!hireDate) return '';
     const start = new Date(hireDate);
     const end = leaveDate ? new Date(leaveDate) : new Date();
-    if (isNaN(start.getTime())) return '—';
+    if (isNaN(start.getTime())) return '';
     let years = end.getFullYear() - start.getFullYear();
     let months = end.getMonth() - start.getMonth();
     let days = end.getDate() - start.getDate();
@@ -1229,20 +1229,13 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 </div>
 
                                 {/* ── 2. YATAY SÜRÜCÜ YASAL EVRAK RADARI ── */}
-                                <div className="px-4 py-2 bg-[#0a0d14] border-b border-white/[0.06] shrink-0">
-                                    <div className="flex items-center gap-1.5 mb-1.5">
-                                        <Shield size={13} className="text-amber-400" />
-                                        <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
-                                            Yasal Sürücü Belgeleri
-                                        </span>
-                                    </div>
-
+                                <div className="p-3 sm:px-4 sm:py-3 bg-[#0a0d14] border-b border-white/[0.06] shrink-0">
                                     {/* 4 Kolonlu Kompakt Evrak Kartları */}
                                     <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
                                         {/* 1. Sürücü Belgesi */}
                                         {(() => {
                                             const st = getDocumentStatus(selectedPersonnel.licenseExpiry);
-                                            const classes = selectedPersonnel.licenseClasses?.length ? selectedPersonnel.licenseClasses.join(', ') : 'CE, C';
+                                            const classes = selectedPersonnel.licenseClasses?.length ? selectedPersonnel.licenseClasses.join(', ') : '';
                                             return (
                                                 <div className="p-2.5 rounded-xl bg-[#080b11] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
                                                     <div className="flex items-center justify-between">
@@ -1253,10 +1246,10 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="flex items-center justify-between text-[11px] font-mono mt-1.5">
+                                                    <div className="flex items-center justify-between text-[11px] font-mono mt-1.5 min-h-[16px]">
                                                         <span className="text-slate-500">{classes}</span>
                                                         <span className={selectedPersonnel.licenseExpiry ? 'text-slate-300 font-medium' : 'text-slate-600'}>
-                                                            {selectedPersonnel.licenseExpiry ? new Date(selectedPersonnel.licenseExpiry).toLocaleDateString('tr-TR') : '—'}
+                                                            {selectedPersonnel.licenseExpiry ? new Date(selectedPersonnel.licenseExpiry).toLocaleDateString('tr-TR') : ''}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -1266,7 +1259,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         {/* 2. SRC Belgesi */}
                                         {(() => {
                                             const st = getDocumentStatus(selectedPersonnel.srcExpiry);
-                                            const srcTypes = selectedPersonnel.srcTypes?.length ? selectedPersonnel.srcTypes.join(', ') : 'SRC 3, 4';
+                                            const srcTypes = selectedPersonnel.srcTypes?.length ? selectedPersonnel.srcTypes.join(', ') : '';
                                             return (
                                                 <div className="p-2.5 rounded-xl bg-[#080b11] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
                                                     <div className="flex items-center justify-between">
@@ -1277,10 +1270,10 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="flex items-center justify-between text-[11px] font-mono mt-1.5">
+                                                    <div className="flex items-center justify-between text-[11px] font-mono mt-1.5 min-h-[16px]">
                                                         <span className="text-slate-500 truncate max-w-[100px]" title={srcTypes}>{srcTypes}</span>
                                                         <span className={selectedPersonnel.srcExpiry ? 'text-slate-300 font-medium' : 'text-slate-600'}>
-                                                            {selectedPersonnel.srcExpiry ? new Date(selectedPersonnel.srcExpiry).toLocaleDateString('tr-TR') : '—'}
+                                                            {selectedPersonnel.srcExpiry ? new Date(selectedPersonnel.srcExpiry).toLocaleDateString('tr-TR') : ''}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -1300,10 +1293,10 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="flex items-center justify-between text-[11px] font-mono mt-1.5">
-                                                        <span className="text-slate-500">Sağlık Raporu</span>
+                                                    <div className="flex items-center justify-between text-[11px] font-mono mt-1.5 min-h-[16px]">
+                                                        <span className="text-slate-500">{selectedPersonnel.psikoteknikExpiry ? 'Rapor' : ''}</span>
                                                         <span className={selectedPersonnel.psikoteknikExpiry ? 'text-slate-300 font-medium' : 'text-slate-600'}>
-                                                            {selectedPersonnel.psikoteknikExpiry ? new Date(selectedPersonnel.psikoteknikExpiry).toLocaleDateString('tr-TR') : '—'}
+                                                            {selectedPersonnel.psikoteknikExpiry ? new Date(selectedPersonnel.psikoteknikExpiry).toLocaleDateString('tr-TR') : ''}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -1324,10 +1317,10 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="flex items-center justify-between text-[11px] font-mono mt-1.5">
-                                                        <span className="text-slate-500 truncate max-w-[100px]" title={cardNo}>{cardNo || '—'}</span>
+                                                    <div className="flex items-center justify-between text-[11px] font-mono mt-1.5 min-h-[16px]">
+                                                        <span className="text-slate-500 truncate max-w-[100px]" title={cardNo}>{cardNo}</span>
                                                         <span className={selectedPersonnel.tachographExpiry ? 'text-slate-300 font-medium' : 'text-slate-600'}>
-                                                            {selectedPersonnel.tachographExpiry ? new Date(selectedPersonnel.tachographExpiry).toLocaleDateString('tr-TR') : '—'}
+                                                            {selectedPersonnel.tachographExpiry ? new Date(selectedPersonnel.tachographExpiry).toLocaleDateString('tr-TR') : ''}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -1348,7 +1341,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             }`}
                                         >
                                             <Briefcase size={13} />
-                                            <span>Resmi Özlük & Finans</span>
+                                            <span>Genel</span>
                                         </button>
                                         <button
                                             onClick={() => setDetailRightTab('docs')}
@@ -1359,8 +1352,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             }`}
                                         >
                                             <Paperclip size={13} />
-                                            <span>Dijital Evraklar</span>
-                                            <span className="text-[10px] font-mono opacity-80">({(selectedPersonnel.documents || []).length})</span>
+                                            <span>Evraklar</span>
                                         </button>
                                         <button
                                             onClick={() => setDetailRightTab('notes_drawer')}
@@ -1371,8 +1363,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             }`}
                                         >
                                             <StickyNote size={13} />
-                                            <span>Zimmet & Notlar</span>
-                                            <span className="text-[10px] font-mono opacity-80">({(selectedPersonnel.notes || []).length})</span>
+                                            <span>Notlar</span>
                                         </button>
                                         {personnelPayoutHistory.length > 0 && (
                                             <button
@@ -1385,7 +1376,6 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             >
                                                 <CreditCard size={13} />
                                                 <span>Sefer Primleri</span>
-                                                <span className="text-[10px] font-mono opacity-80">({personnelPayoutHistory.length})</span>
                                             </button>
                                         )}
                                     </div>
@@ -1413,40 +1403,39 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                         <Briefcase size={13} className="text-amber-400" />
                                                         <span>SGK & Bordro Finansı</span>
                                                     </h4>
-                                                    <span className="text-[10px] font-mono text-slate-500">Resmi Kayıt</span>
                                                 </div>
 
                                                 <div className="flex-1 flex flex-col justify-between py-1 text-xs divide-y divide-white/[0.03]">
                                                     <div className="flex items-center justify-between py-2">
                                                         <span className="text-slate-400">İşe Giriş Tarihi:</span>
                                                         <span className="font-mono text-slate-200">
-                                                            {selectedPersonnel.hireDate ? new Date(selectedPersonnel.hireDate).toLocaleDateString('tr-TR') : '—'}
+                                                            {selectedPersonnel.hireDate ? new Date(selectedPersonnel.hireDate).toLocaleDateString('tr-TR') : ''}
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center justify-between py-2">
                                                         <span className="text-slate-400">Kıdem Süresi:</span>
                                                         <span className="font-mono text-amber-400">
-                                                            {calculateSeniority(selectedPersonnel.hireDate, selectedPersonnel.leaveDate) || '—'}
+                                                            {calculateSeniority(selectedPersonnel.hireDate, selectedPersonnel.leaveDate) || ''}
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center justify-between py-2">
                                                         <span className="text-slate-400">SGK Sicil No:</span>
-                                                        <span className="font-mono text-slate-200">{selectedPersonnel.sgkNo || '—'}</span>
+                                                        <span className="font-mono text-slate-200">{selectedPersonnel.sgkNo || ''}</span>
                                                     </div>
                                                     <div className="flex items-center justify-between py-2">
                                                         <span className="text-slate-400">SGK Meslek Kodu:</span>
-                                                        <span className="font-mono text-slate-200">{selectedPersonnel.sgkOccupationCode || '8332.01'}</span>
+                                                        <span className="font-mono text-slate-200">{selectedPersonnel.sgkOccupationCode || ''}</span>
                                                     </div>
                                                     <div className="flex items-center justify-between py-2">
                                                         <span className="text-slate-400">Aylık Net Maaş:</span>
                                                         <span className="font-mono text-white font-semibold">
-                                                            {selectedPersonnel.baseSalary ? `₺${Number(selectedPersonnel.baseSalary).toLocaleString('tr-TR')}` : '—'}
+                                                            {selectedPersonnel.baseSalary ? `₺${Number(selectedPersonnel.baseSalary).toLocaleString('tr-TR')}` : ''}
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center justify-between py-2">
                                                         <span className="text-slate-400">Maaş Günü:</span>
                                                         <span className="font-mono text-slate-200">
-                                                            {selectedPersonnel.salaryDay ? `Her ayın ${selectedPersonnel.salaryDay}. günü` : '—'}
+                                                            {selectedPersonnel.salaryDay ? `Her ayın ${selectedPersonnel.salaryDay}. günü` : ''}
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center justify-between py-2">
@@ -1483,14 +1472,13 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                         <Phone size={13} className="text-amber-400" />
                                                         <span>Kimlik & İletişim</span>
                                                     </h4>
-                                                    <span className="text-[10px] font-mono text-slate-500">MERNİS Doğrulama</span>
                                                 </div>
 
                                                 <div className="flex-1 flex flex-col justify-between py-1 text-xs divide-y divide-white/[0.03]">
                                                     <div className="flex items-center justify-between py-2">
                                                         <span className="text-slate-400">T.C. Kimlik No:</span>
                                                         <div className="flex items-center gap-1.5">
-                                                            <span className="font-mono text-slate-200">{selectedPersonnel.tcNo || '—'}</span>
+                                                            <span className="font-mono text-slate-200">{selectedPersonnel.tcNo || ''}</span>
                                                             {selectedPersonnel.tcNo && (
                                                                 <button
                                                                     onClick={() => handleCopy(selectedPersonnel.tcNo, 'tc')}
@@ -1505,17 +1493,17 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                     <div className="flex items-center justify-between py-2">
                                                         <span className="text-slate-400">Doğum Tarihi:</span>
                                                         <span className="font-mono text-slate-200">
-                                                            {selectedPersonnel.birthDate ? new Date(selectedPersonnel.birthDate).toLocaleDateString('tr-TR') : '—'}
+                                                            {selectedPersonnel.birthDate ? new Date(selectedPersonnel.birthDate).toLocaleDateString('tr-TR') : ''}
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center justify-between py-2">
                                                         <span className="text-slate-400">Kan Grubu:</span>
-                                                        <span className="font-mono text-slate-200">{selectedPersonnel.bloodType || '—'}</span>
+                                                        <span className="font-mono text-slate-200">{selectedPersonnel.bloodType || ''}</span>
                                                     </div>
                                                     <div className="flex items-center justify-between py-2">
                                                         <span className="text-slate-400 shrink-0">İkametgah:</span>
                                                         <span className="text-slate-200 text-right truncate max-w-[220px]" title={selectedPersonnel.address}>
-                                                            {selectedPersonnel.address || '—'}
+                                                            {selectedPersonnel.address || ''}
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center justify-between py-2">
@@ -1747,7 +1735,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                 <h4 className="text-sm font-bold text-white truncate">{driver.fullName}</h4>
                                                 <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
                                                     <Truck size={12} className="text-amber-400" />
-                                                    {driver.assignedTruckPlate || '—'}
+                                                    {driver.assignedTruckPlate || ''}
                                                 </span>
                                             </div>
                                         </div>
@@ -1756,13 +1744,15 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1 w-full lg:w-auto">
                                             {/* Ehliyet */}
                                             <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between">
-                                                <span className="text-[10px] text-slate-400 block font-semibold">Ehliyet ({driver.licenseClasses?.join(',') || 'CE'})</span>
+                                                <span className="text-[10px] text-slate-400 block font-semibold">
+                                                    Ehliyet{driver.licenseClasses?.length ? ` (${driver.licenseClasses.join(', ')})` : ''}
+                                                </span>
                                                 {licSt.label ? (
                                                     <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border mt-1 text-center ${licSt.badgeClass}`}>
                                                         {licSt.label}
                                                     </span>
                                                 ) : (
-                                                    <span className="text-[10px] font-mono text-slate-600 mt-1 text-center">—</span>
+                                                    <span className="text-[10px] font-mono text-slate-600 mt-1 text-center min-h-[20px]"></span>
                                                 )}
                                             </div>
 
@@ -1774,7 +1764,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                         {srcSt.label}
                                                     </span>
                                                 ) : (
-                                                    <span className="text-[10px] font-mono text-slate-600 mt-1 text-center">—</span>
+                                                    <span className="text-[10px] font-mono text-slate-600 mt-1 text-center min-h-[20px]"></span>
                                                 )}
                                             </div>
 
@@ -1786,7 +1776,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                         {psiSt.label}
                                                     </span>
                                                 ) : (
-                                                    <span className="text-[10px] font-mono text-slate-600 mt-1 text-center">—</span>
+                                                    <span className="text-[10px] font-mono text-slate-600 mt-1 text-center min-h-[20px]"></span>
                                                 )}
                                             </div>
 
@@ -1798,7 +1788,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                         {takoSt.label}
                                                     </span>
                                                 ) : (
-                                                    <span className="text-[10px] font-mono text-slate-600 mt-1 text-center">—</span>
+                                                    <span className="text-[10px] font-mono text-slate-600 mt-1 text-center min-h-[20px]"></span>
                                                 )}
                                             </div>
                                         </div>
