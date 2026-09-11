@@ -1,4 +1,5 @@
 import React, { useContext, useState, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Users, Truck, ShieldAlert, Calendar, Plus, Search, Filter, Phone, Mail,
@@ -2238,10 +2239,10 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             {/* ═════════════ MODALLAR ═════════════ */}
 
             {/* 1. Personel Ekle / Düzenle Modalı (5 Sekmeli / Wizard Form) */}
-            {isPersonnelModalOpen && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-2 sm:p-4">
+            {isPersonnelModalOpen && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[9999] p-2 sm:p-4" onClick={() => setIsPersonnelModalOpen(false)}>
                     <div
-                        className="bg-[#0a0d14] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-3xl h-[90vh] max-h-[660px] overflow-hidden flex flex-col my-auto"
+                        className="bg-[#0a0d14] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-3xl max-h-[88vh] h-[640px] overflow-hidden flex flex-col my-auto"
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Modal Başlık */}
@@ -2753,14 +2754,15 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* 2. Avans Verme Modalı */}
-            {isAdvanceModalOpen && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+            {isAdvanceModalOpen && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[9999] p-4" onClick={() => setIsAdvanceModalOpen(false)}>
                     <div
-                        className="bg-[#0a0d14] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-md max-h-[88vh] overflow-hidden flex flex-col"
+                        className="bg-[#0a0d14] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-hidden flex flex-col my-auto"
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#0f131d] shrink-0">
@@ -2845,17 +2847,18 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* 3. Belge / PDF / Fotoğraf Önizleme Modalı */}
-            {previewDoc && (
+            {previewDoc && typeof document !== 'undefined' && createPortal(
                 <div
-                    className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-[110] p-2 sm:p-6"
+                    className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-[9999] p-2 sm:p-6"
                     onClick={() => setPreviewDoc(null)}
                 >
                     <div
-                        className="bg-[#0a0d14] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] overflow-hidden flex flex-col"
+                        className="bg-[#0a0d14] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] overflow-hidden flex flex-col my-auto"
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.08] bg-[#0f131d] shrink-0">
@@ -2900,7 +2903,8 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                             )}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* 4. Hak Ediş Periyot Modalı (Mevcut Sistem) */}
@@ -2914,17 +2918,17 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             />
 
             {/* 5. Hak Ediş Not / Belge Düzenleme Modalı (Mevcut Sistem) */}
-            {noteModalPayout && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4" onClick={() => setNoteModalPayout(null)}>
-                    <div className="bg-[#0f1117] rounded-2xl border border-amber-500/20 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center px-5 py-4 border-b border-white/5">
+            {noteModalPayout && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" onClick={() => setNoteModalPayout(null)}>
+                    <div className="bg-[#0f1117] rounded-2xl border border-amber-500/20 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col my-auto" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center px-5 py-4 border-b border-white/5 shrink-0">
                             <h3 className="font-bold flex items-center gap-2.5 text-white">
                                 <StickyNote size={14} className="text-amber-400" />
                                 <span>{noteModalPayout.docId} <span className="text-slate-500 font-normal">— Düzenle</span></span>
                             </h3>
                             <button onClick={() => setNoteModalPayout(null)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-white transition-all text-lg cursor-pointer">&times;</button>
                         </div>
-                        <div className="p-5 space-y-4">
+                        <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto custom-scrollbar">
                             <div>
                                 <p className="text-xs text-slate-400 mb-1.5 flex items-center gap-1">Net Ödeme Tutarı (₺)</p>
                                 <input
@@ -2949,7 +2953,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 <FileUpload files={modalFiles} onChange={setModalFiles} maxSizeMB={10} />
                             </div>
                         </div>
-                        <div className="px-5 py-4 border-t border-white/5 flex justify-end gap-3">
+                        <div className="px-5 py-4 border-t border-white/5 flex justify-end gap-3 shrink-0">
                             <button
                                 onClick={() => setNoteModalPayout(null)}
                                 className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
@@ -2975,13 +2979,14 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* 6. Hak Ediş Taslak İptal Onay Modalı (Mevcut Sistem) */}
-            {showCancelConfirm && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-                    <div className="bg-[#0a0d14] rounded-xl border border-white/[0.08] shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 text-center animate-in zoom-in-95 duration-200">
+            {showCancelConfirm && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" onClick={() => setShowCancelConfirm(false)}>
+                    <div className="bg-[#0a0d14] rounded-xl border border-white/[0.08] shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 text-center animate-in zoom-in-95 duration-200 my-auto" onClick={e => e.stopPropagation()}>
                         <div className="mx-auto w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4 border border-red-500/20">
                             <Trash2 className="text-red-400" size={24} />
                         </div>
@@ -3006,7 +3011,8 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

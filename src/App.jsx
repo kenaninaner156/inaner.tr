@@ -656,8 +656,8 @@ function App() {
       </aside>
 
       {/* Main Content */}
-      <main className={`${['dashboard', 'map', 'invoices', 'earsiv', 'company_debts'].includes(activeTab) ? 'h-[100dvh] lg:h-screen overflow-hidden' : 'min-h-screen'} ${mainPaddingLeft}`}>
-        <div className={`flex flex-col w-full ${['dashboard', 'map', 'invoices', 'earsiv', 'company_debts'].includes(activeTab) ? 'h-full overflow-hidden' : 'min-h-screen'}`}>
+      <main className={`${['dashboard', 'map', 'invoices', 'earsiv', 'company_debts', 'personel'].includes(activeTab) ? 'h-[100dvh] lg:h-screen overflow-hidden' : 'min-h-screen'} ${mainPaddingLeft}`}>
+        <div className={`flex flex-col w-full ${['dashboard', 'map', 'invoices', 'earsiv', 'company_debts', 'personel'].includes(activeTab) ? 'h-full overflow-hidden' : 'min-h-screen'}`}>
 
           {/* Header - Simple & Clean (sticky) */}
           <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map', 'trips', 'dashboard', 'maintenance', 'detaylar', 'invoices', 'earsiv', 'payments', 'personel', 'settings', 'company_admin', 'super_admin', 'company_debts'].includes(activeTab) ? 'hidden' : ''}`}

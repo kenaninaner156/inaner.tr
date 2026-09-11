@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Users } from 'lucide-react';
 
 const PersonnelPeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPeriod, allDrivers = [] }) => {
@@ -176,7 +177,7 @@ const PersonnelPeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectP
         return grid;
     };
 
-    return (
+    const modalContent = (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-50">
             <div className="glass-panel w-full max-w-2xl flex flex-col md:flex-row max-h-[98vh] md:max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
 
@@ -298,6 +299,8 @@ const PersonnelPeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectP
             </div>
         </div>
     );
+
+    return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 
 export default PersonnelPeriodModal;
