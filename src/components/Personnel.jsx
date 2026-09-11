@@ -6,7 +6,7 @@ import {
     Edit3, ExternalLink, Download, ChevronLeft, ChevronRight, X, UserPlus,
     Printer, Save, PlusCircle, Paperclip, StickyNote, Copy, Check, Eye,
     DollarSign, Briefcase, HeartPulse, Award, FileCheck, Shield, ChevronDown,
-    Menu, AlertCircle, ArrowUpRight, ArrowDownLeft, UploadCloud, RefreshCw
+    Menu, AlertCircle, ArrowUpRight, ArrowDownLeft, UploadCloud, RefreshCw, Info
 } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
@@ -98,6 +98,36 @@ const getSgkDueDate = () => {
     const dateFormatted = nextMonthEnd.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' });
     const periodName = nextMonthEnd.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
     return { nextMonthEnd, daysRemaining, dateFormatted, periodName };
+};
+
+// Personel Özlük & Evrak Tamamlanma Oranı
+const getPersonnelCompleteness = (person) => {
+    if (!person) return { percent: 0, missingCount: 0, missingList: [] };
+    const requiredChecks = [
+        { key: 'tcNo', label: 'T.C. Kimlik No', tab: 'identity' },
+        { key: 'phone', label: 'Telefon', tab: 'identity' },
+        { key: 'sgkNo', label: 'SGK Sicil No', tab: 'sgk' },
+        { key: 'licenseExpiry', label: 'Ehliyet Belgesi', tab: 'documents' },
+        { key: 'srcExpiry', label: 'SRC Belgesi', tab: 'documents' },
+        { key: 'psikoteknikExpiry', label: 'Psikoteknik', tab: 'documents' },
+        { key: 'tachographExpiry', label: 'Takograf Kartı', tab: 'documents' },
+    ];
+
+    const isDriver = !person.role || person.role.includes('driver');
+    const applicableChecks = isDriver ? requiredChecks : requiredChecks.filter(c => c.tab !== 'documents');
+
+    const missingList = [];
+    let filled = 0;
+    applicableChecks.forEach(c => {
+        if (person[c.key] && String(person[c.key]).trim().length > 0) {
+            filled++;
+        } else {
+            missingList.push(c);
+        }
+    });
+
+    const percent = applicableChecks.length > 0 ? Math.round((filled / applicableChecks.length) * 100) : 100;
+    return { percent, missingCount: missingList.length, missingList };
 };
 
 // PDF Görüntüleme Bileşeni (Hak Ediş ve Belgeler İçin)
@@ -314,10 +344,10 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
         setIsPersonnelModalOpen(true);
     };
 
-    const openEditPersonnelModal = (person) => {
+    const openEditPersonnelModal = (person, targetTab = 'identity') => {
         setPersonnelModalMode('edit');
         setEditingPersonnel(person);
-        setPersonnelFormTab('identity');
+        setPersonnelFormTab(targetTab);
         setFormData({
             fullName: person.fullName || '',
             tcNo: person.tcNo || '',
@@ -373,14 +403,16 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             const payload = {
                 ...formData,
                 fullName: formData.fullName.trim(),
-                tcNo: formData.tcNo.trim(),
+                tcNo: (formData.tcNo || '').trim(),
                 baseSalary: formData.baseSalary ? Number(formData.baseSalary) : 0,
             };
 
             if (personnelModalMode === 'add') {
                 const newRecord = await addPersonnel(payload);
                 addLog('PERSONEL_EKLE', `${payload.fullName} personel özlük kaydı oluşturuldu.`);
-                setSelectedPersonnelId(newRecord.id);
+                if (newRecord?.id) {
+                    setSelectedPersonnelId(newRecord.id);
+                }
             } else if (personnelModalMode === 'edit' && editingPersonnel) {
                 await updatePersonnel(editingPersonnel.id, payload);
                 addLog('PERSONEL_GUNCELLE', `${payload.fullName} personel özlük kaydı güncellendi.`);
@@ -1131,6 +1163,24 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                             {statusObj?.label || 'Aktif'}
                                                         </span>
                                                     </div>
+
+                                                    {/* Tamamlanma Durumu */}
+                                                    {(() => {
+                                                        const comp = getPersonnelCompleteness(person);
+                                                        return (
+                                                            <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-white/[0.04]">
+                                                                <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
+                                                                    <div
+                                                                        className={`h-full rounded-full transition-all duration-300 ${comp.percent === 100 ? 'bg-emerald-400' : 'bg-amber-400'}`}
+                                                                        style={{ width: `${comp.percent}%` }}
+                                                                    />
+                                                                </div>
+                                                                <span className="text-[9px] font-mono text-slate-400 shrink-0">
+                                                                    %{comp.percent} {comp.missingCount > 0 ? `(${comp.missingCount} eksik)` : ''}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
                                         </div>
@@ -1199,6 +1249,42 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         </button>
                                     </div>
                                 </div>
+
+                                {/* Eksik Evrak & Bilgi Tamamlama Bildirim Bandı */}
+                                {(() => {
+                                    const completeness = getPersonnelCompleteness(selectedPersonnel);
+                                    if (completeness.percent < 100) {
+                                        return (
+                                            <div className="p-3 sm:p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center font-mono font-bold text-xs shrink-0">
+                                                        %{completeness.percent}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <h5 className="text-xs font-bold text-white flex items-center gap-1.5">
+                                                            <span>Özlük Dosyası Tamamlanıyor</span>
+                                                            <span className="text-[10px] text-amber-400 font-normal">({completeness.missingCount} eksik bilgi)</span>
+                                                        </h5>
+                                                        <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                                                            Bekleyenler: {completeness.missingList.map(m => m.label).join(', ')}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        const firstMissing = completeness.missingList[0];
+                                                        openEditPersonnelModal(selectedPersonnel, firstMissing?.tab || 'identity');
+                                                    }}
+                                                    className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0 flex items-center gap-1.5"
+                                                >
+                                                    <Edit3 size={13} />
+                                                    <span>Eksik Bilgileri Tamamla</span>
+                                                </button>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })()}
 
                                 {/* Profil Başlık Kartı */}
                                 <div className="p-4 sm:p-5 rounded-xl bg-gradient-to-br from-[#0f131d] to-[#0a0d14] border border-white/[0.08] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -2153,13 +2239,13 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
 
             {/* 1. Personel Ekle / Düzenle Modalı (5 Sekmeli / Wizard Form) */}
             {isPersonnelModalOpen && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-2 sm:p-4 overflow-y-auto">
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-2 sm:p-4">
                     <div
-                        className="bg-[#0a0d14] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh] my-auto"
+                        className="bg-[#0a0d14] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-3xl h-[90vh] max-h-[660px] overflow-hidden flex flex-col my-auto"
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Modal Başlık */}
-                        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.08] bg-[#0f131d] shrink-0">
+                        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#0f131d] shrink-0">
                             <div className="flex items-center gap-2.5">
                                 <span className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
                                     <UserPlus size={16} />
@@ -2180,7 +2266,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         </div>
 
                         {/* Sekmeler (Form İçi Gezinme) */}
-                        <div className="flex items-center px-4 pt-3 border-b border-white/[0.06] bg-[#0a0d14] gap-1 overflow-x-auto no-scrollbar shrink-0">
+                        <div className="flex items-center px-4 pt-2.5 pb-1 border-b border-white/[0.06] bg-[#0a0d14] gap-1 overflow-x-auto no-scrollbar shrink-0">
                             {[
                                 { id: 'identity', label: '1. Kimlik & İletişim', icon: Users },
                                 { id: 'sgk', label: '2. SGK & Çalışma', icon: Briefcase },
@@ -2209,11 +2295,18 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         </div>
 
                         {/* Form İçeriği */}
-                        <form onSubmit={handleSavePersonnel} className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 space-y-4">
+                        <form id="personnel-modal-form" onSubmit={handleSavePersonnel} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 sm:p-5 space-y-4">
                             
                             {/* SEKME 1: KİMLİK & İLETİŞİM */}
                             {personnelFormTab === 'identity' && (
                                 <div className="space-y-4 animate-in fade-in duration-200">
+                                    {/* Hızlı Kayıt Bilgilendirme Notu */}
+                                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-2.5">
+                                        <Info size={16} className="text-amber-400 shrink-0 mt-0.5" />
+                                        <div className="text-xs text-slate-300 leading-relaxed">
+                                            <span className="font-semibold text-amber-300">Hızlı Personel Kaydı:</span> Yalnızca ad ve soyad girerek personeli hemen oluşturabilirsiniz. SGK, ehliyet ve zimmet gibi detayları evraklar geldikçe dilediğiniz zaman tamamlayabilirsiniz.
+                                        </div>
+                                    </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
                                             <label className="text-xs text-slate-400 mb-1 block">Adı Soyadı *</label>
@@ -2337,7 +2430,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 <div className="space-y-4 animate-in fade-in duration-200">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
-                                            <label className="text-xs text-slate-400 mb-1 block">Görev / Pozisyon *</label>
+                                            <label className="text-xs text-slate-400 mb-1 block">Görev / Pozisyon</label>
                                             <select
                                                 value={formData.role}
                                                 onChange={e => setFormData({ ...formData, role: e.target.value })}
@@ -2347,7 +2440,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="text-xs text-slate-400 mb-1 block">Çalışma Durumu *</label>
+                                            <label className="text-xs text-slate-400 mb-1 block">Çalışma Durumu</label>
                                             <select
                                                 value={formData.employmentStatus}
                                                 onChange={e => setFormData({ ...formData, employmentStatus: e.target.value })}
@@ -2357,10 +2450,9 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="text-xs text-slate-400 mb-1 block">İşe Başlama Tarihi *</label>
+                                            <label className="text-xs text-slate-400 mb-1 block">İşe Başlama Tarihi</label>
                                             <input
                                                 type="date"
-                                                required
                                                 value={formData.hireDate}
                                                 onChange={e => setFormData({ ...formData, hireDate: e.target.value })}
                                                 className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40 font-mono"
@@ -2609,56 +2701,57 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                     </div>
                                 </div>
                             )}
+                        </form>
 
-                            {/* Alt Aksiyon Butonları */}
-                            <div className="flex items-center justify-between pt-4 border-t border-white/[0.08] shrink-0">
-                                <div className="flex items-center gap-2">
-                                    {personnelFormTab !== 'identity' && (
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const tabs = ['identity', 'sgk', 'documents', 'assets', 'files'];
-                                                const prevIdx = tabs.indexOf(personnelFormTab) - 1;
-                                                if (prevIdx >= 0) setPersonnelFormTab(tabs[prevIdx]);
-                                            }}
-                                            className="px-3 py-1.5 rounded-lg bg-white/5 text-slate-300 text-xs hover:text-white"
-                                        >
-                                            Geri
-                                        </button>
-                                    )}
-                                    {personnelFormTab !== 'files' && (
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const tabs = ['identity', 'sgk', 'documents', 'assets', 'files'];
-                                                const nextIdx = tabs.indexOf(personnelFormTab) + 1;
-                                                if (nextIdx < tabs.length) setPersonnelFormTab(tabs[nextIdx]);
-                                            }}
-                                            className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs hover:bg-white/15"
-                                        >
-                                            İleri
-                                        </button>
-                                    )}
-                                </div>
-
-                                <div className="flex items-center gap-2">
+                        {/* Alt Aksiyon Butonları (Sabit Footer) */}
+                        <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-t border-white/[0.08] bg-[#0f131d]">
+                            <div className="flex items-center gap-2">
+                                {personnelFormTab !== 'identity' && (
                                     <button
                                         type="button"
-                                        onClick={() => setIsPersonnelModalOpen(false)}
-                                        className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white"
+                                        onClick={() => {
+                                            const tabs = ['identity', 'sgk', 'documents', 'assets', 'files'];
+                                            const prevIdx = tabs.indexOf(personnelFormTab) - 1;
+                                            if (prevIdx >= 0) setPersonnelFormTab(tabs[prevIdx]);
+                                        }}
+                                        className="px-3 py-1.5 rounded-lg bg-white/5 text-slate-300 text-xs hover:text-white transition-colors cursor-pointer"
                                     >
-                                        Vazgeç
+                                        Geri
                                     </button>
+                                )}
+                                {personnelFormTab !== 'files' && (
                                     <button
-                                        type="submit"
-                                        disabled={isSavingPersonnel}
-                                        className="px-5 py-2 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 disabled:opacity-50 cursor-pointer"
+                                        type="button"
+                                        onClick={() => {
+                                            const tabs = ['identity', 'sgk', 'documents', 'assets', 'files'];
+                                            const nextIdx = tabs.indexOf(personnelFormTab) + 1;
+                                            if (nextIdx < tabs.length) setPersonnelFormTab(tabs[nextIdx]);
+                                        }}
+                                        className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs hover:bg-white/15 transition-colors cursor-pointer"
                                     >
-                                        {isSavingPersonnel ? 'Kaydediliyor...' : (personnelModalMode === 'add' ? 'Personeli Kaydet' : 'Değişiklikleri Güncelle')}
+                                        İleri
                                     </button>
-                                </div>
+                                )}
                             </div>
-                        </form>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPersonnelModalOpen(false)}
+                                    className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
+                                >
+                                    Vazgeç
+                                </button>
+                                <button
+                                    type="submit"
+                                    form="personnel-modal-form"
+                                    disabled={isSavingPersonnel}
+                                    className="px-5 py-2 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 disabled:opacity-50 transition-all cursor-pointer"
+                                >
+                                    {isSavingPersonnel ? 'Kaydediliyor...' : (personnelModalMode === 'add' ? 'Personeli Kaydet' : 'Değişiklikleri Güncelle')}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -2667,23 +2760,23 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             {isAdvanceModalOpen && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
                     <div
-                        className="bg-[#0a0d14] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col p-5 gap-4"
+                        className="bg-[#0a0d14] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-md max-h-[88vh] overflow-hidden flex flex-col"
                         onClick={e => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+                        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#0f131d] shrink-0">
                             <div className="flex items-center gap-2">
                                 <CreditCard size={16} className="text-amber-400" />
                                 <h3 className="text-sm font-bold text-white">Personel Avansı Ver</h3>
                             </div>
                             <button
                                 onClick={() => setIsAdvanceModalOpen(false)}
-                                className="w-7 h-7 rounded-lg bg-white/5 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer"
+                                className="w-7 h-7 rounded-lg bg-white/5 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
                             >
                                 <X size={15} />
                             </button>
                         </div>
 
-                        <div className="space-y-3">
+                        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-5 space-y-3">
                             <div>
                                 <label className="text-xs text-slate-400 mb-1 block">Personel *</label>
                                 <select
@@ -2736,17 +2829,17 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/[0.08]">
+                        <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-white/[0.08] bg-[#0f131d] shrink-0">
                             <button
                                 onClick={() => setIsAdvanceModalOpen(false)}
-                                className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white"
+                                className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
                             >
                                 İptal
                             </button>
                             <button
                                 onClick={handleSaveAdvance}
                                 disabled={isSavingAdvance}
-                                className="px-5 py-2 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 disabled:opacity-50 cursor-pointer"
+                                className="px-5 py-2 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 disabled:opacity-50 cursor-pointer transition-all"
                             >
                                 {isSavingAdvance ? 'Kaydediliyor...' : 'Avansı Kaydet'}
                             </button>
