@@ -69,7 +69,7 @@ const calculateSeniority = (hireDate, leaveDate) => {
 
 // Evrak Durum & Radar Analizi
 const getDocumentStatus = (expiryDate) => {
-    if (!expiryDate) return { status: 'missing', label: 'Kayıt Yok', days: null, badgeClass: 'text-slate-500 bg-slate-500/10 border-slate-500/20' };
+    if (!expiryDate) return { status: 'missing', label: null, days: null, badgeClass: '' };
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const exp = new Date(expiryDate);
@@ -955,9 +955,10 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             </div>
 
             {/* ── 2. Bento KPI Özet Kartları (Kompakt Executive Bar) ── */}
+            {/* ── 2. Bento KPI Özet Kartları (Sade & Modern Obsidian Bar) ── */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0">
                 {/* 1. Toplam Personel */}
-                <div className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#0a0d14] flex items-center justify-between">
+                <div className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#080b11] flex items-center justify-between">
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 shrink-0">
                             <Users size={13} />
@@ -967,13 +968,13 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                             <span className="text-xs font-bold text-white font-mono">{kpiMetrics.totalEmployees} Kişi</span>
                         </div>
                     </div>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono font-bold shrink-0">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate-300 font-mono shrink-0">
                         {kpiMetrics.activeEmployees} Aktif
                     </span>
                 </div>
 
                 {/* 2. Aktif Sürücüler */}
-                <div className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#0a0d14] flex items-center justify-between">
+                <div className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#080b11] flex items-center justify-between">
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 shrink-0">
                             <Truck size={13} />
@@ -991,31 +992,31 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                 {/* 3. Evrak Radarı */}
                 <div
                     onClick={() => setActiveSubTab('radar')}
-                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#0a0d14] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
+                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#080b11] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
                 >
                     <div className="flex items-center gap-2 min-w-0">
-                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${kpiMetrics.expiredDocCount > 0 ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                        <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 shrink-0">
                             <ShieldAlert size={13} />
                         </div>
                         <div className="min-w-0">
                             <span className="text-[10px] text-slate-400 block leading-tight">Evrak Radarı</span>
-                            <span className={`text-xs font-bold font-mono ${kpiMetrics.expiredDocCount > 0 ? 'text-red-400' : 'text-white'}`}>
-                                {kpiMetrics.expiredDocCount + kpiMetrics.criticalDocCount} Alarm
+                            <span className="text-xs font-bold text-white font-mono">
+                                {kpiMetrics.expiredDocCount + kpiMetrics.criticalDocCount > 0 ? `${kpiMetrics.expiredDocCount + kpiMetrics.criticalDocCount} Alarm` : 'Sorun Yok'}
                             </span>
                         </div>
                     </div>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${kpiMetrics.expiredDocCount > 0 ? 'bg-red-500/20 text-red-400 animate-pulse' : 'bg-emerald-500/10 text-emerald-400'}`}>
-                        {kpiMetrics.expiredDocCount > 0 ? 'Acil Yenileme' : 'Tümü Geçerli'}
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono shrink-0 ${kpiMetrics.expiredDocCount > 0 ? 'bg-red-500/20 text-red-400 font-bold' : 'bg-white/5 text-slate-300'}`}>
+                        {kpiMetrics.expiredDocCount > 0 ? `${kpiMetrics.expiredDocCount} Süresi Dolan` : 'Tümü Geçerli'}
                     </span>
                 </div>
 
                 {/* 4. SGK Prim Vadesi */}
                 <div
                     onClick={() => setActiveSubTab('payments')}
-                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#0a0d14] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
+                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#080b11] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
                 >
                     <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-7 h-7 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-400 shrink-0">
+                        <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 shrink-0">
                             <Calendar size={13} />
                         </div>
                         <div className="min-w-0">
@@ -1023,8 +1024,8 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                             <span className="text-xs font-bold text-white font-mono">₺{kpiMetrics.totalNetSalary.toLocaleString('tr-TR')}</span>
                         </div>
                     </div>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 font-mono shrink-0">
-                        {kpiMetrics.sgkDueDateInfo.daysRemaining} Gün Kaldı
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate-300 font-mono shrink-0">
+                        {kpiMetrics.sgkDueDateInfo.daysRemaining} Gün
                     </span>
                 </div>
             </div>
@@ -1035,64 +1036,30 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             {activeSubTab === 'directory' && (
                 <div className="flex-1 flex flex-col md:flex-row gap-2.5 sm:gap-3 min-h-0 overflow-hidden">
                     
-                    {/* SOL PANEL: Personel Listesi (Master - Mobilde 'list' görünümünde tam ekran, Masaüstünde dengeli 300px) */}
-                    <div className={`w-full md:w-72 lg:w-80 flex flex-col gap-2 shrink-0 h-full ${mobileView === 'detail' ? 'hidden md:flex' : 'flex'}`}>
-                        {/* Arama ve Filtre Çubuğu */}
-                        <div className="p-2.5 rounded-xl bg-[#0a0d14] border border-white/[0.06] flex flex-col gap-2 shrink-0">
-                            <div className="relative">
-                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                                <input
-                                    type="text"
-                                    value={directorySearch}
-                                    onChange={(e) => setDirectorySearch(e.target.value)}
-                                    placeholder="İsim, T.C., telefon veya plaka..."
-                                    className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/40 transition-colors"
-                                />
-                                {directorySearch && (
-                                    <button onClick={() => setDirectorySearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
-                                        <X size={12} />
-                                    </button>
-                                )}
-                            </div>
-
-                            {/* Departman ve Durum Filtre Hapları */}
-                            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar">
-                                {[
-                                    { id: 'active', label: 'Aktif' },
-                                    { id: 'all', label: 'Tümü' },
-                                    { id: 'on_leave', label: 'İzinde' },
-                                    { id: 'terminated', label: 'Ayrılanlar' }
-                                ].map(f => (
-                                    <button
-                                        key={f.id}
-                                        onClick={() => setStatusFilter(f.id)}
-                                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-                                            statusFilter === f.id ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-white/5 text-slate-400 hover:text-white border border-transparent'
-                                        }`}
-                                    >
-                                        {f.label}
-                                    </button>
-                                ))}
-                            </div>
+                    {/* SOL PANEL: Personel Listesi (Master - Sade & Kompakt) */}
+                    <div className={`w-full md:w-60 lg:w-68 flex flex-col gap-2 shrink-0 h-full ${mobileView === 'detail' ? 'hidden md:flex' : 'flex'}`}>
+                        {/* Arama Çubuğu (Sade) */}
+                        <div className="relative shrink-0">
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                            <input
+                                type="text"
+                                value={directorySearch}
+                                onChange={(e) => setDirectorySearch(e.target.value)}
+                                placeholder="Personel veya plaka ara..."
+                                className="w-full pl-8 pr-7 py-2 rounded-xl bg-[#080b11] border border-white/[0.06] text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/40 transition-colors"
+                            />
+                            {directorySearch && (
+                                <button onClick={() => setDirectorySearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
+                                    <X size={12} />
+                                </button>
+                            )}
                         </div>
 
                         {/* Personel Kart Listesi */}
-                        <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5 custom-scrollbar min-h-0">
+                        <div className="flex-1 overflow-y-auto space-y-1 pr-0.5 custom-scrollbar min-h-0">
                             {filteredPersonnelList.length > 0 ? (
                                 filteredPersonnelList.map((person) => {
                                     const isSelected = selectedPersonnelId === person.id;
-                                    const roleObj = ROLE_OPTIONS.find(r => r.value === person.role);
-                                    const statusObj = STATUS_OPTIONS.find(s => s.value === person.employmentStatus);
-                                    
-                                    // Evrak Sağlık Durumu (Ehliyet, SRC vb.)
-                                    const docDates = [person.licenseExpiry, person.srcExpiry, person.psikoteknikExpiry, person.tachographExpiry];
-                                    const enteredDocs = docDates.filter(Boolean);
-                                    const statuses = enteredDocs.map(d => getDocumentStatus(d).status);
-                                    const hasExpired = statuses.includes('expired');
-                                    const hasCritical = statuses.includes('critical');
-                                    const roleStr = (person.role || '').toLowerCase();
-                                    const isPersonDriver = !person.role || roleStr.includes('driver') || roleStr.includes('şoför') || roleStr.includes('sofor') || roleStr.includes('kaptan');
-                                    const hasMissingDocs = isPersonDriver && enteredDocs.length < 4;
 
                                     return (
                                         <div
@@ -1101,95 +1068,34 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                 setSelectedPersonnelId(person.id);
                                                 setMobileView('detail');
                                             }}
-                                            className={`p-3 rounded-xl border transition-all cursor-pointer relative group ${
+                                            className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 ${
                                                 isSelected
-                                                    ? 'bg-[#121622] border-amber-500/40 shadow-lg shadow-black/40'
-                                                    : 'bg-[#0a0d14] border-white/[0.06] hover:bg-white/[0.03] hover:border-white/10'
+                                                    ? 'bg-[#121622] border-amber-500/40 shadow-sm'
+                                                    : 'bg-[#080b11] border-white/[0.06] hover:bg-white/[0.03] hover:border-white/10'
                                             }`}
                                         >
-                                            <div className="flex items-center gap-2.5">
+                                            <div className="flex items-center gap-2.5 min-w-0">
                                                 {/* Avatar */}
-                                                <div className="relative shrink-0">
-                                                    {person.avatarUrl ? (
-                                                        <img
-                                                            src={person.avatarUrl}
-                                                            alt={person.fullName}
-                                                            className="w-10 h-10 rounded-xl object-cover border border-white/10"
-                                                        />
-                                                    ) : (
-                                                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 border border-white/10 flex items-center justify-center font-bold text-xs text-amber-300">
-                                                            {person.fullName ? person.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : 'P'}
-                                                        </div>
-                                                    )}
-                                                    {/* Evrak Sağlık Işığı */}
-                                                    <span
-                                                        className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#0a0d14] ${
-                                                            hasExpired ? 'bg-red-500' : hasCritical ? 'bg-amber-400' : hasMissingDocs ? 'bg-amber-500/80' : 'bg-emerald-500'
-                                                        }`}
-                                                        title={
-                                                            hasExpired
-                                                                ? 'Süresi dolmuş yasal evrak var'
-                                                                : hasCritical
-                                                                ? '30 gün içinde dolacak yasal evrak var'
-                                                                : hasMissingDocs
-                                                                ? 'Eksik yasal evrak kaydı bulunuyor'
-                                                                : 'Tüm yasal evraklar geçerli'
-                                                        }
-                                                    />
+                                                <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center font-bold text-xs text-amber-400 shrink-0">
+                                                    {person.fullName ? person.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : 'P'}
                                                 </div>
-
-                                                {/* Bilgiler */}
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between gap-1">
-                                                        <h4 className={`text-xs sm:text-sm font-bold truncate ${isSelected ? 'text-amber-300' : 'text-white group-hover:text-amber-300'} transition-colors`}>
-                                                            {person.fullName}
-                                                        </h4>
-                                                        {person.assignedTruckPlate && (
-                                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 font-mono font-semibold shrink-0">
-                                                                {person.assignedTruckPlate}
-                                                            </span>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="flex items-center justify-between mt-1 text-[11px] text-slate-400">
-                                                        <span className="truncate">{roleObj?.label || 'Personel'}</span>
-                                                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold shrink-0 ${statusObj?.badgeClass || 'text-slate-400 bg-white/5'}`}>
-                                                            {statusObj?.label || 'Aktif'}
-                                                        </span>
-                                                    </div>
-
-                                                    {/* Tamamlanma Durumu */}
-                                                    {(() => {
-                                                        const comp = getPersonnelCompleteness(person);
-                                                        return (
-                                                            <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-white/[0.04]">
-                                                                <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
-                                                                    <div
-                                                                        className={`h-full rounded-full transition-all duration-300 ${comp.percent === 100 ? 'bg-emerald-400' : 'bg-amber-400'}`}
-                                                                        style={{ width: `${comp.percent}%` }}
-                                                                    />
-                                                                </div>
-                                                                <span className="text-[9px] font-mono text-slate-400 shrink-0">
-                                                                    %{comp.percent}
-                                                                </span>
-                                                            </div>
-                                                        );
-                                                    })()}
-                                                </div>
+                                                <span className={`text-xs sm:text-sm font-semibold truncate ${isSelected ? 'text-amber-400 font-bold' : 'text-white'}`}>
+                                                    {person.fullName}
+                                                </span>
                                             </div>
+
+                                            {person.assignedTruckPlate && (
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-slate-300 font-mono shrink-0">
+                                                    {person.assignedTruckPlate}
+                                                </span>
+                                            )}
                                         </div>
                                     );
                                 })
                             ) : (
-                                <div className="p-8 text-center rounded-xl bg-[#0a0d14] border border-white/[0.06] text-slate-500 flex flex-col items-center justify-center gap-2">
-                                    <Users size={28} className="text-slate-600" />
-                                    <p className="text-xs">Kayıtlı personel bulunamadı.</p>
-                                    <button
-                                        onClick={openAddPersonnelModal}
-                                        className="mt-2 text-xs text-amber-400 hover:underline font-semibold"
-                                    >
-                                        + Yeni Personel Ekle
-                                    </button>
+                                <div className="p-8 text-center rounded-xl bg-[#080b11] border border-white/[0.06] text-slate-500 flex flex-col items-center justify-center gap-2">
+                                    <Users size={24} className="text-slate-600" />
+                                    <p className="text-xs">Personel bulunamadı.</p>
                                 </div>
                             )}
                         </div>
@@ -1235,12 +1141,13 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                     {selectedPersonnel.fullName}
                                                 </h3>
                                                 {selectedPersonnel.bloodType && (
-                                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/25 shrink-0">
+                                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-white/5 text-slate-300 border border-white/10 shrink-0">
                                                         {selectedPersonnel.bloodType}
                                                     </span>
                                                 )}
-                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-                                                    {STATUS_OPTIONS.find(s => s.value === selectedPersonnel.employmentStatus)?.label || 'Aktif Çalışan'}
+                                                <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-white/5 text-slate-300 border border-white/10 shrink-0 flex items-center gap-1.5">
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${selectedPersonnel.employmentStatus === 'leave' ? 'bg-amber-400' : selectedPersonnel.employmentStatus === 'terminated' ? 'bg-red-400' : 'bg-emerald-400'}`} />
+                                                    {STATUS_OPTIONS.find(s => s.value === selectedPersonnel.employmentStatus)?.label || 'Aktif'}
                                                 </span>
                                             </div>
                                             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 mt-0.5">
@@ -1248,9 +1155,9 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                     {ROLE_OPTIONS.find(r => r.value === selectedPersonnel.role)?.label || 'Personel'}
                                                 </span>
                                                 <span className="text-slate-600">·</span>
-                                                <span className="text-amber-400 font-mono font-semibold flex items-center gap-1">
+                                                <span className="text-amber-400 font-mono font-medium flex items-center gap-1">
                                                     <Truck size={12} />
-                                                    <span>Çekici: {selectedPersonnel.assignedTruckPlate || 'Atanmadı'}</span>
+                                                    <span>Çekici: {selectedPersonnel.assignedTruckPlate || '—'}</span>
                                                     {selectedPersonnel.assignedTrailerPlate && (
                                                         <span className="text-slate-400 font-normal"> / Dorse: {selectedPersonnel.assignedTrailerPlate}</span>
                                                     )}
@@ -1259,7 +1166,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                     <>
                                                         <span className="text-slate-600">·</span>
                                                         <a href={`tel:${selectedPersonnel.phone}`} className="text-slate-300 hover:text-white flex items-center gap-1 font-mono">
-                                                            <Phone size={11} className="text-emerald-400" />
+                                                            <Phone size={11} className="text-slate-400" />
                                                             <span>{selectedPersonnel.phone}</span>
                                                         </a>
                                                     </>
@@ -1308,15 +1215,14 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                     </div>
                                 </div>
 
-                                {/* ── 2. YATAY SÜRÜCÜ YASAL EVRAK RADARI (Full-Width 4 Kolon - Asla Kesilmez!) ── */}
-                                <div className="px-4 py-2.5 bg-[#0a0d14] border-b border-white/[0.06] shrink-0">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-2">
+                                {/* ── 2. YATAY SÜRÜCÜ YASAL EVRAK RADARI ── */}
+                                <div className="px-4 py-2 bg-[#0a0d14] border-b border-white/[0.06] shrink-0">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <div className="flex items-center gap-1.5">
                                             <Shield size={13} className="text-amber-400" />
-                                            <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                                                Sürücü Yasal Evrak Radarı
+                                            <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
+                                                Yasal Sürücü Belgeleri
                                             </span>
-                                            <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">· Ağır Vasıta Uygunluk Kontrolü</span>
                                         </div>
                                         {(() => {
                                             const completeness = getPersonnelCompleteness(selectedPersonnel);
@@ -1324,7 +1230,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                 const firstMissing = completeness.missingList[0];
                                                 return (
                                                     <div className="flex items-center gap-2 text-xs">
-                                                        <span className="text-slate-400 text-[11px]">Özlük Dosyası %{completeness.percent} tamamlandı ({completeness.missingCount} eksik)</span>
+                                                        <span className="text-slate-400 text-[11px]">Özlük Dosyası %{completeness.percent} ({completeness.missingCount} eksik)</span>
                                                         <button
                                                             onClick={() => openEditPersonnelModal(selectedPersonnel, firstMissing?.tab || 'identity')}
                                                             className="text-[11px] font-bold text-amber-400 hover:underline cursor-pointer"
@@ -1337,38 +1243,32 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             return (
                                                 <span className="text-[11px] text-emerald-400 flex items-center gap-1 font-medium">
                                                     <CheckCircle2 size={12} />
-                                                    <span>Tüm Yasal Evraklar Eksiksiz</span>
+                                                    <span>Evraklar Eksiksiz</span>
                                                 </span>
                                             );
                                         })()}
                                     </div>
 
-                                    {/* 4 Kolonlu Geniş Yatay Kartlar (3 Satırlı Kusursuz Düzen - Asla Kesilmez) */}
-                                    <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5">
+                                    {/* 4 Kolonlu Kompakt Evrak Kartları */}
+                                    <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
                                         {/* 1. Sürücü Belgesi */}
                                         {(() => {
                                             const st = getDocumentStatus(selectedPersonnel.licenseExpiry);
                                             const classes = selectedPersonnel.licenseClasses?.length ? selectedPersonnel.licenseClasses.join(', ') : 'CE, C';
                                             return (
-                                                <div className="p-3 rounded-xl bg-[#0e121b] border border-white/[0.07] hover:border-amber-500/30 transition-colors flex flex-col justify-between gap-2 group">
+                                                <div className="p-2.5 rounded-xl bg-[#080b11] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
                                                     <div className="flex items-center justify-between">
-                                                        <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform shrink-0">
-                                                            <Award size={14} />
-                                                        </div>
-                                                        <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold border shrink-0 ${st.badgeClass}`}>
-                                                            {st.label}
-                                                        </span>
+                                                        <span className="text-xs font-semibold text-white">Sürücü Belgesi</span>
+                                                        {st.label && (
+                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium border ${st.badgeClass}`}>
+                                                                {st.label}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                    <div>
-                                                        <h5 className="text-xs font-bold text-white tracking-tight">Sürücü Belgesi</h5>
-                                                        <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate">
-                                                            Sınıf: <span className="text-slate-200 font-semibold">{classes}</span>
-                                                        </p>
-                                                    </div>
-                                                    <div className="pt-1.5 border-t border-white/[0.05] flex items-center justify-between text-[10px] font-mono">
-                                                        <span className="text-slate-500">Geçerlilik:</span>
-                                                        <span className={selectedPersonnel.licenseExpiry ? 'text-slate-200 font-semibold' : 'text-slate-500 italic'}>
-                                                            {selectedPersonnel.licenseExpiry ? new Date(selectedPersonnel.licenseExpiry).toLocaleDateString('tr-TR') : 'Kayıt Yok'}
+                                                    <div className="flex items-center justify-between text-[11px] font-mono mt-1.5">
+                                                        <span className="text-slate-500">{classes}</span>
+                                                        <span className={selectedPersonnel.licenseExpiry ? 'text-slate-300 font-medium' : 'text-slate-600'}>
+                                                            {selectedPersonnel.licenseExpiry ? new Date(selectedPersonnel.licenseExpiry).toLocaleDateString('tr-TR') : '—'}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -1380,25 +1280,19 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             const st = getDocumentStatus(selectedPersonnel.srcExpiry);
                                             const srcTypes = selectedPersonnel.srcTypes?.length ? selectedPersonnel.srcTypes.join(', ') : 'SRC 3, 4';
                                             return (
-                                                <div className="p-3 rounded-xl bg-[#0e121b] border border-white/[0.07] hover:border-amber-500/30 transition-colors flex flex-col justify-between gap-2 group">
+                                                <div className="p-2.5 rounded-xl bg-[#080b11] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
                                                     <div className="flex items-center justify-between">
-                                                        <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform shrink-0">
-                                                            <FileCheck size={14} />
-                                                        </div>
-                                                        <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold border shrink-0 ${st.badgeClass}`}>
-                                                            {st.label}
-                                                        </span>
+                                                        <span className="text-xs font-semibold text-white">SRC Belgesi</span>
+                                                        {st.label && (
+                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium border ${st.badgeClass}`}>
+                                                                {st.label}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                    <div>
-                                                        <h5 className="text-xs font-bold text-white tracking-tight">SRC Belgesi</h5>
-                                                        <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate" title={srcTypes}>
-                                                            Tür: <span className="text-slate-200 font-semibold">{srcTypes}</span>
-                                                        </p>
-                                                    </div>
-                                                    <div className="pt-1.5 border-t border-white/[0.05] flex items-center justify-between text-[10px] font-mono">
-                                                        <span className="text-slate-500">Geçerlilik:</span>
-                                                        <span className={selectedPersonnel.srcExpiry ? 'text-slate-200 font-semibold' : 'text-slate-500 italic'}>
-                                                            {selectedPersonnel.srcExpiry ? new Date(selectedPersonnel.srcExpiry).toLocaleDateString('tr-TR') : 'Kayıt Yok'}
+                                                    <div className="flex items-center justify-between text-[11px] font-mono mt-1.5">
+                                                        <span className="text-slate-500 truncate max-w-[100px]" title={srcTypes}>{srcTypes}</span>
+                                                        <span className={selectedPersonnel.srcExpiry ? 'text-slate-300 font-medium' : 'text-slate-600'}>
+                                                            {selectedPersonnel.srcExpiry ? new Date(selectedPersonnel.srcExpiry).toLocaleDateString('tr-TR') : '—'}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -1409,25 +1303,19 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         {(() => {
                                             const st = getDocumentStatus(selectedPersonnel.psikoteknikExpiry);
                                             return (
-                                                <div className="p-3 rounded-xl bg-[#0e121b] border border-white/[0.07] hover:border-amber-500/30 transition-colors flex flex-col justify-between gap-2 group">
+                                                <div className="p-2.5 rounded-xl bg-[#080b11] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
                                                     <div className="flex items-center justify-between">
-                                                        <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform shrink-0">
-                                                            <HeartPulse size={14} />
-                                                        </div>
-                                                        <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold border shrink-0 ${st.badgeClass}`}>
-                                                            {st.label}
-                                                        </span>
+                                                        <span className="text-xs font-semibold text-white">Psikoteknik</span>
+                                                        {st.label && (
+                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium border ${st.badgeClass}`}>
+                                                                {st.label}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                    <div>
-                                                        <h5 className="text-xs font-bold text-white tracking-tight">Psikoteknik Raporu</h5>
-                                                        <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate">
-                                                            Sağlık Muayenesi
-                                                        </p>
-                                                    </div>
-                                                    <div className="pt-1.5 border-t border-white/[0.05] flex items-center justify-between text-[10px] font-mono">
-                                                        <span className="text-slate-500">Geçerlilik:</span>
-                                                        <span className={selectedPersonnel.psikoteknikExpiry ? 'text-slate-200 font-semibold' : 'text-slate-500 italic'}>
-                                                            {selectedPersonnel.psikoteknikExpiry ? new Date(selectedPersonnel.psikoteknikExpiry).toLocaleDateString('tr-TR') : 'Kayıt Yok'}
+                                                    <div className="flex items-center justify-between text-[11px] font-mono mt-1.5">
+                                                        <span className="text-slate-500">Sağlık Raporu</span>
+                                                        <span className={selectedPersonnel.psikoteknikExpiry ? 'text-slate-300 font-medium' : 'text-slate-600'}>
+                                                            {selectedPersonnel.psikoteknikExpiry ? new Date(selectedPersonnel.psikoteknikExpiry).toLocaleDateString('tr-TR') : '—'}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -1437,27 +1325,21 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         {/* 4. Dijital Takograf Kartı */}
                                         {(() => {
                                             const st = getDocumentStatus(selectedPersonnel.tachographExpiry);
-                                            const cardNo = selectedPersonnel.tachographCardNo || 'Kayıt Yok';
+                                            const cardNo = selectedPersonnel.tachographCardNo || '';
                                             return (
-                                                <div className="p-3 rounded-xl bg-[#0e121b] border border-white/[0.07] hover:border-amber-500/30 transition-colors flex flex-col justify-between gap-2 group">
+                                                <div className="p-2.5 rounded-xl bg-[#080b11] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
                                                     <div className="flex items-center justify-between">
-                                                        <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform shrink-0">
-                                                            <CreditCard size={14} />
-                                                        </div>
-                                                        <span className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold border shrink-0 ${st.badgeClass}`}>
-                                                            {st.label}
-                                                        </span>
+                                                        <span className="text-xs font-semibold text-white">Dijital Takograf</span>
+                                                        {st.label && (
+                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium border ${st.badgeClass}`}>
+                                                                {st.label}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                    <div>
-                                                        <h5 className="text-xs font-bold text-white tracking-tight">Dijital Takograf</h5>
-                                                        <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate" title={cardNo}>
-                                                            Kart No: <span className="text-slate-200 font-semibold">{cardNo}</span>
-                                                        </p>
-                                                    </div>
-                                                    <div className="pt-1.5 border-t border-white/[0.05] flex items-center justify-between text-[10px] font-mono">
-                                                        <span className="text-slate-500">Geçerlilik:</span>
-                                                        <span className={selectedPersonnel.tachographExpiry ? 'text-slate-200 font-semibold' : 'text-slate-500 italic'}>
-                                                            {selectedPersonnel.tachographExpiry ? new Date(selectedPersonnel.tachographExpiry).toLocaleDateString('tr-TR') : 'Kayıt Yok'}
+                                                    <div className="flex items-center justify-between text-[11px] font-mono mt-1.5">
+                                                        <span className="text-slate-500 truncate max-w-[100px]" title={cardNo}>{cardNo || '—'}</span>
+                                                        <span className={selectedPersonnel.tachographExpiry ? 'text-slate-300 font-medium' : 'text-slate-600'}>
+                                                            {selectedPersonnel.tachographExpiry ? new Date(selectedPersonnel.tachographExpiry).toLocaleDateString('tr-TR') : '—'}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -1535,106 +1417,95 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 <div className="flex-1 min-h-0 p-3 sm:p-4 overflow-y-auto custom-scrollbar">
                                     {/* SEKME 1: RESMİ ÖZLÜK & FİNANS (Geniş 2 Kolonlu Şık Tablo) */}
                                     {(detailRightTab === 'overview' || detailRightTab === 'notes') && (
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                                             {/* SOL SÜTUN: SGK & BORDRO FİNANSI */}
-                                            <div className="rounded-xl bg-[#0e121b] border border-white/[0.07] p-4 flex flex-col justify-between gap-3 shadow-lg shadow-black/20">
+                                            <div className="rounded-xl bg-[#080b11] border border-white/[0.06] p-3.5 flex flex-col justify-between">
                                                 <div>
-                                                    <div className="flex items-center justify-between pb-2.5 border-b border-white/[0.06]">
-                                                        <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
-                                                            <Briefcase size={14} />
+                                                    <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                                                        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                                                            <Briefcase size={13} className="text-amber-400" />
                                                             <span>SGK & Bordro Finansı</span>
                                                         </h4>
                                                         <span className="text-[10px] font-mono text-slate-500">Resmi Kayıt</span>
                                                     </div>
 
-                                                    <div className="space-y-2 text-xs mt-3">
+                                                    <div className="space-y-1.5 text-xs mt-2.5">
                                                         <div className="flex items-center justify-between py-1 border-b border-white/[0.03]">
                                                             <span className="text-slate-400">İşe Giriş Tarihi:</span>
-                                                            <span className="font-mono text-white font-semibold">
-                                                                {selectedPersonnel.hireDate ? new Date(selectedPersonnel.hireDate).toLocaleDateString('tr-TR') : 'Belirtilmedi'}
+                                                            <span className="font-mono text-slate-200">
+                                                                {selectedPersonnel.hireDate ? new Date(selectedPersonnel.hireDate).toLocaleDateString('tr-TR') : '—'}
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center justify-between py-1 border-b border-white/[0.03]">
                                                             <span className="text-slate-400">Kıdem Süresi:</span>
-                                                            <span className="font-mono text-amber-300 font-semibold">
-                                                                {calculateSeniority(selectedPersonnel.hireDate, selectedPersonnel.leaveDate)}
+                                                            <span className="font-mono text-amber-400">
+                                                                {calculateSeniority(selectedPersonnel.hireDate, selectedPersonnel.leaveDate) || '—'}
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center justify-between py-1 border-b border-white/[0.03]">
-                                                            <span className="text-slate-400">SGK Sicil Numarası:</span>
-                                                            <span className="font-mono text-white font-semibold">{selectedPersonnel.sgkNo || 'Belirtilmedi'}</span>
+                                                            <span className="text-slate-400">SGK Sicil No:</span>
+                                                            <span className="font-mono text-slate-200">{selectedPersonnel.sgkNo || '—'}</span>
                                                         </div>
                                                         <div className="flex items-center justify-between py-1 border-b border-white/[0.03]">
                                                             <span className="text-slate-400">SGK Meslek Kodu:</span>
-                                                            <span className="font-mono text-white font-semibold">{selectedPersonnel.sgkOccupationCode || '8332.01 (Ağır Vasıta Şoförü)'}</span>
+                                                            <span className="font-mono text-slate-200">{selectedPersonnel.sgkOccupationCode || '8332.01'}</span>
                                                         </div>
                                                         <div className="flex items-center justify-between py-1 border-b border-white/[0.03]">
                                                             <span className="text-slate-400">Aylık Net Maaş:</span>
-                                                            <span className="font-mono text-emerald-400 font-bold text-sm">
-                                                                {selectedPersonnel.baseSalary ? `₺${Number(selectedPersonnel.baseSalary).toLocaleString('tr-TR')}` : 'Belirtilmedi'}
+                                                            <span className="font-mono text-white font-semibold">
+                                                                {selectedPersonnel.baseSalary ? `₺${Number(selectedPersonnel.baseSalary).toLocaleString('tr-TR')}` : '—'}
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center justify-between py-1 border-b border-white/[0.03]">
-                                                            <span className="text-slate-400">Maaş Hakediş Günü:</span>
-                                                            <span className="font-mono text-white font-semibold">Her ayın {selectedPersonnel.salaryDay || '5'}. günü</span>
+                                                            <span className="text-slate-400">Maaş Günü:</span>
+                                                            <span className="font-mono text-slate-200">
+                                                                {selectedPersonnel.salaryDay ? `Her ayın ${selectedPersonnel.salaryDay}. günü` : '—'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between py-1">
+                                                            <span className="text-slate-400">Banka & IBAN:</span>
+                                                            {selectedPersonnel.iban ? (
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className="font-mono text-slate-200 truncate max-w-[200px]" title={`${selectedPersonnel.bankName || ''} ${selectedPersonnel.iban}`}>
+                                                                        {selectedPersonnel.bankName ? `${selectedPersonnel.bankName} · ` : ''}{selectedPersonnel.iban}
+                                                                    </span>
+                                                                    <button
+                                                                        onClick={() => handleCopy(selectedPersonnel.iban, 'iban')}
+                                                                        className="text-slate-500 hover:text-white transition-colors cursor-pointer"
+                                                                        title="IBAN Kopyala"
+                                                                    >
+                                                                        {copiedField === 'iban' ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => openEditPersonnelModal(selectedPersonnel, 'sgk')}
+                                                                    className="text-[11px] text-amber-400 hover:underline cursor-pointer"
+                                                                >
+                                                                    + IBAN Ekle
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
-                                                </div>
-
-                                                {/* Banka & IBAN Kartı */}
-                                                <div className="mt-2 p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] flex items-center justify-between gap-3">
-                                                    <div className="min-w-0">
-                                                        <span className="text-[10px] text-slate-400 font-semibold block uppercase tracking-wider">
-                                                            {selectedPersonnel.bankName || 'Banka Hesabı'}
-                                                        </span>
-                                                        <p className="font-mono text-xs text-white font-bold mt-0.5 tracking-wide truncate">
-                                                            {selectedPersonnel.iban || 'IBAN bilgisi eklenmedi'}
-                                                        </p>
-                                                    </div>
-                                                    {selectedPersonnel.iban ? (
-                                                        <button
-                                                            onClick={() => handleCopy(selectedPersonnel.iban, 'iban')}
-                                                            className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 hover:text-white text-xs font-semibold flex items-center gap-1.5 border border-white/10 transition-all cursor-pointer shrink-0"
-                                                        >
-                                                            {copiedField === 'iban' ? (
-                                                                <>
-                                                                    <Check size={13} className="text-emerald-400" />
-                                                                    <span className="text-emerald-400 font-bold">Kopyalandı</span>
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <Copy size={13} />
-                                                                    <span>Kopyala</span>
-                                                                </>
-                                                            )}
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => openEditPersonnelModal(selectedPersonnel, 'sgk')}
-                                                            className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-semibold border border-amber-500/20 transition-all cursor-pointer shrink-0"
-                                                        >
-                                                            + IBAN Ekle
-                                                        </button>
-                                                    )}
                                                 </div>
                                             </div>
 
                                             {/* SAĞ SÜTUN: KİMLİK & ACİL DURUM İLETİŞİMİ */}
-                                            <div className="rounded-xl bg-[#0e121b] border border-white/[0.07] p-4 flex flex-col justify-between gap-3 shadow-lg shadow-black/20">
+                                            <div className="rounded-xl bg-[#080b11] border border-white/[0.06] p-3.5 flex flex-col justify-between">
                                                 <div>
-                                                    <div className="flex items-center justify-between pb-2.5 border-b border-white/[0.06]">
-                                                        <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
-                                                            <Phone size={14} />
-                                                            <span>Kimlik & İletişim Bilgileri</span>
+                                                    <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                                                        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                                                            <Phone size={13} className="text-amber-400" />
+                                                            <span>Kimlik & İletişim</span>
                                                         </h4>
                                                         <span className="text-[10px] font-mono text-slate-500">MERNİS Doğrulama</span>
                                                     </div>
 
-                                                    <div className="space-y-2 text-xs mt-3">
+                                                    <div className="space-y-1.5 text-xs mt-2.5">
                                                         <div className="flex items-center justify-between py-1 border-b border-white/[0.03]">
-                                                            <span className="text-slate-400">T.C. Kimlik Numarası:</span>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-mono text-white font-semibold">{selectedPersonnel.tcNo || 'Belirtilmedi'}</span>
+                                                            <span className="text-slate-400">T.C. Kimlik No:</span>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="font-mono text-slate-200">{selectedPersonnel.tcNo || '—'}</span>
                                                                 {selectedPersonnel.tcNo && (
                                                                     <button
                                                                         onClick={() => handleCopy(selectedPersonnel.tcNo, 'tc')}
@@ -1648,52 +1519,47 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                         </div>
                                                         <div className="flex items-center justify-between py-1 border-b border-white/[0.03]">
                                                             <span className="text-slate-400">Doğum Tarihi:</span>
-                                                            <span className="font-mono text-white font-semibold">
-                                                                {selectedPersonnel.birthDate ? new Date(selectedPersonnel.birthDate).toLocaleDateString('tr-TR') : 'Belirtilmedi'}
+                                                            <span className="font-mono text-slate-200">
+                                                                {selectedPersonnel.birthDate ? new Date(selectedPersonnel.birthDate).toLocaleDateString('tr-TR') : '—'}
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center justify-between py-1 border-b border-white/[0.03]">
                                                             <span className="text-slate-400">Kan Grubu:</span>
-                                                            <span className="font-mono text-white font-semibold">
-                                                                {selectedPersonnel.bloodType || 'Belirtilmedi'}
+                                                            <span className="font-mono text-slate-200">{selectedPersonnel.bloodType || '—'}</span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between py-1 border-b border-white/[0.03]">
+                                                            <span className="text-slate-400 shrink-0">İkametgah:</span>
+                                                            <span className="text-slate-200 text-right truncate max-w-[220px]" title={selectedPersonnel.address}>
+                                                                {selectedPersonnel.address || '—'}
                                                             </span>
                                                         </div>
-                                                        <div className="flex items-start justify-between py-1 border-b border-white/[0.03]">
-                                                            <span className="text-slate-400 shrink-0">İkametgah Adresi:</span>
-                                                            <span className="text-slate-200 text-right max-w-[260px] truncate" title={selectedPersonnel.address}>
-                                                                {selectedPersonnel.address || 'Adres eklenmedi.'}
-                                                            </span>
+                                                        <div className="flex items-center justify-between py-1">
+                                                            <span className="text-slate-400">Acil Durum Yakını:</span>
+                                                            {selectedPersonnel.emergencyContact?.phone ? (
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-slate-200 truncate max-w-[140px]">
+                                                                        {selectedPersonnel.emergencyContact?.name || ''}
+                                                                        {selectedPersonnel.emergencyContact?.relation ? ` (${selectedPersonnel.emergencyContact.relation})` : ''}
+                                                                    </span>
+                                                                    <a
+                                                                        href={`tel:${selectedPersonnel.emergencyContact.phone}`}
+                                                                        className="font-mono text-amber-400 hover:underline flex items-center gap-1"
+                                                                        title="Ara"
+                                                                    >
+                                                                        <Phone size={10} />
+                                                                        <span>{selectedPersonnel.emergencyContact.phone}</span>
+                                                                    </a>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => openEditPersonnelModal(selectedPersonnel, 'identity')}
+                                                                    className="text-[11px] text-amber-400 hover:underline cursor-pointer"
+                                                                >
+                                                                    + Kişi Ekle
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
-                                                </div>
-
-                                                {/* Acil Durum Yakını */}
-                                                <div className="mt-2 p-3 rounded-xl bg-red-500/5 border border-red-500/15 flex items-center justify-between gap-3">
-                                                    <div className="min-w-0">
-                                                        <span className="text-[10px] text-red-400 font-bold block uppercase tracking-wider">
-                                                            Acil Durumda Aranacak Yakını
-                                                        </span>
-                                                        <p className="text-xs font-semibold text-white mt-0.5 truncate">
-                                                            {selectedPersonnel.emergencyContact?.name || 'Acil durum kişisi belirtilmedi'}
-                                                            {selectedPersonnel.emergencyContact?.relation ? ` (${selectedPersonnel.emergencyContact.relation})` : ''}
-                                                        </p>
-                                                    </div>
-                                                    {selectedPersonnel.emergencyContact?.phone ? (
-                                                        <a
-                                                            href={`tel:${selectedPersonnel.emergencyContact.phone}`}
-                                                            className="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 font-mono transition-colors shrink-0"
-                                                        >
-                                                            <Phone size={12} />
-                                                            <span>{selectedPersonnel.emergencyContact.phone}</span>
-                                                        </a>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => openEditPersonnelModal(selectedPersonnel, 'identity')}
-                                                            className="px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold border border-red-500/20 transition-all cursor-pointer shrink-0"
-                                                        >
-                                                            + Kişi Ekle
-                                                        </button>
-                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -1919,7 +1785,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                 <h4 className="text-sm font-bold text-white truncate">{driver.fullName}</h4>
                                                 <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
                                                     <Truck size={12} className="text-amber-400" />
-                                                    {driver.assignedTruckPlate || 'Araç Zimmeti Yok'}
+                                                    {driver.assignedTruckPlate || '—'}
                                                 </span>
                                             </div>
                                         </div>
@@ -1929,33 +1795,49 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             {/* Ehliyet */}
                                             <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between">
                                                 <span className="text-[10px] text-slate-400 block font-semibold">Ehliyet ({driver.licenseClasses?.join(',') || 'CE'})</span>
-                                                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border mt-1 text-center ${licSt.badgeClass}`}>
-                                                    {licSt.label}
-                                                </span>
+                                                {licSt.label ? (
+                                                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border mt-1 text-center ${licSt.badgeClass}`}>
+                                                        {licSt.label}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] font-mono text-slate-600 mt-1 text-center">—</span>
+                                                )}
                                             </div>
 
                                             {/* SRC */}
                                             <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between">
                                                 <span className="text-[10px] text-slate-400 block font-semibold truncate">SRC Belgesi</span>
-                                                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border mt-1 text-center ${srcSt.badgeClass}`}>
-                                                    {srcSt.label}
-                                                </span>
+                                                {srcSt.label ? (
+                                                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border mt-1 text-center ${srcSt.badgeClass}`}>
+                                                        {srcSt.label}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] font-mono text-slate-600 mt-1 text-center">—</span>
+                                                )}
                                             </div>
 
                                             {/* Psikoteknik */}
                                             <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between">
                                                 <span className="text-[10px] text-slate-400 block font-semibold">Psikoteknik</span>
-                                                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border mt-1 text-center ${psiSt.badgeClass}`}>
-                                                    {psiSt.label}
-                                                </span>
+                                                {psiSt.label ? (
+                                                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border mt-1 text-center ${psiSt.badgeClass}`}>
+                                                        {psiSt.label}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] font-mono text-slate-600 mt-1 text-center">—</span>
+                                                )}
                                             </div>
 
                                             {/* Takograf */}
                                             <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between">
                                                 <span className="text-[10px] text-slate-400 block font-semibold truncate">Takograf Kartı</span>
-                                                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border mt-1 text-center ${takoSt.badgeClass}`}>
-                                                    {takoSt.label}
-                                                </span>
+                                                {takoSt.label ? (
+                                                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border mt-1 text-center ${takoSt.badgeClass}`}>
+                                                        {takoSt.label}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] font-mono text-slate-600 mt-1 text-center">—</span>
+                                                )}
                                             </div>
                                         </div>
 
