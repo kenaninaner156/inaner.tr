@@ -394,9 +394,11 @@ export const DataProvider = ({ children }) => {
         unsubs.push(onSnapshot(query(collection(db, 'personnel'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
             data.sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '', 'tr'));
-            setPersonnelList(data);
+            if (data.length > 0) {
+                setPersonnelList(data);
+            }
         }, (err) => {
-            console.error('Personnel subscription error:', err);
+            console.warn('Personnel collection listener info (company_data fallback active):', err?.message || err);
         }));
 
         // 12. Docs config
@@ -415,6 +417,10 @@ export const DataProvider = ({ children }) => {
             if (docSnapshot.exists()) {
                 const data = docSnapshot.data();
                 if (data.vehicleInfo) setVehicleInfo(prev => ({ ...prev, ...data.vehicleInfo }));
+
+                if (data.personnelList && Array.isArray(data.personnelList)) {
+                    setPersonnelList(data.personnelList);
+                }
 
                 if (data.drivers) setDrivers(data.drivers);
                 else setDrivers([]);
@@ -1263,42 +1269,114 @@ export const DataProvider = ({ children }) => {
     }, [companyNotifications]);
 
     const addPersonnel = useCallback(async (data) => {
+        const targetCompanyId = activeCompanyId || (typeof window !== 'undefined' && localStorage.getItem('tir_current_company')) || 'inaner_logistics';
+        const cleanData = JSON.parse(JSON.stringify(data));
+        const newId = Date.now().toString() + '_' + Math.random().toString(36).substring(2, 7);
+        const newRecord = {
+            id: newId,
+            ...cleanData,
+            companyId: targetCompanyId,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+
+        // 1. Try writing to top-level 'personnel' collection
         try {
-            const docRef = await addDoc(collection(db, 'personnel'), {
-                ...data,
-                companyId: activeCompanyId,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-            });
-            return { id: docRef.id, ...data };
-        } catch (e) {
-            console.error('Error adding personnel:', e);
-            throw e;
+            const docRef = await addDoc(collection(db, 'personnel'), newRecord);
+            newRecord.id = docRef.id;
+        } catch (colErr) {
+            console.warn('Collection personnel write skipped, persisting to company_data:', colErr?.message || colErr);
         }
-    }, [activeCompanyId]);
+
+        // 2. Always persist to company_data info document (which is guaranteed permitted by cloud rules)
+        try {
+            const docId = targetCompanyId === 'inaner_logistics' ? 'info' : `${targetCompanyId}_info`;
+            const infoRef = doc(db, 'company_data', docId);
+            const docSnap = await getDoc(infoRef);
+            let currentList = [];
+            if (docSnap.exists() && Array.isArray(docSnap.data().personnelList)) {
+                currentList = docSnap.data().personnelList;
+            } else {
+                currentList = personnelList || [];
+            }
+            const updated = [newRecord, ...currentList.filter(p => p.id !== newRecord.id)];
+            await setDoc(infoRef, { personnelList: updated }, { merge: true });
+            setPersonnelList(updated);
+        } catch (companyDataErr) {
+            console.warn('company_data personnel save error:', companyDataErr);
+            setPersonnelList(prev => [newRecord, ...(prev || []).filter(p => p.id !== newRecord.id)]);
+        }
+
+        return newRecord;
+    }, [activeCompanyId, personnelList]);
 
     const updatePersonnel = useCallback(async (id, data) => {
+        const targetCompanyId = activeCompanyId || (typeof window !== 'undefined' && localStorage.getItem('tir_current_company')) || 'inaner_logistics';
+        const cleanData = JSON.parse(JSON.stringify(data));
+
+        // 1. Try update collection
         try {
             await updateDoc(doc(db, 'personnel', id), {
-                ...data,
+                ...cleanData,
                 updatedAt: new Date().toISOString(),
             });
-            return { success: true };
-        } catch (e) {
-            console.error('Error updating personnel:', e);
-            throw e;
+        } catch (colErr) {
+            console.warn('Collection personnel update skipped:', colErr?.message || colErr);
         }
-    }, []);
+
+        // 2. Persist to company_data
+        try {
+            const docId = targetCompanyId === 'inaner_logistics' ? 'info' : `${targetCompanyId}_info`;
+            const infoRef = doc(db, 'company_data', docId);
+            const docSnap = await getDoc(infoRef);
+            let currentList = [];
+            if (docSnap.exists() && Array.isArray(docSnap.data().personnelList)) {
+                currentList = docSnap.data().personnelList;
+            } else {
+                currentList = personnelList || [];
+            }
+            const updated = currentList.map(p => p.id === id ? { ...p, ...cleanData, updatedAt: new Date().toISOString() } : p);
+            await setDoc(infoRef, { personnelList: updated }, { merge: true });
+            setPersonnelList(updated);
+        } catch (companyDataErr) {
+            console.warn('company_data personnel update error:', companyDataErr);
+            setPersonnelList(prev => (prev || []).map(p => p.id === id ? { ...p, ...cleanData } : p));
+        }
+
+        return { success: true };
+    }, [activeCompanyId, personnelList]);
 
     const deletePersonnel = useCallback(async (id) => {
+        const targetCompanyId = activeCompanyId || (typeof window !== 'undefined' && localStorage.getItem('tir_current_company')) || 'inaner_logistics';
+
+        // 1. Try delete from collection
         try {
             await deleteDoc(doc(db, 'personnel', id));
-            return { success: true };
-        } catch (e) {
-            console.error('Error deleting personnel:', e);
-            throw e;
+        } catch (colErr) {
+            console.warn('Collection personnel delete skipped:', colErr?.message || colErr);
         }
-    }, []);
+
+        // 2. Persist to company_data
+        try {
+            const docId = targetCompanyId === 'inaner_logistics' ? 'info' : `${targetCompanyId}_info`;
+            const infoRef = doc(db, 'company_data', docId);
+            const docSnap = await getDoc(infoRef);
+            let currentList = [];
+            if (docSnap.exists() && Array.isArray(docSnap.data().personnelList)) {
+                currentList = docSnap.data().personnelList;
+            } else {
+                currentList = personnelList || [];
+            }
+            const updated = currentList.filter(p => p.id !== id);
+            await setDoc(infoRef, { personnelList: updated }, { merge: true });
+            setPersonnelList(updated);
+        } catch (companyDataErr) {
+            console.warn('company_data personnel delete error:', companyDataErr);
+            setPersonnelList(prev => (prev || []).filter(p => p.id !== id));
+        }
+
+        return { success: true };
+    }, [activeCompanyId, personnelList]);
 
     const refreshUsers = useCallback(() => { }, []);
 

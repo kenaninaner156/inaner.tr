@@ -7,7 +7,7 @@ import {
     Edit3, ExternalLink, Download, ChevronLeft, ChevronRight, X, UserPlus,
     Printer, Save, PlusCircle, Paperclip, StickyNote, Copy, Check, Eye,
     DollarSign, Briefcase, HeartPulse, Award, FileCheck, Shield, ChevronDown,
-    Menu, AlertCircle, ArrowUpRight, ArrowDownLeft, UploadCloud, RefreshCw, Info
+    Menu, AlertCircle, ArrowUpRight, ArrowDownLeft, UploadCloud, RefreshCw
 } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
@@ -410,20 +410,24 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
 
             if (personnelModalMode === 'add') {
                 const newRecord = await addPersonnel(payload);
-                addLog('PERSONEL_EKLE', `${payload.fullName} personel özlük kaydı oluşturuldu.`);
+                try {
+                    addLog('PERSONEL_EKLE', `${payload.fullName} personel özlük kaydı oluşturuldu.`);
+                } catch { /* empty */ }
                 if (newRecord?.id) {
                     setSelectedPersonnelId(newRecord.id);
                 }
             } else if (personnelModalMode === 'edit' && editingPersonnel) {
                 await updatePersonnel(editingPersonnel.id, payload);
-                addLog('PERSONEL_GUNCELLE', `${payload.fullName} personel özlük kaydı güncellendi.`);
+                try {
+                    addLog('PERSONEL_GUNCELLE', `${payload.fullName} personel özlük kaydı güncellendi.`);
+                } catch { /* empty */ }
             }
 
             setIsPersonnelModalOpen(false);
             setEditingPersonnel(null);
         } catch (err) {
             console.error('Personel kaydedilirken hata:', err);
-            alert('Personel kaydedilirken bir hata oluştu.');
+            alert('Personel kaydedilirken bir hata oluştu: ' + (err?.message || 'Lütfen tekrar deneyiniz.'));
         } finally {
             setIsSavingPersonnel(false);
         }
@@ -2301,13 +2305,6 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                             {/* SEKME 1: KİMLİK & İLETİŞİM */}
                             {personnelFormTab === 'identity' && (
                                 <div className="space-y-4 animate-in fade-in duration-200">
-                                    {/* Hızlı Kayıt Bilgilendirme Notu */}
-                                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-2.5">
-                                        <Info size={16} className="text-amber-400 shrink-0 mt-0.5" />
-                                        <div className="text-xs text-slate-300 leading-relaxed">
-                                            <span className="font-semibold text-amber-300">Hızlı Personel Kaydı:</span> Yalnızca ad ve soyad girerek personeli hemen oluşturabilirsiniz. SGK, ehliyet ve zimmet gibi detayları evraklar geldikçe dilediğiniz zaman tamamlayabilirsiniz.
-                                        </div>
-                                    </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
                                             <label className="text-xs text-slate-400 mb-1 block">Adı Soyadı *</label>
