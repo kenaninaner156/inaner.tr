@@ -171,13 +171,14 @@ const EmbeddedPdfViewer = ({ files, title = 'Belge İnceleme' }) => {
 const Personnel = ({ onOpenMenu, isMobile } = {}) => {
     const {
         trips, payouts, addPayout, deletePayout, updatePayout, addLog, allDrivers,
-        personnelList, addPersonnel, updatePersonnel, deletePersonnel
+        personnelList, addPersonnel, updatePersonnel, deletePersonnel,
+        paymentRecords, addPayment, updatePayment, deletePayment
     } = useContext(DataContext);
     const { activeTruckData, trucks } = useTruck();
     const { activeCompanyId } = useCompany();
     const payoutPrintRef = useRef(null);
 
-    // Ana Alt Sekmeler: 'directory' (Özlük & Rehber), 'radar' (Evrak Radarı), 'payments' (Ödeme & SGK), 'payouts' (Prim Hak Edişi)
+    // Ana Alt Sekmeler: 'directory' (Özlük & Rehber), 'radar' (Evraklar), 'payments' (SGK & Maaş), 'payouts' (Prim Hak Edişi)
     const [activeSubTab, setActiveSubTab] = useState('directory');
 
     // Master-Detail Seçili Personel
@@ -189,7 +190,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
     const [roleFilter, setRoleFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('active');
 
-    // Evrak Radarı Filtresi
+    // Evraklar Filtresi
     const [radarFilter, setRadarFilter] = useState('all'); // 'all' | 'expired' | 'critical' | 'approaching'
     const [radarSearch, setRadarSearch] = useState('');
 
@@ -200,14 +201,19 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
     const [editingPersonnel, setEditingPersonnel] = useState(null);
     const [isSavingPersonnel, setIsSavingPersonnel] = useState(false);
 
-    // Avans Ekleme Modalı
-    const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
-    const [advancePersonnelId, setAdvancePersonnelId] = useState('');
-    const [advanceAmount, setAdvanceAmount] = useState('');
-    const [advanceDate, setAdvanceDate] = useState(() => new Date().toISOString().split('T')[0]);
-    const [advanceDesc, setAdvanceDesc] = useState('');
-    const [advanceFiles, setAdvanceFiles] = useState([]);
-    const [isSavingAdvance, setIsSavingAdvance] = useState(false);
+    // SGK Prim & Vergi Takip Masası State'leri
+    const [isSgkFormOpen, setIsSgkFormOpen] = useState(false);
+    const [editingSgkId, setEditingSgkId] = useState(null);
+    const [isSavingSgk, setIsSavingSgk] = useState(false);
+    const [sgkFormData, setSgkFormData] = useState({
+        period: new Date().toISOString().slice(0, 7),
+        date: new Date().toISOString().split('T')[0],
+        amount: '',
+        status: 'paid',
+        description: 'SGK Prim Tahakkuk & Ödemesi',
+        note: '',
+        files: []
+    });
 
     // Not Ekleme State'i
     const [isAddingNote, setIsAddingNote] = useState(false);
@@ -288,6 +294,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
         sgkOccupationCode: '8332.01',
         baseSalary: '',
         salaryDay: '5',
+        isFamilyMember: false,
         bankName: '',
         iban: '',
         licenseClasses: ['CE'],
@@ -306,8 +313,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
         assignedHgs: '',
         inventoryNotes: '',
         documents: [],
-        notes: [],
-        advances: []
+        notes: []
     });
 
     const openAddPersonnelModal = () => {
@@ -332,6 +338,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             sgkOccupationCode: '8332.01',
             baseSalary: '',
             salaryDay: '5',
+            isFamilyMember: false,
             bankName: '',
             iban: '',
             licenseClasses: ['CE', 'C'],
@@ -350,8 +357,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             assignedHgs: '',
             inventoryNotes: '',
             documents: [],
-            notes: [],
-            advances: []
+            notes: []
         });
         setIsPersonnelModalOpen(true);
     };
@@ -379,6 +385,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             sgkOccupationCode: person.sgkOccupationCode || '8332.01',
             baseSalary: person.baseSalary || '',
             salaryDay: person.salaryDay || '5',
+            isFamilyMember: !!person.isFamilyMember,
             bankName: person.bankName || '',
             iban: person.iban || '',
             licenseClasses: person.licenseClasses || ['CE'],
@@ -397,8 +404,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             assignedHgs: person.assignedHgs || '',
             inventoryNotes: person.inventoryNotes || '',
             documents: person.documents || [],
-            notes: person.notes || [],
-            advances: person.advances || []
+            notes: person.notes || []
         });
         setIsPersonnelModalOpen(true);
     };
@@ -511,68 +517,98 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
         }
     };
 
-    // Seçili Personele Avans Ekleme
-    const handleSaveAdvance = async () => {
-        const targetId = advancePersonnelId || selectedPersonnelId;
-        const targetPerson = (personnelList || []).find(p => p.id === targetId);
-        if (!targetPerson) {
-            alert('Lütfen bir personel seçiniz.');
-            return;
-        }
-        const amt = Number(advanceAmount);
-        if (!amt || amt <= 0) {
-            alert('Lütfen geçerli bir avans tutarı giriniz.');
-            return;
-        }
-
-        setIsSavingAdvance(true);
-        try {
-            const newAdvance = {
-                id: Date.now().toString(),
-                date: advanceDate,
-                amount: amt,
-                description: advanceDesc.trim() || 'Personel Avansı',
-                receiptFiles: advanceFiles || [],
-                isDeducted: false,
-                createdAt: new Date().toISOString()
-            };
-            const updatedAdvances = [newAdvance, ...(targetPerson.advances || [])];
-            await updatePersonnel(targetPerson.id, { advances: updatedAdvances });
-            addLog('PERSONEL_AVANS', `${targetPerson.fullName} personeline ₺${amt.toLocaleString('tr-TR')} tutarında avans verildi.`);
-
-            setIsAdvanceModalOpen(false);
-            setAdvanceAmount('');
-            setAdvanceDesc('');
-            setAdvanceFiles([]);
-        } catch (err) {
-            console.error('Avans kaydedilirken hata:', err);
-            alert('Avans kaydedilirken hata oluştu.');
-        } finally {
-            setIsSavingAdvance(false);
+    // PDF / Belge Açma Yardımcısı
+    const openPdfOrFile = (f) => {
+        if (!f) return;
+        if ((f.type === 'application/pdf' || f.name?.toLowerCase().endsWith('.pdf')) && f.data?.startsWith('data:')) {
+            const byteStr = atob(f.data.split(',')[1]);
+            const arr = new Uint8Array(byteStr.length);
+            for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
+            const blob = new Blob([arr], { type: 'application/pdf' });
+            window.open(URL.createObjectURL(blob));
+        } else {
+            window.open(f.data || f.url, '_blank');
         }
     };
 
-    const handleToggleAdvanceDeducted = async (person, advanceId) => {
-        try {
-            const updated = (person.advances || []).map(adv => {
-                if (adv.id === advanceId) {
-                    return { ...adv, isDeducted: !adv.isDeducted };
-                }
-                return adv;
+    // SGK Prim & Vergi Ödemeleri Masası İşlemleri
+    const handleOpenSgkForm = (rec = null) => {
+        if (rec) {
+            setEditingSgkId(rec.id);
+            setSgkFormData({
+                period: rec.period || (rec.date ? rec.date.slice(0, 7) : new Date().toISOString().slice(0, 7)),
+                date: rec.date || new Date().toISOString().split('T')[0],
+                amount: rec.amount || '',
+                status: rec.status || 'paid',
+                description: rec.description || 'SGK Prim Tahakkuk & Ödemesi',
+                note: rec.note || '',
+                files: rec.files || []
             });
-            await updatePersonnel(person.id, { advances: updated });
+        } else {
+            setEditingSgkId(null);
+            setSgkFormData({
+                period: new Date().toISOString().slice(0, 7),
+                date: new Date().toISOString().split('T')[0],
+                amount: '',
+                status: 'paid',
+                description: 'SGK Prim Tahakkuk & Ödemesi',
+                note: '',
+                files: []
+            });
+        }
+        setIsSgkFormOpen(true);
+    };
+
+    const handleSaveSgkPayment = async (e) => {
+        e?.preventDefault();
+        const amt = Number(sgkFormData.amount);
+        if (!amt || isNaN(amt) || amt <= 0) {
+            alert('Lütfen geçerli bir prim tutarı giriniz.');
+            return;
+        }
+
+        setIsSavingSgk(true);
+        try {
+            const payload = {
+                type: 'Ödeme',
+                category: 'SGK & Vergi',
+                subCategory: 'sgk',
+                period: sgkFormData.period,
+                date: sgkFormData.date,
+                amount: amt,
+                status: sgkFormData.status,
+                description: sgkFormData.description?.trim() || `SGK Prim Ödemesi (${sgkFormData.period})`,
+                note: sgkFormData.note?.trim() || '',
+                files: sgkFormData.files || [],
+                truckId: null
+            };
+
+            if (editingSgkId) {
+                await updatePayment(editingSgkId, payload);
+                addLog('SGK_ODEME_GUNCELLE', `${sgkFormData.period} dönemi SGK prim kaydı güncellendi.`);
+            } else {
+                await addPayment(payload);
+                addLog('SGK_ODEME_EKLE', `${sgkFormData.period} dönemi SGK primi kaydedildi: ₺${amt.toLocaleString('tr-TR')}`);
+            }
+
+            setIsSgkFormOpen(false);
+            setEditingSgkId(null);
         } catch (err) {
-            console.error('Avans durumu güncellenemedi:', err);
+            console.error('SGK ödemesi kaydedilirken hata:', err);
+            alert('İşlem kaydedilirken bir hata oluştu.');
+        } finally {
+            setIsSavingSgk(false);
         }
     };
 
-    const handleDeleteAdvance = async (person, advanceId) => {
-        if (!window.confirm('Bu avans kaydını silmek istediğinize emin misiniz?')) return;
-        try {
-            const updated = (person.advances || []).filter(adv => adv.id !== advanceId);
-            await updatePersonnel(person.id, { advances: updated });
-        } catch (err) {
-            console.error('Avans silinemedi:', err);
+    const handleDeleteSgkPayment = async (id) => {
+        if (window.confirm('Bu SGK prim ödeme kaydını silmek istediğinize emin misiniz?')) {
+            try {
+                await deletePayment(id);
+                addLog('SGK_ODEME_SIL', 'SGK prim ödeme kaydı silindi.');
+            } catch (err) {
+                console.error('SGK ödeme silme hatası:', err);
+            }
         }
     };
 
@@ -602,21 +638,20 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             });
         });
 
-        // Maaş ve SGK Yaklaşan Yükümlülükler
-        const totalNetSalary = list.filter(p => p.employmentStatus === 'active').reduce((acc, p) => acc + (Number(p.baseSalary) || 0), 0);
-        // Tahmini SGK prim yükü (Türkiye standartlarında yaklaşık %37.5 brüt işveren/işçi toplam payı veya baz katsayı)
-        const estimatedSgkTotal = Math.round(totalNetSalary * 0.42);
+        // Şirket Fiili Maaş Gideri (Aile Bireyi / isFamilyMember olanlar şirket nakit giderine dahil edilmez)
+        const totalNetSalary = list
+            .filter(p => p.employmentStatus === 'active' && !p.isFamilyMember)
+            .reduce((acc, p) => acc + (Number(p.baseSalary) || 0), 0);
 
-        // Bu ay verilen toplam avanslar
-        const currentYearMonth = new Date().toISOString().slice(0, 7);
-        let monthlyAdvancesTotal = 0;
-        list.forEach(p => {
-            (p.advances || []).forEach(adv => {
-                if (adv.date && adv.date.startsWith(currentYearMonth)) {
-                    monthlyAdvancesTotal += Number(adv.amount) || 0;
-                }
-            });
-        });
+        // Resmi SGK Bildirilen Bordro Maaşı (Aile dahil yasal bildirim)
+        const totalOfficialSalary = list
+            .filter(p => p.employmentStatus === 'active')
+            .reduce((acc, p) => acc + (Number(p.baseSalary) || 0), 0);
+
+        const familyMembersCount = list.filter(p => p.employmentStatus === 'active' && p.isFamilyMember).length;
+
+        // Tahmini SGK prim yükü
+        const estimatedSgkTotal = Math.round(totalOfficialSalary * 0.375);
 
         const sgkDueDateInfo = getSgkDueDate();
 
@@ -630,8 +665,9 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             expiredDocCount,
             criticalDocCount,
             totalNetSalary,
+            totalOfficialSalary,
+            familyMembersCount,
             estimatedSgkTotal,
-            monthlyAdvancesTotal,
             sgkDueDateInfo
         };
     }, [personnelList]);
@@ -888,8 +924,8 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                     <div className="flex items-center p-0.5 sm:p-1 rounded-xl bg-[#0a0d14] border border-white/[0.06] relative overflow-x-auto max-w-[calc(100vw-120px)] sm:max-w-none">
                         {[
                             { id: 'directory', label: 'Rehber & Özlük', shortLabel: 'Rehber', icon: Users },
-                            { id: 'radar', label: 'Evrak Radarı', shortLabel: 'Radar', icon: ShieldAlert, badge: (kpiMetrics.expiredDocCount + kpiMetrics.criticalDocCount) > 0 ? (kpiMetrics.expiredDocCount + kpiMetrics.criticalDocCount) : null },
-                            { id: 'payments', label: 'Ödeme & SGK', shortLabel: 'Ödemeler', icon: Calendar },
+                            { id: 'radar', label: 'Evraklar', shortLabel: 'Evraklar', icon: ShieldAlert, badge: (kpiMetrics.expiredDocCount + kpiMetrics.criticalDocCount) > 0 ? (kpiMetrics.expiredDocCount + kpiMetrics.criticalDocCount) : null },
+                            { id: 'payments', label: 'SGK & Maaş', shortLabel: 'SGK & Maaş', icon: Calendar },
                             { id: 'payouts', label: 'Prim Hak Edişi', shortLabel: 'Hak Ediş', icon: CreditCard }
                         ].map((tab) => {
                             const IconComponent = tab.icon;
@@ -929,17 +965,14 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         })}
                     </div>
 
-                    {/* Yeni Personel / Yeni Avans Ekle Butonu */}
+                    {/* Yeni Personel / Yeni SGK Ödemesi Ekle Butonu */}
                     {activeSubTab === 'payments' ? (
                         <button
-                            onClick={() => {
-                                setAdvancePersonnelId(selectedPersonnelId || (personnelList[0]?.id || ''));
-                                setIsAdvanceModalOpen(true);
-                            }}
+                            onClick={() => handleOpenSgkForm()}
                             className="h-8 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer shrink-0"
                         >
                             <Plus size={14} />
-                            <span className="hidden sm:inline">Avans Ver</span>
+                            <span className="hidden sm:inline">SGK Ödemesi Ekle</span>
                         </button>
                     ) : (
                         <button
@@ -954,26 +987,37 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                 </div>
             </div>
 
-            {/* ── 2. Bento KPI Özet Kartları (Kompakt Executive Bar) ── */}
             {/* ── 2. Bento KPI Özet Kartları (Sade & Modern Obsidian Bar) ── */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0">
                 {/* 1. Toplam Personel */}
-                <div className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#080b11] flex items-center justify-between">
+                <div
+                    onClick={() => {
+                        setActiveSubTab('directory');
+                        setStatusFilter('all');
+                    }}
+                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#080b11] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
+                >
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 shrink-0">
                             <Users size={13} />
                         </div>
                         <div className="min-w-0">
                             <span className="text-[10px] text-slate-400 block leading-tight">Toplam Kadro</span>
-                            <span className="text-xs font-bold text-white font-mono">{kpiMetrics.totalEmployees} Kişi</span>
+                            <span className="text-xs font-bold text-white font-mono">{kpiMetrics.totalEmployees} Personel</span>
                         </div>
                     </div>
                 </div>
 
                 {/* 2. Aktif Sürücüler */}
-                <div className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#080b11] flex items-center justify-between">
+                <div
+                    onClick={() => {
+                        setActiveSubTab('directory');
+                        setRoleFilter('driver');
+                    }}
+                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#080b11] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
+                >
                     <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 shrink-0">
+                        <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 shrink-0">
                             <Truck size={13} />
                         </div>
                         <div className="min-w-0">
@@ -983,7 +1027,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                     </div>
                 </div>
 
-                {/* 3. Evrak Radarı */}
+                {/* 3. Evraklar */}
                 <div
                     onClick={() => setActiveSubTab('radar')}
                     className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#080b11] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
@@ -993,7 +1037,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                             <ShieldAlert size={13} />
                         </div>
                         <div className="min-w-0">
-                            <span className="text-[10px] text-slate-400 block leading-tight">Evrak Radarı</span>
+                            <span className="text-[10px] text-slate-400 block leading-tight">Evraklar</span>
                             <span className="text-xs font-bold text-white font-mono">
                                 {kpiMetrics.expiredDocCount + kpiMetrics.criticalDocCount > 0 ? `${kpiMetrics.expiredDocCount + kpiMetrics.criticalDocCount} Alarm` : 'Sorun Yok'}
                             </span>
@@ -1658,12 +1702,12 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                 </div>
             )}
 
-            {/* ═════════════ SUB-TAB 2: EVRAK RADARI (FİLO YASAL MATRİSİ) ═════════════ */}
+            {/* ═════════════ SUB-TAB 2: EVRAKLAR (FİLO YASAL MATRİSİ) ═════════════ */}
             {activeSubTab === 'radar' && (
                 <div className="flex-1 flex flex-col rounded-2xl bg-[#0a0d14] border border-white/[0.06] p-3 sm:p-5 gap-3 overflow-hidden min-h-0">
-                    {/* Üst Filtre Barı */}
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.06] shrink-0">
-                        <div className="relative w-full sm:w-72">
+                    {/* Üst Arama Barı */}
+                    <div className="flex items-center justify-between gap-3 pb-3 border-b border-white/[0.06] shrink-0">
+                        <div className="relative w-full max-w-sm">
                             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                             <input
                                 type="text"
@@ -1673,36 +1717,9 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/40 transition-colors"
                             />
                         </div>
-
-                        {/* Aciliyet Filtreleri */}
-                        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
-                            {[
-                                { id: 'all', label: 'Tüm Sürücüler' },
-                                { id: 'expired', label: 'Süresi Bitenler', count: kpiMetrics.expiredDocCount, color: 'text-red-400 bg-red-500/10 border-red-500/30' },
-                                { id: 'critical', label: '30 Gün Kalanlar', count: kpiMetrics.criticalDocCount, color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' },
-                                { id: 'approaching', label: '90 Gün Kalanlar' },
-                            ].map(f => (
-                                <button
-                                    key={f.id}
-                                    onClick={() => setRadarFilter(f.id)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 cursor-pointer ${
-                                        radarFilter === f.id
-                                            ? (f.color || 'bg-amber-500/20 text-amber-400 border border-amber-500/30')
-                                            : 'bg-white/5 text-slate-400 hover:text-white border border-transparent'
-                                    }`}
-                                >
-                                    <span>{f.label}</span>
-                                    {f.count > 0 && (
-                                        <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-white/10 font-mono">
-                                            {f.count}
-                                        </span>
-                                    )}
-                                </button>
-                            ))}
-                        </div>
                     </div>
 
-                    {/* Radar Tablosu / Kart Matrisi */}
+                    {/* Evrak Tablosu / Kart Matrisi */}
                     <div className="flex-1 overflow-y-auto space-y-2.5 custom-scrollbar min-h-0 pr-1">
                         {radarDriversList.length > 0 ? (
                             radarDriversList.map((driver) => {
@@ -1714,7 +1731,12 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 return (
                                     <div
                                         key={driver.id}
-                                        className="p-3.5 sm:p-4 rounded-xl bg-[#0f131d] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3"
+                                        onClick={() => {
+                                            setSelectedPersonnelId(driver.id);
+                                            setActiveSubTab('directory');
+                                            setMobileView('detail');
+                                        }}
+                                        className="p-3.5 sm:p-4 rounded-xl bg-[#0f131d] border border-white/[0.06] hover:border-amber-500/30 transition-colors flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 cursor-pointer"
                                     >
                                         {/* Sürücü & Araç */}
                                         <div className="flex items-center gap-3 min-w-[200px]">
@@ -1780,21 +1802,6 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                 )}
                                             </div>
                                         </div>
-
-                                        {/* Aksiyon */}
-                                        <div className="flex items-center gap-2 self-end lg:self-center shrink-0">
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedPersonnelId(driver.id);
-                                                    setActiveSubTab('directory');
-                                                    setMobileView('detail');
-                                                }}
-                                                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-                                            >
-                                                <span>Özlük Dosyası</span>
-                                                <ChevronRight size={14} />
-                                            </button>
-                                        </div>
                                     </div>
                                 );
                             })
@@ -1849,28 +1856,51 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                     <DollarSign size={14} className="text-emerald-400" />
                                     <span>Aylık Personel Maaş Listesi</span>
                                 </h4>
-                                <span className="text-xs font-mono font-bold text-white">
-                                    Toplam: ₺{kpiMetrics.totalNetSalary.toLocaleString('tr-TR')}
-                                </span>
+                                <div className="text-right">
+                                    <span className="text-xs font-mono font-bold text-white block">
+                                        Fiili Gider: ₺{kpiMetrics.totalNetSalary.toLocaleString('tr-TR')}
+                                    </span>
+                                    {kpiMetrics.familyMembersCount > 0 && (
+                                        <span className="text-[10px] text-slate-400 block font-mono">
+                                            Resmi SGK: ₺{kpiMetrics.totalOfficialSalary.toLocaleString('tr-TR')} ({kpiMetrics.familyMembersCount} Aile)
+                                        </span>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="space-y-2 overflow-y-auto max-h-[340px] custom-scrollbar pr-0.5">
                                 {(personnelList || []).filter(p => p.employmentStatus === 'active').map(p => (
                                     <div
                                         key={p.id}
-                                        className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04] flex items-center justify-between gap-2"
+                                        className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04] flex items-center justify-between gap-2 hover:border-white/10 transition-colors"
                                     >
                                         <div className="min-w-0">
-                                            <h5 className="text-xs font-bold text-white truncate">{p.fullName}</h5>
+                                            <div className="flex items-center gap-2">
+                                                <h5 className="text-xs font-bold text-white truncate">{p.fullName}</h5>
+                                                {p.isFamilyMember && (
+                                                    <span className="text-[9px] px-1.5 py-0.2 rounded font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20 whitespace-nowrap">
+                                                        Aile İçi (Gider Harici)
+                                                    </span>
+                                                )}
+                                            </div>
                                             <span className="text-[10px] text-slate-400 font-mono">
                                                 Her ayın {p.salaryDay || '5'}. günü
                                             </span>
                                         </div>
-                                        <div className="text-right font-mono shrink-0">
-                                            <span className="text-xs font-bold text-emerald-400 block">
-                                                ₺{(Number(p.baseSalary) || 0).toLocaleString('tr-TR')}
-                                            </span>
-                                            <span className="text-[10px] text-slate-500">{p.bankName || 'Banka'}</span>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <div className="text-right font-mono">
+                                                <span className={`text-xs font-bold block ${p.isFamilyMember ? 'text-slate-400 line-through decoration-amber-500/50' : 'text-emerald-400'}`}>
+                                                    ₺{(Number(p.baseSalary) || 0).toLocaleString('tr-TR')}
+                                                </span>
+                                                <span className="text-[10px] text-slate-500">{p.bankName || 'Banka'}</span>
+                                            </div>
+                                            <button
+                                                onClick={() => openEditPersonnelModal(p, 'sgk')}
+                                                className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                                                title="Maaş ve SGK Bilgilerini Düzenle"
+                                            >
+                                                <Edit3 size={13} />
+                                            </button>
                                         </div>
                                     </div>
                                 ))}
@@ -1878,80 +1908,244 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         </div>
                     </div>
 
-                    {/* Sağ Sütun: Avans Defteri */}
+                    {/* Sağ Sütun: SGK Prim & Vergi Ödemeleri Masası */}
                     <div className="w-full lg:w-1/2 p-4 sm:p-5 rounded-2xl bg-[#0a0d14] border border-white/[0.06] flex flex-col gap-3 min-h-0">
                         <div className="flex items-center justify-between pb-2 border-b border-white/[0.06] shrink-0">
                             <div className="flex items-center gap-2">
-                                <CreditCard size={16} className="text-amber-400" />
-                                <h3 className="text-sm sm:text-base font-bold text-white">Verilen Avanslar</h3>
+                                <FileText size={16} className="text-amber-400" />
+                                <div>
+                                    <h3 className="text-sm sm:text-base font-bold text-white">SGK Prim & Vergi Ödemeleri</h3>
+                                    <span className="text-[10px] text-slate-400 block">Resmi Tahakkuk, Dekont & Prim Takibi</span>
+                                </div>
                             </div>
                             <button
-                                onClick={() => {
-                                    setAdvancePersonnelId(selectedPersonnelId || (personnelList[0]?.id || ''));
-                                    setIsAdvanceModalOpen(true);
-                                }}
+                                onClick={() => isSgkFormOpen ? setIsSgkFormOpen(false) : handleOpenSgkForm()}
                                 className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
                             >
-                                <Plus size={13} />
-                                <span>Yeni Avans Kaydı</span>
+                                {isSgkFormOpen ? (
+                                    <>
+                                        <X size={13} />
+                                        <span>Formu Kapat</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Plus size={13} />
+                                        <span>Yeni SGK Kaydı</span>
+                                    </>
+                                )}
                             </button>
                         </div>
 
-                        {/* Avanslar Listesi */}
+                        {/* In-Card Form / Studio */}
+                        {isSgkFormOpen && (
+                            <form
+                                onSubmit={handleSaveSgkPayment}
+                                className="p-3.5 rounded-xl bg-[#0f131d] border border-amber-500/30 flex flex-col gap-3 shrink-0 animate-in fade-in duration-200"
+                            >
+                                <div className="flex items-center justify-between pb-1 border-b border-white/[0.06]">
+                                    <span className="text-xs font-bold text-white">
+                                        {editingSgkId ? 'SGK Prim Kaydını Düzenle' : 'Yeni SGK Prim / Vergi Ödemesi Ekle'}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsSgkFormOpen(false)}
+                                        className="text-slate-400 hover:text-white p-1"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                    <div>
+                                        <label className="text-[11px] text-slate-400 mb-1 block">SGK Dönemi (Ay/Yıl) *</label>
+                                        <input
+                                            type="month"
+                                            required
+                                            value={sgkFormData.period}
+                                            onChange={e => setSgkFormData({ ...sgkFormData, period: e.target.value })}
+                                            className="w-full px-2.5 py-1.5 rounded-lg bg-[#080b11] border border-white/10 text-xs text-white font-mono outline-none focus:border-amber-500/40"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] text-slate-400 mb-1 block">Ödeme / Vade Tarihi *</label>
+                                        <input
+                                            type="date"
+                                            required
+                                            value={sgkFormData.date}
+                                            onChange={e => setSgkFormData({ ...sgkFormData, date: e.target.value })}
+                                            className="w-full px-2.5 py-1.5 rounded-lg bg-[#080b11] border border-white/10 text-xs text-white font-mono outline-none focus:border-amber-500/40"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                    <div>
+                                        <label className="text-[11px] text-slate-400 mb-1 block">Prim Tutarı (₺) *</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            step="0.01"
+                                            value={sgkFormData.amount}
+                                            onChange={e => setSgkFormData({ ...sgkFormData, amount: e.target.value })}
+                                            placeholder="Örn: 24500"
+                                            className="w-full px-2.5 py-1.5 rounded-lg bg-[#080b11] border border-white/10 text-xs text-white font-mono font-bold outline-none focus:border-amber-500/40"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] text-slate-400 mb-1 block">Ödeme Durumu</label>
+                                        <div className="grid grid-cols-2 gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSgkFormData({ ...sgkFormData, status: 'paid' })}
+                                                className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                    sgkFormData.status === 'paid'
+                                                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                                        : 'bg-white/5 text-slate-400 border border-transparent hover:text-white'
+                                                }`}
+                                            >
+                                                Ödendi
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSgkFormData({ ...sgkFormData, status: 'pending' })}
+                                                className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                    sgkFormData.status === 'pending'
+                                                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                                                        : 'bg-white/5 text-slate-400 border border-transparent hover:text-white'
+                                                }`}
+                                            >
+                                                Bekliyor
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-[11px] text-slate-400 mb-1 block">Açıklama / Tahakkuk Türü</label>
+                                    <input
+                                        type="text"
+                                        value={sgkFormData.description}
+                                        onChange={e => setSgkFormData({ ...sgkFormData, description: e.target.value })}
+                                        placeholder="Örn: SGK Prim & Muhtasar Tahakkuku"
+                                        className="w-full px-2.5 py-1.5 rounded-lg bg-[#080b11] border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-[11px] text-slate-400 mb-1 block">Not / Açıklama</label>
+                                    <input
+                                        type="text"
+                                        value={sgkFormData.note}
+                                        onChange={e => setSgkFormData({ ...sgkFormData, note: e.target.value })}
+                                        placeholder="Örn: Vakıfbank hesabından ödendi, tahakkuk mali müşavirden alındı."
+                                        className="w-full px-2.5 py-1.5 rounded-lg bg-[#080b11] border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-[11px] text-slate-400 mb-1.5 block">Dekont / Tahakkuk Fişi (PDF veya Belge)</label>
+                                    <FileUpload files={sgkFormData.files} onChange={files => setSgkFormData({ ...sgkFormData, files })} maxSizeMB={5} />
+                                </div>
+
+                                <div className="flex items-center justify-end gap-2 pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsSgkFormOpen(false)}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
+                                    >
+                                        İptal
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSavingSgk}
+                                        className="px-4 py-1.5 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 disabled:opacity-50 cursor-pointer transition-all"
+                                    >
+                                        {isSavingSgk ? 'Kaydediliyor...' : (editingSgkId ? 'Güncelle' : 'Kaydet')}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+
+                        {/* Kayıtlı SGK Ödemeleri Listesi */}
                         <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar min-h-0 pr-1">
                             {(() => {
-                                // Tüm personellerin avanslarını topla ve tarihe göre sırala
-                                const allAdvances = [];
-                                (personnelList || []).forEach(p => {
-                                    (p.advances || []).forEach(adv => {
-                                        allAdvances.push({ ...adv, person: p });
-                                    });
-                                });
-                                allAdvances.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+                                const sgkRecords = (paymentRecords || [])
+                                    .filter(r => !r.deleted && (r.category === 'SGK & Vergi' || r.subCategory === 'sgk'))
+                                    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
-                                if (allAdvances.length === 0) {
+                                if (sgkRecords.length === 0) {
                                     return (
                                         <div className="py-12 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-2">
-                                            <CreditCard size={32} className="text-slate-600" />
-                                            <p>Henüz kayıtlı avans bulunmuyor.</p>
+                                            <FileText size={32} className="text-slate-600" />
+                                            <p>Henüz kayıtlı SGK prim veya vergi ödemesi bulunmuyor.</p>
+                                            {!isSgkFormOpen && (
+                                                <button
+                                                    onClick={() => handleOpenSgkForm()}
+                                                    className="mt-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-amber-400 text-xs font-semibold transition-colors cursor-pointer"
+                                                >
+                                                    İlk SGK Ödemesini Kaydet
+                                                </button>
+                                            )}
                                         </div>
                                     );
                                 }
 
-                                return allAdvances.map((adv) => (
+                                return sgkRecords.map((rec) => (
                                     <div
-                                        key={adv.id}
-                                        className="p-3 rounded-xl bg-[#0f131d] border border-white/[0.06] flex items-center justify-between gap-3 group"
+                                        key={rec.id}
+                                        className="p-3 rounded-xl bg-[#0f131d] border border-white/[0.06] hover:border-white/10 transition-colors flex items-center justify-between gap-3 group"
                                     >
                                         <div className="min-w-0">
                                             <div className="flex items-center gap-2">
-                                                <h5 className="text-xs font-bold text-white truncate">{adv.person?.fullName}</h5>
-                                                <span className={`text-[10px] px-2 py-0.2 rounded font-mono ${
-                                                    adv.isDeducted ? 'text-emerald-400 bg-emerald-500/10' : 'text-amber-400 bg-amber-500/10'
+                                                <span className="text-xs font-bold text-white font-mono">
+                                                    {rec.period || (rec.date ? rec.date.slice(0, 7) : '—')}
+                                                </span>
+                                                <span className={`text-[10px] px-2 py-0.2 rounded font-semibold border ${
+                                                    rec.status === 'paid'
+                                                        ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                                                        : 'text-amber-400 bg-amber-500/10 border-amber-500/20'
                                                 }`}>
-                                                    {adv.isDeducted ? 'Maaştan Düşüldü' : 'Mahsup Bekliyor'}
+                                                    {rec.status === 'paid' ? 'Ödendi' : 'Ödeme Bekliyor'}
                                                 </span>
                                             </div>
-                                            <p className="text-[11px] text-slate-400 mt-0.5 truncate">{adv.description || 'Avans'}</p>
-                                            <span className="text-[10px] text-slate-500 font-mono">{adv.date ? new Date(adv.date).toLocaleDateString('tr-TR') : '—'}</span>
+                                            <p className="text-[11px] text-slate-300 mt-0.5 truncate">{rec.description || 'SGK Prim Ödemesi'}</p>
+                                            {rec.note && (
+                                                <p className="text-[10px] text-slate-400 truncate">{rec.note}</p>
+                                            )}
+                                            <span className="text-[10px] text-slate-500 font-mono">
+                                                Vade / Ödeme: {rec.date ? new Date(rec.date).toLocaleDateString('tr-TR') : '—'}
+                                            </span>
                                         </div>
 
-                                        <div className="flex items-center gap-3 shrink-0">
+                                        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                                             <span className="text-sm font-bold text-white font-mono">
-                                                ₺{Number(adv.amount).toLocaleString('tr-TR')}
+                                                ₺{Number(rec.amount || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                                             </span>
+
+                                            {/* Ekli PDF Dekont Butonu */}
+                                            {rec.files && rec.files.length > 0 && (
+                                                <button
+                                                    onClick={() => openPdfOrFile(rec.files[0])}
+                                                    className="p-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 transition-colors cursor-pointer"
+                                                    title={rec.files[0].name || 'PDF Dekontu Görüntüle'}
+                                                >
+                                                    <FileText size={14} />
+                                                </button>
+                                            )}
+
+                                            {/* Düzenle */}
                                             <button
-                                                onClick={() => handleToggleAdvanceDeducted(adv.person, adv.id)}
-                                                className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
-                                                    adv.isDeducted ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' : 'border-white/10 text-slate-400 hover:text-white'
-                                                }`}
-                                                title={adv.isDeducted ? 'Mahsup edildi (Geri al)' : 'Maaştan mahsup et'}
+                                                onClick={() => handleOpenSgkForm(rec)}
+                                                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                                                title="Düzenle"
                                             >
-                                                <CheckCircle2 size={14} />
+                                                <Edit3 size={14} />
                                             </button>
+
+                                            {/* Sil */}
                                             <button
-                                                onClick={() => handleDeleteAdvance(adv.person, adv.id)}
-                                                className="text-slate-600 hover:text-red-400 p-1 transition-colors cursor-pointer"
+                                                onClick={() => handleDeleteSgkPayment(rec.id)}
+                                                className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
                                                 title="Sil"
                                             >
                                                 <Trash2 size={14} />
@@ -2414,6 +2608,25 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                 className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none font-mono"
                                             />
                                         </div>
+
+                                        {/* Aile Bireyi / Fiili Maaş Çıkışı Yok Seçeneği */}
+                                        <div className="sm:col-span-2 p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] flex items-center justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <span className="text-xs font-semibold text-white block">Aile Bireyi / Fiili Maaş Çıkışı Yok</span>
+                                                <span className="text-[11px] text-slate-400 block leading-normal">
+                                                    SGK bildiriminde resmi maaş gösterilir; ancak şirket kasasından fiili maaş ödenmez. Şirket genel giderine ve net maaş toplamına dahil edilmez.
+                                                </span>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={!!formData.isFamilyMember}
+                                                    onChange={e => setFormData({ ...formData, isFamilyMember: e.target.checked })}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-black after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                                            </label>
+                                        </div>
                                         <div>
                                             <label className="text-xs text-slate-400 mb-1 block">İşten Ayrılış Tarihi (Varsa)</label>
                                             <input
@@ -2671,100 +2884,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                 document.body
             )}
 
-            {/* 2. Avans Verme Modalı */}
-            {isAdvanceModalOpen && typeof document !== 'undefined' && createPortal(
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[9999] p-4" onClick={() => setIsAdvanceModalOpen(false)}>
-                    <div
-                        className="bg-[#0a0d14] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-hidden flex flex-col my-auto"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#0f131d] shrink-0">
-                            <div className="flex items-center gap-2">
-                                <CreditCard size={16} className="text-amber-400" />
-                                <h3 className="text-sm font-bold text-white">Personel Avansı Ver</h3>
-                            </div>
-                            <button
-                                onClick={() => setIsAdvanceModalOpen(false)}
-                                className="w-7 h-7 rounded-lg bg-white/5 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
-                            >
-                                <X size={15} />
-                            </button>
-                        </div>
-
-                        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-5 space-y-3">
-                            <div>
-                                <label className="text-xs text-slate-400 mb-1 block">Personel *</label>
-                                <select
-                                    value={advancePersonnelId}
-                                    onChange={e => setAdvancePersonnelId(e.target.value)}
-                                    className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
-                                >
-                                    {(personnelList || []).filter(p => p.employmentStatus === 'active').map(p => (
-                                        <option key={p.id} value={p.id}>{p.fullName} ({p.role ? ROLE_OPTIONS.find(r => r.value === p.role)?.label : 'Personel'})</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="text-xs text-slate-400 mb-1 block">Avans Tutarı (₺) *</label>
-                                <input
-                                    type="number"
-                                    required
-                                    value={advanceAmount}
-                                    onChange={e => setAdvanceAmount(e.target.value)}
-                                    placeholder="Örn: 5000"
-                                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm font-bold text-emerald-400 font-mono outline-none focus:border-amber-500/40"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="text-xs text-slate-400 mb-1 block">Ödeme Tarihi</label>
-                                <input
-                                    type="date"
-                                    value={advanceDate}
-                                    onChange={e => setAdvanceDate(e.target.value)}
-                                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none font-mono"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="text-xs text-slate-400 mb-1 block">Açıklama / Sebep</label>
-                                <input
-                                    type="text"
-                                    value={advanceDesc}
-                                    onChange={e => setAdvanceDesc(e.target.value)}
-                                    placeholder="Yol harçlığı, acil ihtiyaç vb."
-                                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white placeholder-slate-600 outline-none"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="text-xs text-slate-400 mb-1.5 block">Dekont / Belge Ekle</label>
-                                <FileUpload files={advanceFiles} onChange={setAdvanceFiles} maxSizeMB={5} />
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-white/[0.08] bg-[#0f131d] shrink-0">
-                            <button
-                                onClick={() => setIsAdvanceModalOpen(false)}
-                                className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
-                            >
-                                İptal
-                            </button>
-                            <button
-                                onClick={handleSaveAdvance}
-                                disabled={isSavingAdvance}
-                                className="px-5 py-2 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-black shadow-lg shadow-amber-500/20 disabled:opacity-50 cursor-pointer transition-all"
-                            >
-                                {isSavingAdvance ? 'Kaydediliyor...' : 'Avansı Kaydet'}
-                            </button>
-                        </div>
-                    </div>
-                </div>,
-                document.body
-            )}
-
-            {/* 3. Belge / PDF / Fotoğraf Önizleme Modalı */}
+            {/* Belge / PDF / Fotoğraf Önizleme Modalı */}
             {previewDoc && typeof document !== 'undefined' && createPortal(
                 <div
                     className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-[9999] p-2 sm:p-6"

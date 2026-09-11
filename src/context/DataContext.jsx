@@ -248,7 +248,7 @@ export const DataProvider = ({ children }) => {
         // 4. Payments config
         unsubs.push(onSnapshot(query(collection(db, 'payments'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                .filter(d => !activeTruckId || d.truckId === activeTruckId);
+                .filter(d => !activeTruckId || d.truckId === activeTruckId || !d.truckId || d.category === 'SGK & Vergi' || d.subCategory === 'sgk');
             setPaymentRecords(sortData(data));
         }));
 
@@ -680,7 +680,7 @@ export const DataProvider = ({ children }) => {
         await addDoc(collection(db, 'payments'), {
             ...record,
             companyId: activeCompanyId,
-            truckId: activeTruckId,
+            truckId: record.truckId !== undefined ? record.truckId : activeTruckId,
             deleted: false,
             createdAt: new Date().toISOString()
         });
