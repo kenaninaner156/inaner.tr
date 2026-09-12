@@ -6,7 +6,6 @@ import {
     Scale,
     Plus,
     Search,
-    Calendar,
     Trash2,
     Edit3,
     X,
@@ -14,26 +13,22 @@ import {
     FileText,
     Paperclip,
     ExternalLink,
-    Download,
     Menu,
-    AlertTriangle,
     CheckCircle2,
     Clock,
-    Filter,
     Settings,
-    Tag,
-    ArrowUpRight,
-    TrendingUp,
     Receipt,
-    Wallet,
     Building2,
-    Eye
+    RotateCcw
 } from 'lucide-react';
 import FileUpload from './FileUpload';
+import CustomSelect from './CustomSelect';
+import CustomDatePicker from './CustomDatePicker';
 
 // ── Varsayılan Standart Vergi ve SGK Türleri ──
-const DEFAULT_TAX_TYPES = [
+const INITIAL_TAX_TYPES = [
     { id: 'kdv1', name: 'KDV 1 (Katma Değer Vergisi)', category: 'vergi' },
+    { id: 'kdv2', name: 'KDV 2 (Tevkifatlı)', category: 'vergi' },
     { id: 'muhtasar', name: 'Muhtasar ve Prim Hizmet Beyannamesi', category: 'vergi' },
     { id: 'gecici_vergi', name: 'Geçici Vergi (Kurumlar / Gelir)', category: 'vergi' },
     { id: 'kurumlar_vergisi', name: 'Kurumlar / Yıllık Gelir Vergisi', category: 'vergi' },
@@ -41,6 +36,30 @@ const DEFAULT_TAX_TYPES = [
     { id: 'sgk', name: 'SGK Prim Ödemesi', category: 'sgk' },
     { id: 'damga', name: 'Damga Vergisi', category: 'vergi' },
 ];
+
+// Ay Seçenekleri Üretici (Son 24 ay ve Gelecek 6 ay)
+const generatePeriodList = () => {
+    const list = [];
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const curMonth = now.getMonth();
+
+    for (let offset = 6; offset >= -24; offset--) {
+        const d = new Date(curYear, curMonth + offset, 1);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const ym = `${y}-${m}`;
+        const monthName = d.toLocaleString('tr-TR', { month: 'long' });
+        const capMonth = monthName.charAt(0).toLocaleUpperCase('tr-TR') + monthName.slice(1);
+        list.push({
+            value: ym,
+            label: `${capMonth} ${y}`
+        });
+    }
+    return list;
+};
+
+const PERIOD_OPTIONS = generatePeriodList();
 
 const Payments = ({ onOpenMenu, isMobile } = {}) => {
     const {
@@ -52,27 +71,38 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
     } = useContext(DataContext);
     const { activeCompanyId } = useCompany();
 
-    // ── Dinamik Vergi Türü Hafızası (Şirket Bazlı) ──
-    const [customTaxTypes, setCustomTaxTypes] = useState(() => {
+    // ── Dinamik Vergi Türleri (Tümü Düzenlenebilir & Silinebilir, Şirket Bazlı) ──
+    const [taxTypes, setTaxTypes] = useState(() => {
         try {
             const saved = localStorage.getItem(`tax_types_${activeCompanyId || 'default'}`);
-            return saved ? JSON.parse(saved) : [];
-        } catch {
-            return [];
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch (err) {
+            console.error('Vergi türleri okunamadı:', err);
         }
+        return INITIAL_TAX_TYPES;
     });
 
     useEffect(() => {
         try {
             const saved = localStorage.getItem(`tax_types_${activeCompanyId || 'default'}`);
-            setCustomTaxTypes(saved ? JSON.parse(saved) : []);
-        } catch {
-            setCustomTaxTypes([]);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    setTaxTypes(parsed);
+                    return;
+                }
+            }
+        } catch (err) {
+            console.error('Vergi türleri okunamadı:', err);
         }
+        setTaxTypes(INITIAL_TAX_TYPES);
     }, [activeCompanyId]);
 
-    const saveCustomTaxTypesList = (newList) => {
-        setCustomTaxTypes(newList);
+    const saveTaxTypesList = (newList) => {
+        setTaxTypes(newList);
         try {
             localStorage.setItem(`tax_types_${activeCompanyId || 'default'}`, JSON.stringify(newList));
         } catch (err) {
@@ -80,36 +110,23 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
         }
     };
 
-    // Tüm Vergi Türleri Listesi (Standart + Özel Hafıza)
-    const allTaxTypes = useMemo(() => {
-        const customObjects = customTaxTypes.map(name => ({
-            id: `custom_${name}`,
-            name,
-            category: name.toLowerCase().includes('sgk') ? 'sgk' : 'vergi',
-            isCustom: true
-        }));
-        return [...DEFAULT_TAX_TYPES, ...customObjects];
-    }, [customTaxTypes]);
-
     // ── Filtreler & Arama State'leri ──
     const [activeTabFilter, setActiveTabFilter] = useState('all'); // 'all' | 'vergi' | 'sgk' | 'pending' | 'paid'
     const [filterMonth, setFilterMonth] = useState('all'); // 'all' | 'YYYY-MM'
     const [searchTerm, setSearchTerm] = useState('');
 
-    // ── Form & Studio State'leri ──
+    // ── Form State'leri ──
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingPaymentId, setEditingPaymentId] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isCustomTypeInput, setIsCustomTypeInput] = useState(false);
     const [customTypeInputValue, setCustomTypeInputValue] = useState('');
 
-    // Form Verileri
     const [formData, setFormData] = useState({
         subCategory: 'vergi', // 'vergi' | 'sgk'
         taxType: 'KDV 1 (Katma Değer Vergisi)',
         period: new Date().toISOString().slice(0, 7), // 'YYYY-MM'
-        date: new Date().toISOString().split('T')[0], // İşlem / Tahakkuk Tarihi
-        dueDate: new Date().toISOString().split('T')[0], // Yasal Vade
+        date: new Date().toISOString().split('T')[0], // İşlem / Ödeme Tarihi
         amount: '',
         status: 'paid', // 'paid' | 'pending'
         description: '',
@@ -121,6 +138,9 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
     const [previewDoc, setPreviewDoc] = useState(null);
     const [isTaxTypeManagerOpen, setIsTaxTypeManagerOpen] = useState(false);
     const [newTaxTypeName, setNewTaxTypeName] = useState('');
+    const [newTaxTypeCat, setNewTaxTypeCat] = useState('vergi');
+    const [editingTaxTypeId, setEditingTaxTypeId] = useState(null);
+    const [editingTaxTypeName, setEditingTaxTypeName] = useState('');
 
     // Para birimi formatlayıcı
     const formatCurrency = (val) => {
@@ -128,8 +148,8 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
         return `₺${num.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
-    // ── Dinamik Dönem Listesi (Filtre İçin) ──
-    const monthOptions = useMemo(() => {
+    // ── Dinamik Dönem Listesi (Arama / Filtreleme Çubuğu İçin) ──
+    const filterMonthOptions = useMemo(() => {
         const options = [{ value: 'all', label: 'Tüm Dönemler' }];
         const activeList = (paymentRecords || []).filter(r => !r.deleted);
 
@@ -162,7 +182,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
         let records = (paymentRecords || []).filter(r => !r.deleted);
 
         // Tarihe göre sırala (en yeni en üstte)
-        records.sort((a, b) => new Date(b.date || b.dueDate || 0) - new Date(a.date || a.dueDate || 0));
+        records.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
         // Alt Kategori / Durum Filtresi
         if (activeTabFilter === 'vergi') {
@@ -211,7 +231,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
         });
         const paidThisMonthTotal = paidThisMonthRecords.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
 
-        // Vadesi bekleyenler (Ödenmemişler)
+        // Bekleyenler (Ödenmemişler)
         const pendingRecords = activeList.filter(r => r.status === 'pending');
         const pendingTotal = pendingRecords.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
 
@@ -232,17 +252,33 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
         };
     }, [paymentRecords]);
 
-    // ── Form İşlemleri ──
+    // Form için Seçenek Listesi
+    const formTaxTypeOptions = useMemo(() => {
+        const filtered = taxTypes.filter(t => formData.subCategory === 'sgk' ? t.category === 'sgk' : true);
+        const opts = filtered.map(t => ({
+            value: t.name,
+            label: t.name,
+            sublabel: t.category === 'sgk' ? 'SGK Primi' : 'Vergi'
+        }));
+        opts.push({
+            value: '__new__',
+            label: '+ Yeni Vergi Türü Yaz...',
+            sublabel: 'Yeni tür oluştur'
+        });
+        return opts;
+    }, [taxTypes, formData.subCategory]);
+
+    // ── Form Açma & Kapatma İşlemleri ──
     const handleOpenAddForm = () => {
         setEditingPaymentId(null);
         setIsCustomTypeInput(false);
         setCustomTypeInputValue('');
+        const defaultType = taxTypes.find(t => t.category === 'vergi')?.name || taxTypes[0]?.name || 'Vergi Ödemesi';
         setFormData({
             subCategory: 'vergi',
-            taxType: 'KDV 1 (Katma Değer Vergisi)',
+            taxType: defaultType,
             period: new Date().toISOString().slice(0, 7),
             date: new Date().toISOString().split('T')[0],
-            dueDate: new Date().toISOString().split('T')[0],
             amount: '',
             status: 'paid',
             description: '',
@@ -256,7 +292,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
         setEditingPaymentId(rec.id);
         const isSgk = rec.subCategory === 'sgk' || rec.category === 'SGK & Vergi';
         const subCat = isSgk ? 'sgk' : 'vergi';
-        const existingTaxType = rec.taxType || rec.description || 'Diğer Vergi';
+        const existingTaxType = rec.taxType || rec.description || 'Vergi Ödemesi';
 
         setIsCustomTypeInput(false);
         setCustomTypeInputValue('');
@@ -265,7 +301,6 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
             taxType: existingTaxType,
             period: rec.period || (rec.date ? rec.date.slice(0, 7) : new Date().toISOString().slice(0, 7)),
             date: rec.date || new Date().toISOString().split('T')[0],
-            dueDate: rec.dueDate || rec.date || new Date().toISOString().split('T')[0],
             amount: rec.amount !== undefined ? String(rec.amount) : '',
             status: rec.status || 'paid',
             description: rec.description || '',
@@ -298,23 +333,28 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                 return;
             }
             selectedTaxTypeName = cleanCustom;
-            // Yeni tür hafızada yoksa ekle
-            if (!customTaxTypes.includes(cleanCustom) && !DEFAULT_TAX_TYPES.some(t => t.name.toLowerCase() === cleanCustom.toLowerCase())) {
-                const updated = [...customTaxTypes, cleanCustom];
-                saveCustomTaxTypesList(updated);
+            // Yeni tür listede yoksa listeye ekle
+            if (!taxTypes.some(t => t.name.toLowerCase() === cleanCustom.toLowerCase())) {
+                const newEntry = {
+                    id: `type_${Date.now()}`,
+                    name: cleanCustom,
+                    category: formData.subCategory
+                };
+                const updated = [...taxTypes, newEntry];
+                saveTaxTypesList(updated);
             }
         }
 
         setIsSubmitting(true);
         try {
             const payload = {
-                type: 'Ödeme', // Şirket gider raporları ve mali tablolarla tam uyum
-                category: 'SGK & Vergi', // Personel modülü ve filtre köprüsü
-                subCategory: formData.subCategory, // 'vergi' | 'sgk'
+                type: 'Ödeme',
+                category: 'SGK & Vergi',
+                subCategory: formData.subCategory,
                 taxType: selectedTaxTypeName,
                 period: formData.period,
                 date: formData.date,
-                dueDate: formData.dueDate || formData.date,
+                dueDate: formData.date,
                 amount: amt,
                 status: formData.status,
                 description: formData.description?.trim() || `${selectedTaxTypeName} (${formData.period})`,
@@ -352,24 +392,48 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
         }
     };
 
-    // ── Özel Vergi Türleri Yönetimi ──
-    const handleAddCustomType = (e) => {
+    // ── Vergi Türleri Yönetimi (Ekle, Düzenle, Sil, Sıfırla) ──
+    const handleAddNewTaxType = (e) => {
         e.preventDefault();
         const trimmed = newTaxTypeName.trim();
         if (!trimmed) return;
-        if (customTaxTypes.includes(trimmed) || DEFAULT_TAX_TYPES.some(t => t.name.toLowerCase() === trimmed.toLowerCase())) {
+        if (taxTypes.some(t => t.name.toLowerCase() === trimmed.toLowerCase())) {
             alert('Bu vergi türü listede zaten mevcut.');
             return;
         }
-        const updated = [...customTaxTypes, trimmed];
-        saveCustomTaxTypesList(updated);
+        const newEntry = {
+            id: `type_${Date.now()}`,
+            name: trimmed,
+            category: newTaxTypeCat
+        };
+        const updated = [...taxTypes, newEntry];
+        saveTaxTypesList(updated);
         setNewTaxTypeName('');
     };
 
-    const handleDeleteCustomType = (typeName) => {
-        if (window.confirm(`"${typeName}" vergi türünü hafızadan silmek istediğinize emin misiniz?`)) {
-            const updated = customTaxTypes.filter(t => t !== typeName);
-            saveCustomTaxTypesList(updated);
+    const handleSaveEditTaxType = (id) => {
+        const trimmed = editingTaxTypeName.trim();
+        if (!trimmed) return;
+        const updated = taxTypes.map(t => t.id === id ? { ...t, name: trimmed } : t);
+        saveTaxTypesList(updated);
+        setEditingTaxTypeId(null);
+        setEditingTaxTypeName('');
+    };
+
+    const handleDeleteTaxType = (id, name) => {
+        if (window.confirm(`"${name}" vergi türünü sistemden silmek istediğinize emin misiniz?`)) {
+            const updated = taxTypes.filter(t => t.id !== id);
+            saveTaxTypesList(updated);
+            if (formData.taxType === name) {
+                setFormData(prev => ({ ...prev, taxType: updated[0]?.name || '' }));
+            }
+        }
+    };
+
+    const handleResetTaxTypesToDefault = () => {
+        if (window.confirm('Tüm vergi türlerini standart sistem varsayılanlarına sıfırlamak istiyor musunuz?')) {
+            saveTaxTypesList(INITIAL_TAX_TYPES);
+            setEditingTaxTypeId(null);
         }
     };
 
@@ -381,7 +445,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                 className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-3 pb-2 border-b border-white/[0.06] shrink-0"
                 style={{ paddingTop: isMobile ? 'calc(0.5rem + env(safe-area-inset-top, 0px))' : '0' }}
             >
-                {/* Üst Satır (Mobil) / Sol Taraf (Masaüstü) */}
+                {/* Sol Taraf: Sayfa Başlığı */}
                 <div className="flex items-center justify-between gap-2 min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                         {isMobile && onOpenMenu && (
@@ -399,15 +463,8 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                         </h2>
                     </div>
 
-                    {/* Mobilde sağ üstte hızlı aksiyon butonu */}
+                    {/* Mobilde sağ üstte hızlı ekleme butonu */}
                     <div className="md:hidden shrink-0 flex items-center gap-1.5">
-                        <button
-                            onClick={() => setIsTaxTypeManagerOpen(true)}
-                            className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/10 transition-colors cursor-pointer"
-                            title="Vergi Türlerini Yönet"
-                        >
-                            <Settings size={15} />
-                        </button>
                         <button
                             onClick={handleOpenAddForm}
                             className="h-8 px-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
@@ -418,9 +475,9 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                     </div>
                 </div>
 
-                {/* Alt Satır (Mobil Filtreler) / Sağ Taraf (iPad & Masaüstü) */}
+                {/* Sağ Taraf: Filtre Butonları ve Masaüstü Yeni Ödeme */}
                 <div className="flex items-center gap-2 w-full md:w-auto shrink-0 overflow-x-auto no-scrollbar py-0.5">
-                    {/* Filtre Butonları */}
+                    {/* Filtre Sekmeleri */}
                     <div className="flex items-center p-1 rounded-xl bg-[#080a0f] border border-white/[0.06] shrink-0">
                         {[
                             { id: 'all', label: 'Tümü' },
@@ -446,17 +503,8 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                         })}
                     </div>
 
-                    {/* Masaüstü ve iPad Aksiyon Butonları */}
+                    {/* Masaüstü ve iPad Yeni Resmi Ödeme Butonu */}
                     <div className="hidden md:flex items-center gap-2 shrink-0">
-                        <button
-                            onClick={() => setIsTaxTypeManagerOpen(true)}
-                            className="h-8 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                            title="Vergi Türlerini Yönet"
-                        >
-                            <Settings size={14} />
-                            <span className="hidden lg:inline">Türleri Yönet</span>
-                        </button>
-
                         <button
                             onClick={handleOpenAddForm}
                             className="h-8 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
@@ -488,7 +536,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                     </span>
                 </div>
 
-                {/* 2. Ödeme Bekleyenler (Tahakkuk / Vade) */}
+                {/* 2. Bekleyen Ödemeler */}
                 <div
                     onClick={() => setActiveTabFilter('pending')}
                     className="rounded-xl border border-amber-500/30 px-3 py-2 bg-[#080a0f] flex items-center justify-between cursor-pointer hover:border-amber-500/50 transition-colors"
@@ -498,7 +546,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                             <Clock size={15} />
                         </div>
                         <div className="min-w-0">
-                            <span className="text-[10px] text-amber-300/80 block leading-tight">Vadesi Bekleyen</span>
+                            <span className="text-[10px] text-amber-300/80 block leading-tight">Bekleyen Ödemeler</span>
                             <span className="text-xs sm:text-sm font-bold text-amber-300 font-mono truncate block">
                                 {formatCurrency(kpiMetrics.pendingTotal)}
                             </span>
@@ -530,11 +578,11 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                 </div>
             </div>
 
-            {/* ── 3. ANA İÇERİK (IN-CARD FORM VEYA VERGİ & SGK TABLOSU) ── */}
+            {/* ── 3. ANA İÇERİK (KOMPAKT FORM VEYA VERGİ & SGK TABLOSU) ── */}
             <div className="flex-1 flex flex-col rounded-2xl bg-[#07090e] border border-white/[0.06] overflow-hidden min-h-0 relative">
 
                 {isFormOpen ? (
-                    /* ═════════════ IN-CARD FORM STÜDYOSU (RESPONSIVE) ═════════════ */
+                    /* ═════════════ KOMPAKT IN-CARD FORM STÜDYOSU ═════════════ */
                     <div className="flex-1 flex flex-col h-full min-h-0 bg-[#07090e] overflow-y-auto custom-scrollbar">
                         {/* Stüdyo Başlığı */}
                         <div className="p-3 sm:px-5 sm:py-3.5 bg-[#080a0f] border-b border-white/[0.08] flex items-center justify-between shrink-0">
@@ -544,9 +592,9 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                                 </span>
                                 <div>
                                     <h3 className="text-xs sm:text-sm font-bold text-white">
-                                        {editingPaymentId ? 'Resmi Ödeme Kaydını Düzenle' : 'Yeni Vergi veya SGK Kaydı Ekle'}
+                                        {editingPaymentId ? 'Resmi Ödeme Kaydını Düzenle' : 'Yeni Vergi veya SGK Kaydı'}
                                     </h3>
-                                    <span className="text-[10px] text-slate-500">Tahakkuk, Vade ve Dekont Arşivleme</span>
+                                    <span className="text-[10px] text-slate-500">Tahakkuk, Ödeme ve Dekont Arşivleme</span>
                                 </div>
                             </div>
                             <button
@@ -559,224 +607,212 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                         </div>
 
                         {/* Form Gövdesi */}
-                        <form onSubmit={handleSavePayment} className="flex-1 p-3.5 sm:p-5 flex flex-col justify-between gap-4">
-                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                                
-                                {/* Sol Sütun: İşlem Bilgileri (7/12) */}
-                                <div className="lg:col-span-7 flex flex-col gap-3">
-                                    {/* Kategori Seçimi: Vergi / SGK */}
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-slate-400 mb-1 block">İşlem Türü *</label>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setFormData(prev => ({
-                                                        ...prev,
-                                                        subCategory: 'vergi',
-                                                        taxType: 'KDV 1 (Katma Değer Vergisi)'
-                                                    }));
-                                                    setIsCustomTypeInput(false);
-                                                }}
-                                                className={`py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                                                    formData.subCategory === 'vergi'
-                                                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
-                                                        : 'bg-black/40 border-white/10 text-slate-400 hover:text-white'
-                                                }`}
-                                            >
-                                                <Receipt size={14} />
-                                                <span>Vergi Ödemesi</span>
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setFormData(prev => ({
-                                                        ...prev,
-                                                        subCategory: 'sgk',
-                                                        taxType: 'SGK Prim Ödemesi'
-                                                    }));
-                                                    setIsCustomTypeInput(false);
-                                                }}
-                                                className={`py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                                                    formData.subCategory === 'sgk'
-                                                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
-                                                        : 'bg-black/40 border-white/10 text-slate-400 hover:text-white'
-                                                }`}
-                                            >
-                                                <Building2 size={14} />
-                                                <span>SGK Prim Ödemesi</span>
-                                            </button>
-                                        </div>
-                                    </div>
+                        <form onSubmit={handleSavePayment} className="p-3 sm:p-5 flex flex-col gap-3.5 max-w-4xl">
+                            
+                            {/* Satır 1: İşlem Türü (Vergi / SGK Prim) */}
+                            <div>
+                                <label className="text-[11px] font-semibold text-slate-400 mb-1 block">İşlem Türü *</label>
+                                <div className="grid grid-cols-2 gap-2 sm:w-80">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const defaultV = taxTypes.find(t => t.category === 'vergi')?.name || 'KDV 1 (Katma Değer Vergisi)';
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                subCategory: 'vergi',
+                                                taxType: defaultV
+                                            }));
+                                            setIsCustomTypeInput(false);
+                                        }}
+                                        className={`py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                                            formData.subCategory === 'vergi'
+                                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
+                                                : 'bg-black/40 border-white/10 text-slate-400 hover:text-white'
+                                        }`}
+                                    >
+                                        <Receipt size={14} />
+                                        <span>Vergi Ödemesi</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const defaultS = taxTypes.find(t => t.category === 'sgk')?.name || 'SGK Prim Ödemesi';
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                subCategory: 'sgk',
+                                                taxType: defaultS
+                                            }));
+                                            setIsCustomTypeInput(false);
+                                        }}
+                                        className={`py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                                            formData.subCategory === 'sgk'
+                                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
+                                                : 'bg-black/40 border-white/10 text-slate-400 hover:text-white'
+                                        }`}
+                                    >
+                                        <Building2 size={14} />
+                                        <span>SGK Prim Ödemesi</span>
+                                    </button>
+                                </div>
+                            </div>
 
-                                    {/* Vergi / SGK Kalemi (Seçim + Yeni Yazma) */}
-                                    <div>
-                                        <div className="flex items-center justify-between mb-1">
-                                            <label className="text-[11px] font-semibold text-slate-400">Vergi / Prim Kalemi *</label>
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsTaxTypeManagerOpen(true)}
-                                                className="text-[10px] text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
-                                            >
-                                                <Settings size={11} />
-                                                <span>Türleri Düzenle</span>
-                                            </button>
-                                        </div>
-
-                                        {!isCustomTypeInput ? (
-                                            <div className="flex items-center gap-2">
-                                                <select
-                                                    value={formData.taxType}
-                                                    onChange={(e) => {
-                                                        if (e.target.value === '__new__') {
-                                                            setIsCustomTypeInput(true);
-                                                            setCustomTypeInputValue('');
-                                                        } else {
-                                                            setFormData(prev => ({ ...prev, taxType: e.target.value }));
-                                                        }
-                                                    }}
-                                                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40 cursor-pointer"
-                                                >
-                                                    {allTaxTypes
-                                                        .filter(t => formData.subCategory === 'sgk' ? t.category === 'sgk' : true)
-                                                        .map(t => (
-                                                            <option key={t.id} value={t.name} className="bg-[#080a0f] text-white">
-                                                                {t.name} {t.isCustom ? '(Özel)' : ''}
-                                                            </option>
-                                                        ))}
-                                                    <option value="__new__" className="bg-[#080a0f] text-amber-400 font-bold">
-                                                        + Yeni Vergi Türü Yaz...
-                                                    </option>
-                                                </select>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={customTypeInputValue}
-                                                    onChange={e => setCustomTypeInputValue(e.target.value)}
-                                                    placeholder="Yeni vergi türü adı yazınız..."
-                                                    className="flex-1 px-3 py-2 rounded-xl bg-black/40 border border-amber-500/40 text-xs text-white placeholder-slate-500 outline-none"
-                                                    autoFocus
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setIsCustomTypeInput(false)}
-                                                    className="px-2.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white text-xs transition-colors cursor-pointer"
-                                                >
-                                                    Listeden Seç
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Dönem, Tutar ve Durum */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                                        <div>
-                                            <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Dönem (Ay/Yıl) *</label>
-                                            <input
-                                                type="month"
-                                                required
-                                                value={formData.period}
-                                                onChange={e => setFormData(prev => ({ ...prev, period: e.target.value }))}
-                                                className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white font-mono outline-none focus:border-amber-500/40"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Ödeme Tutarı (₺) *</label>
-                                            <input
-                                                type="number"
-                                                required
-                                                step="0.01"
-                                                value={formData.amount}
-                                                onChange={e => setFormData(prev => ({ ...prev, amount: e.target.value }))}
-                                                placeholder="0.00"
-                                                className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white font-mono font-bold outline-none focus:border-amber-500/40"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Durum *</label>
-                                            <select
-                                                value={formData.status}
-                                                onChange={e => setFormData(prev => ({ ...prev, status: e.target.value }))}
-                                                className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40 cursor-pointer"
-                                            >
-                                                <option value="paid" className="bg-[#080a0f] text-emerald-400">Ödendi</option>
-                                                <option value="pending" className="bg-[#080a0f] text-amber-400">Ödeme Bekliyor</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    {/* Tarihler: Yasal Vade & Ödeme Tarihi */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                                        <div>
-                                            <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Yasal Vade (Son Gün) *</label>
-                                            <input
-                                                type="date"
-                                                required
-                                                value={formData.dueDate}
-                                                onChange={e => setFormData(prev => ({ ...prev, dueDate: e.target.value }))}
-                                                className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white font-mono outline-none focus:border-amber-500/40"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Ödeme / İşlem Tarihi *</label>
-                                            <input
-                                                type="date"
-                                                required
-                                                value={formData.date}
-                                                onChange={e => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                                                className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white font-mono outline-none focus:border-amber-500/40"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Açıklama */}
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Açıklama / Detay</label>
-                                        <input
-                                            type="text"
-                                            value={formData.description}
-                                            onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                                            placeholder="Örn: 2026 1. Dönem Geçici Vergi Ödemesi"
-                                            className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500/40"
-                                        />
-                                    </div>
+                            {/* Satır 2: Vergi / SGK Kalemi (CustomSelect + Inline Yeni Ekleme + Türleri Düzenle) */}
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="text-[11px] font-semibold text-slate-400">Vergi / Prim Kalemi *</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsTaxTypeManagerOpen(true)}
+                                        className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer font-medium"
+                                    >
+                                        <Settings size={12} />
+                                        <span>Türleri Düzenle</span>
+                                    </button>
                                 </div>
 
-                                {/* Sağ Sütun: Tahakkuk Fişi & Ödeme Dekontları (5/12) */}
-                                <div className="lg:col-span-5 flex flex-col justify-between bg-black/40 border border-white/[0.06] rounded-xl p-3.5 sm:p-4 gap-3">
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-1.5">
-                                            <Paperclip size={14} className="text-amber-400" />
-                                            <h4 className="text-xs font-bold text-white">Resmi Evraklar & Dekontlar</h4>
-                                        </div>
-                                        <p className="text-[11px] text-slate-400 mb-3">
-                                            GİB / SGK Tahakkuk fişi veya banka ödeme dekontunu (PDF / Görsel) ekleyebilirsiniz.
-                                        </p>
-                                        <FileUpload
-                                            files={formData.files || []}
-                                            onChange={files => setFormData(prev => ({ ...prev, files }))}
-                                            maxSizeMB={8}
+                                {!isCustomTypeInput ? (
+                                    <CustomSelect
+                                        value={formData.taxType}
+                                        onChange={(val) => {
+                                            if (val === '__new__') {
+                                                setIsCustomTypeInput(true);
+                                                setCustomTypeInputValue('');
+                                            } else {
+                                                const match = taxTypes.find(t => t.name === val);
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    taxType: val,
+                                                    subCategory: match ? match.category : prev.subCategory
+                                                }));
+                                            }
+                                        }}
+                                        options={formTaxTypeOptions}
+                                        placeholder="Vergi / Prim Kalemi Seçin..."
+                                        searchable={true}
+                                    />
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={customTypeInputValue}
+                                            onChange={e => setCustomTypeInputValue(e.target.value)}
+                                            placeholder="Yeni vergi/prim adı yazınız..."
+                                            className="flex-1 px-3 py-1.5 rounded-xl bg-[#0d1117] border border-amber-500/40 text-xs text-white placeholder-slate-500 outline-none"
+                                            autoFocus
                                         />
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsCustomTypeInput(false)}
+                                            className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white text-xs transition-colors cursor-pointer shrink-0"
+                                        >
+                                            Listeden Seç
+                                        </button>
                                     </div>
+                                )}
+                            </div>
 
-                                    {/* Dahili Not */}
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Dahili Muhasebe Notu</label>
-                                        <textarea
-                                            rows={2}
-                                            value={formData.note}
-                                            onChange={e => setFormData(prev => ({ ...prev, note: e.target.value }))}
-                                            placeholder="Muhasebe veya banka referans notları..."
-                                            className="w-full px-3 py-2 rounded-xl bg-[#080a0f] border border-white/10 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500/40 resize-none"
-                                        />
+                            {/* Satır 3: 4'lü Finansal Grid: Dönem, Tutar, Durum, İşlem/Ödeme Tarihi */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                                {/* Dönem (Ay/Yıl) via CustomSelect */}
+                                <div>
+                                    <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Dönem (Ay/Yıl) *</label>
+                                    <CustomSelect
+                                        value={formData.period}
+                                        onChange={(val) => setFormData(prev => ({ ...prev, period: val }))}
+                                        options={PERIOD_OPTIONS}
+                                        placeholder="Dönem Seçin"
+                                        searchable={true}
+                                    />
+                                </div>
+
+                                {/* Ödeme Tutarı (₺) */}
+                                <div>
+                                    <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Ödeme Tutarı (₺) *</label>
+                                    <input
+                                        type="number"
+                                        required
+                                        step="0.01"
+                                        value={formData.amount}
+                                        onChange={e => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+                                        placeholder="0.00"
+                                        className="w-full px-3 py-1.5 rounded-xl bg-[#0d1117] border border-white/[0.08] hover:border-white/[0.16] focus:border-amber-500/70 text-xs text-white font-mono font-bold outline-none transition-colors"
+                                    />
+                                </div>
+
+                                {/* Durum via CustomSelect */}
+                                <div>
+                                    <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Durum *</label>
+                                    <CustomSelect
+                                        value={formData.status}
+                                        onChange={(val) => setFormData(prev => ({ ...prev, status: val }))}
+                                        options={[
+                                            { value: 'paid', label: 'Ödendi' },
+                                            { value: 'pending', label: 'Ödeme Bekliyor' }
+                                        ]}
+                                    />
+                                </div>
+
+                                {/* İşlem / Ödeme Tarihi via CustomDatePicker */}
+                                <div>
+                                    <label className="text-[11px] font-semibold text-slate-400 mb-1 block">İşlem / Ödeme Tarihi *</label>
+                                    <CustomDatePicker
+                                        value={formData.date}
+                                        onChange={(newDate) => {
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                date: newDate,
+                                                period: newDate ? newDate.slice(0, 7) : prev.period
+                                            }));
+                                        }}
+                                        placeholder="GG/AA/YYYY"
+                                        className="bg-[#0d1117] border border-white/[0.08] rounded-xl text-white font-mono"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Satır 4: Açıklama */}
+                            <div>
+                                <label className="text-[11px] font-semibold text-slate-400 mb-1 block">Açıklama / Detay</label>
+                                <input
+                                    type="text"
+                                    value={formData.description}
+                                    onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                                    placeholder="Örn: 2026 1. Dönem Geçici Vergi Ödemesi"
+                                    className="w-full px-3 py-1.5 rounded-xl bg-[#0d1117] border border-white/[0.08] hover:border-white/[0.16] focus:border-amber-500/70 text-xs text-white placeholder-slate-600 outline-none transition-colors"
+                                />
+                            </div>
+
+                            {/* Satır 5: Kompakt PDF / Dekont & Not Bölümü (Hantal değil, tam uyumlu) */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 rounded-xl bg-black/40 border border-white/[0.06]">
+                                {/* Sol: Ufak Dekont / PDF Ekle */}
+                                <div>
+                                    <div className="flex items-center gap-1.5 mb-1.5">
+                                        <Paperclip size={13} className="text-amber-400" />
+                                        <span className="text-[11px] font-semibold text-slate-300">Dekont / Tahakkuk Fişi (PDF veya Görsel)</span>
                                     </div>
+                                    <FileUpload
+                                        files={formData.files || []}
+                                        onChange={files => setFormData(prev => ({ ...prev, files }))}
+                                        maxSizeMB={8}
+                                        hideHint={true}
+                                    />
+                                </div>
+
+                                {/* Sağ: Dahili Not */}
+                                <div className="flex flex-col">
+                                    <label className="text-[11px] font-semibold text-slate-400 mb-1.5 block">Dahili Muhasebe Notu</label>
+                                    <textarea
+                                        rows={2}
+                                        value={formData.note}
+                                        onChange={e => setFormData(prev => ({ ...prev, note: e.target.value }))}
+                                        placeholder="Banka dekont no veya muhasebe notları..."
+                                        className="w-full flex-1 px-3 py-1.5 rounded-xl bg-[#080a0f] border border-white/[0.08] text-xs text-white placeholder-slate-600 outline-none focus:border-amber-500/40 resize-none"
+                                    />
                                 </div>
                             </div>
 
                             {/* Alt Aksiyon Butonları */}
-                            <div className="pt-3 border-t border-white/[0.06] flex items-center justify-end gap-2.5 shrink-0">
+                            <div className="pt-2 border-t border-white/[0.06] flex items-center justify-end gap-2.5 shrink-0">
                                 <button
                                     type="button"
                                     onClick={handleCloseForm}
@@ -797,7 +833,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                 ) : (
                     /* ═════════════ LİSTE & ARAMA MASASI ═════════════ */
                     <div className="flex-1 flex flex-col h-full min-h-0">
-                        {/* Arama ve Ay Çubuğu */}
+                        {/* Arama ve Dönem Çubuğu */}
                         <div className="p-2.5 sm:px-4 sm:py-2.5 bg-[#080a0f] border-b border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-2 shrink-0">
                             <div className="relative w-full sm:w-72">
                                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
@@ -816,17 +852,12 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                             </div>
 
                             <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                                <select
+                                <CustomSelect
                                     value={filterMonth}
-                                    onChange={e => setFilterMonth(e.target.value)}
-                                    className="px-2.5 py-1.5 rounded-xl bg-black/40 border border-white/10 text-xs text-slate-300 font-mono outline-none focus:border-amber-500/40 cursor-pointer"
-                                >
-                                    {monthOptions.map(opt => (
-                                        <option key={opt.value} value={opt.value} className="bg-[#080a0f] text-white">
-                                            {opt.label}
-                                        </option>
-                                    ))}
-                                </select>
+                                    onChange={(val) => setFilterMonth(val)}
+                                    options={filterMonthOptions}
+                                    className="w-48 shrink-0"
+                                />
                             </div>
                         </div>
 
@@ -872,18 +903,10 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                                                     </div>
 
                                                     <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 mt-1">
-                                                        {rec.dueDate && (
-                                                            <span className="text-[11px] text-slate-500 font-mono">
-                                                                Vade: {new Date(rec.dueDate).toLocaleDateString('tr-TR')}
-                                                            </span>
-                                                        )}
                                                         {rec.date && (
-                                                            <>
-                                                                <span className="text-slate-600 hidden sm:inline">·</span>
-                                                                <span className="text-[11px] text-slate-500 font-mono">
-                                                                    Ödeme: {new Date(rec.date).toLocaleDateString('tr-TR')}
-                                                                </span>
-                                                            </>
+                                                            <span className="text-[11px] text-slate-500 font-mono">
+                                                                Tarih: {new Date(rec.date).toLocaleDateString('tr-TR')}
+                                                            </span>
                                                         )}
                                                         {rec.description && rec.description !== displayTitle && (
                                                             <>
@@ -1013,7 +1036,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                 document.body
             )}
 
-            {/* ═════════════ 5. VERGİ TÜRLERİ YÖNETİM MODALI (HAFIZA) ═════════════ */}
+            {/* ═════════════ 5. TÜM VERGİ TÜRLERİ YÖNETİMİ (DÜZENLEME & SİLME) ═════════════ */}
             {isTaxTypeManagerOpen && typeof document !== 'undefined' && createPortal(
                 <div
                     className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[9999] p-3 sm:p-4"
@@ -1023,10 +1046,11 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                         className="bg-[#07090e] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col my-auto"
                         onClick={e => e.stopPropagation()}
                     >
+                        {/* Başlık */}
                         <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#080a0f] shrink-0">
                             <div className="flex items-center gap-2">
                                 <Settings size={16} className="text-amber-400" />
-                                <h3 className="text-sm font-bold text-white">Kayıtlı Vergi Türleri Masası</h3>
+                                <h3 className="text-sm font-bold text-white">Kayıtlı Vergi & SGK Türleri</h3>
                             </div>
                             <button
                                 onClick={() => setIsTaxTypeManagerOpen(false)}
@@ -1036,69 +1060,146 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                             </button>
                         </div>
 
+                        {/* Gövde */}
                         <div className="p-4 sm:p-5 flex-1 overflow-y-auto custom-scrollbar space-y-4">
                             {/* Yeni Tür Ekle Formu */}
-                            <form onSubmit={handleAddCustomType} className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={newTaxTypeName}
-                                    onChange={e => setNewTaxTypeName(e.target.value)}
-                                    placeholder="Yeni özel vergi türü adı yazınız..."
-                                    className="flex-1 px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/40"
-                                />
-                                <button
-                                    type="submit"
-                                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shrink-0"
-                                >
-                                    <Plus size={14} />
-                                    <span>Ekle</span>
-                                </button>
+                            <form onSubmit={handleAddNewTaxType} className="flex flex-col gap-2 p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Yeni Tür Ekle</span>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={newTaxTypeName}
+                                        onChange={e => setNewTaxTypeName(e.target.value)}
+                                        placeholder="Vergi veya prim adı yazınız..."
+                                        className="flex-1 px-3 py-1.5 rounded-xl bg-[#0d1117] border border-white/10 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/40"
+                                    />
+                                    <div className="flex rounded-xl bg-[#0d1117] border border-white/10 p-0.5 shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewTaxTypeCat('vergi')}
+                                            className={`px-2 py-1 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer ${
+                                                newTaxTypeCat === 'vergi' ? 'bg-amber-500 text-black font-bold' : 'text-slate-400'
+                                            }`}
+                                        >
+                                            Vergi
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewTaxTypeCat('sgk')}
+                                            className={`px-2 py-1 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer ${
+                                                newTaxTypeCat === 'sgk' ? 'bg-amber-500 text-black font-bold' : 'text-slate-400'
+                                            }`}
+                                        >
+                                            SGK
+                                        </button>
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shrink-0"
+                                    >
+                                        <Plus size={14} />
+                                        <span>Ekle</span>
+                                    </button>
+                                </div>
                             </form>
 
-                            {/* Standart Vergi Türleri */}
+                            {/* Mevcut Türler Listesi (Tümü Düzenlenebilir ve Silinebilir) */}
                             <div>
-                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
-                                    Sistem Standart Türleri
-                                </span>
-                                <div className="space-y-1">
-                                    {DEFAULT_TAX_TYPES.map(t => (
-                                        <div key={t.id} className="px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.04] text-xs text-slate-300 flex items-center justify-between">
-                                            <span>{t.name}</span>
-                                            <span className="text-[10px] text-slate-500 font-mono">Varsayılan</span>
-                                        </div>
-                                    ))}
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Kayıtlı Türler ({taxTypes.length})
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={handleResetTaxTypesToDefault}
+                                        className="text-[10px] text-slate-400 hover:text-amber-400 flex items-center gap-1 cursor-pointer transition-colors"
+                                        title="Standart sistem türlerine geri dön"
+                                    >
+                                        <RotateCcw size={11} />
+                                        <span>Varsayılanlara Sıfırla</span>
+                                    </button>
                                 </div>
-                            </div>
 
-                            {/* Kullanıcının Özel Hafızaya Eklediği Türler */}
-                            <div>
-                                <span className="text-[11px] font-bold text-amber-400/90 uppercase tracking-wider block mb-2">
-                                    Özel Kayıtlı Türler ({customTaxTypes.length})
-                                </span>
-                                {customTaxTypes.length > 0 ? (
-                                    <div className="space-y-1">
-                                        {customTaxTypes.map((typeName) => (
-                                            <div key={typeName} className="px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs text-white flex items-center justify-between">
-                                                <span>{typeName}</span>
-                                                <button
-                                                    onClick={() => handleDeleteCustomType(typeName)}
-                                                    className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
-                                                    title="Hafızadan Sil"
-                                                >
-                                                    <Trash2 size={13} />
-                                                </button>
+                                <div className="space-y-1.5">
+                                    {taxTypes.map((item) => {
+                                        const isEditingThis = editingTaxTypeId === item.id;
+
+                                        return (
+                                            <div
+                                                key={item.id}
+                                                className="px-3 py-2 rounded-xl bg-[#080a0f] border border-white/[0.06] hover:border-white/15 flex items-center justify-between gap-2 text-xs text-slate-300 transition-colors"
+                                            >
+                                                {isEditingThis ? (
+                                                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                                        <input
+                                                            type="text"
+                                                            value={editingTaxTypeName}
+                                                            onChange={e => setEditingTaxTypeName(e.target.value)}
+                                                            className="flex-1 px-2 py-1 rounded-lg bg-[#0d1117] border border-amber-500/50 text-xs text-white outline-none"
+                                                            autoFocus
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleSaveEditTaxType(item.id)}
+                                                            className="p-1 text-emerald-400 hover:bg-emerald-500/10 rounded cursor-pointer"
+                                                            title="Kaydet"
+                                                        >
+                                                            <Check size={14} />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setEditingTaxTypeId(null)}
+                                                            className="p-1 text-slate-400 hover:bg-white/10 rounded cursor-pointer"
+                                                            title="Vazgeç"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                            <span className="truncate">{item.name}</span>
+                                                            <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded border shrink-0 ${
+                                                                item.category === 'sgk'
+                                                                    ? 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+                                                                    : 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                                                            }`}>
+                                                                {item.category === 'sgk' ? 'SGK' : 'Vergi'}
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-1 shrink-0">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setEditingTaxTypeId(item.id);
+                                                                    setEditingTaxTypeName(item.name);
+                                                                }}
+                                                                className="p-1 text-slate-400 hover:text-white hover:bg-white/5 rounded transition-colors cursor-pointer"
+                                                                title="Düzenle"
+                                                            >
+                                                                <Edit3 size={13} />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteTaxType(item.id, item.name)}
+                                                                className="p-1 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
+                                                                title="Sil"
+                                                            >
+                                                                <Trash2 size={13} />
+                                                            </button>
+                                                        </div>
+                                                    </>
+                                                )}
                                             </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p className="text-xs text-slate-500 italic py-2">
-                                        Henüz özel bir vergi türü eklenmedi. Yukarıdan ekleyebilir veya yeni ödeme kaydederken doğrudan yazabilirsiniz.
-                                    </p>
-                                )}
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </div>
 
-                        <div className="p-4 border-t border-white/[0.06] bg-[#080a0f] flex justify-end shrink-0">
+                        {/* Alt Bar */}
+                        <div className="p-3 border-t border-white/[0.06] bg-[#080a0f] flex justify-end shrink-0">
                             <button
                                 onClick={() => setIsTaxTypeManagerOpen(false)}
                                 className="px-4 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold transition-colors cursor-pointer"
