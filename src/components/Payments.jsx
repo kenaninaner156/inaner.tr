@@ -111,48 +111,52 @@ const PERIOD_OPTIONS = generatePeriodList();
 // ASLA rec.category ('SGK & Vergi') taranmaz, çünkü tüm kayıtlar o kategoriye aittir!
 const isSgkRecord = (rec, taxTypesList = []) => {
     if (!rec) return false;
-    
-    // 1. Doğrudan subCategory tanımlıysa
-    if (rec.subCategory === 'sgk') return true;
-    if (rec.subCategory === 'vergi') return false;
 
-    // 2. taxTypes konfigürasyonunda bu tür kayıtlıysa oradaki kategoriye bak
-    const typeName = cleanTaxName(rec.taxType || '').trim().toLowerCase();
+    const rawTaxType = (rec.taxType || '').trim();
+    const rawDesc = (rec.description || '').trim();
+    const typeName = cleanTaxName(rawTaxType || rawDesc).toLowerCase();
+
+    // 1. taxTypes konfigürasyonunda bu tür kayıtlıysa kullanıcı tercihine bak (En yüksek öncelik)
     const matchedType = (taxTypesList || []).find(t => t.name.toLowerCase() === typeName);
     if (matchedType) {
         return matchedType.category === 'sgk';
     }
 
-    // 3. Başlık veya açıklama analizi
-    const text = `${rec.taxType || ''} ${rec.description || ''}`.toLowerCase();
+    // 2. Başlık veya açıklama analizi (Açık vergi isimleri asla SGK olamaz)
+    const text = `${typeName} ${rawTaxType.toLowerCase()} ${rawDesc.toLowerCase()}`;
     
-    // Muhtasar vergi dairesine verilir, vergidir
-    if (text.includes('muhtasar')) return false;
-    // Damga, kdv, gelir, kurumlar, geçici, mtv vb. kesinlikle vergidir
+    // Damga, kdv, gelir, kurumlar, geçici, mtv, muhtasar vb. kesinlikle vergidir
     if (
-        text.includes('vergi') ||
-        text.includes('kdv') ||
-        text.includes('mtv') ||
         text.includes('damga') ||
+        text.includes('kdv') ||
+        text.includes('muhtasar') ||
         text.includes('gelir') ||
         text.includes('kurumlar') ||
         text.includes('geçici') ||
-        text.includes('gecici')
+        text.includes('gecici') ||
+        text.includes('mtv') ||
+        text.includes('taşıtlar') ||
+        text.includes('harç') ||
+        text.includes('vergi')
     ) {
         return false;
     }
 
-    // SGK anahtar kelimeleri
+    // SGK ve prim anahtar kelimeleri
     if (
         text.includes('sgk') ||
         text.includes('bağkur') ||
         text.includes('bagkur') ||
-        text.includes('sigorta primi') ||
+        text.includes('sigorta') ||
         text.includes('emekli') ||
-        text.includes('prim ödemesi')
+        text.includes('prim')
     ) {
         return true;
     }
+
+    // 3. Kayıttaki subCategory kontrolü (güvenli fallback)
+    if (rec.subCategory === 'sgk') return true;
+    if (rec.subCategory === 'vergi') return false;
 
     // Varsayılan: Vergi
     return false;
@@ -237,7 +241,6 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
     const [previewDoc, setPreviewDoc] = useState(null);
     const [isTaxTypeManagerOpen, setIsTaxTypeManagerOpen] = useState(false);
     const [newTaxTypeName, setNewTaxTypeName] = useState('');
-    const [newTaxTypeCat, setNewTaxTypeCat] = useState('vergi');
     const [editingTaxTypeId, setEditingTaxTypeId] = useState(null);
     const [editingTaxTypeName, setEditingTaxTypeName] = useState('');
 
@@ -315,7 +318,15 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
 
     // ── KPI Metrikleri ──
     const kpiMetrics = useMemo(() => {
-        const activeList = (paymentRecords || []).filter(r => !r.deleted);
+        let activeList = (paymentRecords || []).filter(r => !r.deleted);
+
+        // Aktif sekmeye göre KPI filtreleme
+        if (activeTabFilter === 'vergi') {
+            activeList = activeList.filter(r => !isSgkRecord(r, taxTypes));
+        } else if (activeTabFilter === 'sgk') {
+            activeList = activeList.filter(r => isSgkRecord(r, taxTypes));
+        }
+
         const currentYm = new Date().toISOString().slice(0, 7);
         const currentYear = new Date().getFullYear().toString();
 
@@ -341,7 +352,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
             totalCount,
             yearlyPaidTotal
         };
-    }, [paymentRecords]);
+    }, [paymentRecords, activeTabFilter, taxTypes]);
 
     // Form için Seçenek Listesi
     const formTaxTypeOptions = useMemo(() => {
@@ -491,7 +502,8 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
             alert('Bu vergi türü listede zaten mevcut.');
             return;
         }
-        const isSgk = newTaxTypeCat === 'sgk' || trimmed.toLowerCase().includes('sgk');
+        const lower = trimmed.toLowerCase();
+        const isSgk = lower.includes('sgk') || lower.includes('bağkur') || lower.includes('bagkur') || lower.includes('sigorta') || lower.includes('prim');
         const newEntry = {
             id: `type_${Date.now()}`,
             name: trimmed,
@@ -1178,40 +1190,12 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                                         type="text"
                                         value={newTaxTypeName}
                                         onChange={e => setNewTaxTypeName(e.target.value)}
-                                        placeholder="Vergi veya prim adı (Örn: Gelir Vergisi)..."
-                                        className="flex-1 h-9 px-3 rounded-xl bg-[#0d1117] border border-white/10 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/40"
+                                        placeholder="Vergi veya prim adı (Örn: Damga Vergisi, MTV)..."
+                                        className="flex-1 h-9 px-3.5 rounded-xl bg-[#0d1117] border border-white/10 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/40"
                                     />
-                                    <div className="flex rounded-xl bg-[#0d1117] border border-white/10 p-0.5 shrink-0">
-                                        <button
-                                            type="button"
-                                            onMouseDown={(e) => { e.preventDefault(); setNewTaxTypeCat('vergi'); }}
-                                            onClick={(e) => { e.preventDefault(); setNewTaxTypeCat('vergi'); }}
-                                            className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                                                newTaxTypeCat === 'vergi'
-                                                    ? 'bg-amber-500 text-black shadow-sm font-bold'
-                                                    : 'text-slate-400 hover:text-white'
-                                            }`}
-                                        >
-                                            <Receipt size={13} />
-                                            <span>Vergi</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onMouseDown={(e) => { e.preventDefault(); setNewTaxTypeCat('sgk'); }}
-                                            onClick={(e) => { e.preventDefault(); setNewTaxTypeCat('sgk'); }}
-                                            className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                                                newTaxTypeCat === 'sgk'
-                                                    ? 'bg-blue-600 text-white shadow-sm font-bold'
-                                                    : 'text-slate-400 hover:text-white'
-                                            }`}
-                                        >
-                                            <Building2 size={13} />
-                                            <span>SGK</span>
-                                        </button>
-                                    </div>
                                     <button
                                         type="submit"
-                                        className="px-3.5 h-9 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shrink-0"
+                                        className="px-4 h-9 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-lg shadow-amber-500/20"
                                     >
                                         <Plus size={14} />
                                         <span>Ekle</span>
