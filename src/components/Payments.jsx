@@ -23,6 +23,7 @@ import {
     Lock
 } from 'lucide-react';
 import PinLockOverlay from './PinLockOverlay';
+import { usePinSession } from '../utils/pinSession';
 import FileUpload from './FileUpload';
 import CustomSelect from './CustomSelect';
 import CustomDatePicker from './CustomDatePicker';
@@ -177,8 +178,8 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
     } = useContext(DataContext);
     const { activeCompanyId } = useCompany();
 
-    // ─── Güvenlik & Kilit Mekanizması (Şifre girilene kadar sayfa kilitli kalır) ───
-    const [isUnlocked, setIsUnlocked] = useState(false);
+    // ─── Güvenlik & Kilit Mekanizması (5 Dakikalık Ortak Güvenlik Oturumu) ───
+    const { isUnlocked, unlock, lock } = usePinSession();
 
     // ── Dinamik Vergi Türleri (Tümü Düzenlenebilir & Silinebilir, Şirket Bazlı) ──
     const [taxTypes, setTaxTypes] = useState(() => {
@@ -603,7 +604,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
             <PinLockOverlay
                 companyName="Şirket"
                 title="Vergi & SGK Masası"
-                onUnlock={() => setIsUnlocked(true)}
+                onUnlock={unlock}
                 onCancel={() => {
                     window.dispatchEvent(new CustomEvent('tir_switch_tab', { detail: 'dashboard' }));
                 }}
@@ -658,7 +659,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                             </button>
                         )}
                         <button
-                            onClick={() => setIsUnlocked(false)}
+                            onClick={lock}
                             className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/[0.08] flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
                             title="Vergi & SGK Masasını Kilitle"
                         >
@@ -714,7 +715,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                             </button>
                         )}
                         <button
-                            onClick={() => setIsUnlocked(false)}
+                            onClick={lock}
                             className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/[0.08] flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
                             title="Vergi & SGK Masasını Kilitle"
                         >

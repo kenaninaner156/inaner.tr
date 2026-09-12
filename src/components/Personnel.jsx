@@ -13,6 +13,7 @@ import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
 import { useCompany } from '../context/CompanyContext';
 import PinLockOverlay from './PinLockOverlay';
+import { usePinSession } from '../utils/pinSession';
 import PersonnelPeriodModal from './PersonnelPeriodModal';
 import A4PersonnelPreview from './A4PersonnelPreview';
 import FileUpload from './FileUpload';
@@ -227,8 +228,8 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
     const { activeCompanyId } = useCompany();
     const payoutPrintRef = useRef(null);
 
-    // ─── Güvenlik & Kilit Mekanizması (Şifre girilene kadar sayfa kilitli kalır) ───
-    const [isUnlocked, setIsUnlocked] = useState(false);
+    // ─── Güvenlik & Kilit Mekanizması (5 Dakikalık Ortak Güvenlik Oturumu) ───
+    const { isUnlocked, unlock, lock } = usePinSession();
 
     // Ana Alt Sekmeler: 'directory' (Özlük & Rehber), 'radar' (Evraklar), 'payments' (SGK & Maaş), 'payouts' (Prim Hak Edişi)
     const [activeSubTab, setActiveSubTab] = useState('directory');
@@ -954,7 +955,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             <PinLockOverlay
                 companyName="Şirket"
                 title="Personel Yönetimi"
-                onUnlock={() => setIsUnlocked(true)}
+                onUnlock={unlock}
                 onCancel={() => {
                     window.dispatchEvent(new CustomEvent('tir_switch_tab', { detail: 'dashboard' }));
                 }}
@@ -1010,7 +1011,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         )}
 
                         <button
-                            onClick={() => setIsUnlocked(false)}
+                            onClick={lock}
                             className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/[0.08] flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
                             title="Personel Masasını Kilitle"
                         >
@@ -1089,7 +1090,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
 
                         {/* Masayı Kilitle Butonu */}
                         <button
-                            onClick={() => setIsUnlocked(false)}
+                            onClick={lock}
                             className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/[0.08] flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
                             title="Personel Masasını Kilitle"
                         >

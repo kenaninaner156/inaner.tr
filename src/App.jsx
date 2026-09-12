@@ -30,6 +30,7 @@ import { onMessage } from 'firebase/messaging'
 import { doc, updateDoc, setDoc, arrayUnion } from 'firebase/firestore'
 import { requestAndSaveNotificationToken } from './services/notificationService'
 import PushNotificationToast from './components/PushNotificationToast'
+import { lockPinSession } from './utils/pinSession'
 
 function App() {
   const [activeTab, setActiveTab] = useState(() => {
@@ -301,6 +302,7 @@ function App() {
       title: '🚪 Kullanıcı Çıkış Yaptı',
       description: `**${currentUser?.username || '?'}** oturumu kapattı.`,
     });
+    lockPinSession();
     logoutSession()
     localStorage.removeItem('tir_active_tab')
     setIsMenuOpen(false)

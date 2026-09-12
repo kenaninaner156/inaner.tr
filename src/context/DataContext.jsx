@@ -4,6 +4,7 @@ import { collection, onSnapshot, addDoc, doc, getDoc, updateDoc, deleteDoc, quer
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { useCompany } from './CompanyContext';
 import { useTruck } from './TruckContext';
+import { lockPinSession } from '../utils/pinSession';
 // eslint-disable-next-line react-refresh/only-export-components
 export const DataContext = createContext();
 
@@ -123,6 +124,8 @@ export const DataProvider = ({ children }) => {
         try {
             await signOut(auth);
         } catch(e) {}
+
+        lockPinSession();
 
         // Hemen state ve localStorage temizliği yaparak anında UI geçişini sağla (bekleme/animasyon sarkmasını önler)
         localStorage.removeItem('tir_auth_kenan_v1');

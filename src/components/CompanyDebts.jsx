@@ -44,6 +44,7 @@ import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
 import { DataContext } from '../context/DataContext';
 import PinLockOverlay from './PinLockOverlay';
+import { usePinSession } from '../utils/pinSession';
 import CustomDatePicker from './CustomDatePicker';
 import CustomSelect from './CustomSelect';
 import FileUpload from './FileUpload';
@@ -210,11 +211,8 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
     const { activeCompanyId, companyData } = useCompany();
     const { trucks = [] } = useTruck();
 
-    // ─── 1. GÜVENLİK & KİLİT MEKANİZMASI (ŞİFRE GİRİLENE KADAR VERİ ASLA YÜKLENMEZ) ───
-    const [isUnlocked, setIsUnlocked] = useState(() => {
-        // Sayfa yenilenmesinde güvenlik gereği her zaman kilitli başlasın
-        return false;
-    });
+    // ─── 1. GÜVENLİK & KİLİT MEKANİZMASI (5 Dakikalık Ortak Güvenlik Oturumu) ───
+    const { isUnlocked, unlock, lock } = usePinSession();
 
     // Kasa Verileri (Sadece PIN doğru girilince Firestore'dan anlık dinlenir)
     const [loans, setLoans] = useState([]);
@@ -246,9 +244,9 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
         return `${formatted} ${currency}`;
     };
 
-    // Güvenli Kilitleme (Hafızayı anında temizler)
+    // Güvenli Kilitleme (Hafızayı anında temizler ve oturumu kapatır)
     const handleLock = () => {
-        setIsUnlocked(false);
+        lock();
         setLoans([]);
         setOpenDebts([]);
     };
@@ -1294,7 +1292,7 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
         return (
             <PinLockOverlay
                 companyName={companyData?.name || 'Şirket'}
-                onUnlock={() => setIsUnlocked(true)}
+                onUnlock={unlock}
                 onCancel={() => {
                     // Varsayılan olarak dashboard'a geri dön
                     window.dispatchEvent(new CustomEvent('tir_switch_tab', { detail: 'dashboard' }));
