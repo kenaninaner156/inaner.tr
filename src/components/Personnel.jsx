@@ -898,34 +898,58 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
 
             {/* ── 1. Üst Başlık ve Kontrol Barı ── */}
             <div
-                className="flex items-center justify-between gap-3 pb-2 border-b border-white/[0.06] shrink-0"
+                className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-3 pb-2 border-b border-white/[0.06] shrink-0"
                 style={{ paddingTop: isMobile ? 'calc(0.5rem + env(safe-area-inset-top, 0px))' : '0' }}
             >
-                <div className="flex items-center gap-2.5 min-w-0">
-                    {isMobile && onOpenMenu && (
-                        <button
-                            onClick={onOpenMenu}
-                            className="p-1.5 -ml-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 cursor-pointer"
-                        >
-                            <Menu size={22} />
-                        </button>
-                    )}
-                    <div className="flex flex-col">
+                {/* Üst Satır (Mobil) / Sol Taraf (Masaüstü) */}
+                <div className="flex items-center justify-between gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                        {isMobile && onOpenMenu && (
+                            <button
+                                onClick={onOpenMenu}
+                                className="p-1.5 -ml-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 cursor-pointer shrink-0"
+                                aria-label="Menüyü Aç"
+                            >
+                                <Menu size={20} />
+                            </button>
+                        )}
                         <h2 className="text-sm sm:text-base lg:text-lg font-bold tracking-tight text-white flex items-center gap-2 truncate">
-                            <Users size={19} className="text-amber-400 shrink-0" />
-                            <span>Personel & Sürücü Yönetimi</span>
+                            <Users size={18} className="text-amber-400 shrink-0" />
+                            <span className="truncate">Personel & Sürücü Yönetimi</span>
                         </h2>
+                    </div>
+
+                    {/* Mobilde sağ üst hızlı aksiyon butonu */}
+                    <div className="md:hidden shrink-0">
+                        {activeSubTab === 'payments' ? (
+                            <button
+                                onClick={() => handleOpenSgkForm()}
+                                className="h-8 px-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
+                            >
+                                <Plus size={14} />
+                                <span>SGK Ekle</span>
+                            </button>
+                        ) : (
+                            <button
+                                onClick={openAddPersonnelModal}
+                                className="h-8 px-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
+                                title="Yeni Personel Özlük Dosyası Oluştur"
+                            >
+                                <UserPlus size={14} />
+                                <span>Yeni Ekle</span>
+                            </button>
+                        )}
                     </div>
                 </div>
 
-                {/* Sağ Aksiyonlar: Sekme Seçimi & Yeni Ekle */}
-                <div className="flex items-center gap-2 shrink-0">
+                {/* Alt Satır (Mobil Segmented Control) / Sağ Taraf (iPad & Masaüstü) */}
+                <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
                     {/* 4'lü Alt Sekme Hap Butonları */}
-                    <div className="flex items-center p-0.5 sm:p-1 rounded-xl bg-[#080a0f] border border-white/[0.06] relative overflow-x-auto max-w-[calc(100vw-120px)] sm:max-w-none">
+                    <div className="grid grid-cols-4 md:flex items-center p-1 rounded-xl bg-[#080a0f] border border-white/[0.06] relative w-full md:w-auto">
                         {[
                             { id: 'directory', label: 'Rehber & Özlük', shortLabel: 'Rehber', icon: Users },
                             { id: 'radar', label: 'Evraklar', shortLabel: 'Evraklar', icon: ShieldAlert, badge: (kpiMetrics.expiredDocCount + kpiMetrics.criticalDocCount) > 0 ? (kpiMetrics.expiredDocCount + kpiMetrics.criticalDocCount) : null },
-                            { id: 'payments', label: 'SGK & Maaş', shortLabel: 'SGK & Maaş', icon: Calendar },
+                            { id: 'payments', label: 'SGK & Maaş', shortLabel: 'SGK', icon: Calendar },
                             { id: 'payouts', label: 'Prim Hak Edişi', shortLabel: 'Hak Ediş', icon: CreditCard }
                         ].map((tab) => {
                             const IconComponent = tab.icon;
@@ -937,7 +961,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         setActiveSubTab(tab.id);
                                         setMobileView('list');
                                     }}
-                                    className={`relative flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-lg text-xs font-semibold transition-colors duration-200 cursor-pointer shrink-0 ${
+                                    className={`relative flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors duration-200 cursor-pointer ${
                                         isActive ? 'text-black font-bold' : 'text-slate-400 hover:text-white'
                                     }`}
                                 >
@@ -950,12 +974,12 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                                         />
                                     )}
-                                    <span className="relative z-10 flex items-center gap-1.5">
-                                        <IconComponent size={14} />
-                                        <span className="hidden md:inline">{tab.label}</span>
-                                        <span className="md:hidden">{tab.shortLabel}</span>
+                                    <span className="relative z-10 flex items-center justify-center gap-1 sm:gap-1.5 truncate">
+                                        <IconComponent size={13} className="shrink-0" />
+                                        <span className="hidden md:inline truncate">{tab.label}</span>
+                                        <span className="md:hidden truncate">{tab.shortLabel}</span>
                                         {tab.badge && (
-                                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${isActive ? 'bg-black text-amber-400' : 'bg-red-500 text-white'}`}>
+                                            <span className={`px-1 py-0.2 rounded-full text-[9px] font-bold shrink-0 ${isActive ? 'bg-black text-amber-400' : 'bg-red-500 text-white'}`}>
                                                 {tab.badge}
                                             </span>
                                         )}
@@ -965,30 +989,32 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         })}
                     </div>
 
-                    {/* Yeni Personel / Yeni SGK Ödemesi Ekle Butonu */}
-                    {activeSubTab === 'payments' ? (
-                        <button
-                            onClick={() => handleOpenSgkForm()}
-                            className="h-8 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer shrink-0"
-                        >
-                            <Plus size={14} />
-                            <span className="hidden sm:inline">SGK Ödemesi Ekle</span>
-                        </button>
-                    ) : (
-                        <button
-                            onClick={openAddPersonnelModal}
-                            className="h-8 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer shrink-0"
-                            title="Yeni Personel Özlük Dosyası Oluştur"
-                        >
-                            <UserPlus size={14} />
-                            <span className="hidden sm:inline">Yeni Personel</span>
-                        </button>
-                    )}
+                    {/* Masaüstü ve iPad Aksiyon Butonu */}
+                    <div className="hidden md:block shrink-0">
+                        {activeSubTab === 'payments' ? (
+                            <button
+                                onClick={() => handleOpenSgkForm()}
+                                className="h-8 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
+                            >
+                                <Plus size={14} />
+                                <span>SGK Ödemesi Ekle</span>
+                            </button>
+                        ) : (
+                            <button
+                                onClick={openAddPersonnelModal}
+                                className="h-8 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
+                                title="Yeni Personel Özlük Dosyası Oluştur"
+                            >
+                                <UserPlus size={14} />
+                                <span>Yeni Personel</span>
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {/* ── 2. Bento KPI Özet Kartları (Sade & Modern Obsidian Bar) ── */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 shrink-0">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0">
                 {/* 1. Toplam Personel */}
                 <div
                     onClick={() => {
@@ -1330,11 +1356,11 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 </div>
 
                                 {/* ── 3. İÇ SEKME BAŞLIKLARI (Dossier Tabs Header) ── */}
-                                <div className="px-4 pt-2.5 pb-2 bg-[#080a0f] border-b border-white/[0.06] flex items-center justify-between shrink-0">
-                                    <div className="flex items-center gap-1">
+                                <div className="px-3 sm:px-4 pt-2 pb-1.5 sm:pb-2 bg-[#080a0f] border-b border-white/[0.06] flex items-center justify-between gap-2 shrink-0">
+                                    <div className="flex items-center gap-1 overflow-x-auto no-scrollbar min-w-0 py-0.5">
                                         <button
                                             onClick={() => setDetailRightTab('overview')}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                                                 detailRightTab === 'overview' || detailRightTab === 'notes'
                                                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
                                                     : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
@@ -1345,7 +1371,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         </button>
                                         <button
                                             onClick={() => setDetailRightTab('docs')}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                                                 detailRightTab === 'docs'
                                                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
                                                     : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
@@ -1356,7 +1382,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         </button>
                                         <button
                                             onClick={() => setDetailRightTab('notes_drawer')}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                                                 detailRightTab === 'notes_drawer'
                                                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
                                                     : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
@@ -1368,7 +1394,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         {personnelPayoutHistory.length > 0 && (
                                             <button
                                                 onClick={() => setDetailRightTab('payouts')}
-                                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                                                     detailRightTab === 'payouts'
                                                         ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
                                                         : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
@@ -1383,10 +1409,11 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                     {detailRightTab === 'docs' && (
                                         <button
                                             onClick={() => openEditPersonnelModal(selectedPersonnel, 'files')}
-                                            className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                                            className="px-2 sm:px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shrink-0 whitespace-nowrap"
                                         >
                                             <Plus size={12} />
-                                            <span>Yeni Belge Yükle</span>
+                                            <span className="hidden sm:inline">Yeni Belge Yükle</span>
+                                            <span className="sm:hidden">Belge Ekle</span>
                                         </button>
                                     )}
                                 </div>
@@ -1724,10 +1751,10 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             setActiveSubTab('directory');
                                             setMobileView('detail');
                                         }}
-                                        className="p-3.5 sm:p-4 rounded-xl bg-[#080a0f] border border-white/[0.06] hover:border-amber-500/30 transition-colors flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 cursor-pointer"
+                                        className="p-3 sm:p-3.5 md:p-4 rounded-xl bg-[#080a0f] border border-white/[0.06] hover:border-amber-500/30 transition-colors flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5 sm:gap-3 cursor-pointer"
                                     >
                                         {/* Sürücü & Araç */}
-                                        <div className="flex items-center gap-3 min-w-[200px]">
+                                        <div className="flex items-center gap-3 min-w-[180px] md:min-w-[200px]">
                                             <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-bold text-amber-300 text-xs shrink-0">
                                                 {driver.fullName ? driver.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : 'S'}
                                             </div>
@@ -1741,7 +1768,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         </div>
 
                                         {/* 4 Ana Evrak Kolonu */}
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1 w-full lg:w-auto">
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1 w-full md:w-auto">
                                             {/* Ehliyet */}
                                             <div className="p-2 rounded-lg bg-black/40 border border-white/[0.04] flex flex-col justify-between">
                                                 <span className="text-[10px] text-slate-400 block font-semibold">
@@ -1807,10 +1834,10 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
 
             {/* ═════════════ SUB-TAB 3: ÖDEME & SGK TAKVİMİ ═════════════ */}
             {activeSubTab === 'payments' && (
-                <div className="flex-1 flex flex-col lg:flex-row gap-3 min-h-0 overflow-hidden">
+                <div className="flex-1 flex flex-col lg:flex-row gap-3 min-h-0 overflow-y-auto lg:overflow-hidden custom-scrollbar">
                     
                     {/* Sol Sütun: SGK Prim Vadesi & Maaş Takvimi */}
-                    <div className="w-full lg:w-1/2 flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-0.5">
+                    <div className="w-full lg:w-1/2 flex flex-col gap-3 shrink-0 lg:shrink lg:overflow-y-auto custom-scrollbar pr-0.5">
                         {/* SGK Prim Vadesi Paneli */}
                         <div className="p-4 sm:p-5 rounded-2xl bg-[#080a0f] border border-white/[0.06] flex flex-col gap-3">
                             <div className="flex items-center justify-between">
@@ -1899,7 +1926,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                     </div>
 
                     {/* Sağ Sütun: SGK Prim & Vergi Ödemeleri Masası */}
-                    <div className="w-full lg:w-1/2 p-4 sm:p-5 rounded-2xl bg-[#07090e] border border-white/[0.06] flex flex-col gap-3 min-h-0">
+                    <div className="w-full lg:w-1/2 p-4 sm:p-5 rounded-2xl bg-[#07090e] border border-white/[0.06] flex flex-col gap-3 shrink-0 lg:shrink min-h-[440px] lg:min-h-0">
                         <div className="flex items-center justify-between pb-2 border-b border-white/[0.06] shrink-0">
                             <div className="flex items-center gap-2">
                                 <FileText size={16} className="text-amber-400" />
@@ -2151,10 +2178,10 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
 
             {/* ═════════════ SUB-TAB 4: PRİM HAK EDİŞİ (MEVCUT A4 SİSTEMİ) ═════════════ */}
             {activeSubTab === 'payouts' && (
-                <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-0 overflow-hidden">
+                <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-0 overflow-y-auto lg:overflow-hidden custom-scrollbar">
                     
                     {/* Sol Panel: Hak Ediş Dönemleri ve Geçmiş Ödemeler */}
-                    <div className="w-full lg:w-[45%] xl:w-[40%] flex flex-col gap-3 lg:overflow-y-auto custom-scrollbar lg:pr-2">
+                    <div className="w-full lg:w-[45%] xl:w-[40%] flex flex-col gap-3 shrink-0 lg:shrink lg:overflow-y-auto custom-scrollbar lg:pr-2">
                         
                         {/* Yeni Dönem Seçimi Butonu & Taslak Kartı */}
                         <div className="p-3.5 rounded-2xl bg-[#07090e] border border-white/[0.06] flex flex-col gap-3 shrink-0">
@@ -2308,7 +2335,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                     </div>
 
                     {/* Sağ Panel: A4 Önizleme veya PDF Belgesi */}
-                    <div className="w-full lg:w-[55%] xl:w-[60%] flex flex-col rounded-2xl bg-[#07090e] border border-white/[0.06] overflow-hidden min-h-0">
+                    <div className="w-full lg:w-[55%] xl:w-[60%] flex flex-col rounded-2xl bg-[#07090e] border border-white/[0.06] overflow-hidden shrink-0 lg:shrink min-h-[500px] lg:min-h-0">
                         {activePayoutState ? (
                             viewMode === 'pdf' && activePayoutState.files && activePayoutState.files.length > 0 ? (
                                 <EmbeddedPdfViewer files={activePayoutState.files} />
@@ -2346,7 +2373,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             {isPersonnelModalOpen && typeof document !== 'undefined' && createPortal(
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[9999] p-2 sm:p-4" onClick={() => setIsPersonnelModalOpen(false)}>
                     <div
-                        className="bg-[#07090e] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-3xl max-h-[88vh] h-[640px] overflow-hidden flex flex-col my-auto"
+                        className="bg-[#07090e] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] sm:max-h-[88vh] h-[92vh] sm:h-[640px] overflow-hidden flex flex-col my-auto"
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Modal Başlık */}
@@ -2821,7 +2848,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         </form>
 
                         {/* Alt Aksiyon Butonları (Sabit Footer) */}
-                        <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-t border-white/[0.08] bg-[#080a0f]">
+                        <div className="shrink-0 flex items-center justify-between px-3.5 sm:px-5 py-2.5 sm:py-3.5 border-t border-white/[0.08] bg-[#080a0f] gap-2">
                             <div className="flex items-center gap-2">
                                 {personnelFormTab !== 'identity' && (
                                     <button
@@ -2949,7 +2976,9 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 <StickyNote size={14} className="text-amber-400" />
                                 <span>{noteModalPayout.docId} <span className="text-slate-500 font-normal">— Düzenle</span></span>
                             </h3>
-                            <button onClick={() => setNoteModalPayout(null)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-white transition-all text-lg cursor-pointer">&times;</button>
+                            <button onClick={() => setNoteModalPayout(null)} className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-white transition-all cursor-pointer">
+                                <X size={16} />
+                            </button>
                         </div>
                         <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto custom-scrollbar">
                             <div>

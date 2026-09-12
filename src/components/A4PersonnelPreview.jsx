@@ -400,7 +400,7 @@ const A4PersonnelPreview = React.forwardRef(({
                         style={{
                             display: 'flex',
                             alignItems: 'center',
-                            background: 'rgba(15, 20, 40, 0.85)',
+                            background: 'rgba(8, 10, 15, 0.9)',
                             backdropFilter: 'blur(16px)',
                             WebkitBackdropFilter: 'blur(16px)',
                             borderRadius: '8px',
