@@ -15,8 +15,6 @@ import { useCompany } from '../context/CompanyContext';
 import PersonnelPeriodModal from './PersonnelPeriodModal';
 import A4PersonnelPreview from './A4PersonnelPreview';
 import FileUpload from './FileUpload';
-import CustomDatePicker from './CustomDatePicker';
-import CustomSelect from './CustomSelect';
 import { doc, writeBatch, collection, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { sendDiscordAlert } from '../services/discordWebhook';
@@ -36,7 +34,7 @@ const ROLE_OPTIONS = [
 const STATUS_OPTIONS = [
     { value: 'active', label: 'Aktif Çalışan', badgeClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
     { value: 'on_leave', label: 'Yıllık İzinde', badgeClass: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
-    { value: 'medical_leave', label: 'Raporlu', badgeClass: 'text-sky-400 bg-sky-500/10 border-sky-500/20' },
+    { value: 'medical_leave', label: 'Raporlu', badgeClass: 'text-amber-300 bg-amber-500/10 border-amber-500/20' },
     { value: 'terminated', label: 'Ayrıldı', badgeClass: 'text-slate-400 bg-slate-500/10 border-slate-500/20' },
 ];
 
@@ -86,7 +84,7 @@ const getDocumentStatus = (expiryDate) => {
         return { status: 'critical', label: `${diffDays} Gün Kaldı`, days: diffDays, badgeClass: 'text-amber-400 bg-amber-500/10 border-amber-500/20' };
     }
     if (diffDays <= 90) {
-        return { status: 'approaching', label: `${diffDays} Gün Kaldı`, days: diffDays, badgeClass: 'text-sky-400 bg-sky-500/10 border-sky-500/20' };
+        return { status: 'approaching', label: `${diffDays} Gün Kaldı`, days: diffDays, badgeClass: 'text-amber-300 bg-amber-500/10 border-amber-500/20' };
     }
     return { status: 'valid', label: `${diffDays} Gün Kaldı`, days: diffDays, badgeClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' };
 };
@@ -144,8 +142,8 @@ const getPersonnelCompleteness = (person) => {
 // PDF Görüntüleme Bileşeni (Hak Ediş ve Belgeler İçin)
 const EmbeddedPdfViewer = ({ files, title = 'Belge İnceleme' }) => {
     return (
-        <div className="w-full flex flex-col rounded-xl overflow-hidden border border-white/[0.08] shadow-2xl h-full bg-[#08080a]">
-            <div className="flex items-center justify-between px-4 py-2.5 bg-[#08080a] border-b border-white/[0.08] shrink-0">
+        <div className="w-full flex flex-col rounded-xl overflow-hidden border border-white/[0.08] shadow-2xl h-full bg-[#07090e]">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-[#080a0f] border-b border-white/[0.08] shrink-0">
                 <div className="flex items-center gap-2">
                     <FileText size={15} className="text-amber-400 shrink-0" />
                     <span className="text-xs sm:text-sm font-semibold text-white truncate">
@@ -922,10 +920,11 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
 
                 {/* Sağ Aksiyonlar: Sekme Seçimi & Yeni Ekle */}
                 <div className="flex items-center gap-2 shrink-0">
-                    {/* 3'lü Alt Sekme Hap Butonları (Rehber, SGK & Maaş, Hak Ediş) */}
-                    <div className="flex items-center p-0.5 sm:p-1 rounded-xl bg-[#08080a] border border-white/[0.06] relative overflow-x-auto max-w-[calc(100vw-120px)] sm:max-w-none">
+                    {/* 4'lü Alt Sekme Hap Butonları */}
+                    <div className="flex items-center p-0.5 sm:p-1 rounded-xl bg-[#080a0f] border border-white/[0.06] relative overflow-x-auto max-w-[calc(100vw-120px)] sm:max-w-none">
                         {[
                             { id: 'directory', label: 'Rehber & Özlük', shortLabel: 'Rehber', icon: Users },
+                            { id: 'radar', label: 'Evraklar', shortLabel: 'Evraklar', icon: ShieldAlert, badge: (kpiMetrics.expiredDocCount + kpiMetrics.criticalDocCount) > 0 ? (kpiMetrics.expiredDocCount + kpiMetrics.criticalDocCount) : null },
                             { id: 'payments', label: 'SGK & Maaş', shortLabel: 'SGK & Maaş', icon: Calendar },
                             { id: 'payouts', label: 'Prim Hak Edişi', shortLabel: 'Hak Ediş', icon: CreditCard }
                         ].map((tab) => {
@@ -966,23 +965,23 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         })}
                     </div>
 
-                    {/* Yeni Personel / Yeni SGK Ödemesi Ekle Butonu (Sabit w-36 Genişlik) */}
+                    {/* Yeni Personel / Yeni SGK Ödemesi Ekle Butonu */}
                     {activeSubTab === 'payments' ? (
                         <button
                             onClick={() => handleOpenSgkForm()}
-                            className="h-8 w-36 justify-center rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer shrink-0 whitespace-nowrap"
+                            className="h-8 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer shrink-0"
                         >
                             <Plus size={14} />
-                            <span>SGK Ödemesi</span>
+                            <span className="hidden sm:inline">SGK Ödemesi Ekle</span>
                         </button>
                     ) : (
                         <button
                             onClick={openAddPersonnelModal}
-                            className="h-8 w-36 justify-center rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer shrink-0 whitespace-nowrap"
+                            className="h-8 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer shrink-0"
                             title="Yeni Personel Özlük Dosyası Oluştur"
                         >
                             <UserPlus size={14} />
-                            <span>Yeni Personel</span>
+                            <span className="hidden sm:inline">Yeni Personel</span>
                         </button>
                     )}
                 </div>
@@ -996,7 +995,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         setActiveSubTab('directory');
                         setStatusFilter('all');
                     }}
-                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#08080a] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
+                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#080a0f] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
                 >
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 shrink-0">
@@ -1015,7 +1014,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         setActiveSubTab('directory');
                         setRoleFilter('driver');
                     }}
-                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#08080a] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
+                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#080a0f] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
                 >
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 shrink-0">
@@ -1030,11 +1029,8 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
 
                 {/* 3. Evraklar */}
                 <div
-                    onClick={() => {
-                        setActiveSubTab('directory');
-                        setStatusFilter('all');
-                    }}
-                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#08080a] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
+                    onClick={() => setActiveSubTab('radar')}
+                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#080a0f] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
                 >
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 shrink-0">
@@ -1052,7 +1048,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                 {/* 4. SGK Prim Vadesi */}
                 <div
                     onClick={() => setActiveSubTab('payments')}
-                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#08080a] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
+                    className="rounded-xl border border-white/[0.06] px-3 py-1.5 bg-[#080a0f] flex items-center justify-between cursor-pointer hover:border-amber-500/30 transition-colors"
                 >
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 shrink-0">
@@ -1085,7 +1081,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 value={directorySearch}
                                 onChange={(e) => setDirectorySearch(e.target.value)}
                                 placeholder="Personel veya plaka ara..."
-                                className="w-full pl-8 pr-7 py-2 rounded-xl bg-[#08080a] border border-white/[0.06] text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/40 transition-colors"
+                                className="w-full pl-8 pr-7 py-2 rounded-xl bg-[#080a0f] border border-white/[0.06] text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/40 transition-colors"
                             />
                             {directorySearch && (
                                 <button onClick={() => setDirectorySearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
@@ -1109,8 +1105,8 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             }}
                                             className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 ${
                                                 isSelected
-                                                    ? 'bg-[#08080a] border-amber-500/50 shadow-sm'
-                                                    : 'bg-[#08080a] border-white/[0.06] hover:bg-white/[0.03] hover:border-white/10'
+                                                    ? 'bg-amber-500/10 border-amber-500/40 shadow-sm'
+                                                    : 'bg-[#080a0f] border-white/[0.06] hover:bg-white/[0.03] hover:border-white/10'
                                             }`}
                                         >
                                             <div className="flex items-center gap-2.5 min-w-0">
@@ -1132,7 +1128,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                     );
                                 })
                             ) : (
-                                <div className="p-8 text-center rounded-xl bg-[#08080a] border border-white/[0.06] text-slate-500 flex flex-col items-center justify-center gap-2">
+                                <div className="p-8 text-center rounded-xl bg-[#080a0f] border border-white/[0.06] text-slate-500 flex flex-col items-center justify-center gap-2">
                                     <Users size={24} className="text-slate-600" />
                                     <p className="text-xs">Personel bulunamadı.</p>
                                 </div>
@@ -1141,11 +1137,11 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                     </div>
 
                     {/* SAĞ PANEL: Seçili Personelin Dijital Özlük Dosyası (Detail) */}
-                    <div className={`flex-1 flex flex-col rounded-2xl bg-[#08080a] border border-white/[0.06] overflow-hidden min-h-0 ${mobileView === 'list' ? 'hidden md:flex' : 'flex'}`}>
+                    <div className={`flex-1 flex flex-col rounded-2xl bg-[#07090e] border border-white/[0.06] overflow-hidden min-h-0 ${mobileView === 'list' ? 'hidden md:flex' : 'flex'}`}>
                         {selectedPersonnel ? (
                             <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                                 {/* ── 1. ÜST EXECUTIVE PROFILE HEADER (Ferah, Geniş & Şık) ── */}
-                                <div className="px-4 py-3 border-b border-white/[0.08] bg-[#08080a] flex flex-wrap items-center justify-between gap-3 shrink-0">
+                                <div className="px-4 py-3 border-b border-white/[0.08] bg-[#080a0f] flex flex-wrap items-center justify-between gap-3 shrink-0">
                                     <div className="flex items-center gap-3.5 min-w-0">
                                         <button
                                             onClick={() => setMobileView('list')}
@@ -1233,7 +1229,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 </div>
 
                                 {/* ── 2. YATAY SÜRÜCÜ YASAL EVRAK RADARI ── */}
-                                <div className="p-3 sm:px-4 sm:py-3 bg-[#08080a] border-b border-white/[0.06] shrink-0">
+                                <div className="p-3 sm:px-4 sm:py-3 bg-[#07090e] border-b border-white/[0.06] shrink-0">
                                     {/* 4 Kolonlu Kompakt Evrak Kartları */}
                                     <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
                                         {/* 1. Sürücü Belgesi */}
@@ -1241,7 +1237,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             const st = getDocumentStatus(selectedPersonnel.licenseExpiry);
                                             const classes = selectedPersonnel.licenseClasses?.length ? selectedPersonnel.licenseClasses.join(', ') : '';
                                             return (
-                                                <div className="p-2.5 rounded-xl bg-[#08080a] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
+                                                <div className="p-2.5 rounded-xl bg-black/40 border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-xs font-semibold text-white">Sürücü Belgesi</span>
                                                         {st.label && (
@@ -1265,7 +1261,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             const st = getDocumentStatus(selectedPersonnel.srcExpiry);
                                             const srcTypes = selectedPersonnel.srcTypes?.length ? selectedPersonnel.srcTypes.join(', ') : '';
                                             return (
-                                                <div className="p-2.5 rounded-xl bg-[#08080a] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
+                                                <div className="p-2.5 rounded-xl bg-black/40 border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-xs font-semibold text-white">SRC Belgesi</span>
                                                         {st.label && (
@@ -1288,7 +1284,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         {(() => {
                                             const st = getDocumentStatus(selectedPersonnel.psikoteknikExpiry);
                                             return (
-                                                <div className="p-2.5 rounded-xl bg-[#08080a] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
+                                                <div className="p-2.5 rounded-xl bg-black/40 border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-xs font-semibold text-white">Psikoteknik</span>
                                                         {st.label && (
@@ -1312,7 +1308,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             const st = getDocumentStatus(selectedPersonnel.tachographExpiry);
                                             const cardNo = selectedPersonnel.tachographCardNo || '';
                                             return (
-                                                <div className="p-2.5 rounded-xl bg-[#08080a] border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
+                                                <div className="p-2.5 rounded-xl bg-black/40 border border-white/[0.06] hover:border-white/10 transition-colors flex flex-col justify-between">
                                                     <div className="flex items-center justify-between">
                                                         <span className="text-xs font-semibold text-white">Dijital Takograf</span>
                                                         {st.label && (
@@ -1334,7 +1330,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 </div>
 
                                 {/* ── 3. İÇ SEKME BAŞLIKLARI (Dossier Tabs Header) ── */}
-                                <div className="px-4 pt-2.5 pb-2 bg-[#08080a] border-b border-white/[0.06] flex items-center justify-between shrink-0">
+                                <div className="px-4 pt-2.5 pb-2 bg-[#080a0f] border-b border-white/[0.06] flex items-center justify-between shrink-0">
                                     <div className="flex items-center gap-1">
                                         <button
                                             onClick={() => setDetailRightTab('overview')}
@@ -1401,7 +1397,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                     {(detailRightTab === 'overview' || detailRightTab === 'notes') && (
                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 flex-1 min-h-0">
                                             {/* SOL SÜTUN: SGK & BORDRO FİNANSI */}
-                                            <div className="rounded-xl bg-[#08080a] border border-white/[0.06] p-4 flex flex-col h-full">
+                                            <div className="rounded-xl bg-[#080a0f] border border-white/[0.06] p-4 flex flex-col h-full">
                                                 <div className="flex items-center justify-between pb-2.5 border-b border-white/[0.06] shrink-0">
                                                     <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                                                         <Briefcase size={13} className="text-amber-400" />
@@ -1418,7 +1414,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                     </div>
                                                     <div className="flex items-center justify-between py-2">
                                                         <span className="text-slate-400">Kıdem Süresi:</span>
-                                                        <span className="font-mono text-slate-200">
+                                                        <span className="font-mono text-amber-400">
                                                             {calculateSeniority(selectedPersonnel.hireDate, selectedPersonnel.leaveDate) || ''}
                                                         </span>
                                                     </div>
@@ -1432,7 +1428,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                     </div>
                                                     <div className="flex items-center justify-between py-2">
                                                         <span className="text-slate-400">Aylık Net Maaş:</span>
-                                                        <span className="font-mono text-slate-200">
+                                                        <span className="font-mono text-white font-semibold">
                                                             {selectedPersonnel.baseSalary ? `₺${Number(selectedPersonnel.baseSalary).toLocaleString('tr-TR')}` : ''}
                                                         </span>
                                                     </div>
@@ -1460,7 +1456,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                         ) : (
                                                             <button
                                                                 onClick={() => openEditPersonnelModal(selectedPersonnel, 'sgk')}
-                                                                className="text-[11px] text-slate-400 hover:text-white hover:underline cursor-pointer"
+                                                                className="text-[11px] text-amber-400 hover:underline cursor-pointer"
                                                             >
                                                                 + IBAN Ekle
                                                             </button>
@@ -1470,7 +1466,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             </div>
 
                                             {/* SAĞ SÜTUN: KİMLİK & ACİL DURUM İLETİŞİMİ */}
-                                            <div className="rounded-xl bg-[#08080a] border border-white/[0.06] p-4 flex flex-col h-full">
+                                            <div className="rounded-xl bg-[#080a0f] border border-white/[0.06] p-4 flex flex-col h-full">
                                                 <div className="flex items-center justify-between pb-2.5 border-b border-white/[0.06] shrink-0">
                                                     <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                                                         <Phone size={13} className="text-amber-400" />
@@ -1511,30 +1507,29 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center justify-between py-2">
-                                                        <span className="text-slate-400 shrink-0">Acil Durum Yakını:</span>
-                                                        {selectedPersonnel.emergencyContact?.phone || selectedPersonnel.emergencyContact?.name ? (
-                                                            <div className="flex items-center gap-2 text-right">
-                                                                <span className="text-white font-medium">
+                                                        <span className="text-slate-400">Acil Durum Yakını:</span>
+                                                        {selectedPersonnel.emergencyContact?.phone ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-slate-200 truncate max-w-[140px]">
                                                                     {selectedPersonnel.emergencyContact?.name || ''}
-                                                                    {selectedPersonnel.emergencyContact?.relation && (
-                                                                        <span className="text-slate-400 text-[11px] font-normal ml-1.5">
-                                                                            ({selectedPersonnel.emergencyContact.relation})
-                                                                        </span>
-                                                                    )}
+                                                                    {selectedPersonnel.emergencyContact?.relation ? ` (${selectedPersonnel.emergencyContact.relation})` : ''}
                                                                 </span>
-                                                                {selectedPersonnel.emergencyContact?.phone && (
-                                                                    <a
-                                                                        href={`tel:${selectedPersonnel.emergencyContact.phone}`}
-                                                                        className="font-mono text-white hover:text-amber-400 flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-xs shrink-0"
-                                                                        title="Ara"
-                                                                    >
-                                                                        <Phone size={11} className="text-slate-400" />
-                                                                        <span>{selectedPersonnel.emergencyContact.phone}</span>
-                                                                    </a>
-                                                                )}
+                                                                <a
+                                                                    href={`tel:${selectedPersonnel.emergencyContact.phone}`}
+                                                                    className="font-mono text-amber-400 hover:underline flex items-center gap-1"
+                                                                    title="Ara"
+                                                                >
+                                                                    <Phone size={10} />
+                                                                    <span>{selectedPersonnel.emergencyContact.phone}</span>
+                                                                </a>
                                                             </div>
                                                         ) : (
-                                                            <span className="text-slate-500 font-mono text-xs"></span>
+                                                            <button
+                                                                onClick={() => openEditPersonnelModal(selectedPersonnel, 'identity')}
+                                                                className="text-[11px] text-amber-400 hover:underline cursor-pointer"
+                                                            >
+                                                                + Kişi Ekle
+                                                            </button>
                                                         )}
                                                     </div>
                                                 </div>
@@ -1550,7 +1545,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                     {(selectedPersonnel.documents || []).map((docItem, idx) => (
                                                         <div
                                                             key={idx}
-                                                            className="p-3 rounded-xl bg-[#08080a] border border-white/[0.06] hover:border-amber-500/30 flex items-center justify-between gap-3 transition-colors"
+                                                            className="p-3 rounded-xl bg-[#080a0f] border border-white/[0.06] hover:border-amber-500/30 flex items-center justify-between gap-3 transition-colors"
                                                         >
                                                             <div className="flex items-center gap-3 min-w-0">
                                                                 <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400 shrink-0">
@@ -1585,7 +1580,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                     ))}
                                                 </div>
                                             ) : (
-                                                <div className="py-12 text-center text-slate-500 text-xs border border-dashed border-white/10 rounded-2xl bg-[#08080a]/50 flex flex-col items-center justify-center gap-2">
+                                                <div className="py-12 text-center text-slate-500 text-xs border border-dashed border-white/10 rounded-2xl bg-[#080a0f]/50 flex flex-col items-center justify-center gap-2">
                                                     <Paperclip size={24} className="text-slate-600" />
                                                     <p>Bu personele ait sisteme yüklenmiş dijital özlük belgesi (ehliyet fotokopisi, adli sicil, sözleşme) bulunmuyor.</p>
                                                     <button
@@ -1603,7 +1598,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                     {detailRightTab === 'notes_drawer' && (
                                         <div className="flex flex-col gap-3">
                                             {/* Hızlı Not Ekleme */}
-                                            <div className="p-3 rounded-xl bg-[#08080a] border border-white/[0.06] flex gap-2">
+                                            <div className="p-3 rounded-xl bg-[#080a0f] border border-white/[0.06] flex gap-2">
                                                 <input
                                                     type="text"
                                                     value={newNoteText}
@@ -1626,7 +1621,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                     {(selectedPersonnel.notes || []).map((n) => (
                                                         <div
                                                             key={n.id}
-                                                            className="p-3 rounded-xl bg-[#08080a] border border-white/[0.06] flex items-start justify-between gap-3 group"
+                                                            className="p-3 rounded-xl bg-[#080a0f] border border-white/[0.06] flex items-start justify-between gap-3 group"
                                                         >
                                                             <div className="flex-1">
                                                                 <p className="text-xs text-slate-200 leading-relaxed">{n.text}</p>
@@ -1645,7 +1640,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                     ))}
                                                 </div>
                                             ) : (
-                                                <div className="py-8 text-center text-slate-500 text-xs border border-dashed border-white/10 rounded-2xl bg-[#08080a]/50">
+                                                <div className="py-8 text-center text-slate-500 text-xs border border-dashed border-white/10 rounded-2xl bg-[#080a0f]/50">
                                                     Bu personele ait henüz eklenmiş bir zimmet veya operasyon notu bulunmuyor.
                                                 </div>
                                             )}
@@ -1662,7 +1657,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                         handleViewPayout(po);
                                                         setActiveSubTab('payouts');
                                                     }}
-                                                    className="p-3.5 rounded-xl bg-[#08080a] border border-white/[0.06] hover:border-amber-500/30 cursor-pointer flex items-center justify-between transition-colors"
+                                                    className="p-3.5 rounded-xl bg-[#080a0f] border border-white/[0.06] hover:border-amber-500/30 cursor-pointer flex items-center justify-between transition-colors"
                                                 >
                                                     <div>
                                                         <span className="text-xs font-bold text-amber-400 block font-mono">{po.docId || 'HAK EDİŞ'}</span>
@@ -1697,7 +1692,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
 
             {/* ═════════════ SUB-TAB 2: EVRAKLAR (FİLO YASAL MATRİSİ) ═════════════ */}
             {activeSubTab === 'radar' && (
-                <div className="flex-1 flex flex-col rounded-2xl bg-[#08080a] border border-white/[0.06] p-3 sm:p-5 gap-3 overflow-hidden min-h-0">
+                <div className="flex-1 flex flex-col rounded-2xl bg-[#07090e] border border-white/[0.06] p-3 sm:p-5 gap-3 overflow-hidden min-h-0">
                     {/* Üst Arama Barı */}
                     <div className="flex items-center justify-between gap-3 pb-3 border-b border-white/[0.06] shrink-0">
                         <div className="relative w-full max-w-sm">
@@ -1729,7 +1724,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             setActiveSubTab('directory');
                                             setMobileView('detail');
                                         }}
-                                        className="p-3.5 sm:p-4 rounded-xl bg-[#08080a] border border-white/[0.06] hover:border-amber-500/30 transition-colors flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 cursor-pointer"
+                                        className="p-3.5 sm:p-4 rounded-xl bg-[#080a0f] border border-white/[0.06] hover:border-amber-500/30 transition-colors flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 cursor-pointer"
                                     >
                                         {/* Sürücü & Araç */}
                                         <div className="flex items-center gap-3 min-w-[200px]">
@@ -1748,7 +1743,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         {/* 4 Ana Evrak Kolonu */}
                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1 w-full lg:w-auto">
                                             {/* Ehliyet */}
-                                            <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between">
+                                            <div className="p-2 rounded-lg bg-black/40 border border-white/[0.04] flex flex-col justify-between">
                                                 <span className="text-[10px] text-slate-400 block font-semibold">
                                                     Ehliyet{driver.licenseClasses?.length ? ` (${driver.licenseClasses.join(', ')})` : ''}
                                                 </span>
@@ -1762,7 +1757,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             </div>
 
                                             {/* SRC */}
-                                            <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between">
+                                            <div className="p-2 rounded-lg bg-black/40 border border-white/[0.04] flex flex-col justify-between">
                                                 <span className="text-[10px] text-slate-400 block font-semibold truncate">SRC Belgesi</span>
                                                 {srcSt.label ? (
                                                     <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border mt-1 text-center ${srcSt.badgeClass}`}>
@@ -1774,7 +1769,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             </div>
 
                                             {/* Psikoteknik */}
-                                            <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between">
+                                            <div className="p-2 rounded-lg bg-black/40 border border-white/[0.04] flex flex-col justify-between">
                                                 <span className="text-[10px] text-slate-400 block font-semibold">Psikoteknik</span>
                                                 {psiSt.label ? (
                                                     <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border mt-1 text-center ${psiSt.badgeClass}`}>
@@ -1786,7 +1781,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             </div>
 
                                             {/* Takograf */}
-                                            <div className="p-2 rounded-lg bg-white/[0.02] border border-white/[0.04] flex flex-col justify-between">
+                                            <div className="p-2 rounded-lg bg-black/40 border border-white/[0.04] flex flex-col justify-between">
                                                 <span className="text-[10px] text-slate-400 block font-semibold truncate">Takograf Kartı</span>
                                                 {takoSt.label ? (
                                                     <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border mt-1 text-center ${takoSt.badgeClass}`}>
@@ -1817,13 +1812,13 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                     {/* Sol Sütun: SGK Prim Vadesi & Maaş Takvimi */}
                     <div className="w-full lg:w-1/2 flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-0.5">
                         {/* SGK Prim Vadesi Paneli */}
-                        <div className="p-4 sm:p-5 rounded-2xl bg-[#08080a] border border-white/[0.08] flex flex-col gap-3">
+                        <div className="p-4 sm:p-5 rounded-2xl bg-[#080a0f] border border-white/[0.06] flex flex-col gap-3">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <Calendar size={16} className="text-sky-400" />
+                                    <Calendar size={16} className="text-amber-400" />
                                     <h3 className="text-sm sm:text-base font-bold text-white">Yasal SGK Prim Vadesi</h3>
                                 </div>
-                                <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 font-bold border border-sky-500/20">
+                                <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-300 font-bold border border-amber-500/20">
                                     {kpiMetrics.sgkDueDateInfo.daysRemaining} Gün Kaldı
                                 </span>
                             </div>
@@ -1833,11 +1828,11 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                             </p>
 
                             <div className="grid grid-cols-2 gap-2 mt-1">
-                                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+                                <div className="p-3 rounded-xl bg-black/40 border border-white/[0.04]">
                                     <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Son Ödeme Günü</span>
                                     <span className="text-sm font-bold text-white font-mono">{kpiMetrics.sgkDueDateInfo.dateFormatted}</span>
                                 </div>
-                                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+                                <div className="p-3 rounded-xl bg-black/40 border border-white/[0.04]">
                                     <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Aktif Sigortalı</span>
                                     <span className="text-sm font-bold text-emerald-400 font-mono">{kpiMetrics.activeEmployees} Personel</span>
                                 </div>
@@ -1845,7 +1840,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         </div>
 
                         {/* Personel Maaş Günleri Tablosu */}
-                        <div className="p-4 rounded-2xl bg-[#08080a] border border-white/[0.06] flex-1 flex flex-col gap-3">
+                        <div className="p-4 rounded-2xl bg-[#080a0f] border border-white/[0.06] flex-1 flex flex-col gap-3">
                             <div className="flex items-center justify-between">
                                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                                     <DollarSign size={14} className="text-emerald-400" />
@@ -1867,7 +1862,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 {(personnelList || []).filter(p => p.employmentStatus === 'active').map(p => (
                                     <div
                                         key={p.id}
-                                        className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04] flex items-center justify-between gap-2 hover:border-white/10 transition-colors"
+                                        className="p-2.5 rounded-xl bg-black/40 border border-white/[0.04] flex items-center justify-between gap-2 hover:border-white/10 transition-colors"
                                     >
                                         <div className="min-w-0">
                                             <div className="flex items-center gap-2">
@@ -1904,7 +1899,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                     </div>
 
                     {/* Sağ Sütun: SGK Prim & Vergi Ödemeleri Masası */}
-                    <div className="w-full lg:w-1/2 p-4 sm:p-5 rounded-2xl bg-[#08080a] border border-white/[0.06] flex flex-col gap-3 min-h-0">
+                    <div className="w-full lg:w-1/2 p-4 sm:p-5 rounded-2xl bg-[#07090e] border border-white/[0.06] flex flex-col gap-3 min-h-0">
                         <div className="flex items-center justify-between pb-2 border-b border-white/[0.06] shrink-0">
                             <div className="flex items-center gap-2">
                                 <FileText size={16} className="text-amber-400" />
@@ -1935,7 +1930,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         {isSgkFormOpen && (
                             <form
                                 onSubmit={handleSaveSgkPayment}
-                                className="p-3.5 rounded-xl bg-[#08080a] border border-amber-500/30 flex flex-col gap-3 shrink-0 animate-in fade-in duration-200"
+                                className="p-3.5 rounded-xl bg-[#080a0f] border border-amber-500/30 flex flex-col gap-3 shrink-0 animate-in fade-in duration-200"
                             >
                                 <div className="flex items-center justify-between pb-1 border-b border-white/[0.06]">
                                     <span className="text-xs font-bold text-white">
@@ -1958,15 +1953,17 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             required
                                             value={sgkFormData.period}
                                             onChange={e => setSgkFormData({ ...sgkFormData, period: e.target.value })}
-                                            className="w-full px-2.5 py-1.5 rounded-lg bg-[#08080a] border border-white/10 text-xs text-white font-mono outline-none focus:border-amber-500/40"
+                                            className="w-full px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs text-white font-mono outline-none focus:border-amber-500/40"
                                         />
                                     </div>
                                     <div>
                                         <label className="text-[11px] text-slate-400 mb-1 block">Ödeme / Vade Tarihi *</label>
-                                        <CustomDatePicker
+                                        <input
+                                            type="date"
+                                            required
                                             value={sgkFormData.date}
-                                            onChange={val => setSgkFormData({ ...sgkFormData, date: val })}
-                                            className="w-full rounded-lg bg-[#08080a] border border-white/10 text-xs text-white font-mono h-[30px]"
+                                            onChange={e => setSgkFormData({ ...sgkFormData, date: e.target.value })}
+                                            className="w-full px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs text-white font-mono outline-none focus:border-amber-500/40"
                                         />
                                     </div>
                                 </div>
@@ -1981,7 +1978,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             value={sgkFormData.amount}
                                             onChange={e => setSgkFormData({ ...sgkFormData, amount: e.target.value })}
                                             placeholder="Örn: 24500"
-                                            className="w-full px-2.5 py-1.5 rounded-lg bg-[#08080a] border border-white/10 text-xs text-white font-mono font-bold outline-none focus:border-amber-500/40"
+                                            className="w-full px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs text-white font-mono font-bold outline-none focus:border-amber-500/40"
                                         />
                                     </div>
                                     <div>
@@ -2020,7 +2017,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         value={sgkFormData.description}
                                         onChange={e => setSgkFormData({ ...sgkFormData, description: e.target.value })}
                                         placeholder="Örn: SGK Prim & Muhtasar Tahakkuku"
-                                        className="w-full px-2.5 py-1.5 rounded-lg bg-[#08080a] border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
+                                        className="w-full px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
                                     />
                                 </div>
 
@@ -2031,7 +2028,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         value={sgkFormData.note}
                                         onChange={e => setSgkFormData({ ...sgkFormData, note: e.target.value })}
                                         placeholder="Örn: Vakıfbank hesabından ödendi, tahakkuk mali müşavirden alındı."
-                                        className="w-full px-2.5 py-1.5 rounded-lg bg-[#08080a] border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
+                                        className="w-full px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
                                     />
                                 </div>
 
@@ -2086,7 +2083,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 return sgkRecords.map((rec) => (
                                     <div
                                         key={rec.id}
-                                        className="p-3 rounded-xl bg-[#08080a] border border-white/[0.06] hover:border-white/10 transition-colors flex items-center justify-between gap-3 group"
+                                        className="p-3 rounded-xl bg-[#080a0f] border border-white/[0.06] hover:border-white/10 transition-colors flex items-center justify-between gap-3 group"
                                     >
                                         <div className="min-w-0">
                                             <div className="flex items-center gap-2">
@@ -2119,7 +2116,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             {rec.files && rec.files.length > 0 && (
                                                 <button
                                                     onClick={() => openPdfOrFile(rec.files[0])}
-                                                    className="p-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 transition-colors cursor-pointer"
+                                                    className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 transition-colors cursor-pointer"
                                                     title={rec.files[0].name || 'PDF Dekontu Görüntüle'}
                                                 >
                                                     <FileText size={14} />
@@ -2160,7 +2157,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                     <div className="w-full lg:w-[45%] xl:w-[40%] flex flex-col gap-3 lg:overflow-y-auto custom-scrollbar lg:pr-2">
                         
                         {/* Yeni Dönem Seçimi Butonu & Taslak Kartı */}
-                        <div className="p-3.5 rounded-2xl bg-[#08080a] border border-white/[0.06] flex flex-col gap-3 shrink-0">
+                        <div className="p-3.5 rounded-2xl bg-[#07090e] border border-white/[0.06] flex flex-col gap-3 shrink-0">
                             <motion.button
                                 whileHover={{ scale: 1.01 }}
                                 whileTap={{ scale: 0.98 }}
@@ -2233,7 +2230,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         </div>
 
                         {/* Geçmiş Hak Edişler Arşivi */}
-                        <div className="p-3.5 rounded-2xl bg-[#08080a] border border-white/[0.06] flex-1 flex flex-col min-h-0">
+                        <div className="p-3.5 rounded-2xl bg-[#07090e] border border-white/[0.06] flex-1 flex flex-col min-h-0">
                             <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/[0.06]">
                                 <h4 className="font-bold text-white text-xs flex items-center gap-1.5">
                                     <CheckCircle2 size={14} className="text-amber-400" />
@@ -2254,7 +2251,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                                 onClick={() => handleViewPayout(p)}
                                                 className={`p-3 rounded-xl border transition-all cursor-pointer ${
                                                     isActive
-                                                        ? 'bg-[#08080a] border-amber-500/40'
+                                                        ? 'bg-amber-500/10 border-amber-500/40'
                                                         : 'bg-white/[0.02] border-white/[0.04] hover:bg-white/[0.05]'
                                                 }`}
                                             >
@@ -2311,7 +2308,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                     </div>
 
                     {/* Sağ Panel: A4 Önizleme veya PDF Belgesi */}
-                    <div className="w-full lg:w-[55%] xl:w-[60%] flex flex-col rounded-2xl bg-[#08080a] border border-white/[0.06] overflow-hidden min-h-0">
+                    <div className="w-full lg:w-[55%] xl:w-[60%] flex flex-col rounded-2xl bg-[#07090e] border border-white/[0.06] overflow-hidden min-h-0">
                         {activePayoutState ? (
                             viewMode === 'pdf' && activePayoutState.files && activePayoutState.files.length > 0 ? (
                                 <EmbeddedPdfViewer files={activePayoutState.files} />
@@ -2349,11 +2346,11 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             {isPersonnelModalOpen && typeof document !== 'undefined' && createPortal(
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[9999] p-2 sm:p-4" onClick={() => setIsPersonnelModalOpen(false)}>
                     <div
-                        className="bg-[#08080a] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-3xl max-h-[88vh] h-[640px] overflow-hidden flex flex-col my-auto"
+                        className="bg-[#07090e] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-3xl max-h-[88vh] h-[640px] overflow-hidden flex flex-col my-auto"
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Modal Başlık */}
-                        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#08080a] shrink-0">
+                        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#080a0f] shrink-0">
                             <div className="flex items-center gap-2.5">
                                 <span className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
                                     <UserPlus size={16} />
@@ -2374,7 +2371,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         </div>
 
                         {/* Sekmeler (Form İçi Gezinme) */}
-                        <div className="flex items-center px-4 pt-2.5 pb-1 border-b border-white/[0.06] bg-[#08080a] gap-1 overflow-x-auto no-scrollbar shrink-0">
+                        <div className="flex items-center px-4 pt-2.5 pb-1 border-b border-white/[0.06] bg-[#07090e] gap-1 overflow-x-auto no-scrollbar shrink-0">
                             {[
                                 { id: 'identity', label: '1. Kimlik & İletişim', icon: Users },
                                 { id: 'sgk', label: '2. SGK & Çalışma', icon: Briefcase },
@@ -2453,21 +2450,23 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         </div>
                                         <div>
                                             <label className="text-xs text-slate-400 mb-1 block">Doğum Tarihi</label>
-                                            <CustomDatePicker
+                                            <input
+                                                type="date"
                                                 value={formData.birthDate}
-                                                onChange={val => setFormData({ ...formData, birthDate: val })}
-                                                className="w-full rounded-lg bg-white/5 border border-white/10 text-xs text-white font-mono h-[34px]"
+                                                onChange={e => setFormData({ ...formData, birthDate: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40 font-mono"
                                             />
                                         </div>
                                         <div>
                                             <label className="text-xs text-slate-400 mb-1 block">Kan Grubu</label>
-                                            <CustomSelect
+                                            <select
                                                 value={formData.bloodType}
-                                                onChange={val => setFormData({ ...formData, bloodType: val })}
-                                                options={BLOOD_TYPES.map(bt => ({ value: bt, label: bt }))}
-                                                placeholder="Seçiniz"
-                                                buttonClassName="h-[34px] rounded-lg bg-white/5 border-white/10 text-xs font-normal"
-                                            />
+                                                onChange={e => setFormData({ ...formData, bloodType: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
+                                            >
+                                                <option value="">Seçiniz</option>
+                                                {BLOOD_TYPES.map(bt => <option key={bt} value={bt}>{bt}</option>)}
+                                            </select>
                                         </div>
                                     </div>
 
@@ -2483,10 +2482,10 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                     </div>
 
                                     {/* Acil Durum İletişim */}
-                                    <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-2">
-                                        <h4 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                                            <Phone size={12} className="text-amber-400" />
-                                            <span>Acil Durum Yakını</span>
+                                    <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.04] space-y-2">
+                                        <h4 className="text-xs font-bold text-red-400 flex items-center gap-1">
+                                            <Phone size={12} />
+                                            <span>Acil Durum İrtibat Bilgisi</span>
                                         </h4>
                                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                             <input
@@ -2530,30 +2529,31 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
                                             <label className="text-xs text-slate-400 mb-1 block">Görev / Pozisyon</label>
-                                            <CustomSelect
+                                            <select
                                                 value={formData.role}
-                                                onChange={val => setFormData({ ...formData, role: val })}
-                                                options={ROLE_OPTIONS}
-                                                placeholder="Pozisyon seçiniz"
-                                                buttonClassName="h-[34px] rounded-lg bg-white/5 border-white/10 text-xs font-normal"
-                                            />
+                                                onChange={e => setFormData({ ...formData, role: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
+                                            >
+                                                {ROLE_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                                            </select>
                                         </div>
                                         <div>
                                             <label className="text-xs text-slate-400 mb-1 block">Çalışma Durumu</label>
-                                            <CustomSelect
+                                            <select
                                                 value={formData.employmentStatus}
-                                                onChange={val => setFormData({ ...formData, employmentStatus: val })}
-                                                options={STATUS_OPTIONS}
-                                                placeholder="Durum seçiniz"
-                                                buttonClassName="h-[34px] rounded-lg bg-white/5 border-white/10 text-xs font-normal"
-                                            />
+                                                onChange={e => setFormData({ ...formData, employmentStatus: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
+                                            >
+                                                {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                                            </select>
                                         </div>
                                         <div>
                                             <label className="text-xs text-slate-400 mb-1 block">İşe Başlama Tarihi</label>
-                                            <CustomDatePicker
+                                            <input
+                                                type="date"
                                                 value={formData.hireDate}
-                                                onChange={val => setFormData({ ...formData, hireDate: val })}
-                                                className="w-full rounded-lg bg-white/5 border border-white/10 text-xs text-white font-mono h-[34px]"
+                                                onChange={e => setFormData({ ...formData, hireDate: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40 font-mono"
                                             />
                                         </div>
                                         <div>
@@ -2619,10 +2619,11 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         </div>
                                         <div>
                                             <label className="text-xs text-slate-400 mb-1 block">İşten Ayrılış Tarihi (Varsa)</label>
-                                            <CustomDatePicker
+                                            <input
+                                                type="date"
                                                 value={formData.leaveDate}
-                                                onChange={val => setFormData({ ...formData, leaveDate: val })}
-                                                className="w-full rounded-lg bg-white/5 border border-white/10 text-xs text-white font-mono h-[34px]"
+                                                onChange={e => setFormData({ ...formData, leaveDate: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none font-mono"
                                             />
                                         </div>
                                     </div>
@@ -2648,34 +2649,38 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
                                             <label className="text-xs text-slate-400 mb-1 block">Sürücü Belgesi (Ehliyet) Bitiş Tarihi</label>
-                                            <CustomDatePicker
+                                            <input
+                                                type="date"
                                                 value={formData.licenseExpiry}
-                                                onChange={val => setFormData({ ...formData, licenseExpiry: val })}
-                                                className="w-full rounded-lg bg-white/5 border border-white/10 text-xs text-white font-mono h-[34px]"
+                                                onChange={e => setFormData({ ...formData, licenseExpiry: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none font-mono"
                                             />
                                         </div>
                                         <div>
                                             <label className="text-xs text-slate-400 mb-1 block">SRC Belgesi Bitiş Tarihi</label>
-                                            <CustomDatePicker
+                                            <input
+                                                type="date"
                                                 value={formData.srcExpiry}
-                                                onChange={val => setFormData({ ...formData, srcExpiry: val })}
-                                                className="w-full rounded-lg bg-white/5 border border-white/10 text-xs text-white font-mono h-[34px]"
+                                                onChange={e => setFormData({ ...formData, srcExpiry: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none font-mono"
                                             />
                                         </div>
                                         <div>
                                             <label className="text-xs text-slate-400 mb-1 block">Psikoteknik Bitiş Tarihi</label>
-                                            <CustomDatePicker
+                                            <input
+                                                type="date"
                                                 value={formData.psikoteknikExpiry}
-                                                onChange={val => setFormData({ ...formData, psikoteknikExpiry: val })}
-                                                className="w-full rounded-lg bg-white/5 border border-white/10 text-xs text-white font-mono h-[34px]"
+                                                onChange={e => setFormData({ ...formData, psikoteknikExpiry: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none font-mono"
                                             />
                                         </div>
                                         <div>
                                             <label className="text-xs text-slate-400 mb-1 block">Dijital Takograf Kartı Bitiş Tarihi</label>
-                                            <CustomDatePicker
+                                            <input
+                                                type="date"
                                                 value={formData.tachographExpiry}
-                                                onChange={val => setFormData({ ...formData, tachographExpiry: val })}
-                                                className="w-full rounded-lg bg-white/5 border border-white/10 text-xs text-white font-mono h-[34px]"
+                                                onChange={e => setFormData({ ...formData, tachographExpiry: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none font-mono"
                                             />
                                         </div>
                                         <div>
@@ -2690,10 +2695,11 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         </div>
                                         <div>
                                             <label className="text-xs text-slate-400 mb-1 block">Sağlık Raporu Bitiş Tarihi</label>
-                                            <CustomDatePicker
+                                            <input
+                                                type="date"
                                                 value={formData.healthReportExpiry}
-                                                onChange={val => setFormData({ ...formData, healthReportExpiry: val })}
-                                                className="w-full rounded-lg bg-white/5 border border-white/10 text-xs text-white font-mono h-[34px]"
+                                                onChange={e => setFormData({ ...formData, healthReportExpiry: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none font-mono"
                                             />
                                         </div>
                                     </div>
@@ -2706,19 +2712,16 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
                                             <label className="text-xs text-slate-400 mb-1 block">Atanmış Çekici Plakası</label>
-                                            <CustomSelect
+                                            <select
                                                 value={formData.assignedTruckPlate}
-                                                onChange={val => setFormData({ ...formData, assignedTruckPlate: val })}
-                                                options={[
-                                                    { value: '', label: 'Araç Atanmadı' },
-                                                    ...(trucks || []).map(t => ({
-                                                        value: t.plate,
-                                                        label: `${t.plate}${t.model ? ` (${t.model})` : ''}`
-                                                    }))
-                                                ]}
-                                                placeholder="Araç Seçiniz"
-                                                buttonClassName="h-[34px] rounded-lg bg-white/5 border-white/10 text-xs font-normal"
-                                            />
+                                                onChange={e => setFormData({ ...formData, assignedTruckPlate: e.target.value })}
+                                                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
+                                            >
+                                                <option value="">Araç Atanmadı</option>
+                                                {(trucks || []).map(t => (
+                                                    <option key={t.id} value={t.plate}>{t.plate} {t.model ? `(${t.model})` : ''}</option>
+                                                ))}
+                                            </select>
                                         </div>
                                         <div>
                                             <label className="text-xs text-slate-400 mb-1 block">Atanmış Dorse Plakası</label>
@@ -2818,7 +2821,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         </form>
 
                         {/* Alt Aksiyon Butonları (Sabit Footer) */}
-                        <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-t border-white/[0.08] bg-[#08080a]">
+                        <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-t border-white/[0.08] bg-[#080a0f]">
                             <div className="flex items-center gap-2">
                                 {personnelFormTab !== 'identity' && (
                                     <button
@@ -2878,10 +2881,10 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                     onClick={() => setPreviewDoc(null)}
                 >
                     <div
-                        className="bg-[#08080a] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] overflow-hidden flex flex-col my-auto"
+                        className="bg-[#07090e] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-4xl h-[85vh] overflow-hidden flex flex-col my-auto"
                         onClick={e => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.08] bg-[#08080a] shrink-0">
+                        <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.08] bg-[#080a0f] shrink-0">
                             <div className="flex items-center gap-2">
                                 <FileText size={16} className="text-amber-400" />
                                 <h3 className="text-sm font-bold text-white truncate">{previewDoc.name || 'Belge İnceleme'}</h3>
@@ -2940,7 +2943,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             {/* 5. Hak Ediş Not / Belge Düzenleme Modalı (Mevcut Sistem) */}
             {noteModalPayout && typeof document !== 'undefined' && createPortal(
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" onClick={() => setNoteModalPayout(null)}>
-                    <div className="bg-[#08080a] rounded-2xl border border-amber-500/20 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col my-auto" onClick={e => e.stopPropagation()}>
+                    <div className="bg-[#080a0f] rounded-2xl border border-amber-500/20 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col my-auto" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center px-5 py-4 border-b border-white/5 shrink-0">
                             <h3 className="font-bold flex items-center gap-2.5 text-white">
                                 <StickyNote size={14} className="text-amber-400" />
@@ -2991,7 +2994,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                         setNoteModalPayout(null);
                                     } catch { /* empty */ }
                                     setIsSavingNote(false);
-                                }}
+                                } }
                                 disabled={isSavingNote}
                                 className="px-5 py-2 rounded-lg text-sm font-bold bg-amber-500 hover:bg-amber-400 text-black transition-colors disabled:opacity-50 cursor-pointer"
                             >
@@ -3006,7 +3009,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
             {/* 6. Hak Ediş Taslak İptal Onay Modalı (Mevcut Sistem) */}
             {showCancelConfirm && typeof document !== 'undefined' && createPortal(
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" onClick={() => setShowCancelConfirm(false)}>
-                    <div className="bg-[#08080a] rounded-xl border border-white/[0.08] shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 text-center animate-in zoom-in-95 duration-200 my-auto" onClick={e => e.stopPropagation()}>
+                    <div className="bg-[#07090e] rounded-xl border border-white/[0.08] shadow-2xl w-full max-w-sm overflow-hidden flex flex-col p-6 text-center animate-in zoom-in-95 duration-200 my-auto" onClick={e => e.stopPropagation()}>
                         <div className="mx-auto w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4 border border-red-500/20">
                             <Trash2 className="text-red-400" size={24} />
                         </div>
