@@ -149,7 +149,7 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
     return (
         <div className="relative w-full">
             <div className={`relative flex items-center ${className} p-0 overflow-hidden cursor-text`}>
-                <div className="flex-1 flex items-center justify-center gap-0.5 px-1 py-1.5 select-none">
+                <div className="flex-1 h-full flex items-center justify-center gap-0.5 px-1 select-none">
                     <input
                         ref={dayRef}
                         type="text"
@@ -184,7 +184,7 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                 <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); toggleOpen(); }}
-                    className="shrink-0 px-2.5 py-2 hover:bg-amber-500/15 text-slate-400 hover:text-amber-400 transition-colors border-l border-white/[0.06] flex items-center justify-center cursor-pointer"
+                    className="shrink-0 h-full px-2.5 hover:bg-amber-500/15 text-slate-400 hover:text-amber-400 transition-colors border-l border-white/[0.06] flex items-center justify-center cursor-pointer"
                 >
                     <Calendar size={14} />
                 </button>
