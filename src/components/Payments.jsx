@@ -25,17 +25,56 @@ import FileUpload from './FileUpload';
 import CustomSelect from './CustomSelect';
 import CustomDatePicker from './CustomDatePicker';
 
-// ── Varsayılan Standart Vergi ve SGK Türleri ──
+// ── Sadeleştirilmiş Kurumsal Vergi ve SGK Türleri ──
 const INITIAL_TAX_TYPES = [
-    { id: 'kdv1', name: 'KDV 1 (Katma Değer Vergisi)', category: 'vergi' },
-    { id: 'kdv2', name: 'KDV 2 (Tevkifatlı)', category: 'vergi' },
-    { id: 'muhtasar', name: 'Muhtasar ve Prim Hizmet Beyannamesi', category: 'vergi' },
-    { id: 'gecici_vergi', name: 'Geçici Vergi (Kurumlar / Gelir)', category: 'vergi' },
-    { id: 'kurumlar_vergisi', name: 'Kurumlar / Yıllık Gelir Vergisi', category: 'vergi' },
-    { id: 'mtv', name: 'Motorlu Taşıtlar Vergisi (MTV)', category: 'vergi' },
-    { id: 'sgk', name: 'SGK Prim Ödemesi', category: 'sgk' },
+    { id: 'kdv', name: 'KDV', category: 'vergi' },
+    { id: 'kdv2', name: 'KDV 2', category: 'vergi' },
+    { id: 'muhtasar', name: 'Muhtasar', category: 'vergi' },
+    { id: 'gecici_vergi', name: 'Geçici Vergi', category: 'vergi' },
+    { id: 'gelir_vergisi', name: 'Gelir Vergisi', category: 'vergi' },
+    { id: 'kurumlar_vergisi', name: 'Kurumlar Vergisi', category: 'vergi' },
+    { id: 'mtv', name: 'MTV', category: 'vergi' },
     { id: 'damga', name: 'Damga Vergisi', category: 'vergi' },
+    { id: 'sgk', name: 'SGK Primi', category: 'sgk' },
 ];
+
+// Uzun veya eski adları sade kurumsal adlara dönüştürme
+const cleanTaxName = (name) => {
+    if (!name) return 'Vergi Ödemesi';
+    if (name.includes('KDV 1 (Katma Değer Vergisi)')) return 'KDV';
+    if (name.includes('KDV 2 (Tevkifatlı)')) return 'KDV 2';
+    if (name.includes('Muhtasar ve Prim')) return 'Muhtasar';
+    if (name.includes('Geçici Vergi (Kurumlar')) return 'Geçici Vergi';
+    if (name.includes('Kurumlar / Yıllık')) return 'Kurumlar Vergisi';
+    if (name.includes('Motorlu Taşıtlar Vergisi')) return 'MTV';
+    if (name.includes('SGK Prim Ödemesi')) return 'SGK Primi';
+    return name;
+};
+
+// Kaydedilmiş listeyi normalize etme (Gelir Vergisi garantisi ile)
+const normalizeSavedTypes = (savedList) => {
+    if (!Array.isArray(savedList) || savedList.length === 0) return INITIAL_TAX_TYPES;
+    const cleaned = savedList.map(item => {
+        if (typeof item === 'string') {
+            const cName = cleanTaxName(item);
+            return {
+                id: `type_${cName.toLowerCase().replace(/\s+/g, '_')}`,
+                name: cName,
+                category: cName.toLowerCase().includes('sgk') ? 'sgk' : 'vergi'
+            };
+        }
+        return {
+            ...item,
+            name: cleanTaxName(item.name),
+            category: item.category || (item.name?.toLowerCase().includes('sgk') ? 'sgk' : 'vergi')
+        };
+    });
+
+    if (!cleaned.some(t => t.name.toLowerCase() === 'gelir vergisi')) {
+        cleaned.splice(4, 0, { id: 'gelir_vergisi', name: 'Gelir Vergisi', category: 'vergi' });
+    }
+    return cleaned;
+};
 
 // Ay Seçenekleri Üretici (Son 24 ay ve Gelecek 6 ay)
 const generatePeriodList = () => {
@@ -61,6 +100,15 @@ const generatePeriodList = () => {
 
 const PERIOD_OPTIONS = generatePeriodList();
 
+// Kaydın SGK mı yoksa Vergi mi olduğunu kesin tespit eden fonksiyon
+const isSgkRecord = (rec) => {
+    if (!rec) return false;
+    if (rec.subCategory === 'sgk') return true;
+    if (rec.subCategory === 'vergi') return false;
+    const txt = `${rec.taxType || ''} ${rec.description || ''} ${rec.category || ''}`.toLowerCase();
+    return txt.includes('sgk') || txt.includes('prim');
+};
+
 const Payments = ({ onOpenMenu, isMobile } = {}) => {
     const {
         paymentRecords,
@@ -77,7 +125,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
             const saved = localStorage.getItem(`tax_types_${activeCompanyId || 'default'}`);
             if (saved) {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                return normalizeSavedTypes(parsed);
             }
         } catch (err) {
             console.error('Vergi türleri okunamadı:', err);
@@ -90,10 +138,9 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
             const saved = localStorage.getItem(`tax_types_${activeCompanyId || 'default'}`);
             if (saved) {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    setTaxTypes(parsed);
-                    return;
-                }
+                const normalized = normalizeSavedTypes(parsed);
+                setTaxTypes(normalized);
+                return;
             }
         } catch (err) {
             console.error('Vergi türleri okunamadı:', err);
@@ -124,7 +171,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
 
     const [formData, setFormData] = useState({
         subCategory: 'vergi', // 'vergi' | 'sgk'
-        taxType: 'KDV 1 (Katma Değer Vergisi)',
+        taxType: 'KDV',
         period: new Date().toISOString().slice(0, 7), // 'YYYY-MM'
         date: new Date().toISOString().split('T')[0], // İşlem / Ödeme Tarihi
         amount: '',
@@ -185,9 +232,9 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
 
         // Alt Kategori Filtresi (Tümü / Vergiler / SGK Primi)
         if (activeTabFilter === 'vergi') {
-            records = records.filter(r => r.subCategory === 'vergi' || (!r.subCategory && r.category !== 'SGK & Vergi'));
+            records = records.filter(r => !isSgkRecord(r));
         } else if (activeTabFilter === 'sgk') {
-            records = records.filter(r => r.subCategory === 'sgk' || r.category === 'SGK & Vergi');
+            records = records.filter(r => isSgkRecord(r));
         }
 
         // Dönem Filtresi
@@ -245,16 +292,16 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
 
     // Form için Seçenek Listesi
     const formTaxTypeOptions = useMemo(() => {
-        const filtered = taxTypes.filter(t => formData.subCategory === 'sgk' ? t.category === 'sgk' : true);
+        const isSgkSelected = formData.subCategory === 'sgk';
+        const filtered = taxTypes.filter(t => isSgkSelected ? t.category === 'sgk' : t.category !== 'sgk');
         const opts = filtered.map(t => ({
             value: t.name,
-            label: t.name,
-            sublabel: t.category === 'sgk' ? 'SGK Primi' : 'Vergi'
+            label: t.name
         }));
         opts.push({
             value: '__new__',
-            label: '+ Yeni Vergi Türü Yaz...',
-            sublabel: 'Yeni tür oluştur'
+            label: '+ Yeni Tür Yaz...',
+            sublabel: isSgkSelected ? 'Yeni SGK türü' : 'Yeni vergi türü'
         });
         return opts;
     }, [taxTypes, formData.subCategory]);
@@ -264,7 +311,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
         setEditingPaymentId(null);
         setIsCustomTypeInput(false);
         setCustomTypeInputValue('');
-        const defaultType = taxTypes.find(t => t.category === 'vergi')?.name || taxTypes[0]?.name || 'Vergi Ödemesi';
+        const defaultType = taxTypes.find(t => t.category === 'vergi')?.name || 'KDV';
         setFormData({
             subCategory: 'vergi',
             taxType: defaultType,
@@ -280,9 +327,9 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
 
     const handleOpenEditForm = (rec) => {
         setEditingPaymentId(rec.id);
-        const isSgk = rec.subCategory === 'sgk' || rec.category === 'SGK & Vergi';
+        const isSgk = isSgkRecord(rec);
         const subCat = isSgk ? 'sgk' : 'vergi';
-        const existingTaxType = rec.taxType || rec.description || 'Vergi Ödemesi';
+        const existingTaxType = cleanTaxName(rec.taxType || rec.description || (isSgk ? 'SGK Primi' : 'KDV'));
 
         setIsCustomTypeInput(false);
         setCustomTypeInputValue('');
@@ -314,7 +361,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
             return;
         }
 
-        let selectedTaxTypeName = formData.taxType;
+        let selectedTaxTypeName = cleanTaxName(formData.taxType);
         if (isCustomTypeInput) {
             const cleanCustom = customTypeInputValue.trim();
             if (!cleanCustom) {
@@ -322,7 +369,6 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                 return;
             }
             selectedTaxTypeName = cleanCustom;
-            // Yeni tür listede yoksa listeye ekle
             if (!taxTypes.some(t => t.name.toLowerCase() === cleanCustom.toLowerCase())) {
                 const newEntry = {
                     id: `type_${Date.now()}`,
@@ -334,12 +380,14 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
             }
         }
 
+        const isSgk = formData.subCategory === 'sgk' || selectedTaxTypeName.toLowerCase().includes('sgk');
+
         setIsSubmitting(true);
         try {
             const payload = {
                 type: 'Ödeme',
                 category: 'SGK & Vergi',
-                subCategory: formData.subCategory,
+                subCategory: isSgk ? 'sgk' : 'vergi',
                 taxType: selectedTaxTypeName,
                 period: formData.period,
                 date: formData.date,
@@ -355,10 +403,10 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
 
             if (editingPaymentId) {
                 await updatePayment(editingPaymentId, payload);
-                addLog('VERGI_SGK_GUNCELLE', `${selectedTaxTypeName} (${formData.period}) kaydı güncellendi: ₺${amt.toLocaleString('tr-TR')}`);
+                addLog('VERGI_SGK_GUNCELLE', `${selectedTaxTypeName} kaydı güncellendi: ₺${amt.toLocaleString('tr-TR')}`);
             } else {
                 await addPayment(payload);
-                addLog('VERGI_SGK_EKLE', `${selectedTaxTypeName} (${formData.period}) kaydedildi: ₺${amt.toLocaleString('tr-TR')}`);
+                addLog('VERGI_SGK_EKLE', `${selectedTaxTypeName} kaydedildi: ₺${amt.toLocaleString('tr-TR')}`);
             }
 
             handleCloseForm();
@@ -381,7 +429,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
         }
     };
 
-    // ── Vergi Türleri Yönetimi (Ekle, Düzenle, Sil, Sıfırla) ──
+    // ── Vergi Türleri Yönetimi (Ekle, Düzenle, Sil, Kategori Değiştir, Sıfırla) ──
     const handleAddNewTaxType = (e) => {
         e.preventDefault();
         const trimmed = newTaxTypeName.trim();
@@ -390,14 +438,35 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
             alert('Bu vergi türü listede zaten mevcut.');
             return;
         }
+        const isSgk = newTaxTypeCat === 'sgk' || trimmed.toLowerCase().includes('sgk');
         const newEntry = {
             id: `type_${Date.now()}`,
             name: trimmed,
-            category: newTaxTypeCat
+            category: isSgk ? 'sgk' : 'vergi'
         };
         const updated = [...taxTypes, newEntry];
         saveTaxTypesList(updated);
         setNewTaxTypeName('');
+        // Eğer form açıksa eklenen türü otomatik seç
+        if (isFormOpen) {
+            setFormData(prev => ({
+                ...prev,
+                taxType: trimmed,
+                subCategory: newEntry.category
+            }));
+            setIsCustomTypeInput(false);
+        }
+    };
+
+    const handleToggleCategory = (id) => {
+        const updated = taxTypes.map(t => {
+            if (t.id === id) {
+                const nextCat = t.category === 'sgk' ? 'vergi' : 'sgk';
+                return { ...t, category: nextCat };
+            }
+            return t;
+        });
+        saveTaxTypesList(updated);
     };
 
     const handleSaveEditTaxType = (id) => {
@@ -614,7 +683,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    const defaultV = taxTypes.find(t => t.category === 'vergi')?.name || 'KDV 1 (Katma Değer Vergisi)';
+                                                    const defaultV = taxTypes.find(t => t.category === 'vergi')?.name || 'KDV';
                                                     setFormData(prev => ({
                                                         ...prev,
                                                         subCategory: 'vergi',
@@ -634,7 +703,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    const defaultS = taxTypes.find(t => t.category === 'sgk')?.name || 'SGK Prim Ödemesi';
+                                                    const defaultS = taxTypes.find(t => t.category === 'sgk')?.name || 'SGK Primi';
                                                     setFormData(prev => ({
                                                         ...prev,
                                                         subCategory: 'sgk',
@@ -860,21 +929,22 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                             </div>
                         </div>
 
-                        {/* Tablo / Kart Listesi */}
+                        {/* Tablo / Kart Listesi (Sade, Yan Bilgisiz) */}
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-2 sm:p-3 space-y-1.5 min-h-0">
                             {filteredRecords.length > 0 ? (
                                 filteredRecords.map((rec) => {
-                                    const isSgk = rec.subCategory === 'sgk' || rec.category === 'SGK & Vergi';
+                                    const isSgk = isSgkRecord(rec);
                                     const hasFiles = rec.files && rec.files.length > 0;
-                                    const displayTitle = rec.taxType || rec.description || (isSgk ? 'SGK Prim Ödemesi' : 'Vergi Ödemesi');
+                                    const rawTitle = rec.taxType || rec.description || (isSgk ? 'SGK Primi' : 'Vergi Ödemesi');
+                                    const displayTitle = cleanTaxName(rawTitle);
 
                                     return (
                                         <div
                                             key={rec.id}
                                             className="p-3 sm:px-4 sm:py-3 rounded-xl bg-[#080a0f] border border-white/[0.06] hover:border-amber-500/30 transition-colors flex items-center justify-between gap-3 group"
                                         >
-                                            {/* Sol Blok: İkon, Tür, Dönem, Tarih ve Açıklama */}
-                                            <div className="flex items-start gap-3 min-w-0 flex-1">
+                                            {/* Sol Blok: İkon, Başlık ve Yalın Tarih */}
+                                            <div className="flex items-center gap-3 min-w-0 flex-1">
                                                 <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${
                                                     isSgk
                                                         ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
@@ -884,32 +954,14 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                                                 </div>
 
                                                 <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <h4 className="text-xs sm:text-sm font-bold text-white tracking-tight truncate">
-                                                            {displayTitle}
-                                                        </h4>
-                                                        {rec.period && (
-                                                            <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-white/5 text-slate-300 border border-white/10 shrink-0">
-                                                                {rec.period}
-                                                            </span>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 mt-1">
-                                                        {rec.date && (
-                                                            <span className="text-[11px] text-slate-400 font-mono">
-                                                                {new Date(rec.date).toLocaleDateString('tr-TR')}
-                                                            </span>
-                                                        )}
-                                                        {rec.description && rec.description !== displayTitle && (
-                                                            <>
-                                                                <span className="text-slate-600 hidden sm:inline">·</span>
-                                                                <span className="text-[11px] text-slate-400 truncate max-w-xs">
-                                                                    {rec.description}
-                                                                </span>
-                                                            </>
-                                                        )}
-                                                    </div>
+                                                    <h4 className="text-xs sm:text-sm font-bold text-white tracking-tight truncate">
+                                                        {displayTitle}
+                                                    </h4>
+                                                    {rec.date && (
+                                                        <span className="text-[11px] text-slate-400 font-mono block mt-0.5">
+                                                            {new Date(rec.date).toLocaleDateString('tr-TR')}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -1029,7 +1081,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                 document.body
             )}
 
-            {/* ═════════════ 5. TÜM VERGİ TÜRLERİ YÖNETİMİ (DÜZENLEME & SİLME) ═════════════ */}
+            {/* ═════════════ 5. TÜM VERGİ TÜRLERİ YÖNETİMİ (DÜZENLEME, SİLME, KATEGORİ DEĞİŞTİRME) ═════════════ */}
             {isTaxTypeManagerOpen && typeof document !== 'undefined' && createPortal(
                 <div
                     className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[9999] p-3 sm:p-4 animate-in fade-in duration-200"
@@ -1063,7 +1115,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                                         type="text"
                                         value={newTaxTypeName}
                                         onChange={e => setNewTaxTypeName(e.target.value)}
-                                        placeholder="Vergi veya prim adı yazınız..."
+                                        placeholder="Vergi veya prim adı (Örn: Gelir Vergisi)..."
                                         className="flex-1 h-9 px-3 rounded-xl bg-[#0d1117] border border-white/10 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/40"
                                     />
                                     <div className="flex rounded-xl bg-[#0d1117] border border-white/10 p-0.5 shrink-0">
@@ -1096,7 +1148,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                                 </div>
                             </form>
 
-                            {/* Mevcut Türler Listesi (Tümü Düzenlenebilir ve Silinebilir) */}
+                            {/* Mevcut Türler Listesi (Tümü Düzenlenebilir, Silinebilir ve Kategorisi Değiştirilebilir) */}
                             <div>
                                 <div className="flex items-center justify-between mb-2">
                                     <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
@@ -1116,6 +1168,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                                 <div className="space-y-1.5">
                                     {taxTypes.map((item) => {
                                         const isEditingThis = editingTaxTypeId === item.id;
+                                        const isSgk = item.category === 'sgk';
 
                                         return (
                                             <div
@@ -1152,13 +1205,18 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                                                     <>
                                                         <div className="flex items-center gap-2 min-w-0 flex-1">
                                                             <span className="truncate">{item.name}</span>
-                                                            <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded border shrink-0 ${
-                                                                item.category === 'sgk'
-                                                                    ? 'text-blue-400 bg-blue-500/10 border-blue-500/20'
-                                                                    : 'text-amber-400 bg-amber-500/10 border-amber-500/20'
-                                                            }`}>
-                                                                {item.category === 'sgk' ? 'SGK' : 'Vergi'}
-                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleToggleCategory(item.id)}
+                                                                className={`text-[10px] font-mono px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                                                                    isSgk
+                                                                        ? 'text-blue-400 bg-blue-500/10 border-blue-500/20 hover:bg-blue-500/20'
+                                                                        : 'text-amber-400 bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/20'
+                                                                }`}
+                                                                title="Kategori değiştirmek için tıklayın"
+                                                            >
+                                                                {isSgk ? 'SGK' : 'Vergi'}
+                                                            </button>
                                                         </div>
 
                                                         <div className="flex items-center gap-1 shrink-0">
