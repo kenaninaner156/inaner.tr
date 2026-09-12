@@ -169,6 +169,54 @@ const EmbeddedPdfViewer = ({ files, title = 'Belge İnceleme' }) => {
     );
 };
 
+// Personel Masasında SADECE SGK primlerinin listelenmesini garanti eden filtre
+// Kesinlikle KDV, Damga (9047), Kurumlar, Geçici vb. şirket vergilerini eler
+const isPersonnelSgkRecord = (rec) => {
+    if (!rec || rec.deleted) return false;
+
+    const rawTaxType = (rec.taxType || '').toLowerCase().trim();
+    const rawDesc = (rec.description || '').toLowerCase().trim();
+    const rawNote = (rec.note || '').toLowerCase().trim();
+    const text = `${rawTaxType} ${rawDesc} ${rawNote}`;
+
+    // 1. Kesinlikle Vergi türleri (KDV, Damga, MTV, Kurumlar vb.) ASLA SGK'da listelenmez
+    if (
+        text.includes('kdv') ||
+        text.includes('damga') ||
+        text.includes('9047') ||
+        text.includes('muhtasar') ||
+        text.includes('gelir vergisi') ||
+        text.includes('kurumlar') ||
+        text.includes('geçici') ||
+        text.includes('gecici') ||
+        text.includes('mtv') ||
+        text.includes('taşıtlar') ||
+        text.includes('harç') ||
+        text.includes('ötv') ||
+        text.includes('otv') ||
+        text.includes('stopaj')
+    ) {
+        return false;
+    }
+
+    // 2. subCategory === 'sgk' veya taxType 'SGK Primi' ise kesinlikle SGK'dır
+    if (rec.subCategory === 'sgk' || rawTaxType === 'sgk primi' || rawTaxType === 'sgk') return true;
+
+    // 3. Başlık veya açıklamada SGK/prim/sigorta/bağkur geçiyorsa SGK'dır
+    if (
+        text.includes('sgk') ||
+        text.includes('sigorta') ||
+        text.includes('prim') ||
+        text.includes('bağkur') ||
+        text.includes('bagkur') ||
+        text.includes('emekli')
+    ) {
+        return true;
+    }
+
+    return false;
+};
+
 const Personnel = ({ onOpenMenu, isMobile } = {}) => {
     const {
         trips, payouts, addPayout, deletePayout, updatePayout, addLog, allDrivers,
@@ -577,13 +625,16 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                 type: 'Ödeme',
                 category: 'SGK & Vergi',
                 subCategory: 'sgk',
+                taxType: 'SGK Primi',
                 period: sgkFormData.period,
                 date: sgkFormData.date,
+                dueDate: sgkFormData.date,
                 amount: amt,
                 status: sgkFormData.status,
                 description: sgkFormData.description?.trim() || `SGK Prim Ödemesi (${sgkFormData.period})`,
                 note: sgkFormData.note?.trim() || '',
                 files: sgkFormData.files || [],
+                companyId: activeCompanyId,
                 truckId: null
             };
 
@@ -1966,8 +2017,8 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                             <div className="flex items-center gap-2">
                                 <FileText size={16} className="text-amber-400" />
                                 <div>
-                                    <h3 className="text-sm sm:text-base font-bold text-white">SGK Prim & Vergi Ödemeleri</h3>
-                                    <span className="text-[10px] text-slate-400 block">Resmi Tahakkuk, Dekont & Prim Takibi</span>
+                                    <h3 className="text-sm sm:text-base font-bold text-white">SGK Prim Ödemeleri</h3>
+                                    <span className="text-[10px] text-slate-400 block">Aylık Resmi Tahakkuk, Dekont & Prim Takibi</span>
                                 </div>
                             </div>
                             <button
@@ -1996,7 +2047,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                             >
                                 <div className="flex items-center justify-between pb-1 border-b border-white/[0.06]">
                                     <span className="text-xs font-bold text-white">
-                                        {editingSgkId ? 'SGK Prim Kaydını Düzenle' : 'Yeni SGK Prim / Vergi Ödemesi Ekle'}
+                                        {editingSgkId ? 'SGK Prim Kaydını Düzenle' : 'Yeni SGK Prim Kaydı Ekle'}
                                     </span>
                                     <button
                                         type="button"
@@ -2073,12 +2124,12 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 </div>
 
                                 <div>
-                                    <label className="text-[11px] text-slate-400 mb-1 block">Açıklama / Tahakkuk Türü</label>
+                                    <label className="text-[11px] text-slate-400 mb-1 block">Açıklama / Detay</label>
                                     <input
                                         type="text"
                                         value={sgkFormData.description}
                                         onChange={e => setSgkFormData({ ...sgkFormData, description: e.target.value })}
-                                        placeholder="Örn: SGK Prim & Muhtasar Tahakkuku"
+                                        placeholder="Örn: Aylık SGK Prim Tahakkuku"
                                         className="w-full px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs text-white outline-none focus:border-amber-500/40"
                                     />
                                 </div>
@@ -2122,20 +2173,20 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar min-h-0 pr-1">
                             {(() => {
                                 const sgkRecords = (paymentRecords || [])
-                                    .filter(r => !r.deleted && (r.category === 'SGK & Vergi' || r.subCategory === 'sgk'))
+                                    .filter(isPersonnelSgkRecord)
                                     .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
                                 if (sgkRecords.length === 0) {
                                     return (
                                         <div className="py-12 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-2">
                                             <FileText size={32} className="text-slate-600" />
-                                            <p>Henüz kayıtlı SGK prim veya vergi ödemesi bulunmuyor.</p>
+                                            <p>Henüz kayıtlı SGK prim ödemesi bulunmuyor.</p>
                                             {!isSgkFormOpen && (
                                                 <button
                                                     onClick={() => handleOpenSgkForm()}
                                                     className="mt-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-amber-400 text-xs font-semibold transition-colors cursor-pointer"
                                                 >
-                                                    İlk SGK Ödemesini Kaydet
+                                                    İlk SGK Primini Kaydet
                                                 </button>
                                             )}
                                         </div>
@@ -2177,7 +2228,7 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                             {/* Ekli PDF Dekont Butonu */}
                                             {rec.files && rec.files.length > 0 && (
                                                 <button
-                                                    onClick={() => openPdfOrFile(rec.files[0])}
+                                                    onClick={() => setPreviewDoc(rec.files[0])}
                                                     className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 transition-colors cursor-pointer"
                                                     title={rec.files[0].name || 'PDF Dekontu Görüntüle'}
                                                 >

@@ -132,14 +132,17 @@ const isSgkRecord = (rec, taxTypesList = []) => {
         text.includes('damga') ||
         text.includes('kdv') ||
         text.includes('muhtasar') ||
-        text.includes('gelir') ||
+        text.includes('gelir vergisi') ||
         text.includes('kurumlar') ||
         text.includes('geçici') ||
         text.includes('gecici') ||
         text.includes('mtv') ||
         text.includes('taşıtlar') ||
         text.includes('harç') ||
-        text.includes('vergi')
+        text.includes('9047') ||
+        text.includes('ötv') ||
+        text.includes('otv') ||
+        text.includes('stopaj')
     ) {
         return false;
     }
@@ -636,13 +639,24 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
 
                     {/* Mobilde sağ üstte hızlı ekleme ve kilit butonu */}
                     <div className="md:hidden shrink-0 flex items-center gap-1.5">
-                        <button
-                            onClick={handleOpenAddForm}
-                            className="h-8 px-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
-                        >
-                            <Plus size={14} />
-                            <span>Yeni Ödeme</span>
-                        </button>
+                        {activeTabFilter === 'sgk' ? (
+                            <button
+                                onClick={() => window.dispatchEvent(new CustomEvent('tir_switch_tab', { detail: 'personel' }))}
+                                className="h-8 px-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
+                                title="SGK primleri Personel Masasından yüklenir"
+                            >
+                                <Plus size={14} />
+                                <span>SGK Yükle</span>
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleOpenAddForm}
+                                className="h-8 px-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
+                            >
+                                <Plus size={14} />
+                                <span>Yeni Vergi</span>
+                            </button>
+                        )}
                         <button
                             onClick={() => setIsUnlocked(false)}
                             className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/[0.08] flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
@@ -681,13 +695,24 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
 
                     {/* Masaüstü ve iPad Yeni Resmi Ödeme ve Kilit Butonu */}
                     <div className="hidden md:flex items-center gap-2 shrink-0">
-                        <button
-                            onClick={handleOpenAddForm}
-                            className="h-8 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
-                        >
-                            <Plus size={14} />
-                            <span>Yeni Resmi Ödeme</span>
-                        </button>
+                        {activeTabFilter === 'sgk' ? (
+                            <button
+                                onClick={() => window.dispatchEvent(new CustomEvent('tir_switch_tab', { detail: 'personel' }))}
+                                className="h-8 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
+                                title="SGK primleri Personel Masasından yüklenir"
+                            >
+                                <Plus size={14} />
+                                <span>Personelden SGK Yükle</span>
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleOpenAddForm}
+                                className="h-8 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
+                            >
+                                <Plus size={14} />
+                                <span>Yeni Vergi Kaydı</span>
+                            </button>
+                        )}
                         <button
                             onClick={() => setIsUnlocked(false)}
                             className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/[0.08] flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
@@ -766,7 +791,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                                 </span>
                                 <div>
                                     <h3 className="text-xs sm:text-sm font-bold text-white">
-                                        {editingPaymentId ? 'Resmi Ödeme Kaydını Düzenle' : 'Yeni Vergi veya SGK Kaydı'}
+                                        {editingPaymentId ? (formData.subCategory === 'sgk' ? 'SGK Prim Kaydını Düzenle' : 'Resmi Vergi Kaydını Düzenle') : 'Yeni Resmi Vergi Kaydı'}
                                     </h3>
                                 </div>
                             </div>
@@ -784,57 +809,18 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 sm:p-6 flex flex-col justify-start">
                                 <div className="w-full max-w-3xl mx-auto flex flex-col gap-3.5">
                                     
-                                    {/* Satır 1: İşlem Türü (Tam Simetrik 2 Buton) */}
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-slate-400 mb-1.5 block">İşlem Türü *</label>
-                                        <div className="grid grid-cols-2 gap-3 w-full">
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const defaultV = taxTypes.find(t => t.category === 'vergi')?.name || 'KDV';
-                                                    setFormData(prev => ({
-                                                        ...prev,
-                                                        subCategory: 'vergi',
-                                                        taxType: defaultV
-                                                    }));
-                                                    setIsCustomTypeInput(false);
-                                                }}
-                                                className={`h-10 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                                                    formData.subCategory === 'vergi'
-                                                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold shadow-sm'
-                                                        : 'bg-[#0d1117] border-white/[0.08] text-slate-400 hover:text-white hover:border-white/20'
-                                                }`}
-                                            >
-                                                <Receipt size={15} />
-                                                <span>Vergi Ödemesi</span>
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const defaultS = taxTypes.find(t => t.category === 'sgk')?.name || 'SGK Primi';
-                                                    setFormData(prev => ({
-                                                        ...prev,
-                                                        subCategory: 'sgk',
-                                                        taxType: defaultS
-                                                    }));
-                                                    setIsCustomTypeInput(false);
-                                                }}
-                                                className={`h-10 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                                                    formData.subCategory === 'sgk'
-                                                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold shadow-sm'
-                                                        : 'bg-[#0d1117] border-white/[0.08] text-slate-400 hover:text-white hover:border-white/20'
-                                                }`}
-                                            >
-                                                <Building2 size={15} />
-                                                <span>SGK Prim Ödemesi</span>
-                                            </button>
+                                    {/* Düzenlenen Kayıt SGK ise Bilgi Şeridi Göster */}
+                                    {editingPaymentId && formData.subCategory === 'sgk' && (
+                                        <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center gap-2 text-xs text-blue-300 font-medium">
+                                            <Building2 size={15} className="shrink-0 text-blue-400" />
+                                            <span>SGK Prim Kaydı (Personel Masası Entegrasyonu)</span>
                                         </div>
-                                    </div>
+                                    )}
 
-                                    {/* Satır 2: Vergi / SGK Kalemi (Sadece Gri Ayar İkonu) */}
+                                    {/* Vergi / SGK Kalemi (Sadece Gri Ayar İkonu) */}
                                     <div>
                                         <div className="flex items-center justify-between mb-1.5">
-                                            <label className="text-[11px] font-semibold text-slate-400">Vergi / Prim Kalemi *</label>
+                                            <label className="text-[11px] font-semibold text-slate-400">{formData.subCategory === 'sgk' ? 'SGK Kalemi *' : 'Vergi Kalemi *'}</label>
                                             <button
                                                 type="button"
                                                 onClick={() => setIsTaxTypeManagerOpen(true)}
@@ -1111,14 +1097,30 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                             ) : (
                                 <div className="py-16 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-2">
                                     <Scale size={32} className="text-slate-600" />
-                                    <p>Filtreye uygun vergi veya SGK ödeme kaydı bulunamadı.</p>
-                                    <button
-                                        onClick={handleOpenAddForm}
-                                        className="mt-2 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                                    >
-                                        <Plus size={13} />
-                                        <span>Yeni Resmi Ödeme Ekle</span>
-                                    </button>
+                                    <p>
+                                        {activeTabFilter === 'sgk' 
+                                            ? 'Kayıtlı SGK prim ödemesi bulunmuyor. SGK primleri Personel Masasından yüklenir.' 
+                                            : activeTabFilter === 'vergi'
+                                                ? 'Kayıtlı vergi ödemesi bulunamadı.'
+                                                : 'Filtreye uygun vergi veya SGK ödeme kaydı bulunamadı.'}
+                                    </p>
+                                    {activeTabFilter === 'sgk' ? (
+                                        <button
+                                            onClick={() => window.dispatchEvent(new CustomEvent('tir_switch_tab', { detail: 'personel' }))}
+                                            className="mt-2 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                                        >
+                                            <Plus size={13} />
+                                            <span>Personel Masasına Git</span>
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={handleOpenAddForm}
+                                            className="mt-2 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                                        >
+                                            <Plus size={13} />
+                                            <span>Yeni Vergi Kaydı Ekle</span>
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>
