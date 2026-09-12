@@ -19,8 +19,10 @@ import {
     Settings,
     Receipt,
     Building2,
-    RotateCcw
+    RotateCcw,
+    Lock
 } from 'lucide-react';
+import PinLockOverlay from './PinLockOverlay';
 import FileUpload from './FileUpload';
 import CustomSelect from './CustomSelect';
 import CustomDatePicker from './CustomDatePicker';
@@ -171,6 +173,9 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
         addLog
     } = useContext(DataContext);
     const { activeCompanyId } = useCompany();
+
+    // ─── Güvenlik & Kilit Mekanizması (Şifre girilene kadar sayfa kilitli kalır) ───
+    const [isUnlocked, setIsUnlocked] = useState(false);
 
     // ── Dinamik Vergi Türleri (Tümü Düzenlenebilir & Silinebilir, Şirket Bazlı) ──
     const [taxTypes, setTaxTypes] = useState(() => {
@@ -589,6 +594,20 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
         window.open(url, '_blank');
     };
 
+    // ─── Kilit Ekranı (Şifre girilmemişse gösterilir) ───
+    if (!isUnlocked) {
+        return (
+            <PinLockOverlay
+                companyName="Şirket"
+                title="Vergi & SGK Masası"
+                onUnlock={() => setIsUnlocked(true)}
+                onCancel={() => {
+                    window.dispatchEvent(new CustomEvent('tir_switch_tab', { detail: 'dashboard' }));
+                }}
+            />
+        );
+    }
+
     return (
         <div className="flex-1 flex flex-col h-full w-full p-2 sm:p-3 lg:p-4 overflow-hidden gap-2 sm:gap-2.5 max-w-[1920px] mx-auto select-none">
 
@@ -615,7 +634,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                         </h2>
                     </div>
 
-                    {/* Mobilde sağ üstte hızlı ekleme butonu */}
+                    {/* Mobilde sağ üstte hızlı ekleme ve kilit butonu */}
                     <div className="md:hidden shrink-0 flex items-center gap-1.5">
                         <button
                             onClick={handleOpenAddForm}
@@ -623,6 +642,13 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                         >
                             <Plus size={14} />
                             <span>Yeni Ödeme</span>
+                        </button>
+                        <button
+                            onClick={() => setIsUnlocked(false)}
+                            className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/[0.08] flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
+                            title="Vergi & SGK Masasını Kilitle"
+                        >
+                            <Lock size={15} />
                         </button>
                     </div>
                 </div>
@@ -653,7 +679,7 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                         })}
                     </div>
 
-                    {/* Masaüstü ve iPad Yeni Resmi Ödeme Butonu */}
+                    {/* Masaüstü ve iPad Yeni Resmi Ödeme ve Kilit Butonu */}
                     <div className="hidden md:flex items-center gap-2 shrink-0">
                         <button
                             onClick={handleOpenAddForm}
@@ -661,6 +687,13 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
                         >
                             <Plus size={14} />
                             <span>Yeni Resmi Ödeme</span>
+                        </button>
+                        <button
+                            onClick={() => setIsUnlocked(false)}
+                            className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/[0.08] flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
+                            title="Vergi & SGK Masasını Kilitle"
+                        >
+                            <Lock size={15} />
                         </button>
                     </div>
                 </div>

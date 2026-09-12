@@ -5,7 +5,7 @@ const CORRECT_PIN = '1285';
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 60;
 
-const PinLockOverlay = ({ onUnlock, onCancel, companyName = 'Şirket' }) => {
+const PinLockOverlay = ({ onUnlock, onCancel, companyName = 'Şirket', title = 'Özel Finans Kasası' }) => {
     const [pin, setPin] = useState('');
     const [error, setError] = useState('');
     const [isShaking, setIsShaking] = useState(false);
@@ -141,7 +141,7 @@ const PinLockOverlay = ({ onUnlock, onCancel, companyName = 'Şirket' }) => {
 
                 {/* Başlık */}
                 <h3 className="text-lg font-bold text-white tracking-tight mb-6">
-                    Özel Finans Kasası
+                    {title}
                 </h3>
 
                 {/* PIN Gösterge Noktaları (Dots) */}

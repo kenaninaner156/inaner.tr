@@ -7,11 +7,12 @@ import {
     Edit3, ExternalLink, Download, ChevronLeft, ChevronRight, X, UserPlus,
     Printer, Save, PlusCircle, Paperclip, StickyNote, Copy, Check, Eye,
     DollarSign, Briefcase, HeartPulse, Award, FileCheck, Shield, ChevronDown,
-    Menu, AlertCircle, ArrowUpRight, ArrowDownLeft, UploadCloud, RefreshCw
+    Menu, AlertCircle, ArrowUpRight, ArrowDownLeft, UploadCloud, RefreshCw, Lock
 } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
 import { useCompany } from '../context/CompanyContext';
+import PinLockOverlay from './PinLockOverlay';
 import PersonnelPeriodModal from './PersonnelPeriodModal';
 import A4PersonnelPreview from './A4PersonnelPreview';
 import FileUpload from './FileUpload';
@@ -177,6 +178,9 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
     const { activeTruckData, trucks } = useTruck();
     const { activeCompanyId } = useCompany();
     const payoutPrintRef = useRef(null);
+
+    // ─── Güvenlik & Kilit Mekanizması (Şifre girilene kadar sayfa kilitli kalır) ───
+    const [isUnlocked, setIsUnlocked] = useState(false);
 
     // Ana Alt Sekmeler: 'directory' (Özlük & Rehber), 'radar' (Evraklar), 'payments' (SGK & Maaş), 'payouts' (Prim Hak Edişi)
     const [activeSubTab, setActiveSubTab] = useState('directory');
@@ -893,6 +897,20 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
         }, 500);
     };
 
+    // ─── Kilit Ekranı (Şifre girilmemişse gösterilir) ───
+    if (!isUnlocked) {
+        return (
+            <PinLockOverlay
+                companyName="Şirket"
+                title="Personel Yönetimi"
+                onUnlock={() => setIsUnlocked(true)}
+                onCancel={() => {
+                    window.dispatchEvent(new CustomEvent('tir_switch_tab', { detail: 'dashboard' }));
+                }}
+            />
+        );
+    }
+
     return (
         <div className="flex-1 flex flex-col h-full w-full p-2 sm:p-3 lg:p-4 overflow-hidden gap-2 sm:gap-2.5 max-w-[1920px] mx-auto select-none">
 
@@ -919,8 +937,8 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         </h2>
                     </div>
 
-                    {/* Mobilde sağ üst hızlı aksiyon butonu */}
-                    <div className="md:hidden shrink-0">
+                    {/* Mobilde sağ üst hızlı aksiyon ve kilit butonu */}
+                    <div className="md:hidden shrink-0 flex items-center gap-1.5">
                         {activeSubTab === 'payments' ? (
                             <button
                                 onClick={() => handleOpenSgkForm()}
@@ -939,6 +957,14 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 <span>Yeni Ekle</span>
                             </button>
                         )}
+
+                        <button
+                            onClick={() => setIsUnlocked(false)}
+                            className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/[0.08] flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
+                            title="Personel Masasını Kilitle"
+                        >
+                            <Lock size={15} />
+                        </button>
                     </div>
                 </div>
 
@@ -989,8 +1015,8 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                         })}
                     </div>
 
-                    {/* Masaüstü ve iPad Aksiyon Butonu */}
-                    <div className="hidden md:block shrink-0">
+                    {/* Masaüstü ve iPad Aksiyon Butonu + Kilit Butonu */}
+                    <div className="hidden md:flex items-center gap-2 shrink-0">
                         {activeSubTab === 'payments' ? (
                             <button
                                 onClick={() => handleOpenSgkForm()}
@@ -1009,6 +1035,15 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
                                 <span>Yeni Personel</span>
                             </button>
                         )}
+
+                        {/* Masayı Kilitle Butonu */}
+                        <button
+                            onClick={() => setIsUnlocked(false)}
+                            className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/[0.08] flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
+                            title="Personel Masasını Kilitle"
+                        >
+                            <Lock size={15} />
+                        </button>
                     </div>
                 </div>
             </div>
