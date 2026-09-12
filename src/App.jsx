@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 import {
   Menu, X, Truck, MapPin, FileText, Droplet, Wrench,
-  CreditCard, PieChart, Calendar, Settings, Shield, LogOut, Bell, AlertTriangle, Sun, Moon, Waves, ChevronDown, Building2, Server, Users, Receipt, Landmark
+  CreditCard, PieChart, Calendar, Settings, Shield, LogOut, Bell, AlertTriangle, Sun, Moon, Waves, ChevronDown, Building2, Server, Users, Receipt, Landmark, Scale
 } from 'lucide-react'
 import Dashboard from './components/Dashboard'
 import Trips from './components/Trips'
@@ -407,7 +407,7 @@ function App() {
     { id: 'detaylar', label: 'Ceza & Belgeler', icon: <AlertTriangle size={20} />, badge: notifCount, theme: 'bg-gradient-to-r from-red-600 to-rose-500 border-red-400/40 shadow-[0_0_20px_rgba(239,68,68,0.35)] text-white', hoverText: 'group-hover:text-red-400' },
     { id: 'invoices', label: 'Fatura Durumu', icon: <FileText size={20} />, theme: 'bg-gradient-to-r from-indigo-600 to-sky-400 border-indigo-400/40 shadow-[0_0_20px_rgba(99,102,241,0.35)] text-white', hoverText: 'group-hover:text-sky-400' },
     { id: 'earsiv', label: 'E-Arşiv Fatura', icon: <Receipt size={20} />, theme: 'bg-gradient-to-r from-orange-600 to-amber-500 border-orange-400/40 shadow-[0_0_20px_rgba(249,115,22,0.35)] text-white', hoverText: 'group-hover:text-orange-400' },
-    { id: 'payments', label: 'Ödeme Takibi', icon: <CreditCard size={20} />, theme: 'bg-gradient-to-r from-emerald-600 to-teal-500 border-emerald-400/40 shadow-[0_0_20px_rgba(16,185,129,0.35)] text-white', hoverText: 'group-hover:text-emerald-400' },
+    { id: 'payments', label: 'Vergi & SGK', icon: <Scale size={20} />, theme: 'bg-gradient-to-r from-amber-600 to-yellow-500 border-amber-400/40 shadow-[0_0_20px_rgba(245,158,11,0.35)] text-white', hoverText: 'group-hover:text-amber-400' },
     { id: 'company_debts', label: 'Borç & Kredi', icon: <Landmark size={20} />, theme: 'bg-gradient-to-r from-amber-600 to-yellow-500 border-amber-400/40 shadow-[0_0_20px_rgba(245,158,11,0.35)] text-white', hoverText: 'group-hover:text-amber-400' },
     { id: 'personel', label: 'Personel', icon: <Users size={20} />, theme: 'bg-gradient-to-r from-orange-600 to-amber-500 border-orange-400/40 shadow-[0_0_20px_rgba(249,115,22,0.35)] text-white', hoverText: 'group-hover:text-orange-400' },
     { id: 'map', label: 'Harita', icon: <MapPin size={20} />, theme: 'bg-gradient-to-r from-blue-600 to-indigo-500 border-blue-400/40 shadow-[0_0_20px_rgba(37,99,235,0.35)] text-white', hoverText: 'group-hover:text-blue-400' },

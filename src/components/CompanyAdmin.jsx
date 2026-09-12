@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
 import { DataContext } from '../context/DataContext';
-import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key, BarChart3, Award, User, Bell, Send, Image, FileText, Navigation, MapPin, Activity, CheckCircle, XCircle, Clock, Sparkles, Radio, Volume2, VolumeX, Smartphone, Fuel, Wrench, Receipt, CreditCard, Shield, ExternalLink, RefreshCw, Eye, UploadCloud, Menu } from 'lucide-react';
+import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key, BarChart3, Award, User, Bell, Send, Image, FileText, Navigation, MapPin, Activity, CheckCircle, XCircle, Clock, Sparkles, Radio, Volume2, VolumeX, Smartphone, Fuel, Wrench, Receipt, CreditCard, Shield, ExternalLink, RefreshCw, Eye, UploadCloud, Menu, Scale } from 'lucide-react';
 import { db, auth } from '../services/firebaseConfig';
 import { collection, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { requestAndSaveNotificationToken } from '../services/notificationService';
@@ -16,7 +16,7 @@ const NOTIF_DESTINATIONS = [
     { id: 'maintenance', label: 'Araç Bakım', icon: Wrench, color: 'text-orange-400 bg-orange-500/10 border-orange-500/30' },
     { id: 'invoices', label: 'Fatura Durumu', icon: FileText, color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' },
     { id: 'earsiv', label: 'E-Arşiv Fatura', icon: Receipt, color: 'text-pink-400 bg-pink-500/10 border-pink-500/30' },
-    { id: 'payments', label: 'Ödeme Takibi', icon: CreditCard, color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' },
+    { id: 'payments', label: 'Vergi & SGK', icon: Scale, color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' },
     { id: 'dashboard', label: 'Özet Panel', icon: BarChart3, color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' },
 ];
 
