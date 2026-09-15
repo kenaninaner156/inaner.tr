@@ -107,14 +107,8 @@ export default async function handler(req, res) {
             source: 'traccar_ios'
         };
 
-        // 1. ESKİ SİSTEM YEDEK (Dual-Write: truck_routes'a yazmaya devam et)
-        let docRefId = null;
-        try {
-            const docRef = await db.collection('truck_routes').add(plainLocationData);
-            docRefId = docRef.id;
-        } catch (trkErr) {
-            console.error("truck_routes yedek yazma hatası:", trkErr);
-        }
+        // Eski truck_routes çift yazma kaldırıldı (CPU ve I/O yükünü önlemek için)
+        let docRefId = cleanDeviceId;
 
         // 2. YENİ SİSTEM (Canlı Takip & Günlük Rota Kaydı)
         try {
@@ -189,7 +183,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json({ 
             success: true, 
-            message: 'Konum basariyla kaydedildi (Dual-Write Admin SDK)',
+            message: 'Konum basariyla kaydedildi',
             id: docRefId
         });
     } catch (error) {
