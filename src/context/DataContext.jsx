@@ -297,7 +297,6 @@ export const DataProvider = ({ children }) => {
         // 8. Invoices config
         unsubs.push(onSnapshot(query(collection(db, 'invoices'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                .filter(d => !activeTruckId || d.isConsolidated || d.truckIds?.includes(activeTruckId) || d.truckId === activeTruckId)
                 .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             setInvoices(data);
         }));

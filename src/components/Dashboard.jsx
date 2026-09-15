@@ -283,19 +283,10 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
         });
     }, [isFleetScope, allCompanyFuelRecords, fuelRecords, dashboardScope, activeTruckId]);
 
+    // Faturalar sirket genelinde ortak kesildigi icin tum sirket faturalarini kapsar
     const effectiveInvoices = useMemo(() => {
-        const list = invoices || [];
-        if (isFleetScope) {
-            return list.filter(inv => !inv.deleted);
-        }
-        return list.filter(inv => {
-            if (inv.deleted) return false;
-            if (inv.truckId === dashboardScope) return true;
-            if (!inv.truckId && dashboardScope === activeTruckId) return true;
-            if (Array.isArray(inv.truckIds) && inv.truckIds.includes(dashboardScope)) return true;
-            return false;
-        });
-    }, [isFleetScope, invoices, dashboardScope, activeTruckId]);
+        return (invoices || []).filter(inv => !inv.deleted);
+    }, [invoices]);
 
     const recentTrips = useMemo(() => {
         const isTabletOrLarger = typeof window !== 'undefined' && (window.innerWidth >= 640 || window.innerHeight >= 750);
@@ -346,8 +337,13 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     };
 
     // ─── STAT KARTLARI HESAPLAMALARI ───
-    // 1. Kart: Toplam Gelir (Ciro)
-    const totalRevenue = useMemo(() => effectiveInvoices.reduce((s, inv) => s + (inv.grandTotal || 0), 0), [effectiveInvoices]);
+    // 1. Kart: Toplam Gelir (Ciro - Sirket Geneli Ortak / Sabit)
+    const totalRevenue = useMemo(() => {
+        return (effectiveInvoices || []).reduce((sum, inv) => {
+            const val = Number(inv.grandTotal ?? inv.totalAmount ?? inv.total ?? inv.amount ?? inv.netPrice ?? 0);
+            return sum + (isNaN(val) ? 0 : val);
+        }, 0);
+    }, [effectiveInvoices]);
 
     // 2. Kart: Seçili Ayın Yakıt Gideri (Tutar ve Litre)
     const monthFuelRecords = useMemo(() => effectiveFuel.filter(f => inMonth(f.date)), [effectiveFuel, inMonth]);
@@ -737,7 +733,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                 >
                     <div className="flex justify-between items-center mb-1">
                         <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors truncate pr-1">
-                            {isFleetScope ? 'Toplam Hasılat' : 'Araç Hasılatı'}
+                            Toplam Hasılat
                         </p>
                         <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
                             <Wallet size={13} />
