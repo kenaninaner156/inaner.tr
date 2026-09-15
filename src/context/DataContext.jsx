@@ -10,10 +10,12 @@ export const DataContext = createContext();
 
 export const DataProvider = ({ children }) => {
     const { activeCompanyId } = useCompany();
-    const { activeTruckId } = useTruck();
+    const { activeTruckId, trucks } = useTruck();
 
     const [trips, setTrips] = useState([]);
+    const [allCompanyTrips, setAllCompanyTrips] = useState([]);
     const [fuelRecords, setFuelRecords] = useState([]);
+    const [allCompanyFuelRecords, setAllCompanyFuelRecords] = useState([]);
     const [maintenanceRecords, setMaintenanceRecords] = useState([]);
     const [paymentRecords, setPaymentRecords] = useState([]);
     const [maintenanceFolders, setMaintenanceFolders] = useState([]);
@@ -181,7 +183,9 @@ export const DataProvider = ({ children }) => {
 
         // RESET DATA STATES ON COMPANY CHANGE (Isolation)
         setTrips([]);
+        setAllCompanyTrips([]);
         setFuelRecords([]);
+        setAllCompanyFuelRecords([]);
         setMaintenanceRecords([]);
         setPaymentRecords([]);
         setMaintenanceFolders([]);
@@ -229,15 +233,17 @@ export const DataProvider = ({ children }) => {
 
         // 1. Trips config
         unsubs.push(onSnapshot(query(collection(db, 'trips'), where('companyId', '==', activeCompanyId)), (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                .filter(d => !activeTruckId || d.truckId === activeTruckId);
+            const allTripsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            setAllCompanyTrips(sortData([...allTripsData]));
+            const data = allTripsData.filter(d => !activeTruckId || d.truckId === activeTruckId);
             setTrips(sortData(data));
         }));
 
         // 2. Fuel config
         unsubs.push(onSnapshot(query(collection(db, 'fuel'), where('companyId', '==', activeCompanyId)), (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                .filter(d => !activeTruckId || d.truckId === activeTruckId);
+            const allFuelData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            setAllCompanyFuelRecords(sortData([...allFuelData]));
+            const data = allFuelData.filter(d => !activeTruckId || d.truckId === activeTruckId);
             setFuelRecords(sortData(data));
         }));
 
@@ -510,13 +516,51 @@ export const DataProvider = ({ children }) => {
             setDraftInvoice(null);
         }
 
-        // 13.5. Routes config (Truck-Specific)
-        if (activeCompanyId && activeTruckId) {
-            unsubs.push(onSnapshot(doc(db, 'company_data', `${activeCompanyId}_${activeTruckId}_routes`), (docSnapshot) => {
-                if (docSnapshot.exists() && docSnapshot.data().routes) {
+        // 13.5. Commercial Routes config (Şirket Geneli Ortak Güzergah Hafızası)
+        if (activeCompanyId) {
+            unsubs.push(onSnapshot(doc(db, 'company_data', `${activeCompanyId}_routes`), async (docSnapshot) => {
+                if (docSnapshot.exists() && Array.isArray(docSnapshot.data().routes) && docSnapshot.data().routes.length > 0) {
                     setRoutes(docSnapshot.data().routes);
                 } else {
-                    setRoutes([]);
+                    // Şirket düzeyinde henüz rota dökümanı yoksa veya boşsa, mevcut araç dökümanlarını tara ve aktar
+                    let fallbackRoutes = [];
+                    if (activeTruckId) {
+                        try {
+                            const truckSnap = await getDoc(doc(db, 'company_data', `${activeCompanyId}_${activeTruckId}_routes`));
+                            if (truckSnap.exists() && Array.isArray(truckSnap.data().routes) && truckSnap.data().routes.length > 0) {
+                                fallbackRoutes = truckSnap.data().routes;
+                            }
+                        } catch (e) {
+                            console.warn("Aktif araç rota kontrolü:", e);
+                        }
+                    }
+
+                    if (fallbackRoutes.length === 0 && Array.isArray(trucks) && trucks.length > 0) {
+                        for (const t of trucks) {
+                            if (t.id && t.id !== activeTruckId) {
+                                try {
+                                    const otherTruckSnap = await getDoc(doc(db, 'company_data', `${activeCompanyId}_${t.id}_routes`));
+                                    if (otherTruckSnap.exists() && Array.isArray(otherTruckSnap.data().routes) && otherTruckSnap.data().routes.length > 0) {
+                                        fallbackRoutes = otherTruckSnap.data().routes;
+                                        break;
+                                    }
+                                } catch (e) {
+                                    console.warn("Diğer araç rota kontrolü:", e);
+                                }
+                            }
+                        }
+                    }
+
+                    if (fallbackRoutes.length > 0) {
+                        setRoutes(fallbackRoutes);
+                        try {
+                            await setDoc(doc(db, 'company_data', `${activeCompanyId}_routes`), { routes: fallbackRoutes }, { merge: true });
+                        } catch (err) {
+                            console.error("Ortak rota senkronizasyon hatası:", err);
+                        }
+                    } else {
+                        setRoutes([]);
+                    }
                 }
             }));
         } else {
@@ -798,29 +842,58 @@ export const DataProvider = ({ children }) => {
         addLog('KLASOR_SİL', `${folderName} klasörü silindi`);
     };
 
-    const getRoutesDocId = () => `${activeCompanyId}_${activeTruckId}_routes`;
+    const getCompanyRoutesDocId = () => `${activeCompanyId}_routes`;
+    const getTruckRoutesDocId = () => activeTruckId ? `${activeCompanyId}_${activeTruckId}_routes` : null;
 
     const addRoute = async (route) => {
         const nextRoutes = [{ ...route, id: Date.now() }, ...routes];
-        await setDoc(doc(db, 'company_data', getRoutesDocId()), { routes: nextRoutes }, { merge: true });
+        await setDoc(doc(db, 'company_data', getCompanyRoutesDocId()), { routes: nextRoutes }, { merge: true });
+        if (getTruckRoutesDocId()) {
+            try {
+                await setDoc(doc(db, 'company_data', getTruckRoutesDocId()), { routes: nextRoutes }, { merge: true });
+            } catch (err) {
+                console.warn("Truck routes sync fallback:", err);
+            }
+        }
         addLog('ROTA_EKLE', `${route.from} → ${route.to}`);
     };
 
     const deleteRoute = async (id) => {
         const nextRoutes = routes.filter(r => r.id !== id);
-        await setDoc(doc(db, 'company_data', getRoutesDocId()), { routes: nextRoutes }, { merge: true });
+        await setDoc(doc(db, 'company_data', getCompanyRoutesDocId()), { routes: nextRoutes }, { merge: true });
+        if (getTruckRoutesDocId()) {
+            try {
+                await setDoc(doc(db, 'company_data', getTruckRoutesDocId()), { routes: nextRoutes }, { merge: true });
+            } catch (err) {
+                console.warn("Truck routes sync fallback:", err);
+            }
+        }
         addLog('ROTA_SIL', `Rota silindi`);
     };
 
     const updateRoute = async (id, updatedFields) => {
         const nextRoutes = routes.map(r => r.id === id ? { ...r, ...updatedFields } : r);
-        await setDoc(doc(db, 'company_data', getRoutesDocId()), { routes: nextRoutes }, { merge: true });
+        await setDoc(doc(db, 'company_data', getCompanyRoutesDocId()), { routes: nextRoutes }, { merge: true });
+        if (getTruckRoutesDocId()) {
+            try {
+                await setDoc(doc(db, 'company_data', getTruckRoutesDocId()), { routes: nextRoutes }, { merge: true });
+            } catch (err) {
+                console.warn("Truck routes sync fallback:", err);
+            }
+        }
         addLog('ROTA_GUNCELLE', `Rota güncellendi`);
     };
 
     const updateRoutePrice = async (routeId, price) => {
         const nextRoutes = routes.map(r => r.id === routeId ? { ...r, lastPrice: price } : r);
-        await setDoc(doc(db, 'company_data', getRoutesDocId()), { routes: nextRoutes }, { merge: true });
+        await setDoc(doc(db, 'company_data', getCompanyRoutesDocId()), { routes: nextRoutes }, { merge: true });
+        if (getTruckRoutesDocId()) {
+            try {
+                await setDoc(doc(db, 'company_data', getTruckRoutesDocId()), { routes: nextRoutes }, { merge: true });
+            } catch (err) {
+                console.warn("Truck routes sync fallback:", err);
+            }
+        }
     };
 
     const getSavedTrackingRoutesDocId = () => `saved_tracking_routes_${activeCompanyId}`;
@@ -1397,10 +1470,28 @@ export const DataProvider = ({ children }) => {
         return [...personnelDrivers, ...userDrivers, ...manualDrivers];
     }, [approvedUsers, drivers, personnelList]);
 
+    // Şirket hafızasındaki tüm mazot istasyonu ve geofence konumları (Tüm araçlar arası ortak eşleşme)
+    const allCompanyStations = useMemo(() => {
+        const stationSet = new Set();
+        (allCompanyFuelRecords || []).forEach(r => {
+            if (!r.deleted && r.station && typeof r.station === 'string') {
+                const trimmed = r.station.trim();
+                if (trimmed) stationSet.add(trimmed);
+            }
+        });
+        (geofences || []).forEach(g => {
+            if (g.name && typeof g.name === 'string') {
+                const trimmed = g.name.trim();
+                if (trimmed) stationSet.add(trimmed);
+            }
+        });
+        return Array.from(stationSet);
+    }, [allCompanyFuelRecords, geofences]);
+
     return (
         <DataContext.Provider value={{
-            trips, addTrip, deleteTrip, editTrip,
-            fuelRecords, addFuel, deleteFuel, editFuel,
+            trips, addTrip, deleteTrip, editTrip, allCompanyTrips,
+            fuelRecords, addFuel, deleteFuel, editFuel, allCompanyFuelRecords, allCompanyStations,
             maintenanceRecords, addMaintenance, deleteMaintenance, updateMaintenance,
             paymentRecords, addPayment, deletePayment, updatePayment,
             vehicleInfo, updateVehicleInfo,

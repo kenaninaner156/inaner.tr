@@ -6,10 +6,12 @@ import FileUpload from './FileUpload';
 import CustomSelect from './CustomSelect';
 import CustomDatePicker from './CustomDatePicker';
 import { useCompany } from '../context/CompanyContext';
+import { useTruck } from '../context/TruckContext';
 import { parseTonnageInTons } from '../utils/tonnageUtils';
 
 const Trips = ({ onOpenMenu, isMobile }) => {
-    const { trips, addTrip, deleteTrip, editTrip, routes, addRoute, updateRoute, deleteRoute, premiums, allDrivers } = useContext(DataContext);
+    const { trips, addTrip, deleteTrip, editTrip, routes, addRoute, updateRoute, deleteRoute, premiums, allDrivers, allCompanyTrips } = useContext(DataContext);
+    const { activeTruckId } = useTruck();
     const { companyData } = useCompany();
     const [editingTrip, setEditingTrip] = useState(null);
     const [editForm, setEditForm] = useState({});
@@ -99,18 +101,27 @@ const Trips = ({ onOpenMenu, isMobile }) => {
         premiumAmount: 0
     });
 
+    // Ortak Şirket Sefer Hafızası (Önce aktif aracın kendi kayıtları, yoksa şirketin diğer araç geçmişi)
+    const companySortedTrips = useMemo(() => {
+        const activeList = (trips || []).filter(t => !t.deleted);
+        const otherList = (allCompanyTrips || []).filter(t => !t.deleted && t.truckId !== activeTruckId);
+        return [...activeList, ...otherList].sort((a, b) => new Date(b.date) - new Date(a.date));
+    }, [trips, allCompanyTrips, activeTruckId]);
+
     // Kayıtlı rota seçildiğinde formu doldur (Yeni Ekle)
     useEffect(() => {
         if (useSavedRoute && selectedRouteId) {
             const route = routes.find(r => r.id === parseInt(selectedRouteId));
             if (route) {
-                const sortedTrips = [...trips].sort((a,b) => new Date(b.date) - new Date(a.date));
-                const matchedTrip = sortedTrips.find(t => !t.deleted && t.from.trim().toLowerCase() === route.from.trim().toLowerCase() && t.to.trim().toLowerCase() === route.to.trim().toLowerCase());
+                const matchedTrip = companySortedTrips.find(t => 
+                    (t.from || '').trim().toLowerCase() === (route.from || '').trim().toLowerCase() && 
+                    (t.to || '').trim().toLowerCase() === (route.to || '').trim().toLowerCase()
+                );
                 // eslint-disable-next-line
                 setFormData(prev => {
                     const newFrom = route.from;
                     const newTo = route.to;
-                    const newKm = route.km || '';
+                    const newKm = route.km || (matchedTrip?.km ? String(matchedTrip.km) : '');
                     let newDriver = prev.driverName;
                     let newPremId = prev.premiumId;
                     let newPremAmt = prev.premiumAmount;
@@ -128,19 +139,21 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                 });
             }
         }
-    }, [selectedRouteId, useSavedRoute, routes, trips, companyData?.personnelEnabled]);
+    }, [selectedRouteId, useSavedRoute, routes, companySortedTrips, companyData?.personnelEnabled]);
 
     // Kayıtlı rota seçildiğinde formu doldur (Düzenle)
     useEffect(() => {
         if (editUseSavedRoute && editSelectedRouteId) {
             const route = routes.find(r => r.id === parseInt(editSelectedRouteId));
             if (route) {
-                const sortedTrips = [...trips].sort((a,b) => new Date(b.date) - new Date(a.date));
-                const matchedTrip = sortedTrips.find(t => !t.deleted && t.from.trim().toLowerCase() === route.from.trim().toLowerCase() && t.to.trim().toLowerCase() === route.to.trim().toLowerCase());
+                const matchedTrip = companySortedTrips.find(t => 
+                    (t.from || '').trim().toLowerCase() === (route.from || '').trim().toLowerCase() && 
+                    (t.to || '').trim().toLowerCase() === (route.to || '').trim().toLowerCase()
+                );
                 setEditForm(prev => {
                     const newFrom = route.from;
                     const newTo = route.to;
-                    const newKm = route.km || '';
+                    const newKm = route.km || (matchedTrip?.km ? String(matchedTrip.km) : '');
                     let newDriver = prev.driverName;
                     let newPremId = prev.premiumId;
                     let newPremAmt = prev.premiumAmount;
@@ -158,45 +171,65 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                 });
             }
         }
-    }, [editSelectedRouteId, editUseSavedRoute, routes, trips, companyData?.personnelEnabled]);
+    }, [editSelectedRouteId, editUseSavedRoute, routes, companySortedTrips, companyData?.personnelEnabled]);
 
-    // Manuel rota yazıldığında son girilen şoför ve primi bul
+    // Manuel rota yazıldığında son girilen şoför, prim ve km'yi bul (Yeni Ekle)
     useEffect(() => {
-        if (!useSavedRoute && formData.from && formData.to && companyData?.personnelEnabled) {
-            const sortedTrips = [...trips].sort((a,b) => new Date(b.date) - new Date(a.date));
-            const matchedTrip = sortedTrips.find(t => !t.deleted && t.from.trim().toLowerCase() === formData.from.trim().toLowerCase() && t.to.trim().toLowerCase() === formData.to.trim().toLowerCase());
+        if (!useSavedRoute && formData.from && formData.to) {
+            const matchedTrip = companySortedTrips.find(t => 
+                (t.from || '').trim().toLowerCase() === formData.from.trim().toLowerCase() && 
+                (t.to || '').trim().toLowerCase() === formData.to.trim().toLowerCase()
+            );
             if (matchedTrip) {
                 setFormData(prev => {
-                    const newDriver = matchedTrip.driverName || prev.driverName;
-                    const newPremId = matchedTrip.premiumId || '';
-                    const newPremAmt = matchedTrip.premiumAmount || 0;
-                    if (prev.driverName !== newDriver || prev.premiumId !== newPremId || prev.premiumAmount !== newPremAmt) {
-                        return { ...prev, driverName: newDriver, premiumId: newPremId, premiumAmount: newPremAmt };
+                    let newDriver = prev.driverName;
+                    let newPremId = prev.premiumId;
+                    let newPremAmt = prev.premiumAmount;
+                    const newKm = prev.km || (matchedTrip.km ? String(matchedTrip.km) : '');
+
+                    if (companyData?.personnelEnabled) {
+                        newDriver = matchedTrip.driverName || prev.driverName;
+                        newPremId = matchedTrip.premiumId || '';
+                        newPremAmt = matchedTrip.premiumAmount || 0;
+                    }
+
+                    if (prev.driverName !== newDriver || prev.premiumId !== newPremId || prev.premiumAmount !== newPremAmt || (!prev.km && newKm)) {
+                        return { ...prev, driverName: newDriver, premiumId: newPremId, premiumAmount: newPremAmt, km: newKm };
                     }
                     return prev;
                 });
             }
         }
-    }, [formData.from, formData.to, useSavedRoute, companyData?.personnelEnabled, trips]);
+    }, [formData.from, formData.to, useSavedRoute, companyData?.personnelEnabled, companySortedTrips]);
 
-    // Manuel rota yazıldığında son girilen şoför ve primi bul (Düzenleme)
+    // Manuel rota yazıldığında son girilen şoför, prim ve km'yi bul (Düzenleme)
     useEffect(() => {
-        if (!editUseSavedRoute && editForm.from && editForm.to && companyData?.personnelEnabled) {
-            const sortedTrips = [...trips].sort((a,b) => new Date(b.date) - new Date(a.date));
-            const matchedTrip = sortedTrips.find(t => !t.deleted && t.from.trim().toLowerCase() === editForm.from.trim().toLowerCase() && t.to.trim().toLowerCase() === editForm.to.trim().toLowerCase());
+        if (!editUseSavedRoute && editForm.from && editForm.to) {
+            const matchedTrip = companySortedTrips.find(t => 
+                (t.from || '').trim().toLowerCase() === editForm.from.trim().toLowerCase() && 
+                (t.to || '').trim().toLowerCase() === editForm.to.trim().toLowerCase()
+            );
             if (matchedTrip) {
                 setEditForm(prev => {
-                    const newDriver = matchedTrip.driverName || prev.driverName;
-                    const newPremId = matchedTrip.premiumId || '';
-                    const newPremAmt = matchedTrip.premiumAmount || 0;
-                    if (prev.driverName !== newDriver || prev.premiumId !== newPremId || prev.premiumAmount !== newPremAmt) {
-                        return { ...prev, driverName: newDriver, premiumId: newPremId, premiumAmount: newPremAmt };
+                    let newDriver = prev.driverName;
+                    let newPremId = prev.premiumId;
+                    let newPremAmt = prev.premiumAmount;
+                    const newKm = prev.km || (matchedTrip.km ? String(matchedTrip.km) : '');
+
+                    if (companyData?.personnelEnabled) {
+                        newDriver = matchedTrip.driverName || prev.driverName;
+                        newPremId = matchedTrip.premiumId || '';
+                        newPremAmt = matchedTrip.premiumAmount || 0;
+                    }
+
+                    if (prev.driverName !== newDriver || prev.premiumId !== newPremId || prev.premiumAmount !== newPremAmt || (!prev.km && newKm)) {
+                        return { ...prev, driverName: newDriver, premiumId: newPremId, premiumAmount: newPremAmt, km: newKm };
                     }
                     return prev;
                 });
             }
         }
-    }, [editForm.from, editForm.to, editUseSavedRoute, companyData?.personnelEnabled, trips]);
+    }, [editForm.from, editForm.to, editUseSavedRoute, companyData?.personnelEnabled, companySortedTrips]);
 
     // Formlardaki veri değiştiğinde başarılı kayıt (Kaydedildi) buton durumlarını sıfırla
     useEffect(() => {
@@ -222,30 +255,47 @@ const Trips = ({ onOpenMenu, isMobile }) => {
         };
     }, [isRouteSelectorOpen, isModalOpen, editingTrip, isRouteManagerOpen, viewFiles]);
 
-    // Akıllı Sıralama: En çok kullanılan rotaları belirle
+    // Akıllı Sıralama: En çok kullanılan rotaları belirle (Tüm şirket seferleri baz alınır)
     const sortedRoutes = React.useMemo(() => {
-        if (!routes || !trips) return [];
+        if (!routes) return [];
 
         // Her rotanın kullanım sayısını hesapla
         const frequencyMap = {};
-        trips.forEach(trip => {
+        const tripSource = (allCompanyTrips && allCompanyTrips.length > 0) ? allCompanyTrips : (trips || []);
+        tripSource.forEach(trip => {
             if (trip.deleted) return;
-            const key = `${trip.from.trim().toLowerCase()}-${trip.to.trim().toLowerCase()}`;
+            const key = `${(trip.from || '').trim().toLowerCase()}-${(trip.to || '').trim().toLowerCase()}`;
             frequencyMap[key] = (frequencyMap[key] || 0) + 1;
         });
 
         // Rotaları frekansa göre sırala
         return [...routes].sort((a, b) => {
-            const freqA = frequencyMap[`${a.from.trim().toLowerCase()}-${a.to.trim().toLowerCase()}`] || 0;
-            const freqB = frequencyMap[`${b.from.trim().toLowerCase()}-${b.to.trim().toLowerCase()}`] || 0;
+            const freqA = frequencyMap[`${(a.from || '').trim().toLowerCase()}-${(a.to || '').trim().toLowerCase()}`] || 0;
+            const freqB = frequencyMap[`${(b.from || '').trim().toLowerCase()}-${(b.to || '').trim().toLowerCase()}`] || 0;
             
             // Önce kullanım sayısına göre (büyükten küçüğe)
             if (freqB !== freqA) return freqB - freqA;
             
             // Kullanım sayıları eşitse, isme göre (A-Z)
-            return a.from.localeCompare(b.from);
+            return (a.from || '').localeCompare(b.from || '', 'tr');
         });
-    }, [routes, trips]);
+    }, [routes, allCompanyTrips, trips]);
+
+    // Şirket hafızasındaki tüm kayıtlı rotalardan ve geçmiş seferlerden benzersiz konumlar (Nereden / Nereye)
+    const locationSuggestions = useMemo(() => {
+        const set = new Set();
+        (routes || []).forEach(r => {
+            if (r.from) set.add(r.from.trim());
+            if (r.to) set.add(r.to.trim());
+        });
+        (allCompanyTrips || trips || []).forEach(t => {
+            if (!t.deleted) {
+                if (t.from) set.add(t.from.trim());
+                if (t.to) set.add(t.to.trim());
+            }
+        });
+        return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b, 'tr'));
+    }, [routes, allCompanyTrips, trips]);
 
     const calculatePremAmount = (premId, tonnageVal) => {
         const prem = premiums.find(p => p.id === premId);
@@ -870,6 +920,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                     type="text"
                                                     required={!editUseSavedRoute}
                                                     placeholder="Örn: Ankara"
+                                                    list="trip-locations-list"
                                                     className="w-full glass-input px-3 py-2 text-sm"
                                                     value={editForm.from}
                                                     onChange={(e) => setEditForm({ ...editForm, from: e.target.value })}
@@ -881,6 +932,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                     type="text"
                                                     required={!editUseSavedRoute}
                                                     placeholder="Örn: İstanbul"
+                                                    list="trip-locations-list"
                                                     className="w-full glass-input px-3 py-2 text-sm"
                                                     value={editForm.to}
                                                     onChange={(e) => setEditForm({ ...editForm, to: e.target.value })}
@@ -1143,6 +1195,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                     type="text"
                                                     required={!useSavedRoute}
                                                     placeholder="Örn: Ankara"
+                                                    list="trip-locations-list"
                                                     className="w-full glass-input px-3 py-2 text-sm"
                                                     value={formData.from}
                                                     onChange={(e) => setFormData({ ...formData, from: e.target.value })}
@@ -1154,6 +1207,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                     type="text"
                                                     required={!useSavedRoute}
                                                     placeholder="Örn: İstanbul"
+                                                    list="trip-locations-list"
                                                     className="w-full glass-input px-3 py-2 text-sm"
                                                     value={formData.to}
                                                     onChange={(e) => setFormData({ ...formData, to: e.target.value })}
@@ -1522,6 +1576,13 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                 </div>,
                 document.body
             )}
+
+            {/* ─── ŞİRKET GENELİ ORTAK KONUM ÖNERİ LİSTESİ ─── */}
+            <datalist id="trip-locations-list">
+                {locationSuggestions.map(loc => (
+                    <option key={loc} value={loc} />
+                ))}
+            </datalist>
 
         </div>
     );

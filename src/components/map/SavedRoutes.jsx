@@ -285,7 +285,7 @@ function MobileSavedRoutesCard({
 
 // ── ANA KAYITLI ROTALAR KOMPONENTİ ──
 export default function SavedRoutes({ isVisible }) {
-  const { trips, savedTrackingRoutes, addSavedTrackingRoute, deleteSavedTrackingRoute, updateSavedTrackingRoute, geofences } = useContext(DataContext);
+  const { trips, allCompanyTrips, savedTrackingRoutes, addSavedTrackingRoute, deleteSavedTrackingRoute, updateSavedTrackingRoute, geofences } = useContext(DataContext);
   const [showSidebar, setShowSidebar]         = useState(true);
   const [activeTab, setActiveTab]             = useState('saved'); // 'saved' | 'discover'
   const [searchTerm, setSearchTerm]           = useState('');
@@ -309,8 +309,9 @@ export default function SavedRoutes({ isVisible }) {
 
   // 1. SIFIR GECİKME & SIFIR YÜK: Hafızadaki veriden anında hesaplama (0ms)
   const discoveredRoutes = useMemo(() => {
-    return mineCommercialTripCorridors(trips || [], [], geofences || []);
-  }, [trips, geofences]);
+    const sourceTrips = (allCompanyTrips && allCompanyTrips.length > 0) ? allCompanyTrips : (trips || []);
+    return mineCommercialTripCorridors(sourceTrips, [], geofences || []);
+  }, [allCompanyTrips, trips, geofences]);
 
   const sidebarCallbackRef = useCallback(node => {
     if (node) {

@@ -7,7 +7,7 @@ import CustomDatePicker from './CustomDatePicker';
 import { sendDiscordAlert } from '../services/discordWebhook';
 
 const Fuel = ({ onOpenMenu, isMobile }) => {
-    const { fuelRecords, addFuel, deleteFuel, editFuel } = useContext(DataContext);
+    const { fuelRecords, addFuel, deleteFuel, editFuel, allCompanyStations } = useContext(DataContext);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [viewFiles, setViewFiles] = useState(null);
     const [editingFuel, setEditingFuel] = useState(null);
@@ -355,7 +355,18 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
         };
     }, [filteredRecords]);
 
-const uniqueStations = [...new Set(activeFuelRecords.filter(r => r.station).map(r => toTitleCase(r.station)))];
+    const uniqueStations = React.useMemo(() => {
+        const stationSet = new Set();
+        // 1. Şirket genelindeki tüm araçların mazot istasyon hafızası (Tüm araçlar arası eşleşme)
+        (allCompanyStations || []).forEach(s => {
+            if (s) stationSet.add(toTitleCase(s));
+        });
+        // 2. Aktif araçtaki mevcut kayıtlar
+        activeFuelRecords.filter(r => r.station).forEach(r => {
+            stationSet.add(toTitleCase(r.station));
+        });
+        return [...stationSet].filter(Boolean).sort((a, b) => a.localeCompare(b, 'tr'));
+    }, [allCompanyStations, activeFuelRecords]);
 
 return (
     <div className="space-y-5 animate-in fade-in duration-500 relative pb-ios-nav">
