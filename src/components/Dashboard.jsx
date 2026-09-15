@@ -297,10 +297,6 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
         });
     }, [isFleetScope, invoices, dashboardScope, activeTruckId]);
 
-    const unbilledTrips = useMemo(() => {
-        return (effectiveTrips || []).filter(t => !t.invoiceId && t.status !== 'Faturalandı');
-    }, [effectiveTrips]);
-
     const recentTrips = useMemo(() => {
         const isTabletOrLarger = typeof window !== 'undefined' && (window.innerWidth >= 640 || window.innerHeight >= 750);
         const limit = isTabletOrLarger ? 10 : 5;
@@ -405,40 +401,6 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
         }
         return 44.85;
     }, [liveDieselPrice, effectiveFuel]);
-
-    // Seçili Ayda Operasyonda Olan Araç Sayısı
-    const activeTrucksInMonth = useMemo(() => {
-        if (!trucks || trucks.length === 0) return 0;
-        const activeIds = new Set();
-        monthTrips.forEach(t => {
-            if (t.truckId) activeIds.add(t.truckId);
-            else activeIds.add(activeTruckId);
-        });
-        return activeIds.size;
-    }, [trucks, monthTrips, activeTruckId]);
-
-    // Filo İş Yükü Dağılımı (Tüm Filo Seçiliyken ve 1'den Fazla Araç Varken)
-    const fleetBreakdown = useMemo(() => {
-        if (!isFleetScope || !trucks || trucks.length <= 1) return null;
-        const TRUCK_COLORS = ['#8b5cf6', '#38bdf8', '#10b981', '#f59e0b'];
-        const total = monthTonnage;
-        const items = trucks.map((truck, idx) => {
-            const trkTrips = monthTrips.filter(t => (t.truckId === truck.id) || (!t.truckId && truck.id === activeTruckId));
-            const ton = trkTrips.reduce((s, t) => s + parseTonnageInTons(t.tonnage), 0);
-            const rawPct = total > 0 ? (ton / total) * 100 : 0;
-            return {
-                id: truck.id,
-                plate: truck.plate,
-                shortCode: getPlateShortCode(truck.plate, allPlates),
-                tonnage: ton,
-                tripCount: trkTrips.length,
-                percent: Math.round(rawPct),
-                rawPercent: rawPct,
-                color: TRUCK_COLORS[idx % TRUCK_COLORS.length]
-            };
-        });
-        return { totalTonnage: total, items };
-    }, [isFleetScope, trucks, monthTrips, monthTonnage, activeTruckId, allPlates]);
 
     const goToPrev = () => { setIsAllTime(false); if (selectedMonth === 0) { setSelectedMonth(11); setSelectedYear(y => y - 1); } else setSelectedMonth(m => m - 1); };
     const goToNext = () => { setIsAllTime(false); if (selectedMonth === 11) { setSelectedMonth(0); setSelectedYear(y => y + 1); } else setSelectedMonth(m => m + 1); };
@@ -765,56 +727,6 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
             )}
 
             {/* ─── KAPSAM SEÇİCİ (TÜM FİLO VS TEKİL ARAÇLAR - ŞOFÖRDE GİZLİ) ─── */}
-            {!isDriver && (trucks || []).length > 1 && (
-                <div className="flex items-center gap-1.5 p-1 bg-[#07090e] border border-white/[0.08] rounded-xl self-start overflow-x-auto max-w-full custom-scrollbar shrink-0 shadow-sm">
-                    <button
-                        type="button"
-                        onClick={() => setSelectedScope('fleet')}
-                        className={`relative px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer select-none whitespace-nowrap ${
-                            dashboardScope === 'fleet' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
-                        }`}
-                    >
-                        {dashboardScope === 'fleet' && (
-                            <motion.div
-                                layoutId="dashboardScopePill"
-                                className="absolute inset-0 bg-white/10 rounded-lg border border-white/15"
-                                transition={{ type: 'spring', stiffness: 450, damping: 35 }}
-                            />
-                        )}
-                        <span className="relative z-10 flex items-center gap-1.5">
-                            <Layers size={13} className={dashboardScope === 'fleet' ? 'text-sky-400' : ''} />
-                            Tüm Filo (Konsolide)
-                        </span>
-                    </button>
-                    {trucks.map(truck => {
-                        const isSelected = dashboardScope === truck.id;
-                        const short = getPlateShortCode(truck.plate, allPlates);
-                        return (
-                            <button
-                                key={truck.id}
-                                type="button"
-                                onClick={() => setSelectedScope(truck.id)}
-                                className={`relative px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer select-none whitespace-nowrap ${
-                                    isSelected ? 'text-white' : 'text-slate-400 hover:text-slate-200'
-                                }`}
-                            >
-                                {isSelected && (
-                                    <motion.div
-                                        layoutId="dashboardScopePill"
-                                        className="absolute inset-0 bg-white/10 rounded-lg border border-white/15"
-                                        transition={{ type: 'spring', stiffness: 450, damping: 35 }}
-                                    />
-                                )}
-                                <span className="relative z-10 flex items-center gap-1.5">
-                                    <Truck size={13} className={isSelected ? 'text-sky-400' : ''} />
-                                    {truck.plate || short}
-                                </span>
-                            </button>
-                        );
-                    })}
-                </div>
-            )}
-
             {/* ─── 4'LÜ STRATEJİK KPI ÖZET KARTLARI (MOBİLDE 2x2 KOMPAKT GRID) ─── */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5 shrink-0 pt-0.5 sm:pt-1">
                 
@@ -835,13 +747,6 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                         <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight truncate">
                             {totalRevenue > 0 ? `₺${Math.round(totalRevenue).toLocaleString('tr-TR')}` : '₺0'}
                         </h3>
-                        <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                            {unbilledTrips.length > 0 ? (
-                                <span className="text-amber-400/90 font-medium">{unbilledTrips.length} sefer fatura bekliyor</span>
-                            ) : (
-                                <span>Faturalandırılmış ciro</span>
-                            )}
-                        </p>
                     </div>
                 </div>
 
@@ -889,113 +794,33 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                     </div>
                 </div>
 
-                {/* 4. KART: Filo Durumu / Motorin */}
+                {/* 4. KART: Güncel Motorin Fiyatı */}
                 <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
                     <div className="flex justify-between items-center mb-1">
                         <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors truncate pr-1">
-                            {isFleetScope ? 'Filo Durumu' : 'Motorin'}
+                            Güncel Motorin
                         </p>
                         <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                            {isFleetScope ? <Truck size={13} /> : <Zap size={13} />}
+                            <Zap size={13} />
                         </div>
                     </div>
                     <div>
-                        {isFleetScope ? (
-                            <>
-                                <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight flex items-center gap-1.5 truncate">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                                    <span>{activeTrucksInMonth}/{trucks.length || 1} Araç Aktif</span>
-                                </h3>
-                                <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                                    Pompa: ₺{currentDieselPrice.toFixed(2)}/Lt
-                                </p>
-                            </>
-                        ) : (
-                            <>
-                                <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight flex items-baseline">
-                                    ₺{currentDieselPrice.toFixed(2)}
-                                    <span className="text-[10px] sm:text-xs font-bold text-emerald-400 ml-1">/ Lt</span>
-                                </h3>
-                                <p className="text-[10px] text-slate-400 truncate mt-0.5 flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                                    <span>Operasyonel</span>
-                                </p>
-                            </>
-                        )}
+                        <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight flex items-baseline">
+                            ₺{currentDieselPrice.toFixed(2)}
+                            <span className="text-[10px] sm:text-xs font-bold text-emerald-400 ml-1">/ Lt</span>
+                        </h3>
                     </div>
                 </div>
 
             </div>
 
-            {/* ─── FİLO İŞ YÜKÜ DAĞILIMI (TÜM FİLO KONSOLİDE GÖRÜNÜMDE) ─── */}
-            {isFleetScope && fleetBreakdown && fleetBreakdown.totalTonnage > 0 && (
-                <div className="bg-[#07090e] border border-white/[0.08] p-2.5 sm:p-3 rounded-2xl shrink-0 shadow-sm">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-1.5">
-                            <BarChart2 size={13} className="text-sky-400 shrink-0" />
-                            <span className="text-xs font-semibold text-white tracking-tight">
-                                Filo Taşıma Dağılımı
-                            </span>
-                            <span className="text-[10px] text-slate-500 lowercase">
-                                ({MONTHS_SHORT[selectedMonth]})
-                            </span>
-                        </div>
-                        <span className="text-[11px] font-bold text-slate-300">
-                            {fleetBreakdown.totalTonnage.toFixed(1)} Ton · {monthTripCount} Sefer
-                        </span>
-                    </div>
-
-                    {/* Dağılım İlerleme Çubuğu */}
-                    <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden flex gap-0.5">
-                        {fleetBreakdown.items.map(item => (
-                            <div
-                                key={item.id}
-                                style={{
-                                    width: `${item.rawPercent}%`,
-                                    backgroundColor: item.color
-                                }}
-                                className="h-full transition-all duration-500 first:rounded-l-full last:rounded-r-full"
-                                title={`${item.plate}: ${item.tonnage.toFixed(1)} Ton (%${item.percent})`}
-                            />
-                        ))}
-                    </div>
-
-                    {/* Araç Lejantı & Hızlı Filtre Butonları */}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
-                        {fleetBreakdown.items.map(item => (
-                            <button
-                                key={item.id}
-                                type="button"
-                                onClick={() => setSelectedScope(item.id)}
-                                className="flex items-center gap-1.5 text-left group cursor-pointer"
-                                title={`${item.plate} görünümüne geç`}
-                            >
-                                <span
-                                    className="w-2 h-2 rounded-full shrink-0"
-                                    style={{ backgroundColor: item.color }}
-                                />
-                                <span className="text-[11px] font-semibold text-slate-300 group-hover:text-white transition-colors">
-                                    {item.plate || item.shortCode}
-                                </span>
-                                <span className="text-[10px] text-slate-400">
-                                    {item.tonnage.toFixed(1)} Ton
-                                </span>
-                                <span className="text-[10px] font-bold text-slate-500 group-hover:text-sky-400 transition-colors">
-                                    (%{item.percent})
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-
             {/* ─── AYLIK OPERASYON HACMİ GRAFİK PANELİ (DOĞAL & ZARİF BOYUT) ─── */}
             <div className="bg-[#07090e] border border-white/[0.08] p-3 sm:p-4 rounded-2xl shrink-0 flex flex-col justify-between shadow-sm">
 
-                {/* Başlık ve Ay Seçici */}
-                <div className="flex items-center justify-between gap-2 shrink-0 pb-1">
-                    <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-sm sm:text-base text-white tracking-tight">
+                {/* Başlık ve Sağ Kontroller (Kapsam Seçici + Ay Navigasyonu) */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0 pb-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <h3 className="font-bold text-sm sm:text-base text-white tracking-tight truncate">
                             Aylık Operasyon Hacmi
                         </h3>
                         <span className="text-[10px] text-slate-500 hidden sm:inline">
@@ -1003,17 +828,71 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                         </span>
                     </div>
 
-                    {/* Zaman Navigasyonu */}
-                    <div className="flex items-center bg-[#0d1117] border border-white/10 p-0.5 rounded-xl shadow-sm">
-                        <button onClick={goToPrev} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08] active:scale-95 transition-all cursor-pointer">
-                            <ChevronLeft size={14} />
-                        </button>
-                        <span className="text-xs sm:text-sm font-semibold text-white px-2.5 min-w-[70px] sm:min-w-[85px] text-center select-none tracking-wide">
-                            {selectedYear === now.getFullYear() ? MONTHS_TR[selectedMonth] : `${MONTHS_TR[selectedMonth]} ${selectedYear}`}
-                        </span>
-                        <button onClick={goToNext} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08] active:scale-95 transition-all cursor-pointer">
-                            <ChevronRight size={14} />
-                        </button>
+                    {/* Sağ Kontroller: Seçim Barı (Genel / Harf Kodları) + Ay Seçici */}
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+                        {/* Kapsam Seçici (Genel / Harf Kodları) */}
+                        {!isDriver && (trucks || []).length > 1 && (
+                            <div className="flex items-center gap-1 p-0.5 bg-[#0d1117] border border-white/10 rounded-xl shadow-sm">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedScope('fleet')}
+                                    className={`relative px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer select-none whitespace-nowrap ${
+                                        dashboardScope === 'fleet' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+                                    }`}
+                                >
+                                    {dashboardScope === 'fleet' && (
+                                        <motion.div
+                                            layoutId="dashboardScopePill"
+                                            className="absolute inset-0 bg-white/10 rounded-lg border border-white/15"
+                                            transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                                        />
+                                    )}
+                                    <span className="relative z-10 flex items-center gap-1">
+                                        <Layers size={12} className={dashboardScope === 'fleet' ? 'text-sky-400' : ''} />
+                                        Genel
+                                    </span>
+                                </button>
+                                {trucks.map(truck => {
+                                    const isSelected = dashboardScope === truck.id;
+                                    const short = getPlateShortCode(truck.plate, allPlates);
+                                    return (
+                                        <button
+                                            key={truck.id}
+                                            type="button"
+                                            onClick={() => setSelectedScope(truck.id)}
+                                            className={`relative px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer select-none whitespace-nowrap ${
+                                                isSelected ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+                                            }`}
+                                        >
+                                            {isSelected && (
+                                                <motion.div
+                                                    layoutId="dashboardScopePill"
+                                                    className="absolute inset-0 bg-white/10 rounded-lg border border-white/15"
+                                                    transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                                                />
+                                            )}
+                                            <span className="relative z-10 flex items-center gap-1">
+                                                <Truck size={12} className={isSelected ? 'text-sky-400' : ''} />
+                                                {short}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Zaman Navigasyonu */}
+                        <div className="flex items-center bg-[#0d1117] border border-white/10 p-0.5 rounded-xl shadow-sm">
+                            <button onClick={goToPrev} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08] active:scale-95 transition-all cursor-pointer">
+                                <ChevronLeft size={14} />
+                            </button>
+                            <span className="text-xs sm:text-sm font-semibold text-white px-2.5 min-w-[70px] sm:min-w-[85px] text-center select-none tracking-wide">
+                                {selectedYear === now.getFullYear() ? MONTHS_TR[selectedMonth] : `${MONTHS_TR[selectedMonth]} ${selectedYear}`}
+                            </span>
+                            <button onClick={goToNext} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08] active:scale-95 transition-all cursor-pointer">
+                                <ChevronRight size={14} />
+                            </button>
+                        </div>
                     </div>
                 </div>
 

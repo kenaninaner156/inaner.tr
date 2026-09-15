@@ -86,10 +86,18 @@ db.collection('truck_routes')
           const isStopped = (d.speed || 0) <= 2;
           const lastWasStopped = (lastPt?.speed || 0) <= 2;
 
-          const shouldSaveToDaily = !lastPt || (isStopped ? (timeDiffSec >= 60 || !lastWasStopped) : (timeDiffSec >= 3 || Math.abs((d.speed || 0) - (lastPt.speed || 0)) > 10));
+          const lastLat = lastPt?.lat || 0;
+          const lastLon = lastPt?.lon || 0;
+          const distDiff = Math.sqrt(Math.pow(Number(d.lat) - lastLat, 2) + Math.pow(Number(d.lon) - lastLon, 2));
+
+          const shouldSaveToDaily = !lastPt || 
+            (isStopped !== lastWasStopped) ||
+            (isStopped 
+              ? (timeDiffSec >= 120 || distDiff >= 0.0005) 
+              : (timeDiffSec >= 12 || Math.abs((d.speed || 0) - (lastPt.speed || 0)) >= 15 || distDiff >= 0.0015));
 
           if (shouldSaveToDaily) {
-            lastSavedPoints.set(deviceId, { lat: d.lat, lon: d.lon, speed: d.speed || 0, timestamp: d.timestamp });
+            lastSavedPoints.set(deviceId, { lat: Number(d.lat), lon: Number(d.lon), speed: d.speed || 0, timestamp: d.timestamp });
 
             const dailyDocId = `${deviceId}_${dateStr}`;
             const dailyRef = db.collection('daily_routes').doc(dailyDocId);

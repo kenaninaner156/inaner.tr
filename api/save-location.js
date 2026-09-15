@@ -152,9 +152,19 @@ export default async function handler(req, res) {
             const currTime = new Date(formattedTimestamp).getTime();
             const timeDiffSec = (currTime - lastDailyTime) / 1000;
 
-            const shouldRecordToDaily = !lastDailyTime || (isStopped 
-                ? (timeDiffSec >= 60 || !lastWasStopped) 
-                : (timeDiffSec >= 3 || Math.abs(speed - (lastLiveData?.speed || 0)) > 10));
+            const lastLat = lastLiveData?.lat || 0;
+            const lastLon = lastLiveData?.lon || 0;
+            const distDiff = Math.sqrt(Math.pow(lat - lastLat, 2) + Math.pow(lon - lastLon, 2));
+
+            // Firestore 1 MB döküman limitini (1.048.576 bayt) korumak için akıllı telemetri filtresi:
+            // - Dur-kalk geçişleri (aracın durması veya harekete geçmesi): Anında kaydet
+            // - Araç dururken: En fazla 120 saniyede bir veya 50m kayma olduğunda kaydet
+            // - Araç hareket halindeyken: En fazla 12 saniyede bir, ani hız farkında (>=15 km/s) veya 150m sapmada kaydet
+            const shouldRecordToDaily = !lastDailyTime || 
+                (isStopped !== lastWasStopped) ||
+                (isStopped 
+                    ? (timeDiffSec >= 120 || distDiff >= 0.0005) 
+                    : (timeDiffSec >= 12 || Math.abs(speed - (lastLiveData?.speed || 0)) >= 15 || distDiff >= 0.0015));
 
             // 1. live_positions güncelle
             await liveRef.set({
