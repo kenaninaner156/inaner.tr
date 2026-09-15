@@ -15,6 +15,18 @@ export default async function handler(req, res) {
     }
 
     try {
+        // Cihaz silme işlemi
+        if (data.action === 'delete_device' && data.deviceId) {
+            const targetId = String(data.deviceId).trim();
+            await db.collection('live_positions').doc(targetId).delete();
+            
+            // Eğer daily_routes dokümanı da belirtilmişse veya bugünün tarihiyle sil
+            if (data.dailyDocId) {
+                await db.collection('daily_routes').doc(data.dailyDocId).delete();
+            }
+            return res.status(200).json({ success: true, deleted: targetId });
+        }
+
         let lat, lon, speed, altitude, timestampStr, deviceId;
 
         // 1. Traccar OsmAnd formatı (URL Query veya düz JSON)
