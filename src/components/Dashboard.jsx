@@ -1,4 +1,4 @@
-import React, { useContext, useState, useMemo, useEffect } from 'react';
+import React, { useContext, useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -19,7 +19,9 @@ import {
     Droplet,
     Gauge,
     Zap,
-    Menu
+    Menu,
+    Layers,
+    FileText
 } from 'lucide-react';
 import {
     ComposedChart,
@@ -31,6 +33,8 @@ import {
     ResponsiveContainer,
 } from 'recharts';
 import { DataContext } from '../context/DataContext';
+import { useTruck } from '../context/TruckContext';
+import { getPlateShortCode } from './A4InvoicePreview';
 import ProfitAnalysisModal from './ProfitAnalysisModal';
 
 const CHART_THEMES = {
@@ -104,7 +108,7 @@ const CustomTooltip = ({ active, payload, label, isAllTime, theme }) => {
  
                 {hasFuel && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                        <span style={{ fontSize: '12px' }}>⛽</span>
+                        <Droplet size={13} color={theme?.fuelColor || '#8b5cf6'} style={{ flexShrink: 0 }} />
                         <span style={{ color: theme?.fuelColor || '#8b5cf6', fontSize: '11px', fontWeight: 700 }}>
                             Yakıt Alındı ({fuelAmount} Lt)
                         </span>
@@ -113,7 +117,7 @@ const CustomTooltip = ({ active, payload, label, isAllTime, theme }) => {
 
                 {note && (
                     <div style={{ display: 'flex', gap: '6px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                        <span style={{ fontSize: '12px' }}>📝</span>
+                        <FileText size={13} color="#8b5cf6" style={{ flexShrink: 0, marginTop: '2px' }} />
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <span style={{ color: '#8b5cf6', fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '2px' }}>Günlük Not</span>
                             <span style={{ color: '#ffffff', fontSize: '11px', lineHeight: '1.4' }}>{note}</span>
@@ -154,7 +158,32 @@ const parseTonnageInTons = (val) => {
 };
 
 const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
-    const { trips, invoices, fuelRecords, maintenanceRecords, paymentRecords, penalties, dailyNotes, updateDailyNote } = useContext(DataContext);
+    const { 
+        trips = [], 
+        invoices = [], 
+        fuelRecords = [], 
+        allCompanyTrips = [], 
+        allCompanyFuelRecords = [], 
+        maintenanceRecords = [], 
+        paymentRecords = [], 
+        penalties = [], 
+        dailyNotes, 
+        updateDailyNote, 
+        currentSession 
+    } = useContext(DataContext);
+    const { trucks = [], activeTruckId } = useTruck();
+
+    const currentUser = currentSession;
+    const userRole = currentUser?.username === 'kenan' ? 'super_admin' : String(currentUser?.role || 'user').toLowerCase();
+    const isDriver = userRole === 'şoför';
+
+    // Kapsam Filtresi: 'fleet' (Konsolide Tüm Filo) veya tekil araç ID'si
+    const [selectedScope, setSelectedScope] = useState('fleet');
+    const dashboardScope = isDriver ? activeTruckId : selectedScope;
+    const isFleetScope = !isDriver && dashboardScope === 'fleet';
+
+    const allPlates = useMemo(() => (trucks || []).map(t => t.plate).filter(Boolean), [trucks]);
+
     const [isProfitModalOpen, setIsProfitModalOpen] = useState(false);
 
     const now = new Date();
@@ -163,7 +192,8 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     const [selectedMonth, setSelectedMonth] = useState(() => {
         const tMonth = now.getMonth();
         const tYear = now.getFullYear();
-        const curTrips = (trips || []).filter(t => {
+        const sampleTrips = (allCompanyTrips && allCompanyTrips.length > 0) ? allCompanyTrips : trips;
+        const curTrips = (sampleTrips || []).filter(t => {
             if (t.deleted || !t.date) return false;
             const d = new Date(t.date);
             return d.getFullYear() === tYear && d.getMonth() === tMonth;
@@ -177,7 +207,8 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     const [selectedYear, setSelectedYear] = useState(() => {
         const tMonth = now.getMonth();
         const tYear = now.getFullYear();
-        const curTrips = (trips || []).filter(t => {
+        const sampleTrips = (allCompanyTrips && allCompanyTrips.length > 0) ? allCompanyTrips : trips;
+        const curTrips = (sampleTrips || []).filter(t => {
             if (t.deleted || !t.date) return false;
             const d = new Date(t.date);
             return d.getFullYear() === tYear && d.getMonth() === tMonth;
@@ -227,18 +258,67 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     const [modalNoteText, setModalNoteText] = useState('');
     const [confirmDeleteNote, setConfirmDeleteNote] = useState(false);
  
-    const activeTrips = useMemo(() => trips.filter(t => !t.deleted), [trips]);
-    const activeInvoices = useMemo(() => invoices ? invoices.filter(inv => !inv.deleted) : [], [invoices]);
-    const activeFuel = useMemo(() => fuelRecords ? fuelRecords.filter(f => !f.deleted) : [], [fuelRecords]);
+    // ─── KAPSAMLI VERİ TÜRETİMİ (SEÇİLİ ARAÇ VEYA TÜM FİLO) ───
+    const effectiveTrips = useMemo(() => {
+        const source = (allCompanyTrips && allCompanyTrips.length > 0) ? allCompanyTrips : trips;
+        if (isFleetScope) {
+            return (source || []).filter(t => !t.deleted);
+        }
+        return (source || []).filter(t => {
+            if (t.deleted) return false;
+            if (t.truckId) return t.truckId === dashboardScope;
+            return dashboardScope === activeTruckId;
+        });
+    }, [isFleetScope, allCompanyTrips, trips, dashboardScope, activeTruckId]);
+
+    const effectiveFuel = useMemo(() => {
+        const source = (allCompanyFuelRecords && allCompanyFuelRecords.length > 0) ? allCompanyFuelRecords : fuelRecords;
+        if (isFleetScope) {
+            return (source || []).filter(f => !f.deleted);
+        }
+        return (source || []).filter(f => {
+            if (f.deleted) return false;
+            if (f.truckId) return f.truckId === dashboardScope;
+            return dashboardScope === activeTruckId;
+        });
+    }, [isFleetScope, allCompanyFuelRecords, fuelRecords, dashboardScope, activeTruckId]);
+
+    const effectiveInvoices = useMemo(() => {
+        const list = invoices || [];
+        if (isFleetScope) {
+            return list.filter(inv => !inv.deleted);
+        }
+        return list.filter(inv => {
+            if (inv.deleted) return false;
+            if (inv.truckId === dashboardScope) return true;
+            if (!inv.truckId && dashboardScope === activeTruckId) return true;
+            if (Array.isArray(inv.truckIds) && inv.truckIds.includes(dashboardScope)) return true;
+            return false;
+        });
+    }, [isFleetScope, invoices, dashboardScope, activeTruckId]);
+
+    const unbilledTrips = useMemo(() => {
+        return (effectiveTrips || []).filter(t => !t.invoiceId && t.status !== 'Faturalandı');
+    }, [effectiveTrips]);
 
     const recentTrips = useMemo(() => {
         const isTabletOrLarger = typeof window !== 'undefined' && (window.innerWidth >= 640 || window.innerHeight >= 750);
         const limit = isTabletOrLarger ? 10 : 5;
-        return (activeTrips || [])
+        return (effectiveTrips || [])
             .filter(t => t.date)
             .sort((a, b) => new Date(b.date) - new Date(a.date))
             .slice(0, limit);
-    }, [activeTrips]);
+    }, [effectiveTrips]);
+
+    const inMonth = useCallback((date) => {
+        if (!date) return false;
+        const d = new Date(date);
+        return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
+    }, [selectedMonth, selectedYear]);
+
+    const monthTrips = useMemo(() => effectiveTrips.filter(t => inMonth(t.date)), [effectiveTrips, inMonth]);
+    const monthTonnage = useMemo(() => monthTrips.reduce((s, t) => s + parseTonnageInTons(t.tonnage), 0), [monthTrips]);
+    const monthTripCount = useMemo(() => monthTrips.length, [monthTrips]);
 
     const lastHistDay = useMemo(() => {
         const todayDate = now.getDate();
@@ -270,31 +350,24 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     };
 
     // ─── STAT KARTLARI HESAPLAMALARI ───
-    // 1. Kart: Toplam Gelir (Ciro - Tüm Zamanlar / Motivasyon Kartı)
-    const totalRevenue = useMemo(() => activeInvoices.reduce((s, inv) => s + (inv.grandTotal || 0), 0), [activeInvoices]);
+    // 1. Kart: Toplam Gelir (Ciro)
+    const totalRevenue = useMemo(() => effectiveInvoices.reduce((s, inv) => s + (inv.grandTotal || 0), 0), [effectiveInvoices]);
 
     // 2. Kart: Seçili Ayın Yakıt Gideri (Tutar ve Litre)
-    const monthFuelRecords = useMemo(() => {
-        return activeFuel.filter(f => {
-            if (!f.date) return false;
-            const d = new Date(f.date);
-            return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
-        });
-    }, [activeFuel, selectedMonth, selectedYear]);
-
+    const monthFuelRecords = useMemo(() => effectiveFuel.filter(f => inMonth(f.date)), [effectiveFuel, inMonth]);
     const monthFuelCost = useMemo(() => monthFuelRecords.reduce((s, f) => s + (Number(f.price) || 0), 0), [monthFuelRecords]);
     const monthFuelLiters = useMemo(() => monthFuelRecords.reduce((s, f) => s + (Number(f.liters) || 0), 0), [monthFuelRecords]);
 
     // 3. Kart: Seçili Ayın Ortalama Yakıt Tüketimi (L/100km)
     const monthAvgConsumption = useMemo(() => {
-        const chronological = [...activeFuel].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const chronological = [...effectiveFuel].sort((a, b) => new Date(a.date) - new Date(b.date));
         let lastOdo = null;
         let accLiters = 0;
         let monthTotalDist = 0;
         let monthTotalLiters = 0;
 
         chronological.forEach(r => {
-            const isTargetMonth = r.date && new Date(r.date).getFullYear() === selectedYear && new Date(r.date).getMonth() === selectedMonth;
+            const isTargetMonth = r.date && inMonth(r.date);
 
             if (r.odometer && r.odometer > 0 && !r.isPartial) {
                 if (lastOdo && r.odometer > lastOdo) {
@@ -316,14 +389,14 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
         });
 
         return monthTotalDist > 0 ? (monthTotalLiters / monthTotalDist) * 100 : null;
-    }, [activeFuel, selectedMonth, selectedYear]);
+    }, [effectiveFuel, inMonth]);
 
     // 4. Kart: Güncel Motorin Pompa Fiyatı (TL/Lt - Canlı API / Son Fiş)
     const currentDieselPrice = useMemo(() => {
         if (liveDieselPrice && liveDieselPrice > 0) {
             return liveDieselPrice;
         }
-        const sortedWithPrice = [...activeFuel]
+        const sortedWithPrice = [...effectiveFuel]
             .filter(f => f.price > 0 && f.liters > 0)
             .sort((a, b) => new Date(b.date) - new Date(a.date));
         if (sortedWithPrice.length > 0) {
@@ -331,17 +404,47 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
             return Number(latest.price) / Number(latest.liters);
         }
         return 44.85;
-    }, [liveDieselPrice, activeFuel]);
+    }, [liveDieselPrice, effectiveFuel]);
+
+    // Seçili Ayda Operasyonda Olan Araç Sayısı
+    const activeTrucksInMonth = useMemo(() => {
+        if (!trucks || trucks.length === 0) return 0;
+        const activeIds = new Set();
+        monthTrips.forEach(t => {
+            if (t.truckId) activeIds.add(t.truckId);
+            else activeIds.add(activeTruckId);
+        });
+        return activeIds.size;
+    }, [trucks, monthTrips, activeTruckId]);
+
+    // Filo İş Yükü Dağılımı (Tüm Filo Seçiliyken ve 1'den Fazla Araç Varken)
+    const fleetBreakdown = useMemo(() => {
+        if (!isFleetScope || !trucks || trucks.length <= 1) return null;
+        const TRUCK_COLORS = ['#8b5cf6', '#38bdf8', '#10b981', '#f59e0b'];
+        const total = monthTonnage;
+        const items = trucks.map((truck, idx) => {
+            const trkTrips = monthTrips.filter(t => (t.truckId === truck.id) || (!t.truckId && truck.id === activeTruckId));
+            const ton = trkTrips.reduce((s, t) => s + parseTonnageInTons(t.tonnage), 0);
+            const rawPct = total > 0 ? (ton / total) * 100 : 0;
+            return {
+                id: truck.id,
+                plate: truck.plate,
+                shortCode: getPlateShortCode(truck.plate, allPlates),
+                tonnage: ton,
+                tripCount: trkTrips.length,
+                percent: Math.round(rawPct),
+                rawPercent: rawPct,
+                color: TRUCK_COLORS[idx % TRUCK_COLORS.length]
+            };
+        });
+        return { totalTonnage: total, items };
+    }, [isFleetScope, trucks, monthTrips, monthTonnage, activeTruckId, allPlates]);
 
     const goToPrev = () => { setIsAllTime(false); if (selectedMonth === 0) { setSelectedMonth(11); setSelectedYear(y => y - 1); } else setSelectedMonth(m => m - 1); };
     const goToNext = () => { setIsAllTime(false); if (selectedMonth === 11) { setSelectedMonth(0); setSelectedYear(y => y + 1); } else setSelectedMonth(m => m + 1); };
 
     // --- Grafik verisi (Mekanik Yenilikler) ---
     const { chartData, activeDays, periodTrips, periodTonnage, prevDailyTrips } = useMemo(() => {
-        const todayDate = now.getDate();
-        const todayMonth = now.getMonth();
-        const todayYear = now.getFullYear();
-
         if (isAllTime) {
             const monthMap = {};
             const add = (date, tripsCount, tonnage, fuel) => {
@@ -353,8 +456,8 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                 monthMap[key].fuel += fuel;
                 monthMap[key].days.add(date);
             };
-            activeTrips.forEach(t => t.date && add(t.date, 1, parseTonnageInTons(t.tonnage), 0));
-            activeFuel.forEach(f => f.date && add(f.date, 0, 0, f.liters || 0));
+            effectiveTrips.forEach(t => t.date && add(t.date, 1, parseTonnageInTons(t.tonnage), 0));
+            effectiveFuel.forEach(f => f.date && add(f.date, 0, 0, f.liters || 0));
 
             const sorted = Object.entries(monthMap).sort(([a], [b]) => a.localeCompare(b));
             const data = sorted.map(([key, val]) => {
@@ -368,10 +471,6 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
         const dayMap = {};
         for (let d = 1; d <= lastHistDay; d++) dayMap[d] = { trips: 0, tonnage: 0, fuel: 0 };
  
-        const inMonth = (date) => { if (!date) return false; const d = new Date(date); return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth; };
-        const monthTrips = activeTrips.filter(t => inMonth(t.date));
-        const monthFuel = activeFuel.filter(f => inMonth(f.date));
- 
         monthTrips.forEach(t => { 
             const day = new Date(t.date).getDate(); 
             if (dayMap[day]) {
@@ -379,7 +478,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                 dayMap[day].tonnage += parseTonnageInTons(t.tonnage);
             }
         });
-        monthFuel.forEach(f => {
+        monthFuelRecords.forEach(f => {
             const day = new Date(f.date).getDate();
             if (dayMap[day]) {
                 dayMap[day].fuel += (f.liters || 0);
@@ -405,11 +504,11 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
  
         const pMo = selectedMonth === 0 ? 11 : selectedMonth - 1;
         const pYr = selectedMonth === 0 ? selectedYear - 1 : selectedYear;
-        const pTrips = activeTrips.filter(t => { if (!t.date) return false; const d = new Date(t.date); return d.getFullYear() === pYr && d.getMonth() === pMo; });
+        const pTrips = effectiveTrips.filter(t => { if (!t.date) return false; const d = new Date(t.date); return d.getFullYear() === pYr && d.getMonth() === pMo; });
         const pAD = new Set(pTrips.map(t => new Date(t.date).getDate())).size;
  
         return { chartData: data, activeDays: activeDaySet.size, periodTrips: periodTotalTrips, periodTonnage: periodTotalTonnage, prevDailyTrips: pAD > 0 ? pTrips.length / pAD : null };
-    }, [activeTrips, activeFuel, selectedMonth, selectedYear, isAllTime, dailyNotes, lastHistDay]);
+    }, [effectiveTrips, effectiveFuel, selectedMonth, selectedYear, isAllTime, dailyNotes, lastHistDay, monthTrips, monthFuelRecords]);
 
     // ─── Mobil Yatay (Landscape) Mod Kontrolü ───
     const [isLandscape, setIsLandscape] = useState(() => {
@@ -461,9 +560,9 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                 {/* Yatay Mod Üst Kontrol Çubuğu */}
                 <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-[#0d1117] border border-white/[0.08] rounded-xl shrink-0">
                     <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-2 h-2 rounded-full bg-sky-400 animate-pulse shrink-0" />
+                        <div className="w-2 h-2 rounded-full bg-sky-400 shrink-0" />
                         <h3 className="font-bold text-xs sm:text-sm text-white tracking-tight truncate">
-                            Aylık Operasyon Grafiği
+                            Aylık Operasyon Grafiği {isFleetScope ? '(Filo)' : `(${trucks.find(t => t.id === dashboardScope)?.plate || ''})`}
                         </h3>
                     </div>
 
@@ -476,8 +575,9 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                             Ort: <strong className="text-white">{currentDailyTonnage.toFixed(1)}</strong> Ton
                         </span>
                         {perfDelta !== null && (
-                            <span className={`px-2 py-0.5 rounded-md border ${perfDelta >= 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
-                                {perfDelta >= 0 ? '↗' : '↘'} %{Math.abs(perfDelta).toFixed(1)}
+                            <span className={`px-2 py-0.5 rounded-md border flex items-center gap-1 ${perfDelta >= 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                                {perfDelta >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                                <span>%{Math.abs(perfDelta).toFixed(1)}</span>
                             </span>
                         )}
                     </div>
@@ -500,7 +600,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                 <div className="flex-1 w-full min-h-0 pt-2 pb-2">
                     {chartData.every(d => (d['Sefer Sayısı'] || 0) === 0 && (d['Taşınan Tonaj'] || 0) === 0) ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-500">
-                            <Activity size={28} className="mb-1 opacity-30 animate-pulse" />
+                            <Activity size={28} className="mb-1 opacity-30" />
                             <p className="font-medium text-xs">Bu dönemde kayıtlı veri bulunamadı.</p>
                         </div>
                     ) : (
@@ -664,17 +764,68 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                 </div>
             )}
 
+            {/* ─── KAPSAM SEÇİCİ (TÜM FİLO VS TEKİL ARAÇLAR - ŞOFÖRDE GİZLİ) ─── */}
+            {!isDriver && (trucks || []).length > 1 && (
+                <div className="flex items-center gap-1.5 p-1 bg-[#07090e] border border-white/[0.08] rounded-xl self-start overflow-x-auto max-w-full custom-scrollbar shrink-0 shadow-sm">
+                    <button
+                        type="button"
+                        onClick={() => setSelectedScope('fleet')}
+                        className={`relative px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer select-none whitespace-nowrap ${
+                            dashboardScope === 'fleet' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                    >
+                        {dashboardScope === 'fleet' && (
+                            <motion.div
+                                layoutId="dashboardScopePill"
+                                className="absolute inset-0 bg-white/10 rounded-lg border border-white/15"
+                                transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                            />
+                        )}
+                        <span className="relative z-10 flex items-center gap-1.5">
+                            <Layers size={13} className={dashboardScope === 'fleet' ? 'text-sky-400' : ''} />
+                            Tüm Filo (Konsolide)
+                        </span>
+                    </button>
+                    {trucks.map(truck => {
+                        const isSelected = dashboardScope === truck.id;
+                        const short = getPlateShortCode(truck.plate, allPlates);
+                        return (
+                            <button
+                                key={truck.id}
+                                type="button"
+                                onClick={() => setSelectedScope(truck.id)}
+                                className={`relative px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer select-none whitespace-nowrap ${
+                                    isSelected ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                            >
+                                {isSelected && (
+                                    <motion.div
+                                        layoutId="dashboardScopePill"
+                                        className="absolute inset-0 bg-white/10 rounded-lg border border-white/15"
+                                        transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                                    />
+                                )}
+                                <span className="relative z-10 flex items-center gap-1.5">
+                                    <Truck size={13} className={isSelected ? 'text-sky-400' : ''} />
+                                    {truck.plate || short}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
             {/* ─── 4'LÜ STRATEJİK KPI ÖZET KARTLARI (MOBİLDE 2x2 KOMPAKT GRID) ─── */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5 shrink-0 pt-0.5 sm:pt-1">
                 
-                {/* 1. KART: Toplam Gelir (Ciro - Tüm Zamanlar) */}
+                {/* 1. KART: Toplam Gelir (Ciro) */}
                 <div 
                     onClick={() => setIsProfitModalOpen(true)}
                     className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3 rounded-2xl cursor-pointer transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm"
                 >
                     <div className="flex justify-between items-center mb-1">
-                        <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors">
-                            Toplam Gelir
+                        <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors truncate pr-1">
+                            {isFleetScope ? 'Toplam Hasılat' : 'Araç Hasılatı'}
                         </p>
                         <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
                             <Wallet size={13} />
@@ -684,10 +835,37 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                         <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight truncate">
                             {totalRevenue > 0 ? `₺${Math.round(totalRevenue).toLocaleString('tr-TR')}` : '₺0'}
                         </h3>
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                            {unbilledTrips.length > 0 ? (
+                                <span className="text-amber-400/90 font-medium">{unbilledTrips.length} sefer fatura bekliyor</span>
+                            ) : (
+                                <span>Faturalandırılmış ciro</span>
+                            )}
+                        </p>
                     </div>
                 </div>
 
-                {/* 2. KART: Aylık Yakıt Gideri (Seçili Ay) */}
+                {/* 2. KART: Hacim & Sefer */}
+                <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
+                    <div className="flex justify-between items-center mb-1">
+                        <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors truncate pr-1">
+                            Hacim <span className="text-[9px] text-slate-500 lowercase">({MONTHS_SHORT[selectedMonth]})</span>
+                        </p>
+                        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+                            <Weight size={13} />
+                        </div>
+                    </div>
+                    <div>
+                        <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight truncate">
+                            {monthTonnage > 0 ? `${monthTonnage.toFixed(1)} Ton` : '0.0 Ton'}
+                        </h3>
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                            {monthTripCount} sefer tamamlandı
+                        </p>
+                    </div>
+                </div>
+
+                {/* 3. KART: Aylık Yakıt */}
                 <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
                     <div className="flex justify-between items-center mb-1">
                         <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors truncate pr-1">
@@ -701,52 +879,115 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                         <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight truncate">
                             ₺{Math.round(monthFuelCost).toLocaleString('tr-TR')}
                         </h3>
-                    </div>
-                </div>
-
-                {/* 3. KART: Ortalama Tüketim (Seçili Ay) */}
-                <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
-                    <div className="flex justify-between items-center mb-1">
-                        <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors truncate pr-1">
-                            Ort. Tüketim
-                        </p>
-                        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
-                            <Gauge size={13} />
-                        </div>
-                    </div>
-                    <div>
-                        <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight flex items-baseline">
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5">
                             {monthAvgConsumption ? (
-                                <>
-                                    <span>{monthAvgConsumption.toFixed(1)}</span>
-                                    <span className="text-[10px] sm:text-xs font-bold text-cyan-400 ml-1">L/100km</span>
-                                </>
+                                <span>{monthAvgConsumption.toFixed(1)} L/100km · {Math.round(monthFuelLiters).toLocaleString('tr-TR')} Lt</span>
                             ) : (
-                                <span className="text-slate-500 text-sm font-normal">—</span>
+                                <span>{Math.round(monthFuelLiters).toLocaleString('tr-TR')} Lt tüketim</span>
                             )}
-                        </h3>
+                        </p>
                     </div>
                 </div>
 
-                {/* 4. KART: Güncel Motorin Fiyatı */}
+                {/* 4. KART: Filo Durumu / Motorin */}
                 <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
                     <div className="flex justify-between items-center mb-1">
                         <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors truncate pr-1">
-                            Güncel Motorin
+                            {isFleetScope ? 'Filo Durumu' : 'Motorin'}
                         </p>
                         <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                            <Zap size={13} />
+                            {isFleetScope ? <Truck size={13} /> : <Zap size={13} />}
                         </div>
                     </div>
                     <div>
-                        <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight flex items-baseline">
-                            ₺{currentDieselPrice.toFixed(2)}
-                            <span className="text-[10px] sm:text-xs font-bold text-emerald-400 ml-1">/ Lt</span>
-                        </h3>
+                        {isFleetScope ? (
+                            <>
+                                <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight flex items-center gap-1.5 truncate">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                                    <span>{activeTrucksInMonth}/{trucks.length || 1} Araç Aktif</span>
+                                </h3>
+                                <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                                    Pompa: ₺{currentDieselPrice.toFixed(2)}/Lt
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight flex items-baseline">
+                                    ₺{currentDieselPrice.toFixed(2)}
+                                    <span className="text-[10px] sm:text-xs font-bold text-emerald-400 ml-1">/ Lt</span>
+                                </h3>
+                                <p className="text-[10px] text-slate-400 truncate mt-0.5 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                                    <span>Operasyonel</span>
+                                </p>
+                            </>
+                        )}
                     </div>
                 </div>
 
             </div>
+
+            {/* ─── FİLO İŞ YÜKÜ DAĞILIMI (TÜM FİLO KONSOLİDE GÖRÜNÜMDE) ─── */}
+            {isFleetScope && fleetBreakdown && fleetBreakdown.totalTonnage > 0 && (
+                <div className="bg-[#07090e] border border-white/[0.08] p-2.5 sm:p-3 rounded-2xl shrink-0 shadow-sm">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-1.5">
+                            <BarChart2 size={13} className="text-sky-400 shrink-0" />
+                            <span className="text-xs font-semibold text-white tracking-tight">
+                                Filo Taşıma Dağılımı
+                            </span>
+                            <span className="text-[10px] text-slate-500 lowercase">
+                                ({MONTHS_SHORT[selectedMonth]})
+                            </span>
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-300">
+                            {fleetBreakdown.totalTonnage.toFixed(1)} Ton · {monthTripCount} Sefer
+                        </span>
+                    </div>
+
+                    {/* Dağılım İlerleme Çubuğu */}
+                    <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden flex gap-0.5">
+                        {fleetBreakdown.items.map(item => (
+                            <div
+                                key={item.id}
+                                style={{
+                                    width: `${item.rawPercent}%`,
+                                    backgroundColor: item.color
+                                }}
+                                className="h-full transition-all duration-500 first:rounded-l-full last:rounded-r-full"
+                                title={`${item.plate}: ${item.tonnage.toFixed(1)} Ton (%${item.percent})`}
+                            />
+                        ))}
+                    </div>
+
+                    {/* Araç Lejantı & Hızlı Filtre Butonları */}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
+                        {fleetBreakdown.items.map(item => (
+                            <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => setSelectedScope(item.id)}
+                                className="flex items-center gap-1.5 text-left group cursor-pointer"
+                                title={`${item.plate} görünümüne geç`}
+                            >
+                                <span
+                                    className="w-2 h-2 rounded-full shrink-0"
+                                    style={{ backgroundColor: item.color }}
+                                />
+                                <span className="text-[11px] font-semibold text-slate-300 group-hover:text-white transition-colors">
+                                    {item.plate || item.shortCode}
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                    {item.tonnage.toFixed(1)} Ton
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-500 group-hover:text-sky-400 transition-colors">
+                                    (%{item.percent})
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* ─── AYLIK OPERASYON HACMİ GRAFİK PANELİ (DOĞAL & ZARİF BOYUT) ─── */}
             <div className="bg-[#07090e] border border-white/[0.08] p-3 sm:p-4 rounded-2xl shrink-0 flex flex-col justify-between shadow-sm">
@@ -758,7 +999,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                             Aylık Operasyon Hacmi
                         </h3>
                         <span className="text-[10px] text-slate-500 hidden sm:inline">
-                            (Yatayda Detaylı 📱)
+                            (Genişletilmiş Görünüm)
                         </span>
                     </div>
 
@@ -780,7 +1021,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                 <div className="w-full h-[155px] sm:h-[185px] relative select-none outline-none focus:outline-none my-1">
                     {chartData.every(d => (d['Sefer Sayısı'] || 0) === 0 && (d['Taşınan Tonaj'] || 0) === 0) ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-500">
-                            <Activity size={28} className="mb-1 opacity-30 animate-pulse" />
+                            <Activity size={28} className="mb-1 opacity-30" />
                             <p className="font-medium text-xs">Bu dönemde veri bulunamadı.</p>
                             <p className="text-[10px] opacity-70">Sefer kaydedildikçe grafik oluşacaktır.</p>
                         </div>
@@ -939,6 +1180,10 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                             const priceNum = rawPrice !== undefined && rawPrice !== null && rawPrice !== '' ? Number(rawPrice) : null;
                             const validPrice = priceNum !== null && !isNaN(priceNum) && priceNum > 0 ? priceNum : null;
 
+                            const tripTruck = (trucks || []).find(t => t.id === trip.truckId);
+                            const plateText = trip.truckPlate || tripTruck?.plate;
+                            const shortPlate = plateText ? getPlateShortCode(plateText, allPlates) : null;
+
                             return (
                                 <div 
                                     key={trip.id || idx}
@@ -949,6 +1194,11 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                                         <span className="text-[10px] font-bold text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-md shrink-0">
                                             {dateFormatted}
                                         </span>
+                                        {shortPlate && (
+                                            <span className="text-[10px] font-bold text-sky-300 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded-md shrink-0">
+                                                {shortPlate}
+                                            </span>
+                                        )}
                                         <div className="min-w-0">
                                             <p className="text-xs font-semibold text-white truncate group-hover:text-sky-400 transition-colors">
                                                 {routeText}
@@ -982,7 +1232,17 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
             <ProfitAnalysisModal 
                 isOpen={isProfitModalOpen} 
                 onClose={() => setIsProfitModalOpen(false)} 
-                data={{ invoices, fuelRecords, maintenanceRecords, paymentRecords, penalties }} 
+                data={{ 
+                    invoices: effectiveInvoices, 
+                    fuelRecords: effectiveFuel, 
+                    maintenanceRecords: isFleetScope 
+                        ? maintenanceRecords 
+                        : maintenanceRecords.filter(m => m.truckId === dashboardScope || (!m.truckId && dashboardScope === activeTruckId)), 
+                    paymentRecords, 
+                    penalties: isFleetScope 
+                        ? penalties 
+                        : penalties.filter(p => p.truckId === dashboardScope || (!p.truckId && dashboardScope === activeTruckId))
+                }} 
             />
 
             {/* Çift Tıklama Günlük Not Modalı */}
