@@ -726,7 +726,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
             {/* ─── 4'LÜ STRATEJİK KPI ÖZET KARTLARI (MOBİLDE 2x2 KOMPAKT GRID) ─── */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5 shrink-0 pt-0.5 sm:pt-1">
                 
-                {/* 1. KART: Toplam Gelir (Ciro) */}
+                {/* 1. KART: Toplam Hasılat (Ciro) */}
                 <div 
                     onClick={() => setIsProfitModalOpen(true)}
                     className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3 rounded-2xl cursor-pointer transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm"
@@ -746,27 +746,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                     </div>
                 </div>
 
-                {/* 2. KART: Hacim & Sefer */}
-                <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
-                    <div className="flex justify-between items-center mb-1">
-                        <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors truncate pr-1">
-                            Hacim <span className="text-[9px] text-slate-500 lowercase">({MONTHS_SHORT[selectedMonth]})</span>
-                        </p>
-                        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
-                            <Weight size={13} />
-                        </div>
-                    </div>
-                    <div>
-                        <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight truncate">
-                            {monthTonnage > 0 ? `${monthTonnage.toFixed(1)} Ton` : '0.0 Ton'}
-                        </h3>
-                        <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                            {monthTripCount} sefer tamamlandı
-                        </p>
-                    </div>
-                </div>
-
-                {/* 3. KART: Aylık Yakıt */}
+                {/* 2. KART: Aylık Yakıt Gideri (Seçili Ay) */}
                 <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
                     <div className="flex justify-between items-center mb-1">
                         <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors truncate pr-1">
@@ -780,13 +760,30 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                         <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight truncate">
                             ₺{Math.round(monthFuelCost).toLocaleString('tr-TR')}
                         </h3>
-                        <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                            {monthAvgConsumption ? (
-                                <span>{monthAvgConsumption.toFixed(1)} L/100km · {Math.round(monthFuelLiters).toLocaleString('tr-TR')} Lt</span>
-                            ) : (
-                                <span>{Math.round(monthFuelLiters).toLocaleString('tr-TR')} Lt tüketim</span>
-                            )}
+                    </div>
+                </div>
+
+                {/* 3. KART: Ortalama Tüketim (Seçili Ay) */}
+                <div className="bg-[#07090e] border border-white/[0.08] hover:border-slate-700 p-2.5 sm:p-3 rounded-2xl transition-all duration-200 flex flex-col justify-between overflow-hidden group shadow-sm">
+                    <div className="flex justify-between items-center mb-1">
+                        <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider group-hover:text-slate-300 transition-colors truncate pr-1">
+                            Ort. Tüketim
                         </p>
+                        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
+                            <Gauge size={13} />
+                        </div>
+                    </div>
+                    <div>
+                        <h3 className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight flex items-baseline">
+                            {monthAvgConsumption ? (
+                                <>
+                                    <span>{monthAvgConsumption.toFixed(1)}</span>
+                                    <span className="text-[10px] sm:text-xs font-bold text-cyan-400 ml-1">L/100km</span>
+                                </>
+                            ) : (
+                                <span className="text-slate-500 text-sm font-normal">—</span>
+                            )}
+                        </h3>
                     </div>
                 </div>
 
