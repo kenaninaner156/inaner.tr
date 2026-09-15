@@ -268,7 +268,16 @@ export default async function handler(req, res) {
             }
         }
 
-        const defaultNote = `${plateText ? plateText + ' plakali arac ile ' : ''}${invoiceData.startDate} - ${invoiceData.endDate} tarihleri arasinda sunulan nakliye hizmet bedelidir.`;
+        // Tarihleri DD.MM.YYYY formatına çevir
+        const formatTR = (dateStr) => {
+            if (!dateStr) return '';
+            const [y, m, d] = String(dateStr).split('-');
+            return `${d}.${m}.${y}`;
+        };
+        const startFmt = formatTR(invoiceData.startDate);
+        const endFmt = formatTR(invoiceData.endDate);
+
+        const defaultNote = `${plateText ? plateText + ' plakalı araç ile ' : ''}${startFmt} - ${endFmt} tarihleri arasında sunulan nakliye hizmet bedelidir.`;
         const finalNote = (note !== undefined && note !== null && note.trim() !== '') ? note.trim() : defaultNote;
 
         // Map invoiceType to e-fatura InvoiceType Enum

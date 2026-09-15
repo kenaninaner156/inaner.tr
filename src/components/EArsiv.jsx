@@ -23,6 +23,7 @@ import CustomDatePicker from './CustomDatePicker';
 import CustomSelect from './CustomSelect';
 import FileUpload from './FileUpload';
 import { parseTonnageInTons } from '../utils/tonnageUtils';
+import { tutarYazıyla } from '../utils/numberToWords';
 
 const TEVKIFAT_CODES = [
     { code: '624', rate: 20, label: '624 - Yük Taşımacılığı Hizmeti (2/10 - %20)' },
@@ -760,12 +761,22 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         
         const invTruck = trucksMap.get(invoice.truckId);
         const plateText = invTruck?.plate || '';
-        let initialNote = `${plateText ? plateText + ' plakali arac ile ' : ''}${invoice.startDate} - ${invoice.endDate} tarihleri arasinda sunulan nakliye hizmet bedelidir.`;
-        
+
+        // Tarihleri DD.MM.YYYY formatına çevir
+        const formatTR = (dateStr) => {
+            if (!dateStr) return '';
+            const [y, m, d] = dateStr.split('-');
+            return `${d}.${m}.${y}`;
+        };
+        const startFmt = formatTR(invoice.startDate);
+        const endFmt = formatTR(invoice.endDate);
+
+        let initialNote = `${plateText ? plateText + ' plakalı araç ile ' : ''}${startFmt} - ${endFmt} tarihleri arasında sunulan nakliye hizmet bedelidir.`;
+
         if (defaultIban || defaultIbanName) {
             let ibanText = '';
-            if (defaultIban) ibanText += `İBAN :${defaultIban}`;
-            if (defaultIbanName) ibanText += ` ${defaultIbanName}`;
+            if (defaultIban) ibanText += `IBAN: ${defaultIban}`;
+            if (defaultIbanName) ibanText += ` - ${defaultIbanName}`;
             initialNote += `\n${ibanText.trim()}`;
         }
         
@@ -911,6 +922,24 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         const payment = withTaxes - vatOfTax;
         return { base, vat, vatOfTax, withTaxes, payment };
     }, [routeLines]);
+
+    // Step 2'de tutar değişince notta "Yalnız..." satırını otomatik güncelle
+    useEffect(() => {
+        if (!isModalOpen || modalStep !== 2) return;
+        setInvoiceNote(prev => {
+            // "Yalnız..." ile başlayan mevcut satırı bul ve güncelle
+            const YALNIZ_PREFIX = 'Yalnız ';
+            const lines = prev.split('\n');
+            const filtered = lines.filter(l => !l.startsWith(YALNIZ_PREFIX));
+
+            if (totals.payment > 0) {
+                const yazı = tutarYazıyla(totals.payment);
+                // İlk satırdan (açıklama satırı) hemen sonra ekle
+                filtered.splice(1, 0, yazı);
+            }
+            return filtered.join('\n');
+        });
+    }, [totals.payment, isModalOpen, modalStep]);
 
     // Helper: Fatura resmi tutarı veya güzergah hafızasından tahmini hakediş tutarı
     const getInvoiceEstimate = (inv) => {
