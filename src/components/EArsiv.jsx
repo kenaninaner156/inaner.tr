@@ -100,6 +100,15 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
     const { activeCompanyId } = useCompany();
     const { trucks, activeTruckData } = useTruck();
 
+    // Memoized trucks map for O(1) plate lookup
+    const trucksMap = useMemo(() => {
+        const map = new Map();
+        (trucks || []).forEach(t => {
+            map.set(t.id, t);
+        });
+        return map;
+    }, [trucks]);
+
     // Tab state: 'list' | 'settings'
     const [activeSubTab, setActiveSubTab] = useState('list');
 
@@ -110,6 +119,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
     const [gibClients, setGibClients] = useState({});
     
     // Default preferences state
+    const [defaultInvoiceGroupingMode, setDefaultInvoiceGroupingMode] = useState('consolidated');
     const [defaultInvoiceType, setDefaultInvoiceType] = useState('SATIS');
     const [defaultVatRate, setDefaultVatRate] = useState(20);
     const [defaultTevkifatKodu, setDefaultTevkifatKodu] = useState('624');
@@ -214,6 +224,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                 setGibClients(data.gibClients || {});
                 
                 // Load default preferences
+                setDefaultInvoiceGroupingMode(data.defaultInvoiceGroupingMode || 'consolidated');
                 setDefaultIban(data.defaultIban || '');
                 setDefaultIbanName(data.defaultIbanName || '');
                 setDefaultInvoiceType(data.defaultInvoiceType || 'SATIS');
@@ -275,7 +286,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             const docRef = doc(db, 'company_data', docId);
             await setDoc(docRef, { gibClients: updatedClients }, { merge: true });
             setGibClients(updatedClients);
-            showToast('success', `✅ "${title}" müşteri havuzuna kaydedildi.`);
+            showToast('success', `"${title}" müşteri havuzuna kaydedildi.`);
             if (addLog) addLog(`Müşteri havuzuna kaydedildi: ${title} (${vkn})`, 'success');
         } catch (err) {
             console.error("Müşteri kaydedilirken hata:", err);
@@ -329,6 +340,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                 gibTestMode: gibTestMode,
                 gibClients: updatedClients,
                 // Save default preferences
+                defaultInvoiceGroupingMode: defaultInvoiceGroupingMode || 'consolidated',
                 defaultIban: defaultIban.trim(),
                 defaultIbanName: defaultIbanName.trim(),
                 defaultInvoiceType,
@@ -759,8 +771,24 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         
         setSelectedInvoice(invoice);
         
-        const invTruck = trucksMap.get(invoice.truckId);
-        const plateText = invTruck?.plate || '';
+        // Araç plakalarını belirle (Tek veya Konsolide çoklu plakalar)
+        let invoicePlates = [];
+        if (invoice.plates && Array.isArray(invoice.plates) && invoice.plates.length > 0) {
+            invoicePlates = invoice.plates;
+        } else if (invoice.trips && Array.isArray(invoice.trips) && invoice.trips.length > 0) {
+            invoicePlates = Array.from(new Set(invoice.trips.map(t => t.truckPlate || (trucksMap.get(t.truckId)?.plate)).filter(Boolean)));
+        }
+        if (invoicePlates.length === 0 && invoice.truckId) {
+            const invTruck = trucksMap.get(invoice.truckId);
+            if (invTruck?.plate) invoicePlates.push(invTruck.plate);
+        }
+
+        let vehiclePhrasing = '';
+        if (invoicePlates.length > 1) {
+            vehiclePhrasing = `${invoicePlates.join(' ve ')} plakalı araçlar ile `;
+        } else if (invoicePlates.length === 1) {
+            vehiclePhrasing = `${invoicePlates[0]} plakalı araç ile `;
+        }
 
         // Tarihleri DD.MM.YYYY formatına çevir
         const formatTR = (dateStr) => {
@@ -771,7 +799,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         const startFmt = formatTR(invoice.startDate);
         const endFmt = formatTR(invoice.endDate);
 
-        let initialNote = `${plateText ? plateText + ' plakalı araç ile ' : ''}${startFmt} - ${endFmt} tarihleri arasında sunulan nakliye hizmet bedelidir.`;
+        let initialNote = `${vehiclePhrasing}${startFmt} - ${endFmt} tarihleri arasında sunulan nakliye hizmet bedelidir.`;
 
         if (defaultIban || defaultIbanName) {
             let ibanText = '';
@@ -887,7 +915,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             }
 
             addLog('GIB_FATURA_GONDERILDI', `${selectedInvoice.docId || selectedInvoice.id} faturası GİB portalına taslak olarak başarıyla aktarıldı.`);
-            showToast('success', '✅ Fatura başarıyla GİB e-Arşiv portalında Taslak olarak oluşturuldu! Portalda imzalamayı unutmayın.');
+            showToast('success', 'Fatura başarıyla GİB e-Arşiv portalında Taslak olarak oluşturuldu! Portalda imzalamayı unutmayın.');
         } catch (err) {
             console.error("GİB gönderim hatası:", err);
             setSyncError(err.message || "Fatura gönderilirken bir hata oluştu.");
@@ -895,15 +923,6 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             setSendingInvoiceId(null);
         }
     };
-    // Memoized trucks map for O(1) plate lookup
-    const trucksMap = useMemo(() => {
-        const map = new Map();
-        (trucks || []).forEach(t => {
-            map.set(t.id, t);
-        });
-        return map;
-    }, [trucks]);
-
     // Filter local active invoices
     const activeInvoices = useMemo(() => {
         return (invoices || []).filter(inv => !inv.deleted && inv.status === 'Sent');
@@ -2028,7 +2047,19 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                                 </div>
 
                                                 {/* Varsayılan Fatura Parametreleri */}
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                    <div>
+                                                        <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Fatura Modeli</label>
+                                                        <CustomSelect
+                                                            value={defaultInvoiceGroupingMode}
+                                                            onChange={setDefaultInvoiceGroupingMode}
+                                                            buttonClassName="h-8 py-0"
+                                                            options={[
+                                                                { value: 'consolidated', label: 'Bütün Arabalar Tek Fatura' },
+                                                                { value: 'per_truck', label: 'Araç Bazlı Ayrı Fatura' }
+                                                            ]}
+                                                        />
+                                                    </div>
                                                     <div>
                                                         <label className="block text-[11px] font-medium text-slate-400 mb-1.5 h-4">Varsayılan Fatura Tipi</label>
                                                         <CustomSelect

@@ -84,10 +84,16 @@ export default {
       deviceLastPing.set(deviceId, { time: now, speed: speed });
 
       // 3. İsteği Asıl Vercel API'sine İlet
-      const vercelUrl = new URL(request.url);
-      const newRequest = new Request(vercelUrl.toString(), {
+      const targetUrl = new URL(request.url);
+      targetUrl.protocol = 'https:';
+      targetUrl.hostname = 'tir-muhasebe-v2.vercel.app';
+      
+      const newHeaders = new Headers(request.headers);
+      newHeaders.set('Host', targetUrl.hostname);
+
+      const newRequest = new Request(targetUrl.toString(), {
         method: request.method,
-        headers: request.headers,
+        headers: newHeaders,
         body: request.method === 'POST' ? rawBodyText : undefined
       });
 

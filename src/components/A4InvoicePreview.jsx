@@ -1,6 +1,28 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Check, ThumbsUp } from 'lucide-react';
 import { parseTonnageInTons } from '../utils/tonnageUtils';
+
+export function getPlateShortCode(plate, allPlates = []) {
+    if (!plate) return '—';
+    const trimmed = String(plate).trim();
+    const match = trimmed.match(/^(\d{1,2})?\s*([A-Za-zÇĞİÖŞÜçğıöşü]+)\s*(\d+)?$/);
+    if (!match) {
+        return trimmed;
+    }
+    const letters = match[2].toLocaleUpperCase('tr-TR');
+    const numbers = match[3] || '';
+
+    const hasCollision = (allPlates || []).some(otherPlate => {
+        if (!otherPlate || otherPlate === plate) return false;
+        const oMatch = String(otherPlate).trim().match(/^(\d{1,2})?\s*([A-Za-zÇĞİÖŞÜçğıöşü]+)\s*(\d+)?$/);
+        return oMatch && oMatch[2].toLocaleUpperCase('tr-TR') === letters;
+    });
+
+    if (hasCollision && numbers) {
+        return `${letters} ${numbers}`;
+    }
+    return letters;
+}
 
 const A4InvoicePreview = React.forwardRef(({
     invoiceData,
@@ -152,6 +174,24 @@ const A4InvoicePreview = React.forwardRef(({
     };
 
     const displayOwnerName = propOwnerName || ownerName;
+
+    // Plakaları topla ve konsolide/çoklu araç kontrolü yap
+    const allPlates = useMemo(() => {
+        const set = new Set();
+        if (invoiceData?.plates && Array.isArray(invoiceData.plates)) {
+            invoiceData.plates.forEach(p => p && set.add(String(p).trim()));
+        }
+        (trips || []).forEach(t => {
+            if (t.truckPlate) set.add(String(t.truckPlate).trim());
+        });
+        if (set.size === 0 && vehicleInfo?.plate) {
+            set.add(String(vehicleInfo.plate).trim());
+        }
+        return Array.from(set);
+    }, [invoiceData?.plates, trips, vehicleInfo?.plate]);
+
+    const isMultiTruck = allPlates.length > 1 || invoiceData?.isConsolidated;
+
     const estimatedHeight = 160 + (routeSummary.length * 30) + (tableRows.length * 26);
     const isSinglePage = estimatedHeight <= 860;
 
@@ -174,9 +214,13 @@ const A4InvoicePreview = React.forwardRef(({
                             {displayOwnerName}
                         </h2>
                     )}
-                    <p className="text-[10px] font-extrabold text-slate-600 uppercase tracking-[0.2em] leading-none mb-1">ARAÇ BİLGİSİ</p>
-                    <p className="text-[16px] font-mono text-slate-700 font-extrabold tracking-[0.05em] leading-none mb-0.5">{vehicleInfo?.plate || '06 FTN 692'}</p>
-                    {vehicleInfo?.trailerPlate && (
+                    <p className="text-[10px] font-extrabold text-slate-600 uppercase tracking-[0.2em] leading-none mb-1">
+                        {isMultiTruck ? 'ARAÇLAR' : 'ARAÇ BİLGİSİ'}
+                    </p>
+                    <p className="text-[15px] font-mono text-slate-700 font-extrabold tracking-[0.05em] leading-none mb-0.5">
+                        {isMultiTruck ? allPlates.join(' • ') : (vehicleInfo?.plate || '06 FTN 692')}
+                    </p>
+                    {!isMultiTruck && vehicleInfo?.trailerPlate && (
                         <p className="text-[9px] font-mono text-slate-500 leading-none tracking-widest font-semibold">Dorse: {vehicleInfo.trailerPlate}</p>
                     )}
                 </div>
@@ -220,9 +264,12 @@ const A4InvoicePreview = React.forwardRef(({
             <table className="w-full text-left border-collapse text-xs bg-white">
                 <thead>
                     <tr className="bg-slate-100 text-slate-800 border-y border-slate-300 leading-tight">
-                        <th className="py-2.5 px-3 font-bold border-r border-slate-200 w-[16%]">Tarih</th>
-                        <th className="py-2.5 px-3 font-bold border-r border-slate-200 w-[38%]">Alınan Yer</th>
-                        <th className="py-2.5 px-3 font-bold border-r border-slate-200 w-[32%]">Gidilen Yer</th>
+                        <th className={`py-2.5 px-3 font-bold border-r border-slate-200 ${isMultiTruck ? 'w-[14%]' : 'w-[16%]'}`}>Tarih</th>
+                        {isMultiTruck && (
+                            <th className="py-2.5 px-2 font-bold border-r border-slate-200 w-[11%] text-center">Araç</th>
+                        )}
+                        <th className={`py-2.5 px-3 font-bold border-r border-slate-200 ${isMultiTruck ? 'w-[33%]' : 'w-[38%]'}`}>Alınan Yer</th>
+                        <th className={`py-2.5 px-3 font-bold border-r border-slate-200 ${isMultiTruck ? 'w-[28%]' : 'w-[32%]'}`}>Gidilen Yer</th>
                         <th className="py-2.5 px-3 text-right font-bold w-[14%]">Tonaj</th>
                     </tr>
                 </thead>
@@ -230,9 +277,17 @@ const A4InvoicePreview = React.forwardRef(({
                     {tableRows.length > 0 ? tableRows.map((row, idx) => {
                         const localDate = new Date(row.dateStr).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
                         const trip = row.data;
+                        const tripPlate = trip.truckPlate || vehicleInfo?.plate || '';
                         return (
                             <tr key={trip.id || idx} className="border-b border-slate-100" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                                 <td className="py-1.5 px-3 text-slate-600 whitespace-nowrap font-medium font-mono">{localDate}</td>
+                                {isMultiTruck && (
+                                    <td className="py-1.5 px-2 text-center">
+                                        <span className="inline-block bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded font-mono font-bold text-[11px] text-slate-800">
+                                            {getPlateShortCode(tripPlate, allPlates)}
+                                        </span>
+                                    </td>
+                                )}
                                 <td className="py-1.5 px-3 text-slate-800 font-medium">{trip.from}</td>
                                 <td className="py-1.5 px-3 text-slate-800 font-medium">{trip.to}</td>
                                 <td className="py-1.5 px-3 text-right text-slate-950 font-black font-mono">{parseTonnageInTons(trip.tonnage).toFixed(2)}</td>
@@ -240,7 +295,7 @@ const A4InvoicePreview = React.forwardRef(({
                         );
                     }) : (
                         <tr>
-                            <td colSpan="4" className="py-8 text-center text-slate-400 italic text-sm">Bu periyotta gösterilecek veri bulunamadı.</td>
+                            <td colSpan={isMultiTruck ? 5 : 4} className="py-8 text-center text-slate-400 italic text-sm">Bu periyotta gösterilecek veri bulunamadı.</td>
                         </tr>
                     )}
                 </tbody>

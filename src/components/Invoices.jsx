@@ -6,7 +6,7 @@ import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
 import { useCompany } from '../context/CompanyContext';
 import InvoicePeriodModal from './InvoicePeriodModal';
-import A4InvoicePreview from './A4InvoicePreview';
+import A4InvoicePreview, { getPlateShortCode } from './A4InvoicePreview';
 import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { sendDiscordAlert } from '../services/discordWebhook';
@@ -110,6 +110,23 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
         });
         return Object.values(groups);
     }, [activeInvoice?.trips]);
+
+    // Aktif Faturaya Dahil Olan Tüm Plakalar & Çoklu Araç Kontrolü
+    const activeInvoicePlates = useMemo(() => {
+        const set = new Set();
+        if (activeInvoice?.plates && Array.isArray(activeInvoice.plates)) {
+            activeInvoice.plates.forEach(p => p && set.add(String(p).trim()));
+        }
+        (activeInvoice?.trips || []).forEach(t => {
+            if (t.truckPlate) set.add(String(t.truckPlate).trim());
+        });
+        if (set.size === 0 && activeTruckData?.plate) {
+            set.add(String(activeTruckData.plate).trim());
+        }
+        return Array.from(set);
+    }, [activeInvoice, activeTruckData?.plate]);
+
+    const isMultiTruckInvoice = activeInvoicePlates.length > 1 || !!activeInvoice?.isConsolidated;
 
     // Firebase Rota Hafızasından Tahmini Hakediş / Ödenecek Tutar Hesabı
     const estimatedCalculation = useMemo(() => {
@@ -274,7 +291,7 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
         setIsPeriodModalOpen(true);
     };
 
-    const handleSelectPeriod = ({ startDate, endDate, trips: selectedTrips }) => {
+    const handleSelectPeriod = ({ startDate, endDate, trips: selectedTrips, isConsolidated, truckIds, plates }) => {
         // Yeni taslak oluştur
         const newDraft = {
             id: `TASLAK-${Date.now().toString().slice(-4)}`,
@@ -282,6 +299,9 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
             endDate,
             trips: selectedTrips,
             status: 'Draft',
+            isConsolidated: !!isConsolidated,
+            truckIds: truckIds || [],
+            plates: plates || []
         };
         setActiveInvoice(newDraft);
         saveDraftInvoice(newDraft);
@@ -314,11 +334,22 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
         const newInvoiceData = {
             startDate: activeInvoice.startDate,
             endDate: activeInvoice.endDate,
-            trips: (activeInvoice.trips || []).map(t => ({ id: t.id, date: t.date, from: t.from, to: t.to, tonnage: t.tonnage })),
+            trips: (activeInvoice.trips || []).map(t => ({
+                id: t.id,
+                date: t.date,
+                from: t.from,
+                to: t.to,
+                tonnage: t.tonnage,
+                truckId: t.truckId,
+                truckPlate: t.truckPlate
+            })),
             totalTonnage,
             grandTotal: netPrice || 0,
             status: 'Sent',
-            docId: `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(3, '0')}`
+            docId: `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(3, '0')}`,
+            isConsolidated: !!activeInvoice.isConsolidated,
+            truckIds: activeInvoice.truckIds || (activeInvoice.truckId ? [activeInvoice.truckId] : (activeTruckId ? [activeTruckId] : [])),
+            plates: activeInvoice.plates || (activeTruckData?.plate ? [activeTruckData.plate] : [])
         };
 
         try {
@@ -335,11 +366,11 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
             // F1: Fatura kesildi bildirimi
             sendDiscordAlert({
               type: 'success',
-              title: '🧾 Yeni Fatura Kesildi',
+              title: 'Yeni Fatura Kesildi',
               description: 'Fatura başarıyla oluşturuldu.',
               fields: [
-                { name: '🏢 Firma', value: String(newInvoiceData?.customer || newInvoiceData?.company || '—'), inline: true },
-                { name: '💰 Tutar', value: String(newInvoiceData?.grandTotal || '—') + ' ₺', inline: true },
+                { name: 'Firma', value: String(newInvoiceData?.customer || newInvoiceData?.company || '—'), inline: true },
+                { name: 'Tutar', value: String(newInvoiceData?.grandTotal || '—') + ' ₺', inline: true },
               ]
             });
 
@@ -362,20 +393,21 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
             try {
                 // Faturayı siliyoruz (Soft Delete)
                 const deletedInvoice = invoices.find(inv => inv.id === invoiceId);
+                const linkedInvoice = invoices.find(inv => inv.id === invoiceId);
+
                 await deleteInvoice(invoiceId);
 
                 // F2: Fatura silme bildirimi
                 sendDiscordAlert({
                   type: 'danger',
-                  title: '🗑️ Fatura Silindi',
+                  title: 'Fatura Silindi',
                   description: 'Bir fatura kaydı silindi.',
                   fields: [
-                    { name: '💰 Tutar', value: String(deletedInvoice?.grandTotal || deletedInvoice?.amount || deletedInvoice?.total || '—') + ' ₺', inline: true },
+                    { name: 'Tutar', value: String(deletedInvoice?.grandTotal || deletedInvoice?.amount || deletedInvoice?.total || '—') + ' ₺', inline: true },
                   ]
                 });
 
                 // Bu faturaya bağlı olan seferleri bulup statülerini "Fatura Bekliyor" olarak geri alıyoruz
-                const linkedInvoice = invoices.find(inv => inv.id === invoiceId);
                 if (linkedInvoice && linkedInvoice.trips) {
                     const batch = writeBatch(db);
                     linkedInvoice.trips.forEach(trip => {
@@ -640,12 +672,19 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                 )}
                                 
                                 <div className="relative z-10 flex flex-col gap-1">
-                                    <div className="flex justify-between items-center mb-0.5">
-                                        <span 
-                                            className={`font-bold text-sm tracking-tight truncate transition-colors ${isActive ? 'text-sky-400' : 'text-slate-200 group-hover:text-sky-400'}`}
-                                        >
-                                            {formatFullDateRange(inv.startDate, inv.endDate, inv.docId)}
-                                        </span>
+                                    <div className="flex justify-between items-center mb-0.5 gap-1.5">
+                                        <div className="flex items-center gap-1.5 truncate min-w-0">
+                                            <span 
+                                                className={`font-bold text-sm tracking-tight truncate transition-colors ${isActive ? 'text-sky-400' : 'text-slate-200 group-hover:text-sky-400'}`}
+                                            >
+                                                {formatFullDateRange(inv.startDate, inv.endDate, inv.docId)}
+                                            </span>
+                                            {(inv.isConsolidated || (inv.plates && inv.plates.length > 1)) && (
+                                                <span className="text-[8px] bg-sky-500/15 border border-sky-500/30 text-sky-300 px-1.5 py-0.2 rounded font-mono font-bold shrink-0">
+                                                    KONSOLİDE
+                                                </span>
+                                            )}
+                                        </div>
                                         <div className="flex items-center gap-1.5 shrink-0">
                                             <button
                                                 type="button"
@@ -764,14 +803,16 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                         )}
 
                         <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-0.5">
-                            ARAÇ BİLGİSİ
+                            {isMultiTruckInvoice ? 'ARAÇLAR' : 'ARAÇ BİLGİSİ'}
                         </p>
                         <p className="text-xs sm:text-sm font-mono font-bold text-blue-950 tracking-wide leading-none mb-0.5">
-                            {activeTruckData?.plate || '06 FTN 692'}
+                            {isMultiTruckInvoice ? activeInvoicePlates.join(' • ') : (activeTruckData?.plate || '06 FTN 692')}
                         </p>
-                        <p className="text-[9px] font-mono text-slate-500 leading-none tracking-wider font-medium">
-                            Dorse: {activeTruckData?.trailerPlate || '06 FTS 692'}
-                        </p>
+                        {!isMultiTruckInvoice && (
+                            <p className="text-[9px] font-mono text-slate-500 leading-none tracking-wider font-medium">
+                                Dorse: {activeTruckData?.trailerPlate || '06 FTS 692'}
+                            </p>
+                        )}
                     </div>
                 </div>
 
@@ -928,10 +969,13 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                                 <table className="w-full table-fixed text-left border-collapse min-w-[320px]">
                                                     <thead className="sticky top-0 bg-slate-100/90 backdrop-blur-sm z-10 border-b border-slate-200">
                                                         <tr className="text-[10px] sm:text-[11px] text-slate-600 uppercase font-bold tracking-wider">
-                                                            <th className="py-2 px-1.5 sm:px-3 w-[22%] truncate">Tarih</th>
-                                                            <th className="py-2 px-1.5 sm:px-3 w-[28%] truncate">Yükleme</th>
-                                                            <th className="py-2 px-1.5 sm:px-3 w-[28%] truncate">Boşaltma</th>
-                                                            <th className="py-2 px-1.5 sm:px-3 text-right w-[22%] truncate">Tonaj</th>
+                                                            <th className={`py-2 px-1.5 sm:px-3 truncate ${isMultiTruckInvoice ? 'w-[18%]' : 'w-[22%]'}`}>Tarih</th>
+                                                            {isMultiTruckInvoice && (
+                                                                <th className="py-2 px-1 text-center w-[12%] truncate">Araç</th>
+                                                            )}
+                                                            <th className={`py-2 px-1.5 sm:px-3 truncate ${isMultiTruckInvoice ? 'w-[26%]' : 'w-[28%]'}`}>Yükleme</th>
+                                                            <th className={`py-2 px-1.5 sm:px-3 truncate ${isMultiTruckInvoice ? 'w-[26%]' : 'w-[28%]'}`}>Boşaltma</th>
+                                                            <th className={`py-2 px-1.5 sm:px-3 text-right truncate ${isMultiTruckInvoice ? 'w-[18%]' : 'w-[22%]'}`}>Tonaj</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="text-[11px] sm:text-xs text-slate-700 divide-y divide-slate-100 font-medium">
@@ -940,6 +984,13 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                                                 <td className="py-2 px-1.5 sm:px-3 font-mono text-[10px] sm:text-[11px] text-slate-500 whitespace-nowrap">
                                                                     {t.date ? new Date(t.date).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'}
                                                                 </td>
+                                                                {isMultiTruckInvoice && (
+                                                                    <td className="py-2 px-1 text-center">
+                                                                        <span className="inline-block bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded font-mono font-bold text-[10px] text-slate-800">
+                                                                            {getPlateShortCode(t.truckPlate || activeTruckData?.plate, activeInvoicePlates)}
+                                                                        </span>
+                                                                    </td>
+                                                                )}
                                                                 <td className="py-2 px-1.5 sm:px-3 text-slate-900 truncate" title={t.from || '—'}>
                                                                     {t.from || '—'}
                                                                 </td>
@@ -952,7 +1003,7 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                                             </tr>
                                                         )) : (
                                                             <tr>
-                                                                <td colSpan="4" className="text-center py-8 text-slate-400 text-xs italic">Bu faturada kayıtlı sefer bulunmuyor.</td>
+                                                                <td colSpan={isMultiTruckInvoice ? 5 : 4} className="text-center py-8 text-slate-400 text-xs italic">Bu faturada kayıtlı sefer bulunmuyor.</td>
                                                             </tr>
                                                         )}
                                                     </tbody>

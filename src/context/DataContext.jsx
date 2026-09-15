@@ -55,6 +55,7 @@ export const DataProvider = ({ children }) => {
     const [savedTrackingRoutes, setSavedTrackingRoutes] = useState([]);
     const [routeHistory, setRouteHistory] = useState({});
     const [draftInvoice, setDraftInvoice] = useState(null);
+    const [invoiceGroupingMode, setInvoiceGroupingMode] = useState('consolidated');
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [isDataLoading, setIsDataLoading] = useState(true);
     const [dataError, setDataError] = useState(null);
@@ -296,7 +297,7 @@ export const DataProvider = ({ children }) => {
         // 8. Invoices config
         unsubs.push(onSnapshot(query(collection(db, 'invoices'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                .filter(d => !activeTruckId || d.truckId === activeTruckId)
+                .filter(d => !activeTruckId || d.isConsolidated || d.truckIds?.includes(activeTruckId) || d.truckId === activeTruckId)
                 .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             setInvoices(data);
         }));
@@ -426,6 +427,7 @@ export const DataProvider = ({ children }) => {
             if (docSnapshot.exists()) {
                 const data = docSnapshot.data();
                 if (data.vehicleInfo) setVehicleInfo(prev => ({ ...prev, ...data.vehicleInfo }));
+                if (data.defaultInvoiceGroupingMode) setInvoiceGroupingMode(data.defaultInvoiceGroupingMode);
 
                 if (data.personnelList && Array.isArray(data.personnelList)) {
                     setPersonnelList(data.personnelList);
@@ -1136,7 +1138,16 @@ export const DataProvider = ({ children }) => {
 
     // Invoices CRUD
     const addInvoice = async (invoice) => {
-        await addDoc(collection(db, 'invoices'), { ...invoice, companyId: activeCompanyId, truckId: activeTruckId, deleted: false, createdAt: new Date().toISOString() });
+        await addDoc(collection(db, 'invoices'), {
+            ...invoice,
+            companyId: activeCompanyId,
+            truckId: invoice.isConsolidated ? null : (invoice.truckId || activeTruckId),
+            truckIds: invoice.truckIds || (activeTruckId ? [activeTruckId] : []),
+            isConsolidated: !!invoice.isConsolidated,
+            plates: invoice.plates || [],
+            deleted: false,
+            createdAt: new Date().toISOString()
+        });
         addLog('FATURA_OLUSTUR', `${invoice.startDate} - ${invoice.endDate} periyodu için Fatura oluşturuldu.`);
     };
 
@@ -1146,6 +1157,21 @@ export const DataProvider = ({ children }) => {
     };
 
     const deleteInvoice = async (id) => {
+        const invToDelete = invoices.find(inv => inv.id === id);
+        if (invToDelete && Array.isArray(invToDelete.trips) && invToDelete.trips.length > 0) {
+            try {
+                const batch = writeBatch(db);
+                invToDelete.trips.forEach(trip => {
+                    if (trip.id) {
+                        const tripRef = doc(db, 'trips', trip.id);
+                        batch.update(tripRef, { status: 'Fatura Bekliyor' });
+                    }
+                });
+                await batch.commit();
+            } catch (err) {
+                console.error("Seferler geri alınırken hata:", err);
+            }
+        }
         await deleteDoc(doc(db, 'invoices', id));
         addLog('FATURA_SIL', `Fatura silindi`, { table: 'Invoices', id });
     };
@@ -1510,6 +1536,7 @@ export const DataProvider = ({ children }) => {
             maintenanceTypes, updateMaintenanceTypes,
             penalties, addPenalty, deletePenalty, togglePenaltyPaid,
             invoices, addInvoice, updateInvoice, deleteInvoice,
+            invoiceGroupingMode, setInvoiceGroupingMode,
             updateRoute,
             payouts, addPayout, deletePayout, updatePayout,
             premiums, updatePremiums,

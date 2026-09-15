@@ -430,9 +430,16 @@ function App() {
       return item.id !== 'super_admin';
     }
 
-    // Default 'şoför' (Sürücü) -> Sadece operasyonel sekmeleri görür
-    return !['super_admin', 'company_admin', 'map', 'personel', 'earsiv', 'company_debts'].includes(item.id);
+    // Default 'şoför' (Sürücü) -> Sadece operasyonel sekmeleri görür (Seferler, Yakıt, Bakım, Masraflar)
+    return !['super_admin', 'company_admin', 'map', 'personel', 'earsiv', 'company_debts', 'invoices', 'payments'].includes(item.id);
   })
+
+  // Sürücü rolü için kısıtlı sayfalara erişim engeli
+  useEffect(() => {
+    if (userRole === 'şoför' && ['super_admin', 'company_admin', 'map', 'personel', 'earsiv', 'company_debts', 'invoices', 'payments'].includes(activeTab)) {
+      setActiveTab('trips');
+    }
+  }, [userRole, activeTab]);
 
   // Login ekranı
   if (!currentUser) {
@@ -560,23 +567,25 @@ function App() {
                         {activeTruckPlate}
                       </motion.span>
                     </div>
-                    {/* Expand chevron */}
-                    <motion.div
-                      animate={{ opacity: isActive ? 1 : 0 }}
-                      transition={{ duration: 0.15 }}
-                      onClick={(e) => { e.stopPropagation(); if (isActive) setShowTruckExpand(v => !v); }}
-                      className="relative z-20 p-1 rounded-md hover:bg-white/15 transition-colors flex-shrink-0 cursor-pointer"
-                      style={{ pointerEvents: isActive ? 'auto' : 'none' }}>
-                      <motion.div animate={{ rotate: showTruckExpand ? 180 : 0 }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}>
-                        <ChevronDown size={12} className="text-indigo-300/70" />
+                    {/* Expand chevron (Sürücüler araç değiştiremez, sadece yöneticiler) */}
+                    {userRole !== 'şoför' && otherTrucks.length > 0 && (
+                      <motion.div
+                        animate={{ opacity: isActive ? 1 : 0 }}
+                        transition={{ duration: 0.15 }}
+                        onClick={(e) => { e.stopPropagation(); if (isActive) setShowTruckExpand(v => !v); }}
+                        className="relative z-20 p-1 rounded-md hover:bg-white/15 transition-colors flex-shrink-0 cursor-pointer"
+                        style={{ pointerEvents: isActive ? 'auto' : 'none' }}>
+                        <motion.div animate={{ rotate: showTruckExpand ? 180 : 0 }}
+                          transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}>
+                          <ChevronDown size={12} className="text-indigo-300/70" />
+                        </motion.div>
                       </motion.div>
-                    </motion.div>
+                    )}
                   </button>
 
                   {/* Tır listesi - sadece expand açıkken ve aktifken */}
                   <AnimatePresence>
-                    {isActive && showTruckExpand && (
+                    {isActive && showTruckExpand && userRole !== 'şoför' && (
                       <motion.div key="company-trucks"
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
@@ -629,7 +638,7 @@ function App() {
                   <span className="relative z-10 bg-red-500/20 border border-red-500/30 text-red-100 drop-shadow-md text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center justify-center flex-shrink-0">{item.badge}</span>
                 )}
                 {item.badge_beta && (
-                  <span className="relative z-10 bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 tracking-wide">🧪 BETA</span>
+                  <span className="relative z-10 bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 tracking-wide">BETA</span>
                 )}
               </button>
             );

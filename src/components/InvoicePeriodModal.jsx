@@ -1,7 +1,15 @@
-import React, { useState, useMemo } from 'react';
-import { X, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Droplet } from 'lucide-react';
+import React, { useState, useMemo, useContext } from 'react';
+import { X, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Droplet, Truck } from 'lucide-react';
+import { DataContext } from '../context/DataContext';
+import { useTruck } from '../context/TruckContext';
+import { getPlateShortCode } from './A4InvoicePreview';
 
 const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPeriod, fuelRecords = [] }) => {
+    const { invoiceGroupingMode, allCompanyTrips } = useContext(DataContext);
+    const { trucks, activeTruckId, activeTruckData } = useTruck();
+
+    const isConsolidated = invoiceGroupingMode === 'consolidated';
+
     // Current viewed month in the calendar
     const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -11,13 +19,45 @@ const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPer
     const [startDate, setStartDate] = useState(null);
     const [endDate, setEndDate] = useState(null);
 
+    // Memoized trucks map
+    const trucksMap = useMemo(() => new Map((trucks || []).map(t => [t.id, t])), [trucks]);
+
+    // Source trips based on grouping mode
+    const sourceTrips = useMemo(() => {
+        if (isConsolidated) {
+            return (allCompanyTrips || []).filter(t => !t.deleted && t.status === 'Fatura Bekliyor');
+        }
+        return (trips || []).filter(t => !t.deleted && t.status === 'Fatura Bekliyor');
+    }, [isConsolidated, allCompanyTrips, trips]);
+
+    // Calendar statuses source
+    const calendarSourceTrips = isConsolidated ? (allCompanyTrips || []) : (allTrips.length > 0 ? allTrips : trips || []);
+
     // Filtered trips for the selected range to show a preview
     const tripsInPeriod = useMemo(() => {
         if (!startDate || !endDate) return [];
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
-        return trips.filter(t => !t.deleted && t.status === 'Fatura Bekliyor' && t.date >= startStr && t.date <= endStr);
-    }, [startDate, endDate, trips]);
+
+        return sourceTrips
+            .filter(t => t.date >= startStr && t.date <= endStr)
+            .map(t => {
+                const tr = trucksMap.get(t.truckId);
+                return {
+                    ...t,
+                    truckId: t.truckId || activeTruckId,
+                    truckPlate: t.truckPlate || tr?.plate || activeTruckData?.plate || ''
+                };
+            });
+    }, [startDate, endDate, sourceTrips, trucksMap, activeTruckId, activeTruckData]);
+
+    const distinctPlates = useMemo(() => {
+        return Array.from(new Set(tripsInPeriod.map(t => t.truckPlate).filter(Boolean)));
+    }, [tripsInPeriod]);
+
+    const distinctTruckIds = useMemo(() => {
+        return Array.from(new Set(tripsInPeriod.map(t => t.truckId).filter(Boolean)));
+    }, [tripsInPeriod]);
 
     if (!isOpen) return null;
 
@@ -27,7 +67,7 @@ const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPer
     const startOffset = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
 
     // Helper map for fast lookup of trip statuses by date
-    const tripStatusByDate = allTrips.reduce((acc, t) => {
+    const tripStatusByDate = calendarSourceTrips.reduce((acc, t) => {
         if (t.deleted) return acc;
         if (!acc[t.date]) acc[t.date] = { count: 0, pending: 0, completed: 0 };
         acc[t.date].count++;
@@ -71,7 +111,14 @@ const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPer
         if (startDate && endDate) {
             const startStr = startDate.toISOString().split('T')[0];
             const endStr = endDate.toISOString().split('T')[0];
-            onSelectPeriod({ startDate: startStr, endDate: endStr, trips: tripsInPeriod });
+            onSelectPeriod({
+                startDate: startStr,
+                endDate: endStr,
+                trips: tripsInPeriod,
+                isConsolidated,
+                truckIds: distinctTruckIds,
+                plates: distinctPlates
+            });
             onClose();
         } else {
             alert("Lütfen bir başlangıç ve bitiş tarihi seçin.");
@@ -165,9 +212,14 @@ const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPer
                 {/* Sol Taraf: Takvim */}
                 <div className="w-full md:w-[60%] p-3 sm:p-4 md:p-6 border-b md:border-b-0 md:border-r border-[var(--border-color)] flex flex-col overflow-y-auto md:overflow-visible min-h-[320px] md:min-h-0">
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-lg font-bold text-[var(--text-primary)] flex items-center">
-                            <CalendarIcon className="mr-2 text-sky-400" size={18} />
-                            Periyot Seçimi
+                        <h3 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
+                            <CalendarIcon className="text-sky-400" size={18} />
+                            <span>Periyot Seçimi</span>
+                            {isConsolidated && (
+                                <span className="text-[10px] bg-sky-500/10 border border-sky-500/20 text-sky-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                                    Konsolide Filo
+                                </span>
+                            )}
                         </h3>
                         <div className="flex gap-2">
                             <button onClick={prevMonth} className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10 rounded transition-colors"><ChevronLeft size={16} /></button>
@@ -217,15 +269,25 @@ const InvoicePeriodModal = ({ isOpen, onClose, trips, allTrips = [], onSelectPer
                     </div>
 
                     <div className="flex-1 min-h-[100px] md:min-h-0 overflow-y-auto custom-scrollbar border border-[var(--border-color)] rounded-lg bg-black/20 p-2 sm:p-3">
-                        <p className="text-[10px] sm:text-xs text-[var(--text-secondary)] mb-2 border-b border-[var(--border-color)] pb-1 sm:pb-2">
-                            Aralıkta Seçili Seferler: <strong className="text-sky-400">{tripsInPeriod.length}</strong>
+                        <p className="text-[10px] sm:text-xs text-[var(--text-secondary)] mb-2 border-b border-[var(--border-color)] pb-1 sm:pb-2 flex justify-between items-center">
+                            <span>Aralıkta Seçili Seferler: <strong className="text-sky-400">{tripsInPeriod.length}</strong></span>
+                            {isConsolidated && distinctPlates.length > 0 && (
+                                <span className="text-[9px] bg-sky-500/15 border border-sky-500/25 text-sky-300 px-1.5 py-0.5 rounded font-mono font-bold">
+                                    {distinctPlates.length} Araç
+                                </span>
+                            )}
                         </p>
                         <ul className="space-y-1.5 sm:space-y-2">
                             {tripsInPeriod.map(t => (
-                                <li key={t.id} className="text-[9px] sm:text-[10px] flex justify-between bg-white/5 p-1 sm:p-1.5 rounded">
-                                    <span className="text-[var(--text-primary)]">{new Date(t.date).getDate()} {new Date(t.date).toLocaleDateString('tr-TR', { month: 'short' })}</span>
-                                    <span className="text-[var(--text-secondary)] truncate max-w-[60px] sm:max-w-[80px]">{t.to}</span>
-                                    <span className="text-sky-400 font-mono font-bold">{t.tonnage}t</span>
+                                <li key={t.id} className="text-[9px] sm:text-[10px] flex items-center justify-between bg-white/5 p-1 sm:p-1.5 rounded gap-1.5">
+                                    <span className="text-[var(--text-primary)] whitespace-nowrap">{new Date(t.date).getDate()} {new Date(t.date).toLocaleDateString('tr-TR', { month: 'short' })}</span>
+                                    {isConsolidated && (
+                                        <span className="bg-slate-800 border border-slate-700 text-sky-300 font-mono font-bold text-[8px] sm:text-[9px] px-1 py-0.5 rounded">
+                                            {getPlateShortCode(t.truckPlate, distinctPlates)}
+                                        </span>
+                                    )}
+                                    <span className="text-[var(--text-secondary)] truncate flex-1">{t.to}</span>
+                                    <span className="text-sky-400 font-mono font-bold whitespace-nowrap">{t.tonnage}t</span>
                                 </li>
                             ))}
                             {tripsInPeriod.length === 0 && (
