@@ -672,8 +672,17 @@ export const DataProvider = ({ children }) => {
     };
 
     const editTrip = async (id, updates) => {
+        const trip = trips.find(t => t.id === id);
         await updateDoc(doc(db, 'trips', id), updates);
-        addLog('SEFER_DUZENLE', `Sefer güncellendi`);
+        let detail = 'Sefer güncellendi';
+        if (trip) {
+            const parts = [];
+            if (updates.price !== undefined && updates.price !== trip.price) parts.push(`Tutar: ${Number(trip.price).toLocaleString('tr-TR')} ₺ → ${Number(updates.price).toLocaleString('tr-TR')} ₺`);
+            if (updates.from !== undefined || updates.to !== undefined) parts.push(`Güzergah: ${updates.from || trip.from} → ${updates.to || trip.to}`);
+            if (updates.tonnage !== undefined && updates.tonnage !== trip.tonnage) parts.push(`Tonaj: ${trip.tonnage}t → ${updates.tonnage}t`);
+            detail = `${trip.from || ''} → ${trip.to || ''} seferi: ${parts.length > 0 ? parts.join(' | ') : 'Düzenlendi'}`;
+        }
+        addLog('SEFER_DUZENLE', detail, { table: 'Trips', id, before: trip ? { from: trip.from, to: trip.to, price: trip.price, tonnage: trip.tonnage } : null, after: updates });
     };
 
     const addFuel = async (record) => {
@@ -696,8 +705,17 @@ export const DataProvider = ({ children }) => {
     };
 
     const editFuel = async (id, updates) => {
+        const rec = fuelRecords.find(r => r.id === id);
         await updateDoc(doc(db, 'fuel', id), updates);
-        addLog('MAZOT_DUZENLE', `Mazot fişi güncellendi`);
+        let detail = 'Mazot fişi güncellendi';
+        if (rec) {
+            const parts = [];
+            if (updates.price !== undefined && updates.price !== rec.price) parts.push(`Tutar: ${Number(rec.price).toLocaleString('tr-TR')} ₺ → ${Number(updates.price).toLocaleString('tr-TR')} ₺`);
+            if (updates.liters !== undefined && updates.liters !== rec.liters) parts.push(`Litre: ${rec.liters}L → ${updates.liters}L`);
+            if (updates.station && updates.station !== rec.station) parts.push(`İstasyon: ${updates.station}`);
+            detail = `${rec.station || 'İstasyon'}: ${parts.length > 0 ? parts.join(' | ') : 'Düzenlendi'}`;
+        }
+        addLog('MAZOT_DUZENLE', detail, { table: 'Fuel', id, before: rec ? { station: rec.station, liters: rec.liters, price: rec.price } : null, after: updates });
     };
 
     const addMaintenance = async (record) => {
@@ -720,8 +738,13 @@ export const DataProvider = ({ children }) => {
     };
 
     const updateMaintenance = async (id, updatedFields) => {
+        const rec = maintenanceRecords.find(r => r.id === id);
         await updateDoc(doc(db, 'maintenance', id), updatedFields);
-        addLog('BAKIM_GUNCELLE', updatedFields.description || 'Bakım');
+        let detail = updatedFields.description || 'Bakım güncellendi';
+        if (rec && updatedFields.cost !== undefined && updatedFields.cost !== rec.cost) {
+            detail = `${rec.type || 'Bakım'}: ${Number(rec.cost).toLocaleString('tr-TR')} ₺ → ${Number(updatedFields.cost).toLocaleString('tr-TR')} ₺`;
+        }
+        addLog('BAKIM_GUNCELLE', detail, { table: 'Maintenance', id, before: rec ? { type: rec.type, cost: rec.cost, description: rec.description } : null, after: updatedFields });
     };
 
     const addPayment = async (record) => {
@@ -744,8 +767,13 @@ export const DataProvider = ({ children }) => {
     };
 
     const updatePayment = async (id, updatedFields) => {
+        const rec = paymentRecords.find(r => r.id === id);
         await updateDoc(doc(db, 'payments', id), updatedFields);
-        addLog('ODEME_GUNCELLE', updatedFields.description || 'Ödeme');
+        let detail = updatedFields.description || 'Ödeme güncellendi';
+        if (rec && updatedFields.amount !== undefined && updatedFields.amount !== rec.amount) {
+            detail = `${rec.type || 'Ödeme'}: ${Number(rec.amount).toLocaleString('tr-TR')} ₺ → ${Number(updatedFields.amount).toLocaleString('tr-TR')} ₺ (${updatedFields.description || rec.description || ''})`;
+        }
+        addLog('ODEME_GUNCELLE', detail, { table: 'Payments', id, before: rec ? { type: rec.type, amount: rec.amount, description: rec.description } : null, after: updatedFields });
     };
 
     const updateVehicleInfo = async (newInfo) => {
@@ -1483,11 +1511,13 @@ export const DataProvider = ({ children }) => {
 
     // Unified drivers list: merge manual drivers + approved şöför users + active personnel drivers
     const allDrivers = useMemo(() => {
-        const userDrivers = (approvedUsers || []).filter(u => u.role === 'şoför').map(u => ({ id: u.id, name: u.username, phone: '', isSystem: true }));
+        const userDrivers = (approvedUsers || [])
+            .filter(u => u.role === 'şoför' || u.role === 'user' || u.isDriver || u.username === 'mert')
+            .map(u => ({ id: u.id, name: u.fullName || u.username, phone: '', isSystem: true }));
         const personnelDrivers = (personnelList || [])
             .filter(p => p.employmentStatus === 'active' && (!p.role || p.role.includes('driver')))
             .map(p => ({ id: p.id, name: p.fullName, phone: p.phone || '', tc: p.tcNo || '', isPersonnel: true }));
-        const existingNames = new Set([...userDrivers.map(u => u.name.toLowerCase()), ...personnelDrivers.map(p => p.name.toLowerCase())]);
+        const existingNames = new Set([...userDrivers.map(u => (u.name || '').toLowerCase()), ...personnelDrivers.map(p => (p.name || '').toLowerCase())]);
         // eslint-disable-next-line react-hooks/purity
         const manualDrivers = (drivers || [])
             .filter(d => !existingNames.has((d.name || '').toLowerCase()))

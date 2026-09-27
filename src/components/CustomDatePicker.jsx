@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
-const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', className, showToday = true }) => {
+const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', className, showToday = true, showSteppers = true }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [currentMonth, setCurrentMonth] = useState(() => value ? new Date(value) : new Date());
     
@@ -106,6 +106,41 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
         }
     };
 
+    // Çerçeve içi tek tıkla gün ilerletme / geriletme
+    const handleStepDays = (delta) => {
+        let baseDate;
+        if (day && month && year && day.length > 0 && month.length > 0 && year.length === 4) {
+            const dn = parseInt(day, 10);
+            const mn = parseInt(month, 10);
+            const yn = parseInt(year, 10);
+            baseDate = new Date(yn, mn - 1, dn);
+        } else if (value) {
+            const parts = value.split('-').map(Number);
+            baseDate = new Date(parts[0], parts[1] - 1, parts[2]);
+        } else {
+            baseDate = new Date();
+        }
+
+        if (isNaN(baseDate.getTime())) {
+            baseDate = new Date();
+        }
+
+        baseDate.setDate(baseDate.getDate() + delta);
+
+        const yn = baseDate.getFullYear();
+        const mn = String(baseDate.getMonth() + 1).padStart(2, '0');
+        const dn = String(baseDate.getDate()).padStart(2, '0');
+
+        setYear(String(yn));
+        setMonth(mn);
+        setDay(dn);
+        setCurrentMonth(baseDate);
+
+        if (onChange) {
+            onChange(`${yn}-${mn}-${dn}`);
+        }
+    };
+
     const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
     const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getDay();
     const startDayIndex = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1; // Pazartesi = 0
@@ -148,8 +183,21 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
 
     return (
         <div className="relative w-full">
-            <div className={`relative flex items-center ${className} p-0 overflow-hidden cursor-text`}>
-                <div className="flex-1 h-full flex items-center justify-center gap-0.5 px-1 select-none">
+            <div className={`relative flex items-center ${className} !p-0 overflow-hidden cursor-text h-[38px]`}>
+                {showSteppers && (
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleStepDays(-1);
+                        }}
+                        className="shrink-0 h-full w-8 text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/20 transition-colors flex items-center justify-center cursor-pointer border-r border-white/[0.08]"
+                        title="Önceki Gün"
+                    >
+                        <ChevronLeft size={15} />
+                    </button>
+                )}
+                <div className="flex-1 h-full flex items-center justify-center gap-1 px-1 select-none">
                     <input
                         ref={dayRef}
                         type="text"
@@ -181,10 +229,23 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                         className="w-9 text-center bg-transparent outline-none text-white placeholder:text-slate-500 text-xs font-mono font-bold"
                     />
                 </div>
+                {showSteppers && (
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleStepDays(1);
+                        }}
+                        className="shrink-0 h-full w-8 text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/20 transition-colors flex items-center justify-center cursor-pointer border-l border-white/[0.08]"
+                        title="Sonraki Gün"
+                    >
+                        <ChevronRight size={15} />
+                    </button>
+                )}
                 <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); toggleOpen(); }}
-                    className="shrink-0 h-full px-2.5 hover:bg-amber-500/15 text-slate-400 hover:text-amber-400 transition-colors border-l border-white/[0.06] flex items-center justify-center cursor-pointer"
+                    className="shrink-0 h-full w-8.5 hover:bg-amber-500/15 text-slate-400 hover:text-amber-400 transition-colors border-l border-white/[0.08] flex items-center justify-center cursor-pointer"
                 >
                     <Calendar size={14} />
                 </button>

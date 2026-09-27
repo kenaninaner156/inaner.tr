@@ -10,8 +10,18 @@ export const TruckContext = createContext();
 export const TruckProvider = ({ children }) => {
     const { activeCompanyId } = useContext(CompanyContext);
 
-    // Default to the migrated main truck
-    const [activeTruckId, setActiveTruckId] = useState('truck_06ftn692');
+    // Aktif çekici kimliğini localStorage ile senkronize et
+    const [activeTruckId, setActiveTruckIdState] = useState(() => {
+        return localStorage.getItem('tir_active_truck_id') || 'truck_06ftn692';
+    });
+
+    const setActiveTruckId = (id) => {
+        setActiveTruckIdState(id);
+        if (id) {
+            localStorage.setItem('tir_active_truck_id', id);
+        }
+    };
+
     const [trucks, setTrucks] = useState([]);
 
     // Fetch all trucks for the active company
@@ -23,9 +33,14 @@ export const TruckProvider = ({ children }) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
             setTrucks(data);
 
-            // If the active truck isn't in this company, reset it to the first found truck
-            if (data.length > 0 && !data.find(t => t.id === activeTruckId)) {
-                setActiveTruckId(data[0].id);
+            const savedId = localStorage.getItem('tir_active_truck_id');
+            // Eğer kayıtlı tır bu şirkette mevcutsa koru, değilse listenin ilk tırına geç
+            if (data.length > 0) {
+                if (savedId && data.some(t => t.id === savedId)) {
+                    setActiveTruckIdState(savedId);
+                } else if (!data.some(t => t.id === activeTruckId)) {
+                    setActiveTruckId(data[0].id);
+                }
             } else if (data.length === 0) {
                 setActiveTruckId('');
             }

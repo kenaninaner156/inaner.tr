@@ -352,32 +352,48 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
 
     // 3. Kart: Seçili Ayın Ortalama Yakıt Tüketimi (L/100km)
     const monthAvgConsumption = useMemo(() => {
-        const chronological = [...effectiveFuel].sort((a, b) => new Date(a.date) - new Date(b.date));
-        let lastOdo = null;
-        let accLiters = 0;
+        // Araç bazında gruplayarak hesapla (Filo genelinde farklı araçların km sayaçlarının birbirine karışmasını engeller)
+        const byTruck = {};
+        effectiveFuel.forEach(r => {
+            if (r.deleted) return;
+            const truckKey = r.truckId || r.truckPlate || 'default_truck';
+            if (!byTruck[truckKey]) byTruck[truckKey] = [];
+            byTruck[truckKey].push(r);
+        });
+
         let monthTotalDist = 0;
         let monthTotalLiters = 0;
 
-        chronological.forEach(r => {
-            const isTargetMonth = r.date && inMonth(r.date);
+        Object.values(byTruck).forEach(truckRecords => {
+            const chronological = [...truckRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
+            let lastOdo = null;
+            let accLiters = 0;
 
-            if (r.odometer && r.odometer > 0 && !r.isPartial) {
-                if (lastOdo && r.odometer > lastOdo) {
-                    const dist = r.odometer - lastOdo;
-                    const ltrs = accLiters + (Number(r.liters) || 0);
-                    
-                    if (isTargetMonth) {
-                        monthTotalDist += dist;
-                        monthTotalLiters += ltrs;
+            chronological.forEach(r => {
+                const recOdo = r.odometer ? parseFloat(String(r.odometer).replace(/\./g, '')) : null;
+                const recLiters = Number(r.liters) || 0;
+                const isTargetMonth = r.date && inMonth(r.date);
+
+                if (recOdo && recOdo > 0 && !r.isPartial) {
+                    if (lastOdo && recOdo > lastOdo) {
+                        const dist = recOdo - lastOdo;
+                        // Makul mesafe kontrolü (iki dolum arası sayaç sıfırlama veya hatalı girişleri filtreler)
+                        if (dist > 0 && dist < 15000) {
+                            const ltrs = accLiters + recLiters;
+                            if (isTargetMonth) {
+                                monthTotalDist += dist;
+                                monthTotalLiters += ltrs;
+                            }
+                        }
+                    }
+                    lastOdo = recOdo;
+                    accLiters = 0;
+                } else {
+                    if (lastOdo) {
+                        accLiters += recLiters;
                     }
                 }
-                lastOdo = r.odometer;
-                accLiters = 0;
-            } else {
-                if (lastOdo) {
-                    accLiters += (Number(r.liters) || 0);
-                }
-            }
+            });
         });
 
         return monthTotalDist > 0 ? (monthTotalLiters / monthTotalDist) * 100 : null;

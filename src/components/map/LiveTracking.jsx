@@ -212,7 +212,7 @@ function MapController({
   return null;
 }
 
-function VehicleMarker({ driverId, lastPoint, isOnline, isFollowed, speedKmh, name, isMapped, setFollowedDriverId, setIsCameraFollowActive }) {
+function VehicleMarker({ driverId, lastPoint, isOnline, isFollowed, speedKmh, name, isMapped, parkDurationText, setFollowedDriverId, setIsCameraFollowActive }) {
   const map = useMap();
   const markerRef = useRef(null);
 
@@ -233,16 +233,32 @@ function VehicleMarker({ driverId, lastPoint, isOnline, isFollowed, speedKmh, na
       eventHandlers={{ click: handleClick }}
     >
       <Popup className="vehicle-popup" autoPan={false}>
-        <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <div style={{ fontWeight: 700, color: '#f1f3f5', fontSize: 11, lineHeight: 1.2 }}>{name}</div>
-          <div style={{ fontSize: 9, color: isOnline ? '#10b981' : '#64748b', fontWeight: 600 }}>
-            {isOnline ? (speedKmh > 7 ? `Yolda (${speedKmh} km/h)` : 'Park Halinde') : 'Çevrimdışı'}
+          <div style={{ fontSize: 9, color: isOnline ? (speedKmh > 7 ? '#10b981' : '#cbd5e1') : '#64748b', fontWeight: 600, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <span>{isOnline ? (speedKmh > 7 ? `Yolda (${speedKmh} km/h)` : 'Park Halinde') : 'Çevrimdışı'}</span>
+            {isOnline && speedKmh <= 7 && parkDurationText && (
+              <span style={{ fontSize: 8.5, color: '#94a3b8', fontWeight: 500, letterSpacing: '0.01em' }}>
+                {parkDurationText}
+              </span>
+            )}
           </div>
         </div>
       </Popup>
     </Marker>
   );
 }
+
+// ── Yardımcı Park Süresi Formatlayıcı ────────────────────────────────────
+const formatParkDuration = (minutes) => {
+  if (minutes === null || minutes === undefined || isNaN(minutes) || minutes < 0) return '';
+  if (minutes < 1) return "1 dk'dan az";
+  if (minutes < 60) return `${minutes} dk'dır`;
+  const hrs = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (mins === 0) return `${hrs} saattir`;
+  return `${hrs} sa ${mins} dk'dır`;
+};
 
 // ── Yardımcı Süre Formatlayıcı (Kompakt & İnsan Okumasına Uygun) ──────────
 const formatDuration = (minutes) => {
@@ -260,7 +276,7 @@ function SidebarItem({
   setIsCameraFollowActive
 }) {
   const map = useMap();
-  const { driverId, driverName, plate, name, isOnline, speedKmh, km, lastPoint, topSpeedKmh, avgSpeedKmh } = vehicle;
+  const { driverId, driverName, plate, name, isOnline, speedKmh, km, lastPoint, topSpeedKmh, avgSpeedKmh, parkDurationText } = vehicle;
 
   const borderClass = isFollowed 
     ? 'border-white/20 shadow-[0_4px_24px_rgba(0,0,0,0.6)]' 
@@ -276,10 +292,12 @@ function SidebarItem({
     setIsCameraFollowActive(true);
   };
 
-  // Sadece plaka veya çevrimdışı
+  // Sadece plaka veya çevrimdışı / park durumu
   const subtitleText = !isOnline 
     ? (plate ? `${plate} • Çevrimdışı` : 'Çevrimdışı') 
-    : (plate || '');
+    : (speedKmh <= 7 && parkDurationText
+        ? (plate ? `${plate} • Park (${parkDurationText})` : `Park (${parkDurationText})`)
+        : (plate || ''));
 
   return (
     <div className={`w-full rounded-2xl border transition-all duration-200 overflow-hidden ${borderClass} ${bgClass}`}>
@@ -324,7 +342,14 @@ function SidebarItem({
                   {!isOnline ? (
                     <span className="text-slate-500 font-sans text-xs">Çevrimdışı</span>
                   ) : speedKmh <= 7 ? (
-                    <span className="text-slate-300 font-sans text-xs font-semibold">Park</span>
+                    <div className="flex flex-col items-center">
+                      <span className="text-slate-300 font-sans text-xs font-semibold leading-tight">Park</span>
+                      {parkDurationText && (
+                        <span className="text-[9px] font-sans font-normal text-slate-400 mt-0.5 leading-none">
+                          {parkDurationText}
+                        </span>
+                      )}
+                    </div>
                   ) : (
                     <>
                       {speedKmh} <span className="text-[9px] font-sans font-normal text-slate-400">km/h</span>
@@ -421,7 +446,7 @@ function MobileFollowedCard({
   onSelectVehicle
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { driverName, plate, name, isOnline, speedKmh, km, topSpeedKmh, avgSpeedKmh } = vehicle;
+  const { driverName, plate, name, isOnline, speedKmh, km, topSpeedKmh, avgSpeedKmh, parkDurationText } = vehicle;
 
   const cardRef = useCallback(node => {
     if (node) {
@@ -432,7 +457,9 @@ function MobileFollowedCard({
 
   const subtitleText = !isOnline 
     ? (plate ? `${plate} • Çevrimdışı` : 'Çevrimdışı') 
-    : (plate || '');
+    : (speedKmh <= 7 && parkDurationText
+        ? (plate ? `${plate} • Park (${parkDurationText})` : `Park (${parkDurationText})`)
+        : (plate || ''));
 
   return (
     <div
@@ -525,7 +552,14 @@ function MobileFollowedCard({
             {!isOnline ? (
               <span className="text-slate-500 font-sans text-[10px]">Çevrimdışı</span>
             ) : speedKmh <= 7 ? (
-              <span className="text-slate-300 font-sans text-[11px] font-semibold">Park</span>
+              <div className="flex flex-col items-center">
+                <span className="text-slate-300 font-sans text-[11px] font-semibold leading-tight">Park</span>
+                {parkDurationText && (
+                  <span className="text-[8px] font-sans font-normal text-slate-400 mt-0.5 leading-none">
+                    {parkDurationText}
+                  </span>
+                )}
+              </div>
             ) : (
               <>
                 {speedKmh} <span className="text-[8px] font-sans font-normal text-slate-400">km/h</span>
@@ -561,6 +595,13 @@ export default function LiveTracking({
   const [showSidebar, setShowSidebar]           = useState(true);
   const [zoom, setZoom] = useState(13);
   const didInitRef = useRef(false);
+
+  // Canlı park süresi sayacı için periyodik güncelleme (30 saniyede bir)
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   const sidebarCallbackRef = useCallback(node => {
     if (node) {
@@ -599,12 +640,36 @@ export default function LiveTracking({
       const lastPoint = latestSession[latestSession.length - 1];
       if (!lastPoint || isNaN(lastPoint.lat)) return null;
       
-      const isOnline  = (Date.now() - new Date(lastPoint.timestamp).getTime()) < 15 * 60 * 1000;
+      const isOnline  = (now - new Date(lastPoint.timestamp).getTime()) < 15 * 60 * 1000;
       const speedKmh  = isOnline ? Math.round((lastPoint.speed || 0) * 1.852) : 0;
       const { km, durationMin, topSpeedKmh, avgSpeedKmh } = calcStats(latestSession);
       const isMapped  = !!deviceMappings[driverId];
       const info = getVehicleInfo(driverId);
       
+      const isParked = isOnline && speedKmh <= 7;
+      let parkDurationMin = 0;
+      let parkDurationText = '';
+
+      if (isParked) {
+        const allPoints = sessions.flat();
+        let parkStartTime = new Date(lastPoint.timestamp).getTime();
+
+        for (let i = allPoints.length - 1; i >= 0; i--) {
+          const pt = allPoints[i];
+          const ptSpeedKmh = Math.round((pt.speed || 0) * 1.852);
+          if (ptSpeedKmh > 7) {
+            const stopPt = allPoints[i + 1] || pt;
+            parkStartTime = new Date(stopPt.timestamp).getTime();
+            break;
+          }
+          parkStartTime = new Date(pt.timestamp).getTime();
+        }
+
+        const diffMs = Math.max(0, now - parkStartTime);
+        parkDurationMin = Math.floor(diffMs / 60000);
+        parkDurationText = formatParkDuration(parkDurationMin);
+      }
+
       return { 
         driverId, 
         latestSession, 
@@ -618,7 +683,9 @@ export default function LiveTracking({
         driverName: info.driverName,
         plate: info.plate,
         name: info.plate ? `${info.driverName} - ${info.plate}` : info.driverName,
-        isMapped
+        isMapped,
+        parkDurationMin,
+        parkDurationText
       };
     })
     .filter(Boolean)
@@ -691,6 +758,7 @@ export default function LiveTracking({
               speedKmh={v.speedKmh} 
               name={v.name} 
               isMapped={v.isMapped}
+              parkDurationText={v.parkDurationText}
               setFollowedDriverId={setFollowedDriverId} 
               setIsCameraFollowActive={setIsCameraFollowActive}
             />

@@ -122,6 +122,46 @@ function App() {
 
   const [showTruckExpand, setShowTruckExpand] = useState(false);
 
+  // ─── GİZLİ KISAYOL: AKTİF MENÜ İKONUNA ÇİFT TIKLAYARAK ARAÇ DEĞİŞTİRME ───
+  const TRUCK_SCOPED_TABS = ['trips', 'fuel', 'maintenance', 'detaylar'];
+  const [activeSwitchTab, setActiveSwitchTab] = useState(null);
+  const [activeSwitchPlate, setActiveSwitchPlate] = useState(null);
+  const switchTimerRef = useRef(null);
+  const lastTapTimeRef = useRef(0);
+  const lastTapTabRef = useRef(null);
+  const lastSwitchTimeRef = useRef(0);
+
+  const handleQuickTruckSwitch = (tabId) => {
+    const now = Date.now();
+    // En az 450ms içinde çift tetiklemeyi kesinlikle engelle
+    if (now - lastSwitchTimeRef.current < 450) {
+      return;
+    }
+    lastSwitchTimeRef.current = now;
+
+    if (!TRUCK_SCOPED_TABS.includes(tabId)) return;
+    if (userRole === 'şoför') return;
+    if (!trucks || trucks.length <= 1) return;
+
+    // Aktif tırı bul ve bir sonrakine geç
+    const currentIndex = trucks.findIndex(t => t.id === activeTruckId);
+    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % trucks.length;
+    const nextTruck = trucks[nextIndex];
+    if (!nextTruck) return;
+
+    setActiveTruckId(nextTruck.id);
+
+    // Tıklanan butonun içine doğrudan geçilen yeni aracın plakasını yerleştir
+    setActiveSwitchTab(tabId);
+    setActiveSwitchPlate(nextTruck.plate || 'Bilinmeyen Plaka');
+
+    if (switchTimerRef.current) clearTimeout(switchTimerRef.current);
+    switchTimerRef.current = setTimeout(() => {
+      setActiveSwitchTab(null);
+      setActiveSwitchPlate(null);
+    }, 1800);
+  };
+
   const DEFAULT_PIC = '/tir-clear.png?v=8'
   const profilePic = activeTruckData?.imageUrl || DEFAULT_PIC;
 
@@ -402,19 +442,19 @@ function App() {
   const notifCount = unreadDocsCount + unreadPenaltiesCount;
 
   const menuItems = [
-    { id: 'dashboard', label: 'Özet', icon: <PieChart size={20} />, theme: 'bg-gradient-to-r from-violet-600 to-purple-500 border-violet-400/40 shadow-[0_0_20px_rgba(139,92,246,0.35)] text-white', hoverText: 'group-hover:text-violet-400' },
-    { id: 'trips', label: 'Seferler', icon: <MapPin size={20} />, theme: 'bg-gradient-to-r from-sky-600 to-blue-500 border-sky-400/40 shadow-[0_0_20px_rgba(14,165,233,0.35)] text-white', hoverText: 'group-hover:text-sky-400' },
-    { id: 'fuel', label: 'Mazot Fişleri', icon: <Droplet size={20} />, theme: 'bg-gradient-to-r from-cyan-600 to-teal-500 border-cyan-400/40 shadow-[0_0_20px_rgba(6,182,212,0.35)] text-white', hoverText: 'group-hover:text-cyan-400' },
-    { id: 'maintenance', label: 'Araç Bakım', icon: <Wrench size={20} />, theme: 'bg-gradient-to-r from-amber-600 to-orange-500 border-amber-400/40 shadow-[0_0_20px_rgba(245,158,11,0.35)] text-white', hoverText: 'group-hover:text-amber-400' },
-    { id: 'detaylar', label: 'Ceza & Belgeler', icon: <AlertTriangle size={20} />, badge: notifCount, theme: 'bg-gradient-to-r from-red-600 to-rose-500 border-red-400/40 shadow-[0_0_20px_rgba(239,68,68,0.35)] text-white', hoverText: 'group-hover:text-red-400' },
-    { id: 'invoices', label: 'Fatura Durumu', icon: <FileText size={20} />, theme: 'bg-gradient-to-r from-indigo-600 to-sky-400 border-indigo-400/40 shadow-[0_0_20px_rgba(99,102,241,0.35)] text-white', hoverText: 'group-hover:text-sky-400' },
-    { id: 'earsiv', label: 'E-Arşiv Fatura', icon: <Receipt size={20} />, theme: 'bg-gradient-to-r from-orange-600 to-amber-500 border-orange-400/40 shadow-[0_0_20px_rgba(249,115,22,0.35)] text-white', hoverText: 'group-hover:text-orange-400' },
-    { id: 'payments', label: 'Vergi & SGK', icon: <Scale size={20} />, theme: 'bg-gradient-to-r from-amber-600 to-yellow-500 border-amber-400/40 shadow-[0_0_20px_rgba(245,158,11,0.35)] text-white', hoverText: 'group-hover:text-amber-400' },
-    { id: 'company_debts', label: 'Borç & Kredi', icon: <Landmark size={20} />, theme: 'bg-gradient-to-r from-amber-600 to-yellow-500 border-amber-400/40 shadow-[0_0_20px_rgba(245,158,11,0.35)] text-white', hoverText: 'group-hover:text-amber-400' },
-    { id: 'personel', label: 'Personel', icon: <Users size={20} />, theme: 'bg-gradient-to-r from-orange-600 to-amber-500 border-orange-400/40 shadow-[0_0_20px_rgba(249,115,22,0.35)] text-white', hoverText: 'group-hover:text-orange-400' },
-    { id: 'map', label: 'Harita', icon: <MapPin size={20} />, theme: 'bg-gradient-to-r from-blue-600 to-indigo-500 border-blue-400/40 shadow-[0_0_20px_rgba(37,99,235,0.35)] text-white', hoverText: 'group-hover:text-blue-400' },
-    { id: 'company_admin', label: 'Şirket Yönetimi', icon: <Building2 size={20} />, theme: 'bg-gradient-to-r from-indigo-600 to-violet-500 border-indigo-400/40 shadow-[0_0_20px_rgba(99,102,241,0.35)] text-white', hoverText: 'group-hover:text-indigo-400' },
-    { id: 'super_admin', label: 'SaaS Yönetimi', icon: <Server size={20} />, theme: 'bg-gradient-to-r from-fuchsia-600 to-pink-500 border-fuchsia-400/40 shadow-[0_0_20px_rgba(217,70,239,0.35)] text-white', hoverText: 'group-hover:text-fuchsia-400' },
+    { id: 'dashboard', label: 'Özet', icon: <PieChart size={20} />, theme: 'bg-gradient-to-r from-violet-600 to-purple-600 border-violet-400/30 text-white shadow-sm', hoverText: 'group-hover:text-violet-400' },
+    { id: 'trips', label: 'Seferler', icon: <MapPin size={20} />, theme: 'bg-gradient-to-r from-sky-600 to-blue-600 border-sky-400/30 text-white shadow-sm', hoverText: 'group-hover:text-sky-400' },
+    { id: 'fuel', label: 'Mazot Fişleri', icon: <Droplet size={20} />, theme: 'bg-gradient-to-r from-cyan-600 to-teal-600 border-cyan-400/30 text-white shadow-sm', hoverText: 'group-hover:text-cyan-400' },
+    { id: 'maintenance', label: 'Araç Bakım', icon: <Wrench size={20} />, theme: 'bg-gradient-to-r from-amber-600 to-orange-600 border-amber-400/30 text-white shadow-sm', hoverText: 'group-hover:text-amber-400' },
+    { id: 'detaylar', label: 'Ceza & Belgeler', icon: <AlertTriangle size={20} />, badge: notifCount, theme: 'bg-gradient-to-r from-red-600 to-rose-600 border-red-400/30 text-white shadow-sm', hoverText: 'group-hover:text-red-400' },
+    { id: 'invoices', label: 'Fatura Durumu', icon: <FileText size={20} />, theme: 'bg-gradient-to-r from-indigo-600 to-sky-500 border-indigo-400/30 text-white shadow-sm', hoverText: 'group-hover:text-sky-400' },
+    { id: 'earsiv', label: 'E-Arşiv Fatura', icon: <Receipt size={20} />, theme: 'bg-gradient-to-r from-orange-600 to-amber-600 border-orange-400/30 text-white shadow-sm', hoverText: 'group-hover:text-orange-400' },
+    { id: 'payments', label: 'Vergi & SGK', icon: <Scale size={20} />, theme: 'bg-gradient-to-r from-amber-600 to-yellow-600 border-amber-400/30 text-white shadow-sm', hoverText: 'group-hover:text-amber-400' },
+    { id: 'company_debts', label: 'Borç & Kredi', icon: <Landmark size={20} />, theme: 'bg-gradient-to-r from-amber-600 to-yellow-600 border-amber-400/30 text-white shadow-sm', hoverText: 'group-hover:text-amber-400' },
+    { id: 'personel', label: 'Personel', icon: <Users size={20} />, theme: 'bg-gradient-to-r from-orange-600 to-amber-600 border-orange-400/30 text-white shadow-sm', hoverText: 'group-hover:text-orange-400' },
+    { id: 'map', label: 'Harita', icon: <MapPin size={20} />, theme: 'bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-400/30 text-white shadow-sm', hoverText: 'group-hover:text-blue-400' },
+    { id: 'company_admin', label: 'Şirket Yönetimi', icon: <Building2 size={20} />, theme: 'bg-gradient-to-r from-indigo-600 to-violet-600 border-indigo-400/30 text-white shadow-sm', hoverText: 'group-hover:text-indigo-400' },
+    { id: 'super_admin', label: 'SaaS Yönetimi', icon: <Server size={20} />, theme: 'bg-gradient-to-r from-fuchsia-600 to-pink-600 border-fuchsia-400/30 text-white shadow-sm', hoverText: 'group-hover:text-fuchsia-400' },
   ]
 
 
@@ -619,9 +659,37 @@ function App() {
             }
 
             // ── Normal nav itemları ──
+            const isTruckScoped = TRUCK_SCOPED_TABS.includes(item.id);
+
+            const handleItemClick = () => {
+              if (isActive && isTruckScoped) {
+                const now = Date.now();
+                if (lastTapTabRef.current === item.id && (now - lastTapTimeRef.current) < 380) {
+                  handleQuickTruckSwitch(item.id);
+                  lastTapTimeRef.current = 0;
+                  lastTapTabRef.current = null;
+                  return;
+                }
+                lastTapTimeRef.current = now;
+                lastTapTabRef.current = item.id;
+              } else {
+                setActiveTab(item.id);
+                if (isMobile) setIsMenuOpen(false);
+              }
+            };
+
             return (
-              <button key={item.id} onClick={() => { setActiveTab(item.id); if (isMobile) setIsMenuOpen(false); }}
-                className={`w-full relative flex items-center space-x-3 px-4 py-2.5 rounded-xl group transition-all duration-300 outline-none ${isActive ? 'font-medium text-white' : 'text-slate-400 hover:text-slate-200'}`}>
+              <button 
+                key={item.id} 
+                onClick={handleItemClick}
+                onDoubleClick={(e) => {
+                  if (isActive && isTruckScoped) {
+                    e.preventDefault();
+                    handleQuickTruckSwitch(item.id);
+                  }
+                }}
+                className={`w-full relative flex items-center space-x-3 px-4 py-2.5 rounded-xl group transition-all duration-300 outline-none select-none ${isActive ? 'font-medium text-white' : 'text-slate-400 hover:text-slate-200'}`}
+              >
                 {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 rounded-xl transition-colors duration-300 -z-10" />}
                 {isActive && (
                   <motion.div layoutId="sidebar-active-apple"
@@ -630,12 +698,50 @@ function App() {
                     transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}
                   />
                 )}
-                <div className={`relative z-10 flex items-center transition-transform duration-300 ${isActive ? 'scale-110 drop-shadow-md text-white/90' : `text-slate-500 group-hover:scale-110 ${item.hoverText}`}`}>
+                <div 
+                  onDoubleClick={(e) => {
+                    if (isActive && isTruckScoped) {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      handleQuickTruckSwitch(item.id);
+                    }
+                  }}
+                  className={`relative z-10 flex items-center transition-colors duration-200 ${isActive ? 'text-white' : `text-slate-500 group-hover:text-slate-300 ${item.hoverText}`}`}
+                  title={isActive && isTruckScoped && userRole !== 'şoför' && trucks.length > 1 ? 'Çift tıklayarak aracı değiştirin' : undefined}
+                >
                   {item.icon}
                 </div>
-                <span className="flex-1 text-left text-sm tracking-wide relative z-10 drop-shadow-md">{item.label}</span>
+
+                {/* Buton içi odaklı plaka bildirimi (Sıfır bekleme, eşzamanlı akışkan slot kayması) */}
+                <div className="flex-1 text-left relative overflow-hidden h-5 flex items-center z-10">
+                  <AnimatePresence initial={false}>
+                    {activeSwitchTab === item.id && activeSwitchPlate ? (
+                      <motion.span
+                        key="switch-plate"
+                        initial={{ y: 16, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: -16, opacity: 0 }}
+                        transition={{ type: 'spring', stiffness: 650, damping: 32, mass: 0.5 }}
+                        className="absolute inset-x-0 flex items-center font-mono font-bold tracking-widest text-xs sm:text-sm text-white select-none whitespace-nowrap"
+                      >
+                        {activeSwitchPlate}
+                      </motion.span>
+                    ) : (
+                      <motion.span
+                        key="normal-label"
+                        initial={{ y: -16, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: 16, opacity: 0 }}
+                        transition={{ type: 'spring', stiffness: 650, damping: 32, mass: 0.5 }}
+                        className="absolute inset-x-0 flex items-center text-sm font-medium tracking-wide text-white select-none truncate"
+                      >
+                        {item.label}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </div>
                 {item.badge > 0 && (
-                  <span className="relative z-10 bg-red-500/20 border border-red-500/30 text-red-100 drop-shadow-md text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center justify-center flex-shrink-0">{item.badge}</span>
+                  <span className="relative z-10 bg-red-500/20 border border-red-500/30 text-red-100 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center justify-center flex-shrink-0">{item.badge}</span>
                 )}
                 {item.badge_beta && (
                   <span className="relative z-10 bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 tracking-wide">BETA</span>
@@ -742,6 +848,8 @@ function App() {
           }
         }}
       />
+
+
 
     </div>
   )

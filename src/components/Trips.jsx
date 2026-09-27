@@ -1,6 +1,6 @@
 import React, { useState, useContext, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Search, MapPin, X, ChevronDown, Check, Trash2, Paperclip, FileText, Pencil, StickyNote, Truck, Menu, Calendar, Scale, Activity, Wallet, ArrowRight } from 'lucide-react';
+import { Plus, Search, MapPin, X, ChevronDown, Check, Trash2, Paperclip, FileText, Pencil, StickyNote, Truck, Menu, Calendar, Scale, Activity, Wallet, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import FileUpload from './FileUpload';
 import CustomSelect from './CustomSelect';
@@ -79,6 +79,14 @@ const Trips = ({ onOpenMenu, isMobile }) => {
     // Başarılı Rota Kaydetme State'leri
     const [saveRouteSuccess, setSaveRouteSuccess] = useState(false);
     const [editSaveRouteSuccess, setEditSaveRouteSuccess] = useState(false);
+    const [saveSuccess, setSaveSuccess] = useState(false);
+    const successTimeoutRef = useRef(null);
+
+    useEffect(() => {
+        return () => {
+            if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+        };
+    }, []);
 
     // Ortak Rota Seçici Modal State'leri
     const [isRouteSelectorOpen, setIsRouteSelectorOpen] = useState(false);
@@ -101,6 +109,85 @@ const Trips = ({ onOpenMenu, isMobile }) => {
         premiumAmount: 0
     });
 
+    // Aktif aracın son seferindeki şoför (Araca göre şoför hafızası)
+    const latestTruckDriver = useMemo(() => {
+        const sorted = (trips || []).filter(t => !t.deleted && t.driverName?.trim()).sort((a, b) => new Date(b.date) - new Date(a.date));
+        return sorted[0]?.driverName || '';
+    }, [trips]);
+
+    // Araç değiştiğinde veya boşken aktif aracın son şoförünü hazırla
+    useEffect(() => {
+        if (latestTruckDriver) {
+            setFormData(prev => ({
+                ...prev,
+                driverName: prev.driverName || latestTruckDriver
+            }));
+        }
+    }, [activeTruckId, latestTruckDriver]);
+
+    // Akıllı Sıralama: En çok kullanılan rotaları belirle (Aktif aracın ve şirketin sefer sıklığı)
+    const sortedRoutes = React.useMemo(() => {
+        if (!routes || routes.length === 0) return [];
+
+        const frequencyMap = {};
+        const activeTruckTrips = (trips || []).filter(t => !t.deleted);
+        const otherTrips = (allCompanyTrips || []).filter(t => !t.deleted && t.truckId !== activeTruckId);
+
+        // Aktif aracın yaptığı seferlere daha yüksek ağırlık ver
+        activeTruckTrips.forEach(trip => {
+            const key = `${(trip.from || '').trim().toLocaleLowerCase('tr')}-${(trip.to || '').trim().toLocaleLowerCase('tr')}`;
+            frequencyMap[key] = (frequencyMap[key] || 0) + 10;
+        });
+        otherTrips.forEach(trip => {
+            const key = `${(trip.from || '').trim().toLocaleLowerCase('tr')}-${(trip.to || '').trim().toLocaleLowerCase('tr')}`;
+            frequencyMap[key] = (frequencyMap[key] || 0) + 1;
+        });
+
+        return [...routes].sort((a, b) => {
+            const keyA = `${(a.from || '').trim().toLocaleLowerCase('tr')}-${(a.to || '').trim().toLocaleLowerCase('tr')}`;
+            const keyB = `${(b.from || '').trim().toLocaleLowerCase('tr')}-${(b.to || '').trim().toLocaleLowerCase('tr')}`;
+            const freqA = frequencyMap[keyA] || 0;
+            const freqB = frequencyMap[keyB] || 0;
+
+            if (freqB !== freqA) return freqB - freqA;
+            return (a.from || '').localeCompare(b.from || '', 'tr');
+        });
+    }, [routes, allCompanyTrips, trips, activeTruckId]);
+
+    // En çok kullanılan / listenin en üstündeki rota (Kayıtlı rotaların en üstündeki)
+    const defaultRoute = useMemo(() => {
+        return (sortedRoutes && sortedRoutes.length > 0) ? sortedRoutes[0] : (routes && routes.length > 0 ? routes[0] : null);
+    }, [sortedRoutes, routes]);
+
+    // Rotalar ilk yüklendiğinde ve rota henüz seçilmediğinde en çok kullanılan rotayı seç
+    useEffect(() => {
+        if (useSavedRoute && !selectedRouteId && defaultRoute) {
+            setSelectedRouteId(String(defaultRoute.id));
+        }
+    }, [defaultRoute, useSavedRoute, selectedRouteId]);
+
+    // Yeni Sefer Modalını açarken en çok kullanılan rotayı ve aktif araç şoförünü hazırla
+    const openAddModal = () => {
+        const currentDriver = formData.driverName || latestTruckDriver || '';
+
+        setFormData(prev => ({
+            date: prev.date || new Date().toISOString().split('T')[0],
+            from: defaultRoute ? defaultRoute.from : (prev.from || ''),
+            to: defaultRoute ? defaultRoute.to : (prev.to || ''),
+            km: defaultRoute ? (defaultRoute.km || '') : (prev.km || ''),
+            tonnage: '',
+            notes: '',
+            files: [],
+            driverName: currentDriver,
+            premiumId: prev.premiumId || '',
+            premiumAmount: prev.premiumAmount || 0
+        }));
+        setUseSavedRoute(Boolean(defaultRoute));
+        setSelectedRouteId(defaultRoute ? String(defaultRoute.id) : '');
+        setSaveSuccess(false);
+        setIsModalOpen(true);
+    };
+
     // Ortak Şirket Sefer Hafızası (Önce aktif aracın kendi kayıtları, yoksa şirketin diğer araç geçmişi)
     const companySortedTrips = useMemo(() => {
         const activeList = (trips || []).filter(t => !t.deleted);
@@ -122,24 +209,19 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                     const newFrom = route.from;
                     const newTo = route.to;
                     const newKm = route.km || (matchedTrip?.km ? String(matchedTrip.km) : '');
-                    let newDriver = prev.driverName;
+                    // Şoför araca özel hafızadadır; rota değişiminde ezilmez, kullanıcı veya araç şoförü korunur
+                    const preservedDriver = prev.driverName || latestTruckDriver || '';
                     let newPremId = prev.premiumId;
                     let newPremAmt = prev.premiumAmount;
                     
-                    if (matchedTrip && companyData?.personnelEnabled) {
-                        newDriver = matchedTrip.driverName || prev.driverName;
-                        newPremId = matchedTrip.premiumId || '';
-                        newPremAmt = matchedTrip.premiumAmount || 0;
-                    }
-                    
-                    if (prev.from !== newFrom || prev.to !== newTo || prev.km !== newKm || prev.driverName !== newDriver || prev.premiumId !== newPremId || prev.premiumAmount !== newPremAmt) {
-                        return { ...prev, from: newFrom, to: newTo, km: newKm, driverName: newDriver, premiumId: newPremId, premiumAmount: newPremAmt };
+                    if (prev.from !== newFrom || prev.to !== newTo || prev.km !== newKm || prev.driverName !== preservedDriver || prev.premiumId !== newPremId || prev.premiumAmount !== newPremAmt) {
+                        return { ...prev, from: newFrom, to: newTo, km: newKm, driverName: preservedDriver, premiumId: newPremId, premiumAmount: newPremAmt };
                     }
                     return prev;
                 });
             }
         }
-    }, [selectedRouteId, useSavedRoute, routes, companySortedTrips, companyData?.personnelEnabled]);
+    }, [selectedRouteId, useSavedRoute, routes, companySortedTrips, latestTruckDriver]);
 
     // Kayıtlı rota seçildiğinde formu doldur (Düzenle)
     useEffect(() => {
@@ -255,32 +337,6 @@ const Trips = ({ onOpenMenu, isMobile }) => {
         };
     }, [isRouteSelectorOpen, isModalOpen, editingTrip, isRouteManagerOpen, viewFiles]);
 
-    // Akıllı Sıralama: En çok kullanılan rotaları belirle (Tüm şirket seferleri baz alınır)
-    const sortedRoutes = React.useMemo(() => {
-        if (!routes) return [];
-
-        // Her rotanın kullanım sayısını hesapla
-        const frequencyMap = {};
-        const tripSource = (allCompanyTrips && allCompanyTrips.length > 0) ? allCompanyTrips : (trips || []);
-        tripSource.forEach(trip => {
-            if (trip.deleted) return;
-            const key = `${(trip.from || '').trim().toLowerCase()}-${(trip.to || '').trim().toLowerCase()}`;
-            frequencyMap[key] = (frequencyMap[key] || 0) + 1;
-        });
-
-        // Rotaları frekansa göre sırala
-        return [...routes].sort((a, b) => {
-            const freqA = frequencyMap[`${(a.from || '').trim().toLowerCase()}-${(a.to || '').trim().toLowerCase()}`] || 0;
-            const freqB = frequencyMap[`${(b.from || '').trim().toLowerCase()}-${(b.to || '').trim().toLowerCase()}`] || 0;
-            
-            // Önce kullanım sayısına göre (büyükten küçüğe)
-            if (freqB !== freqA) return freqB - freqA;
-            
-            // Kullanım sayıları eşitse, isme göre (A-Z)
-            return (a.from || '').localeCompare(b.from || '', 'tr');
-        });
-    }, [routes, allCompanyTrips, trips]);
-
     // Şirket hafızasındaki tüm kayıtlı rotalardan ve geçmiş seferlerden benzersiz konumlar (Nereden / Nereye)
     const locationSuggestions = useMemo(() => {
         const set = new Set();
@@ -385,8 +441,28 @@ const Trips = ({ onOpenMenu, isMobile }) => {
             } : {})
         });
 
-        setIsModalOpen(false);
-        resetForm();
+        // Modal kapatılmaz, seri sefer girişine kesintisiz devam edilir
+        setSaveSuccess(true);
+        if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+        successTimeoutRef.current = setTimeout(() => {
+            setSaveSuccess(false);
+        }, 1800);
+
+        // Tarih, şoför ve prim korunur; güzergah en çok kullanılan rotaya (defaultRoute) sıfırlanır
+        setUseSavedRoute(Boolean(defaultRoute));
+        setSelectedRouteId(defaultRoute ? String(defaultRoute.id) : '');
+        setSaveNewRoute(false);
+
+        setFormData(prev => ({
+            ...prev,
+            from: defaultRoute ? defaultRoute.from : '',
+            to: defaultRoute ? defaultRoute.to : '',
+            km: defaultRoute ? (defaultRoute.km || '') : '',
+            tonnage: '',
+            notes: '',
+            files: []
+            // date, driverName, premiumId, premiumAmount korunur
+        }));
     };
 
     const handleSaveRouteOnly = async () => {
@@ -641,8 +717,8 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                     </div>
 
                     <button 
-                        onClick={() => setIsModalOpen(true)}
-                        className="bg-gradient-to-r from-sky-600 to-blue-500 hover:from-sky-500 hover:to-blue-400 border border-sky-400/40 text-white px-3.5 h-[36px] sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-[0_0_20px_rgba(14,165,233,0.35)] hover:shadow-[0_0_25px_rgba(14,165,233,0.5)] hover:-translate-y-0.5 flex items-center justify-center shrink-0 cursor-pointer"
+                        onClick={openAddModal}
+                        className="bg-gradient-to-r from-sky-600 to-blue-500 hover:from-sky-500 hover:to-blue-400 border border-sky-400/40 text-white px-3.5 h-[36px] sm:px-4 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md shadow-sky-500/20 hover:shadow-sky-500/30 hover:-translate-y-0.5 flex items-center justify-center shrink-0 cursor-pointer"
                     >
                         <Plus size={15} className="mr-1 sm:mr-1.5" /> 
                         <span className="whitespace-nowrap">Yeni Sefer</span>
@@ -678,9 +754,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                 <span>{trip.to}</span>
                                             </div>
                                             <div className="flex flex-wrap items-center gap-2 mt-1">
-                                                {trip.km > 0 && (
-                                                    <span className="text-[10px] text-slate-500 font-medium font-mono">{trip.km} km</span>
-                                                )}
+
                                                 {trip.notes && (
                                                     <div className="flex items-center gap-1 text-[11px] text-slate-400">
                                                         <StickyNote size={10} className="text-slate-500" />
@@ -689,8 +763,8 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                                 )}
                                                 {companyData?.personnelEnabled && trip.driverName && (
                                                     <div className="flex items-center gap-1.5">
-                                                        <span className="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/20 font-medium whitespace-nowrap">
-                                                            👤 {trip.driverName}
+                                                        <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap">
+                                                            {trip.driverName}
                                                         </span>
                                                         {trip.premiumAmount > 0 && (
                                                             <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 font-bold whitespace-nowrap">
@@ -794,8 +868,8 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                     {/* Şoför & Prim Rozetleri */}
                                     {companyData?.personnelEnabled && trip.driverName && (
                                         <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                                            <span className="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/20 font-medium">
-                                                👤 {trip.driverName}
+                                            <span className="text-[10px] text-slate-500 font-medium">
+                                                {trip.driverName}
                                             </span>
                                             {trip.premiumAmount > 0 && (
                                                 <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 font-bold">
@@ -813,17 +887,12 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                         </div>
                                     )}
 
-                                    {/* Alt Bar: Tonaj ve KM */}
+                                    {/* Alt Bar: Tonaj */}
                                     <div className="flex items-center justify-between pt-2 border-t border-white/5 text-xs">
                                         <div className="flex items-center gap-1">
                                             <span className="text-slate-500 uppercase text-[10px] font-bold">Tonaj:</span>
                                             <span className="text-white font-bold">{parseTonnageInTons(trip.tonnage) > 0 ? `${parseTonnageInTons(trip.tonnage)} t` : '—'}</span>
                                         </div>
-                                        {trip.km > 0 && (
-                                            <div className="text-slate-500 text-[10px] font-mono">
-                                                {trip.km} km
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
                             ))
@@ -1072,7 +1141,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300 p-3 bg-white/5 rounded-xl border border-white/5 mt-2">
                                     {/* Not */}
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">📝 Not (İsteğe Bağlı)</label>
+                                        <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider flex items-center gap-1.5"><StickyNote size={12} className="text-slate-400" /> Not (İsteğe Bağlı)</label>
                                         <textarea
                                             rows={2}
                                             className="w-full glass-input px-3 py-2 text-sm resize-none"
@@ -1083,7 +1152,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                     </div>
                                     {/* Fotoğraf */}
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider">📎 İrsaliye / Belge Ekle</label>
+                                        <label className="block text-xs font-medium text-slate-400 mb-2 uppercase tracking-wider flex items-center gap-1.5"><Paperclip size={12} className="text-slate-400" /> İrsaliye / Belge Ekle</label>
                                         <FileUpload files={editForm.files} onChange={files => setEditForm({ ...editForm, files })} />
                                     </div>
                                 </div>
@@ -1115,18 +1184,26 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                             <X size={20} />
                         </button>
 
-                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6 flex items-center flex-shrink-0">
+                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-5 flex items-center flex-shrink-0">
                             <MapPin className="mr-2 text-sky-400" /> Yeni Sefer / Rota
                         </h3>
 
+                        {saveSuccess && (
+                            <div className="flex items-center gap-2 p-2.5 mb-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold animate-in fade-in slide-in-from-top-2 duration-200">
+                                <Check size={16} className="shrink-0 text-emerald-400" />
+                                <span>Sefer kaydedildi. Yeni sefer girişine devam edebilirsiniz.</span>
+                            </div>
+                        )}
+
                         <form onSubmit={handleManualAdd} className="space-y-4 flex-1 overflow-y-auto pr-1 sm:pr-2 custom-scrollbar pb-3">
+                            {/* Tarih & Hızlı Gün Değiştirme */}
                             {/* Tarih */}
                             <div className="animate-in fade-in slide-in-from-top-2 duration-300">
                                 <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">Tarih</label>
                                 <CustomDatePicker 
                                     value={formData.date}
                                     onChange={(val) => setFormData({ ...formData, date: val })}
-                                    className="glass-input text-left px-4 py-2 text-sm"
+                                    className="glass-input text-left text-sm"
                                 />
                             </div>
 
@@ -1366,7 +1443,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300 p-3 bg-white/5 rounded-xl border border-white/5">
                                     {/* Not */}
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">📝 Not (İsteğe Bağlı)</label>
+                                        <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider flex items-center gap-1.5"><StickyNote size={12} className="text-slate-400" /> Not (İsteğe Bağlı)</label>
                                         <textarea
                                             rows={2}
                                             className="w-full glass-input px-4 py-2 resize-none"
@@ -1377,7 +1454,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                     </div>
 
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">📎 İrsaliye / Belge Ekle</label>
+                                        <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider flex items-center gap-1.5"><Paperclip size={12} className="text-slate-400" /> İrsaliye / Belge Ekle</label>
                                         <FileUpload files={formData.files} onChange={files => setFormData({ ...formData, files })} />
                                     </div>
                                 </div>
@@ -1385,9 +1462,20 @@ const Trips = ({ onOpenMenu, isMobile }) => {
 
                             <button
                                 type="submit"
-                                className="w-full bg-gradient-to-r from-sky-600 to-blue-500 hover:from-sky-500 hover:to-blue-400 border border-sky-400/40 text-white px-4 py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-sky-500/20 hover:shadow-sky-500/40 hover:-translate-y-0.5 mt-2 uppercase tracking-wider cursor-pointer"
+                                className={`w-full border text-white px-4 py-3.5 rounded-xl font-bold transition-all shadow-lg mt-2 uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2 ${
+                                    saveSuccess
+                                        ? 'bg-emerald-600 border-emerald-400/50 shadow-emerald-500/20'
+                                        : 'bg-gradient-to-r from-sky-600 to-blue-500 hover:from-sky-500 hover:to-blue-400 border-sky-400/40 shadow-sky-500/20 hover:shadow-sky-500/40 hover:-translate-y-0.5'
+                                }`}
                             >
-                                Seferi Kaydet
+                                {saveSuccess ? (
+                                    <>
+                                        <Check size={18} />
+                                        <span>Kaydedildi • Yenisini Kaydet</span>
+                                    </>
+                                ) : (
+                                    <span>Seferi Kaydet</span>
+                                )}
                             </button>
                         </form>
                     </div>
@@ -1455,7 +1543,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                     <div className="glass-panel w-full max-w-lg p-5 relative animate-in zoom-in-95 duration-200 max-h-[80vh] overflow-y-auto"
                         onClick={e => e.stopPropagation()}>
                         <button onClick={() => setViewFiles(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer"><X size={20} /></button>
-                        <h3 className="font-bold text-white mb-1 pr-8">📎 Ekler</h3>
+                        <h3 className="font-bold text-white mb-1 pr-8 flex items-center gap-1.5"><Paperclip size={16} className="text-sky-400" /> Ekler</h3>
                         <p className="text-xs text-slate-500 mb-4">{viewFiles.title}</p>
                         <div className="space-y-3">
                             {viewFiles.files.map((f, i) => (

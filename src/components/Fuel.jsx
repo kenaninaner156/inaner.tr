@@ -1,6 +1,6 @@
 import React, { useState, useContext, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Droplet, Plus, MapPin, X, Trash2, Paperclip, FileText, Download, Pencil, StickyNote, ChevronDown, Calendar, Activity, Wallet, TrendingUp, Gauge, Fuel as FuelIcon, Menu } from 'lucide-react';
+import { Droplet, Plus, MapPin, X, Trash2, Paperclip, FileText, Download, Pencil, StickyNote, ChevronDown, Calendar, Activity, Wallet, TrendingUp, Gauge, Fuel as FuelIcon, Menu, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import FileUpload from './FileUpload';
 import CustomDatePicker from './CustomDatePicker';
@@ -9,6 +9,16 @@ import { sendDiscordAlert } from '../services/discordWebhook';
 const Fuel = ({ onOpenMenu, isMobile }) => {
     const { fuelRecords, addFuel, deleteFuel, editFuel, allCompanyStations } = useContext(DataContext);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [saveSuccess, setSaveSuccess] = useState(false);
+    const successTimeoutRef = useRef(null);
+
+    useEffect(() => {
+        return () => {
+            if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+        };
+    }, []);
+
+
     const [viewFiles, setViewFiles] = useState(null);
     const [editingFuel, setEditingFuel] = useState(null);
     const [editForm, setEditForm] = useState({});
@@ -147,16 +157,17 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
         const lastRecordWithOdometer = sortedRecords.find(r => r.odometer);
         const lastOdometerValue = lastRecordWithOdometer ? lastRecordWithOdometer.odometer : '';
         
-        setFormData({
-            date: new Date().toISOString().split('T')[0],
-            station: '',
+        setFormData(prev => ({
+            date: prev.date || new Date().toISOString().split('T')[0],
+            station: prev.station || '',
             liters: '',
             price: '',
             odometer: formatKM(lastOdometerValue),
             notes: '',
             files: [],
             isPartial: false
-        });
+        }));
+        setSaveSuccess(false);
         setIsModalOpen(true);
     };
 
@@ -176,12 +187,14 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
 
     const handleAdd = (e) => {
         e.preventDefault();
+        const enteredOdo = formData.odometer ? parseFloat(formData.odometer.toString().replace(/\./g, '')) : null;
+
         addFuel({
             date: formData.date,
             station: formData.station,
             liters: parseDecimal(formData.liters),
             price: parseDecimal(formData.price),
-            odometer: formData.odometer ? parseFloat(formData.odometer.toString().replace(/\./g, '')) : null,
+            odometer: enteredOdo,
             notes: formData.notes,
             files: formData.files,
             isPartial: formData.isPartial
@@ -189,18 +202,33 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
         // Y1: Yeni yakıt fişi bildirimi
         sendDiscordAlert({
             type: 'info',
-            title: '⛽ Yeni Yakıt Fişi Eklendi',
+            title: 'Yeni Yakıt Fişi Eklendi',
             description: `Yakıt kaydı oluşturuldu.`,
             fields: [
-                { name: '📍 İstasyon', value: String(formData.station || '—'), inline: true },
-                { name: '🛢️ Miktar', value: String(formData.liters || '—') + ' litre', inline: true },
-                { name: '💰 Tutar', value: String(formData.price || '—') + ' ₺', inline: true },
-                { name: '📅 Tarih', value: String(formData.date || '—'), inline: true },
+                { name: 'İstasyon', value: String(formData.station || '—'), inline: true },
+                { name: 'Miktar', value: String(formData.liters || '—') + ' litre', inline: true },
+                { name: 'Tutar', value: String(formData.price || '—') + ' ₺', inline: true },
+                { name: 'Tarih', value: String(formData.date || '—'), inline: true },
             ]
         });
-        setIsModalOpen(false);
-        setShowExtra(false);
-        setFormData({ date: new Date().toISOString().split('T')[0], station: '', liters: '', price: '', odometer: '', notes: '', files: [], isPartial: false });
+
+        // Modal kapatılmaz, seri fiş girişine kesintisiz devam edilir
+        setSaveSuccess(true);
+        if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+        successTimeoutRef.current = setTimeout(() => {
+            setSaveSuccess(false);
+        }, 1800);
+
+        // Tarih ve istasyon korunur, diğer alanlar sıfırlanır
+        setFormData(prev => ({
+            ...prev,
+            liters: '',
+            price: '',
+            odometer: enteredOdo ? formatKM(enteredOdo) : prev.odometer,
+            notes: '',
+            files: [],
+            isPartial: false
+        }));
     };
 
     const handleEdit = async () => {
@@ -223,13 +251,13 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
         // Y3: Yakıt fişi silme bildirimi
         sendDiscordAlert({
             type: 'warning',
-            title: '🗑️ Yakıt Fişi Silindi',
+            title: 'Yakıt Fişi Silindi',
             description: 'Bir yakıt kaydı silindi.',
             fields: [
-                { name: '📍 İstasyon', value: String(deletedRecord?.station || '—'), inline: true },
-                { name: '💰 Tutar', value: String(deletedRecord?.price || '—') + ' ₺', inline: true },
-                { name: '🛢️ Miktar', value: String(deletedRecord?.liters || '—') + ' litre', inline: true },
-                { name: '📅 Tarih', value: String(deletedRecord?.date || '—'), inline: true },
+                { name: 'İstasyon', value: String(deletedRecord?.station || '—'), inline: true },
+                { name: 'Tutar', value: String(deletedRecord?.price || '—') + ' ₺', inline: true },
+                { name: 'Miktar', value: String(deletedRecord?.liters || '—') + ' litre', inline: true },
+                { name: 'Tarih', value: String(deletedRecord?.date || '—'), inline: true },
             ]
         });
     };
@@ -916,7 +944,7 @@ return (
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">📝 Not (İsteğe Bağlı)</label>
+                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5"><StickyNote size={12} className="text-slate-400" /> Not (İsteğe Bağlı)</label>
                                         <textarea
                                             rows={2}
                                             className="w-full glass-input px-3 py-2 text-sm resize-none text-white"
@@ -926,7 +954,7 @@ return (
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">📎 Fotoğraf / Belge</label>
+                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Paperclip size={12} className="text-slate-400" /> Fotoğraf / Belge</label>
                                         <FileUpload files={editForm.files} onChange={files => setEditForm({ ...editForm, files })} />
                                     </div>
                                 </div>
@@ -956,30 +984,37 @@ return (
                         <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer z-20">
                             <X size={20} />
                         </button>
-                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6 flex items-center flex-shrink-0">
+                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-5 flex items-center flex-shrink-0">
                             <Droplet className="mr-2 text-cyan-400" /> Yeni Mazot Fişi
                         </h3>
+
+                        {saveSuccess && (
+                            <div className="flex items-center gap-2 p-2.5 mb-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold animate-in fade-in slide-in-from-top-2 duration-200">
+                                <Check size={16} className="shrink-0 text-emerald-400" />
+                                <span>Fiş kaydedildi. Yeni fiş girişine devam edebilirsiniz.</span>
+                            </div>
+                        )}
+
                         <form onSubmit={handleAdd} className="space-y-4 flex-1 overflow-y-auto pr-1 sm:pr-2 custom-scrollbar pb-3">
-                            <div className="grid grid-cols-2 gap-3 items-end">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tarih</label>
-                                    <CustomDatePicker 
-                                        value={formData.date}
-                                        onChange={val => setFormData({ ...formData, date: val })}
-                                        className="glass-input text-left px-3 py-2 text-sm"
-                                    />
-                                </div>
-                                <div>
+                            {/* Tarih & Ek Bilgiler */}
+                            <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Tarih</label>
                                     <button
                                         type="button"
                                         onClick={() => setShowExtra(!showExtra)}
-                                        className={`w-full py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer h-[38px] ${showExtra ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-lg shadow-cyan-500/10' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                                        className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${showExtra ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-sm' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                                     >
-                                        <StickyNote size={13} className={showExtra ? "animate-pulse" : ""} />
+                                        <StickyNote size={12} />
                                         <span>Ek Bilgiler</span>
-                                        <ChevronDown size={13} className={showExtra ? "rotate-180 transition-transform" : "transition-transform"} />
+                                        <ChevronDown size={12} className={showExtra ? "rotate-180 transition-transform" : "transition-transform"} />
                                     </button>
                                 </div>
+                                <CustomDatePicker 
+                                    value={formData.date}
+                                    onChange={val => setFormData({ ...formData, date: val })}
+                                    className="glass-input text-left text-sm"
+                                />
                             </div>
                             {/* İstasyon */}
                             <div className="relative z-[100]">
@@ -1093,7 +1128,7 @@ return (
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">📝 Not (İsteğe Bağlı)</label>
+                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5"><StickyNote size={12} className="text-slate-400" /> Not (İsteğe Bağlı)</label>
                                         <textarea
                                             rows={2}
                                             className="w-full glass-input px-4 py-2 resize-none text-sm text-white"
@@ -1103,15 +1138,27 @@ return (
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">📎 Fiş Fotoğrafı / Belge</label>
+                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Paperclip size={12} className="text-slate-400" /> Fiş Fotoğrafı / Belge</label>
                                         <FileUpload files={formData.files} onChange={files => setFormData({ ...formData, files })} />
                                     </div>
                                 </div>
                             )}
 
                             <button type="submit"
-                                className="w-full bg-gradient-to-r from-cyan-600 to-teal-500 hover:from-cyan-500 hover:to-teal-400 border border-cyan-400/40 text-white px-4 py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:-translate-y-0.5 mt-4 uppercase tracking-wider cursor-pointer">
-                                Fişi Kaydet
+                                className={`w-full border text-white px-4 py-3.5 rounded-xl font-bold transition-all shadow-lg mt-4 uppercase tracking-wider cursor-pointer flex items-center justify-center gap-2 ${
+                                    saveSuccess
+                                        ? 'bg-emerald-600 border-emerald-400/50 shadow-emerald-500/20'
+                                        : 'bg-gradient-to-r from-cyan-600 to-teal-500 hover:from-cyan-500 hover:to-teal-400 border-cyan-400/40 shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:-translate-y-0.5'
+                                }`}
+                            >
+                                {saveSuccess ? (
+                                    <>
+                                        <Check size={18} />
+                                        <span>Kaydedildi • Yenisini Kaydet</span>
+                                    </>
+                                ) : (
+                                    <span>Fişi Kaydet</span>
+                                )}
                             </button>
                         </form>
                     </div>

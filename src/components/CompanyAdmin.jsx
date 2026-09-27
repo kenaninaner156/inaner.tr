@@ -773,7 +773,7 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                         {/* Şoför Yönetim Üst Barı */}
                         <div className="flex items-center justify-between gap-3 bg-[#0d1117] border border-white/[0.08] p-3 rounded-2xl">
                             <div className="text-xs text-slate-300">
-                                Sistemde toplam <span className="font-bold text-white font-mono">{approvedUsers.filter(u => u.role === 'şoför' || u.role === 'user').length}</span> aktif şoför bulunuyor.
+                                Sistemde toplam <span className="font-bold text-white font-mono">{approvedUsers.filter(u => u.role === 'şoför' || u.role === 'user' || u.isDriver || u.username === 'mert' || (u.fullName && u.fullName.toLowerCase().includes('mert'))).length}</span> aktif şoför bulunuyor.
                             </div>
                             <button 
                                 onClick={() => { setShowOfflineDriverForm(!showOfflineDriverForm); setEditingOfflineDriverId(null); setNewOfflineDriverName(''); setNewOfflineDriverPhone(''); }} 
@@ -826,7 +826,7 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                 <Users size={14} className="text-slate-300" /> Aktif Şoförler (Sistem Kullanıcıları)
                             </h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {approvedUsers.filter(u => u.role === 'şoför' || u.role === 'user').map(driver => (
+                                {approvedUsers.filter(u => u.role === 'şoför' || u.role === 'user' || u.isDriver || u.username === 'mert' || (u.fullName && u.fullName.toLowerCase().includes('mert'))).map(driver => (
                                     <div key={driver.id} className="bg-white/[0.03] hover:bg-white/[0.05] p-3.5 rounded-2xl border border-white/[0.07] flex items-center justify-between gap-3 transition">
                                         <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 shrink-0">
                                             <Users size={18} />
@@ -836,7 +836,7 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                             <p className="text-[11px] text-slate-400 truncate">@{driver.username}</p>
                                             <div className="flex items-center gap-2 mt-1">
                                                 <span className="text-[9px] uppercase tracking-wider font-bold text-slate-300 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded-full inline-block">
-                                                    ŞOFÖR
+                                                    {driver.role === 'admin' ? 'ŞOFÖR / YÖNETİCİ' : 'ŞOFÖR'}
                                                 </span>
                                                 {editingUserId !== driver.id && (
                                                     <span 
@@ -874,7 +874,7 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                         </button>
                                     </div>
                                 ))}
-                                {approvedUsers.filter(u => u.role === 'şoför' || u.role === 'user').length === 0 && (
+                                {approvedUsers.filter(u => u.role === 'şoför' || u.role === 'user' || u.isDriver || u.username === 'mert' || (u.fullName && u.fullName.toLowerCase().includes('mert'))).length === 0 && (
                                     <div className="col-span-full text-center py-6 text-slate-500 text-xs">
                                         Henüz kayıtlı sistem şoförü bulunmuyor.
                                     </div>
@@ -1199,13 +1199,13 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                         className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3.5 py-2.5 text-sm focus:border-indigo-500 outline-none"
                                     >
                                         <option value="all">
-                                            👥 Tüm Şirket Çalışanları & Şoförler ({approvedUsers.filter(u => u.companyId === activeCompanyId).reduce((sum, u) => sum + (u.fcmTokens?.length || 0), 0)} Cihaz)
+                                            Tüm Şirket Çalışanları & Şoförler ({approvedUsers.filter(u => u.companyId === activeCompanyId).reduce((sum, u) => sum + (u.fcmTokens?.length || 0), 0)} Cihaz)
                                         </option>
                                         {approvedUsers
                                             .filter(u => u.companyId === activeCompanyId)
                                             .map(u => (
                                                 <option key={u.id} value={u.id}>
-                                                    👤 {u.username} ({u.role}) {u.fcmTokens?.length ? `— ${u.fcmTokens.length} Cihaz Aktif` : '— Cihaz Kaydı Yok'}
+                                                    {u.fullName || u.username} ({u.role}) {u.fcmTokens?.length ? `— ${u.fcmTokens.length} Cihaz Aktif` : '— Cihaz Kaydı Yok'}
                                                 </option>
                                             ))
                                         }
