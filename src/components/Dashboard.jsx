@@ -365,7 +365,14 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
         let monthTotalLiters = 0;
 
         Object.values(byTruck).forEach(truckRecords => {
-            const chronological = [...truckRecords].sort((a, b) => new Date(a.date) - new Date(b.date));
+            const chronological = [...truckRecords].sort((a, b) => {
+                const dDiff = new Date(a.date) - new Date(b.date);
+                if (dDiff !== 0) return dDiff;
+                const odoA = a.odometer ? parseFloat(String(a.odometer).replace(/\./g, '')) : 0;
+                const odoB = b.odometer ? parseFloat(String(b.odometer).replace(/\./g, '')) : 0;
+                if (odoA !== odoB) return odoA - odoB;
+                return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+            });
             let lastOdo = null;
             let accLiters = 0;
 
@@ -385,9 +392,15 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                                 monthTotalLiters += ltrs;
                             }
                         }
+                        lastOdo = recOdo;
+                        accLiters = 0;
+                    } else if (!lastOdo) {
+                        lastOdo = recOdo;
+                        accLiters = 0;
+                    } else {
+                        // Sayaç geriye düşmüş veya mükerrerse lastOdo'yu bozma, yakıtı biriktir
+                        accLiters += recLiters;
                     }
-                    lastOdo = recOdo;
-                    accLiters = 0;
                 } else {
                     if (lastOdo) {
                         accLiters += recLiters;

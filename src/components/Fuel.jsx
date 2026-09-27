@@ -266,8 +266,15 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
     
     // Kümülatif Yakıt Tüketimi Hesaplama Algoritması
     const processedRecords = React.useMemo(() => {
-        // Hesaplamayı yapabilmek için kayıtları kronolojik (eskiden yeniye) sıralayalım.
-        const chronological = [...activeFuelRecords].reverse();
+        // Hesaplamayı yapabilmek için kayıtları kronolojik (eskiden yeniye) kesin sıralayalım.
+        const chronological = [...activeFuelRecords].sort((a, b) => {
+            const dDiff = new Date(a.date) - new Date(b.date);
+            if (dDiff !== 0) return dDiff;
+            const odoA = a.odometer ? parseFloat(String(a.odometer).replace(/\./g, '')) : 0;
+            const odoB = b.odometer ? parseFloat(String(b.odometer).replace(/\./g, '')) : 0;
+            if (odoA !== odoB) return odoA - odoB;
+            return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+        });
         
         let lastOdometer = null;
         let accumulatedLiters = 0;
@@ -291,11 +298,20 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
                         ltPer100km: distance > 0 ? (totalLitersForDistance / distance) * 100 : 0,
                         costPerKm: distance > 0 ? totalCostForDistance / distance : 0
                     };
+                    lastOdometer = recOdometer;
+                    accumulatedLiters = 0;
+                    accumulatedPrice = 0;
+                } else if (!lastOdometer) {
+                    // İlk referans başlangıç dolumu
+                    lastOdometer = recOdometer;
+                    accumulatedLiters = 0;
+                    accumulatedPrice = 0;
+                } else {
+                    // Sayacın önceki sayaçtan küçük veya eşit olması durumunda (mükerrer/hatalı giriş):
+                    // lastOdometer bozulmaz, yakıt birikmeye devam eder
+                    accumulatedLiters += recLiters;
+                    accumulatedPrice += recPrice;
                 }
-                // Yeni referans KM'yi güncelle ve birikimleri sıfırla
-                lastOdometer = recOdometer;
-                accumulatedLiters = 0;
-                accumulatedPrice = 0;
             } else {
                 // KM girilmediyse veya Kısmi Dolum (isPartial) işaretliyse biriktirmeye devam et
                 if (lastOdometer) {
@@ -306,7 +322,7 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
             return enrichedRecord;
         });
         
-        // Gösterim için tekrar eskiden yeniye ters çeviriyoruz
+        // Gösterim için tekrar yeniden eskiye ters çeviriyoruz
         return enriched.reverse();
     }, [activeFuelRecords]);
 
