@@ -1135,14 +1135,10 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                 onClose={() => setIsProfitModalOpen(false)} 
                 data={{ 
                     invoices: effectiveInvoices, 
-                    fuelRecords: effectiveFuel, 
-                    maintenanceRecords: isFleetScope 
-                        ? maintenanceRecords 
-                        : maintenanceRecords.filter(m => m.truckId === dashboardScope || (!m.truckId && dashboardScope === activeTruckId)), 
+                    fuelRecords: (allCompanyFuelRecords && allCompanyFuelRecords.length > 0) ? allCompanyFuelRecords : effectiveFuel, 
+                    maintenanceRecords: maintenanceRecords, 
                     paymentRecords, 
-                    penalties: isFleetScope 
-                        ? penalties 
-                        : penalties.filter(p => p.truckId === dashboardScope || (!p.truckId && dashboardScope === activeTruckId))
+                    penalties: penalties
                 }} 
             />
 

@@ -96,7 +96,7 @@ const formatInvoicePeriod = (startDateStr, endDateStr) => {
 };
 
 const EArsiv = ({ onOpenMenu, isMobile }) => {
-    const { invoices, addLog, routeHistory, saveRouteHistory, fuelRecords } = useContext(DataContext);
+    const { invoices, addLog, routeHistory, saveRouteHistory, fuelRecords, allCompanyFuelRecords } = useContext(DataContext);
     const { activeCompanyId } = useCompany();
     const { trucks, activeTruckData } = useTruck();
 
@@ -1057,17 +1057,20 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         }, 0);
     }, [currentYearInvoices, routeHistory]);
 
+    const companyFuelList = useMemo(() => {
+        return (allCompanyFuelRecords && allCompanyFuelRecords.length > 0) ? allCompanyFuelRecords : (fuelRecords || []);
+    }, [allCompanyFuelRecords, fuelRecords]);
+
     const totalYearFuel = useMemo(() => {
-        return (fuelRecords || [])
+        return (companyFuelList || [])
             .filter(f => {
                 if (f.deleted) return false;
-                if (activeTruckData?.id && f.truckId && f.truckId !== activeTruckData.id) return false;
                 if (!f.date) return false;
                 const d = new Date(f.date);
                 return d.getFullYear() === currentYear;
             })
             .reduce((sum, f) => sum + (Number(f.price) || Number(f.totalAmount) || 0), 0);
-    }, [fuelRecords, activeTruckData, currentYear]);
+    }, [companyFuelList, currentYear]);
 
     const yearlyProfitMargin = useMemo(() => {
         if (totalYearRevenue <= 0) return 0;
@@ -1082,7 +1085,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         const monthsFull = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 
         return monthsShort.map((mShort, mIndex) => {
-            // 1. Bu aya ait faturaları bul
+            // 1. Bu aya ait faturaları bul (Konsolide - Tüm şirket faturaları)
             const monthInvoices = (activeInvoices || []).filter(inv => {
                 const dStr = inv.startDate || inv.periodStart || inv.date || '';
                 if (!dStr) return false;
@@ -1103,11 +1106,10 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                 return sum + t;
             }, 0);
 
-            // 2. Bu aya ait akaryakıt fişlerini bul
-            const monthFuel = (fuelRecords || [])
+            // 2. Bu aya ait akaryakıt fişlerini bul (Konsolide - Tüm filo araçlarının mazot gideri)
+            const monthFuel = (companyFuelList || [])
                 .filter(f => {
                     if (f.deleted) return false;
-                    if (activeTruckData?.id && f.truckId && f.truckId !== activeTruckData.id) return false;
                     if (!f.date) return false;
                     const d = new Date(f.date);
                     return d.getFullYear() === currentYear && d.getMonth() === mIndex;
@@ -1125,7 +1127,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                 totalTons: monthTotalTons.toFixed(1)
             };
         }).filter(m => m.income > 0 || m.fuel > 0);
-    }, [activeInvoices, currentYear, routeHistory, fuelRecords, activeTruckData]);
+    }, [activeInvoices, currentYear, routeHistory, companyFuelList]);
 
     // FINANCIA / Tasks Overview tarzı lüks siyah cam tooltip (Sadece Turuncu, Siyah, Gri, Beyaz - Ultra Kompakt)
     const CustomChartTooltip = ({ active, payload }) => {
