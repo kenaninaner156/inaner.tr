@@ -765,9 +765,9 @@ function App() {
           <AnimatePresence initial={false}>
             {isUserMenuOpen && (
               <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
+                initial={{ height: 0, opacity: 0, marginBottom: 0 }}
+                animate={{ height: 'auto', opacity: 1, marginBottom: 0 }}
+                exit={{ height: 0, opacity: 0, marginBottom: 0 }}
                 transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
                 onAnimationStart={() => setIsUserMenuAnimating(true)}
                 onAnimationComplete={() => setIsUserMenuAnimating(false)}
@@ -776,9 +776,9 @@ function App() {
                     navRef.current.scrollTop = navRef.current.scrollHeight;
                   }
                 }}
-                className="overflow-hidden mb-2"
+                className="overflow-hidden"
               >
-                <div className="space-y-1 pb-1">
+                <div className="space-y-1 pb-2.5">
                   {/* 1. Şirket Yönetimi */}
                   <button
                     onClick={() => {
