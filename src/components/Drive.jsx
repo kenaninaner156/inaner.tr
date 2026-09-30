@@ -1011,6 +1011,8 @@ function Drive({ onOpenMenu, isMobile }) {
                                                                 /* Izgara Görünümü */
                                                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                                                                     {filteredFiles.map(file => {
+                                                                        const cleanExt = (file.extension || '').toLowerCase().replace('.', '');
+                                                                        const isImage = ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'].includes(cleanExt);
                                                                         const visual = getFileVisual(file.extension, file.name);
                                                                         const IconComp = visual.icon;
                                                                         return (
@@ -1024,14 +1026,36 @@ function Drive({ onOpenMenu, isMobile }) {
                                                                                 transition={{ duration: 0.12 }}
                                                                                 className="group relative bg-[#0b0e17] border border-white/[0.06] hover:border-white/[0.15] hover:bg-[#0f1422] rounded-xl p-3 flex flex-col justify-between transition-all cursor-pointer select-none"
                                                                             >
-                                                                                <div className="flex items-start justify-between gap-2 mb-2">
-                                                                                    <div className={`w-8 h-8 rounded-lg ${visual.bg} ${visual.border} border flex items-center justify-center ${visual.color} shrink-0`}>
-                                                                                        <IconComp size={16} />
+                                                                                {isImage ? (
+                                                                                    <div className="w-full h-28 sm:h-32 mb-2 rounded-lg overflow-hidden bg-[#07090e] border border-white/[0.04] relative flex items-center justify-center group-hover:border-white/10 transition-colors">
+                                                                                        <img
+                                                                                            src={`/api/drive?action=view&path=${encodeURIComponent(file.relativePath)}`}
+                                                                                            alt={file.name}
+                                                                                            loading="lazy"
+                                                                                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                                                            onError={(e) => {
+                                                                                                e.currentTarget.style.display = 'none';
+                                                                                                const fallback = e.currentTarget.parentElement?.querySelector('.image-fallback-icon');
+                                                                                                if (fallback) fallback.classList.remove('hidden');
+                                                                                            }}
+                                                                                        />
+                                                                                        <div className="image-fallback-icon hidden w-full h-full items-center justify-center text-zinc-600 bg-zinc-900/50">
+                                                                                            <ImageIcon size={24} />
+                                                                                        </div>
+                                                                                        <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-md text-[9px] font-mono text-zinc-300 uppercase border border-white/10">
+                                                                                            {cleanExt}
+                                                                                        </span>
                                                                                     </div>
-                                                                                    <span className="text-[10px] font-mono text-zinc-500 uppercase">
-                                                                                        {file.extension.replace('.', '')}
-                                                                                    </span>
-                                                                                </div>
+                                                                                ) : (
+                                                                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                                                                        <div className={`w-8 h-8 rounded-lg ${visual.bg} ${visual.border} border flex items-center justify-center ${visual.color} shrink-0`}>
+                                                                                            <IconComp size={16} />
+                                                                                        </div>
+                                                                                        <span className="text-[10px] font-mono text-zinc-500 uppercase">
+                                                                                            {cleanExt}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                )}
 
                                                                                 <div>
                                                                                     <div className="text-xs font-medium text-zinc-200 truncate group-hover:text-white" title={file.name}>
@@ -1089,6 +1113,8 @@ function Drive({ onOpenMenu, isMobile }) {
                                                                 /* Liste Görünümü */
                                                                 <div className="bg-[#0b0e17] border border-white/[0.06] rounded-xl overflow-hidden divide-y divide-white/[0.04]">
                                                                     {filteredFiles.map(file => {
+                                                                        const cleanExt = (file.extension || '').toLowerCase().replace('.', '');
+                                                                        const isImage = ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'].includes(cleanExt);
                                                                         const visual = getFileVisual(file.extension, file.name);
                                                                         const IconComp = visual.icon;
                                                                         return (
@@ -1102,9 +1128,28 @@ function Drive({ onOpenMenu, isMobile }) {
                                                                                 className="group px-4 py-2.5 flex items-center justify-between hover:bg-white/[0.03] transition-colors cursor-pointer text-xs select-none"
                                                                             >
                                                                                 <div className="flex items-center gap-3 min-w-0">
-                                                                                    <div className={`w-7 h-7 rounded-lg ${visual.bg} ${visual.border} border flex items-center justify-center ${visual.color} shrink-0`}>
-                                                                                        <IconComp size={14} />
-                                                                                    </div>
+                                                                                    {isImage ? (
+                                                                                        <div className="w-7 h-7 rounded-lg overflow-hidden shrink-0 border border-white/10 bg-[#07090e] flex items-center justify-center relative">
+                                                                                            <img
+                                                                                                src={`/api/drive?action=view&path=${encodeURIComponent(file.relativePath)}`}
+                                                                                                alt={file.name}
+                                                                                                loading="lazy"
+                                                                                                className="w-full h-full object-cover"
+                                                                                                onError={(e) => {
+                                                                                                    e.currentTarget.style.display = 'none';
+                                                                                                    const fb = e.currentTarget.parentElement?.querySelector('.list-fallback-icon');
+                                                                                                    if (fb) fb.classList.remove('hidden');
+                                                                                                }}
+                                                                                            />
+                                                                                            <div className="list-fallback-icon hidden w-full h-full flex items-center justify-center text-zinc-500">
+                                                                                                <IconComp size={14} />
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className={`w-7 h-7 rounded-lg ${visual.bg} ${visual.border} border flex items-center justify-center ${visual.color} shrink-0`}>
+                                                                                            <IconComp size={14} />
+                                                                                        </div>
+                                                                                    )}
                                                                                     <span className="font-medium text-zinc-200 truncate group-hover:text-white max-w-md">
                                                                                         {file.name}
                                                                                     </span>

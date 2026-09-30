@@ -486,8 +486,12 @@ export default async function handler(req, res) {
                 res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
             }
 
-            const stream = fs.createReadStream(filePath);
-            return stream.pipe(res);
+            // Güvenli Buffer Yanıtı (Vite dev server, Vercel Serverless ve Node ortamları ile %100 uyumlu)
+            const fileBuffer = fs.readFileSync(filePath);
+            if (typeof res.send === 'function') {
+                return res.send(fileBuffer);
+            }
+            return res.end(fileBuffer);
         }
 
         // 9. SYNC_STATUS: D:\Backup\latest\manifest.json Analizi (0 Firebase Read)
