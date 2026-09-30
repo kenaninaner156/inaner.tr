@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useMemo, useContext } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useContext } from 'react';
 import {
     Folder, FolderPlus, File, FileText, Image as ImageIcon, FileSpreadsheet,
     FileArchive, Film, Code, Download, Trash2, Eye, Pencil, Search,
@@ -477,13 +477,19 @@ function Drive({ onOpenMenu, isMobile }) {
             </AnimatePresence>
 
             {/* ── 1. APPLE TARZI MINIMALIST ÜST BAŞLIK & KONTROL MASASI ── */}
-            <header className="shrink-0 h-14 bg-[#0a0d14] border-b border-white/[0.06] px-4 sm:px-6 flex items-center justify-between gap-3 z-20">
+            <header 
+                className="shrink-0 bg-[#0a0d14] border-b border-white/[0.06] px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-3 z-20 pb-2.5 sm:pb-3"
+                style={{
+                    paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
+                }}
+            >
                 {/* Sol Alan: Başlık ve İnce Disk Çubuğu */}
-                <div className="flex items-center gap-3 min-w-0">
-                    {isMobile && (
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    {isMobile && onOpenMenu && (
                         <button
                             onClick={onOpenMenu}
-                            className="p-1.5 -ml-1 text-zinc-400 hover:text-white rounded-lg hover:bg-white/[0.05]"
+                            className="p-1.5 -ml-1 text-zinc-400 hover:text-white rounded-lg hover:bg-white/[0.05] transition-colors shrink-0"
+                            title="Menüyü Aç"
                         >
                             <Menu size={18} />
                         </button>
@@ -515,7 +521,7 @@ function Drive({ onOpenMenu, isMobile }) {
                 </div>
 
                 {/* Sağ Alan: Arama, Görünüm Değiştirici, Ayarlar ve Yeni Butonları */}
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                     {/* Kompakt Arama */}
                     <div className="relative hidden md:block">
                         <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
@@ -590,7 +596,7 @@ function Drive({ onOpenMenu, isMobile }) {
                     {/* Yeni Klasör Butonu */}
                     <button
                         onClick={() => { setFolderModalOpen(true); setFolderModalError(null); }}
-                        className="h-8 px-2.5 bg-zinc-900 border border-white/[0.06] hover:border-white/[0.15] text-zinc-300 hover:text-white text-xs font-medium rounded-lg flex items-center gap-1.5 transition-colors"
+                        className="h-8 px-2.5 bg-zinc-900 border border-white/[0.06] hover:border-white/[0.15] text-zinc-300 hover:text-white text-xs font-medium rounded-lg flex items-center gap-1.5 transition-colors shrink-0"
                         title="Yeni Klasör"
                     >
                         <FolderPlus size={14} className="text-zinc-400" />
@@ -600,10 +606,11 @@ function Drive({ onOpenMenu, isMobile }) {
                     {/* Dosya Yükle Butonu */}
                     <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="h-8 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-medium rounded-lg flex items-center gap-1.5 shadow-sm shadow-emerald-950/40 transition-all"
+                        className="h-8 px-2.5 sm:px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-medium rounded-lg flex items-center gap-1.5 shadow-sm shadow-emerald-950/40 transition-all shrink-0"
                     >
                         <Upload size={14} />
-                        <span>Dosya Yükle</span>
+                        <span className="hidden sm:inline">Dosya Yükle</span>
+                        <span className="sm:hidden">Yükle</span>
                     </button>
                     <input
                         type="file"

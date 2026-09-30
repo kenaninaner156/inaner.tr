@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line 
 import { Polyline, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { Calendar, ChevronLeft, ChevronRight, ChevronDown, Play, Pause, X, Smartphone, BookmarkPlus, Scissors, Edit2, Check, Loader2, Clock } from 'lucide-react';
-import { calcStats, getInterpolatedPointLinear, haversineKm, groupIntoSessions, filterSessionPoints } from '../../utils/mapUtils';
+import { calcStats, getInterpolatedPointLinear, haversineKm, groupIntoSessions, filterSessionPoints, getPointTime } from '../../utils/mapUtils';
 import { DataContext } from '../../context/DataContext';
 import { db } from '../../services/firebaseConfig';
 import { collection, query, where, orderBy, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
@@ -108,6 +108,7 @@ function MobileRouteHistoryCard({
   selectedDriver,
   setSelectedDriver,
   deviceMappings,
+  availableDrivers,
   trucks,
   getDisplayName,
   historyDate,
@@ -164,10 +165,17 @@ function MobileRouteHistoryCard({
     }
   }, []);
 
-  // Filter valid sessions (>= 5 km or >= 5 min)
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const isTodayDate = historyDate === todayStr;
+
+  // Filter valid sessions (bugün için canlı akışı yakalamak üzere esnek eşik)
   const validSessions = (sessions || []).filter(s => {
+    if (!s || s.length < 2) return false;
     const { km, durationMin } = calcStats(s);
-    return parseFloat(km) >= 5 && parseInt(durationMin) >= 5;
+    if (isTodayDate) {
+      return parseFloat(km) >= 0.2 || parseInt(durationMin) >= 2 || s.length >= 5;
+    }
+    return parseFloat(km) >= 2 || parseInt(durationMin) >= 3;
   });
 
   const currentStats = selectedSession ? calcStats(selectedSession) : null;
@@ -175,7 +183,6 @@ function MobileRouteHistoryCard({
   const startTime = selectedSession && selectedSession[0] ? new Date(selectedSession[0].timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '';
   const endTime = selectedSession && selectedSession.length > 0 ? new Date(selectedSession[selectedSession.length - 1].timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '';
 
-  const todayStr = new Date().toISOString().slice(0, 10);
   const yesterdayDate = new Date();
   yesterdayDate.setDate(yesterdayDate.getDate() - 1);
   const yesterdayStr = yesterdayDate.toISOString().slice(0, 10);
@@ -261,7 +268,7 @@ function MobileRouteHistoryCard({
               </span>
             </div>
             <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
-              {Object.keys(deviceMappings).map(driver => {
+              {(availableDrivers || Object.keys(deviceMappings || {})).map(driver => {
                 const isSelected = selectedDriver === driver;
                 return (
                   <button
@@ -616,10 +623,31 @@ export default function RouteHistory({
   // Takvim uzun basma ref'i
   const calendarTimerRef = useRef(null);
 
+  const DEFAULT_MAPPINGS = {
+    Mert: { driverName: 'Mert' },
+    Goksel: { driverName: 'Göksel' },
+    'Göksel': { driverName: 'Göksel' }
+  };
+
+  const availableDrivers = React.useMemo(() => {
+    const list = [];
+    ['Mert', 'Goksel'].forEach(d => {
+      if (!list.includes(d)) list.push(d);
+    });
+    Object.keys(deviceMappings || {}).forEach(d => {
+      if (d && !list.includes(d)) list.push(d);
+    });
+    (liveLocations || []).forEach(l => {
+      const id = l.driverId || l.deviceId;
+      if (id && !list.includes(id)) list.push(id);
+    });
+    return list;
+  }, [deviceMappings, liveLocations]);
+
   // Tarih değiştiğinde veya modül açıldığında: O GÜN en çok kilometre / hareket yapan aracı otomatik seç
   useEffect(() => {
     if (!isVisible) return;
-    const drivers = Object.keys(deviceMappings);
+    const drivers = availableDrivers;
     if (drivers.length === 0) return;
     if (drivers.length === 1) {
       if (selectedDriver !== drivers[0]) setSelectedDriver(drivers[0]);
@@ -710,7 +738,7 @@ export default function RouteHistory({
     });
 
     return () => { isCancelled = true; };
-  }, [isVisible, historyDate, deviceMappings, liveLocations]);
+  }, [isVisible, historyDate, availableDrivers, liveLocations]);
 
   // Seçili driver veya tarih değiştiğinde veriyi çek (Önbellekten veya Firebase'den)
   // Hangi günlerin cachelendiğini periyodik olarak veya araç değişince çek
@@ -776,26 +804,32 @@ export default function RouteHistory({
         const snapId = `${activeCompanyId || 'default'}_${selectedDriver}_${historyDate}_v7_${manualSplits?.length || 0}_${manualMerges?.length || 0}_${manualDeletes?.length || 0}`; // _v7 cache
         const cacheRef = doc(db, 'vehicle_daily_stats', snapId);
         
-        // 1. ÖNCE ÖNBELLEĞE (CACHE) BAK (Maliyet: 1 Read)
-        const cached = await getDoc(cacheRef);
-        if (cached.exists() && cached.data().sessionsJson) {
-          if (historyFetchRef.current === fetchId) {
-            try {
-              setSessionsByDriver({ [selectedDriver]: JSON.parse(cached.data().sessionsJson) });
-            } catch (e) {
-              console.error('Cache parse error:', e);
-              setSessionsByDriver({ [selectedDriver]: [] });
-            }
-            setSelectedSession(null); // Yeni veride seçimi sıfırla
-          }
-          return;
-        }
-
-        // 2. CACHE YOKSA: ÖNCELİKLE YENİ OPTİMİZE GÜNLÜK DÖKÜMANDAN ÇEK (daily_routes)
         const todayStr = new Date().toISOString().slice(0, 10);
         const isToday = historyDate === todayStr;
         let points = [];
 
+        // 1. ÖNCE ÖNBELLEĞE (CACHE) BAK (Sadece geçmiş günler için; bugünün verisi anlıktır, cache'e bakılmaz)
+        if (!isToday) {
+          try {
+            const cached = await getDoc(cacheRef);
+            if (cached.exists() && cached.data().sessionsJson) {
+              if (historyFetchRef.current === fetchId) {
+                try {
+                  setSessionsByDriver({ [selectedDriver]: JSON.parse(cached.data().sessionsJson) });
+                } catch (e) {
+                  console.error('Cache parse error:', e);
+                  setSessionsByDriver({ [selectedDriver]: [] });
+                }
+                setSelectedSession(null); // Yeni veride seçimi sıfırla
+              }
+              return;
+            }
+          } catch (cacheErr) {
+            console.warn('Cache okuma uyarısı (fallback deneniyor):', cacheErr?.message || cacheErr);
+          }
+        }
+
+        // 2. CACHE YOKSA VEYA BUGÜN İSE:
         // 2.0 Bugün ise: Öncelikli olarak hafızadaki canlı konum noktalarını kullan (0 read, anlık veri)
         if (isToday && Array.isArray(liveLocations) && liveLocations.length > 0) {
           const livePts = liveLocations.filter(l => l.driverId === selectedDriver || l.deviceId === selectedDriver);
@@ -862,7 +896,10 @@ export default function RouteHistory({
           }
         }
         
-        // 3. VERİYİ SIKIŞTIR VE SEFERLERE BÖL
+        // 3. VERİYİ KRONOLOJİK SIRALA VE SEFERLERE BÖL
+        if (points.length > 0) {
+          points.sort((a, b) => getPointTime(a) - getPointTime(b));
+        }
         const rawSessions = groupIntoSessions(points, 30, geofences, manualSplits || [], manualMerges || []);
         
         // SADECE Seçili günde aktivitesi olan veya o gün başlayan seferleri al (Gece yarısı geçişlerini koru)
@@ -945,13 +982,17 @@ export default function RouteHistory({
         // 4. SONUÇLARI ÖNBELLEĞE KAYDET
         // Boş günleri de kaydediyoruz (length >= 0) ki her seferinde tekrar hesaplamasın.
         if (!isToday) {
-           await setDoc(cacheRef, {
-             deviceId: selectedDriver,
-             date: historyDate,
-             companyId: activeCompanyId || 'default',
-             sessionsJson: jsonString, // Garantili boyuttaki JSON
-             calculatedAt: new Date().toISOString()
-           }, { merge: true });
+          try {
+            await setDoc(cacheRef, {
+              deviceId: selectedDriver,
+              date: historyDate,
+              companyId: activeCompanyId || 'default',
+              sessionsJson: jsonString, // Garantili boyuttaki JSON
+              calculatedAt: new Date().toISOString()
+            }, { merge: true });
+          } catch (cacheSaveErr) {
+            console.warn('Önbellek kaydetme uyarısı (kota dolu olabilir):', cacheSaveErr?.message || cacheSaveErr);
+          }
         }
 
       } catch (err) {
@@ -1085,10 +1126,9 @@ export default function RouteHistory({
   };
 
   const getDisplayName = (deviceId) => {
-    const m = deviceMappings[deviceId];
-    if (!m) return deviceId;
-    const truck = trucks.find(t => t.id === m.truckId);
-    return [m.driverName, truck?.plate].filter(Boolean).join(' - ') || deviceId;
+    const def = DEFAULT_MAPPINGS[deviceId];
+    const m = deviceMappings?.[deviceId];
+    return m?.driverName || def?.driverName || deviceId || 'Bilinmeyen';
   };
 
   // Rota seçilince haritayı sığdır — animasyonla
@@ -1437,7 +1477,7 @@ export default function RouteHistory({
                 className="overflow-hidden mt-1.5"
               >
                 <div className="rounded-xl overflow-hidden border border-white/[0.06] bg-[#090d14] p-1 flex flex-col gap-0.5">
-                  {Object.keys(deviceMappings).map((driver) => {
+                  {availableDrivers.map((driver) => {
                     const isSelected = selectedDriver === driver;
                     return (
                       <button
@@ -1458,7 +1498,7 @@ export default function RouteHistory({
                       </button>
                     );
                   })}
-                  {Object.keys(deviceMappings).length === 0 && (
+                  {availableDrivers.length === 0 && (
                     <div className="px-3 py-2 text-xs text-slate-600">Araç bulunamadı</div>
                   )}
                 </div>
@@ -1496,15 +1536,21 @@ export default function RouteHistory({
           {!historyLoading && selectedDriver && sessionsByDriver[selectedDriver]?.length > 0 && (
             <div className="space-y-2">
               {(() => {
+                const todayStr = new Date().toISOString().slice(0, 10);
+                const isTodayDate = historyDate === todayStr;
                 const validSessions = (sessionsByDriver[selectedDriver] || []).filter(session => {
+                  if (!session || session.length < 2) return false;
                   const { km, durationMin } = calcStats(session);
-                  return parseFloat(km) >= 5 && parseInt(durationMin) >= 5;
+                  if (isTodayDate) {
+                    return parseFloat(km) >= 0.2 || parseInt(durationMin) >= 2 || session.length >= 5;
+                  }
+                  return parseFloat(km) >= 2 || parseInt(durationMin) >= 3;
                 });
 
                 if (validSessions.length === 0) {
                   return (
                     <div className="py-6 text-center text-xs text-slate-500">
-                      Bu tarihte 5 km ve üzeri sefer bulunamadı.
+                      Bu tarihte kayıtlı sefer bulunamadı.
                     </div>
                   );
                 }
@@ -1852,6 +1898,7 @@ export default function RouteHistory({
           selectedDriver={selectedDriver}
           setSelectedDriver={setSelectedDriver}
           deviceMappings={deviceMappings}
+          availableDrivers={availableDrivers}
           trucks={trucks}
           getDisplayName={getDisplayName}
           historyDate={historyDate}
