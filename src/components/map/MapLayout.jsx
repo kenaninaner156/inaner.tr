@@ -127,7 +127,7 @@ let edgePollerInterval = null;
 
 const pollEdgeLive = async (companyId) => {
   try {
-    const res = await fetch('https://inaner.tr/api/save-location?action=get_live&token=inaner123', {
+    const res = await fetch(`https://inaner.tr/api/save-location?action=get_live&token=inaner123&_t=${Date.now()}`, {
       cache: 'no-store'
     });
     if (!res.ok) return;

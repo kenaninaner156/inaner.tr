@@ -316,7 +316,7 @@ function VehicleMarker({ driverId, lastPoint, isOnline, isFollowed, speedKmh, na
         <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
           <div style={{ fontWeight: 700, color: '#f1f3f5', fontSize: 11, lineHeight: 1.2 }}>{name}</div>
           <div style={{ fontSize: 9, color: isOnline ? (speedKmh > 7 ? '#10b981' : '#cbd5e1') : '#64748b', fontWeight: 600 }}>
-            <span>{isOnline ? (speedKmh > 7 ? `Yolda (${speedKmh} km/h)` : (parkDurationText || 'Park Halinde')) : 'Çevrimdışı'}</span>
+            <span>{isOnline ? (speedKmh > 7 ? `Yolda (${speedKmh} km/h)` : (parkDurationText || 'Park')) : 'Çevrimdışı'}</span>
           </div>
         </div>
       </Popup>
@@ -375,7 +375,7 @@ function SidebarItem({
   const subtitleText = !isOnline 
     ? 'Çevrimdışı' 
     : (speedKmh <= 7
-        ? (parkDurationText || 'Park Halinde')
+        ? (parkDurationText || 'Park')
         : `Yolda • ${livePingText}`);
 
   return (
@@ -532,7 +532,7 @@ function MobileFollowedCard({
   const subtitleText = !isOnline 
     ? 'Çevrimdışı' 
     : (speedKmh <= 7
-        ? (parkDurationText || 'Park Halinde')
+        ? (parkDurationText || 'Park')
         : 'Yolda');
 
   return (
