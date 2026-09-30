@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import { Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { calcStats, cleanGpsSpikes } from '../../utils/mapUtils';
+import { calcStats, cleanGpsSpikes, haversineKm, getPointTime } from '../../utils/mapUtils';
 import { Activity, WifiOff, X, Search, ShieldAlert, Navigation, Compass, Crosshair, ChevronRight, ChevronDown, Check } from 'lucide-react';
 
 // ── Tema renkleri — site ile tam uyumlu ──────────────────────────────────
@@ -82,53 +82,68 @@ function getSpeedColor(speedKnots) {
 const centerVehicleOnMap = (map, lat, lon, zoom = 15, hasSidebar = true) => {
   if (!map || isNaN(lat) || isNaN(lon)) return;
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
-  const targetZoom = zoom || map.getZoom() || 15;
+  const targetZoom = zoom || (typeof map.getZoom === 'function' ? map.getZoom() : 15);
   
-  if (isDesktop && hasSidebar) {
-    const point = map.project([lat, lon], targetZoom);
-    const offsetPoint = L.point(point.x - 150, point.y);
-    const targetLatLng = map.unproject(offsetPoint, targetZoom);
-    map.setView(targetLatLng, targetZoom, { animate: true, duration: 0.8 });
-  } else {
-    map.setView([lat, lon], targetZoom, { animate: true, duration: 0.8 });
+  try {
+    if (isDesktop && hasSidebar && typeof map.project === 'function' && typeof map.unproject === 'function') {
+      const point = map.project([lat, lon], targetZoom);
+      if (point && !isNaN(point.x) && !isNaN(point.y)) {
+        const offsetPoint = L.point(point.x - 150, point.y);
+        const targetLatLng = map.unproject(offsetPoint, targetZoom);
+        map.setView(targetLatLng, targetZoom, { animate: true, duration: 0.8 });
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn('Center offset error:', e);
   }
+  map.setView([lat, lon], targetZoom, { animate: true, duration: 0.8 });
 };
 
 const panVehicleOnMap = (map, lat, lon, hasSidebar = true) => {
   if (!map || isNaN(lat) || isNaN(lon)) return;
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
-  const currentZoom = map.getZoom();
-  
-  if (isDesktop && hasSidebar) {
-    const point = map.project([lat, lon], currentZoom);
-    const offsetPoint = L.point(point.x - 150, point.y);
-    const targetLatLng = map.unproject(offsetPoint, currentZoom);
-    map.panTo(targetLatLng, { animate: true, duration: 0.8 });
-  } else {
-    map.panTo([lat, lon], { animate: true, duration: 0.8 });
+  try {
+    const currentZoom = typeof map.getZoom === 'function' ? map.getZoom() : 15;
+    if (isDesktop && hasSidebar && typeof map.project === 'function' && typeof map.unproject === 'function') {
+      const point = map.project([lat, lon], currentZoom);
+      if (point && !isNaN(point.x) && !isNaN(point.y)) {
+        const offsetPoint = L.point(point.x - 150, point.y);
+        const targetLatLng = map.unproject(offsetPoint, currentZoom);
+        map.panTo(targetLatLng, { animate: true, duration: 0.8 });
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn('Pan offset error:', e);
   }
+  map.panTo([lat, lon], { animate: true, duration: 0.8 });
 };
 
 const fitVehiclesBounds = (map, points, hasSidebar = true) => {
   if (!map || !points || points.length === 0) return;
   const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
-  const bounds = L.latLngBounds(points);
-  
-  if (isDesktop && hasSidebar) {
-    map.fitBounds(bounds, {
-      paddingTopLeft: [100, 340],
-      paddingBottomRight: [80, 80],
-      maxZoom: 14,
-      animate: true,
-      duration: 0.8
-    });
-  } else {
-    map.fitBounds(bounds, {
-      padding: [80, 80],
-      maxZoom: 14,
-      animate: true,
-      duration: 0.8
-    });
+  try {
+    const bounds = L.latLngBounds(points);
+    if (!bounds.isValid()) return;
+    if (isDesktop && hasSidebar) {
+      map.fitBounds(bounds, {
+        paddingTopLeft: [100, 340],
+        paddingBottomRight: [80, 80],
+        maxZoom: 14,
+        animate: true,
+        duration: 0.8
+      });
+    } else {
+      map.fitBounds(bounds, {
+        padding: [80, 80],
+        maxZoom: 14,
+        animate: true,
+        duration: 0.8
+      });
+    }
+  } catch (e) {
+    console.warn('Fit bounds error:', e);
   }
 };
 
