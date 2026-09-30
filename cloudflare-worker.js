@@ -189,11 +189,12 @@ export default {
       }
       fleetState.set(cleanDeviceId, vehicle);
 
-      // ── 4. AKILLI VERİTABANI KOTA KORUYUCUSU (Firestore'a Toplu Arşivleme) ──
+      // ── 4. AKILLI VERİTABANI KOTA KORUYUCUSU & KESİNTİSİZ VİRAJ İLETİCİ ──
       // Telefona ANINDA başarılı yanıt dön (telefon bataryası ve bağlantısı beklemez)
-      // Arka planda Vercel/Firestore'a yalnızca:
+      // Arka planda Vercel/Firestore'a:
       // - Durma / kalkma anında (0 gecikme)
-      // - VEYA en az 60 saniyede bir ilet (Günde araç başı yalnızca ~480 yazma, kota %95 rahatlar)
+      // - Hareket halindeyken: Her 2.5 saniyede bir ilet (kesintisiz virajlar, sıfır köşe kesme)
+      // - Dururken: En fazla 60 saniyede bir ilet (kota koruması)
       const lastSync = deviceLastVercelSync.get(cleanDeviceId) || { time: 0, speed: 0, isStopped: true };
       const isStopped = speed <= 2;
       const stateChanged = isStopped !== lastSync.isStopped;
@@ -201,7 +202,7 @@ export default {
 
       const shouldSyncToVercel = (lastSync.time === 0) || 
                                 stateChanged || 
-                                (timeSinceLastSync >= 60);
+                                (isStopped ? (timeSinceLastSync >= 60) : (timeSinceLastSync >= 2.5));
 
       if (shouldSyncToVercel) {
         deviceLastVercelSync.set(cleanDeviceId, { time: now, speed: speed, isStopped: isStopped });
