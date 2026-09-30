@@ -12,7 +12,7 @@ function logEvent(type, data) {
     type,
     ...data
   });
-  if (debugLogs.length > 100) debugLogs.pop();
+  if (debugLogs.length > 50) debugLogs.pop();
 }
 
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1517513169105453076/EINW0QQLQqMD-Nnl1LTNPIIC-d2oX1_qTns9JZXL4bX2qqLibE1NIG98E0--efZSrcyc";
@@ -33,6 +33,8 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Forwarded-From',
   'Access-Control-Max-Age': '86400'
 };
+
+const CACHE_URL = 'https://inaner.tr/api/save-location?action=internal_fleet_cache';
 
 export default {
   async fetch(request, env, ctx) {
@@ -65,7 +67,6 @@ export default {
                 data = { ...data, ...bodyJson };
               }
             } catch (_) {
-              // URLSearchParams fallback
               const formParams = new URLSearchParams(rawBodyText);
               formParams.forEach((value, key) => {
                 data[key] = value;
@@ -75,8 +76,9 @@ export default {
         } catch (_) {}
       }
 
-      // Canlı Debug / Teşhis Sorgusu
       const action = data.action || url.searchParams.get('action');
+
+      // Canlı Debug / Teşhis Sorgusu
       if (action === 'get_debug' || action === 'get_logs') {
         return new Response(JSON.stringify({
           success: true,
@@ -93,26 +95,54 @@ export default {
       // Harita Ekranı Canlı Filo Verisi
       if (action === 'get_live' || action === 'get_vehicles') {
         let vehicles = Array.from(liveFleet.values());
-        if (env.LIVE_FLEET_KV) {
+        const now = Date.now();
+
+        // 1. Önce Edge Data Center Cache API kontrolü yap
+        if (vehicles.length === 0) {
           try {
-            const kvState = await env.LIVE_FLEET_KV.get('live_fleet_state', 'json');
-            if (Array.isArray(kvState) && kvState.length > 0) {
-              vehicles = kvState.map(veh => {
-                if (veh && Array.isArray(veh.recentTrail)) {
-                  veh.recentTrail = veh.recentTrail.map(pt => {
-                    let ts = pt.timestamp;
-                    if (ts && /^\d{10}$/.test(String(ts).trim())) {
-                      ts = new Date(parseInt(ts, 10) * 1000).toISOString();
-                    }
-                    return { ...pt, timestamp: ts };
-                  });
-                }
-                return veh;
-              });
-              // in-memory senkronizasyonu
-              vehicles.forEach(v => { if (v && v.id) liveFleet.set(v.id, v); });
+            const cacheKey = new Request(CACHE_URL, { method: 'GET' });
+            const cachedRes = await caches.default.match(cacheKey);
+            if (cachedRes) {
+              const cachedVehicles = await cachedRes.json();
+              if (Array.isArray(cachedVehicles) && cachedVehicles.length > 0) {
+                cachedVehicles.forEach(v => { if (v && v.id) liveFleet.set(v.id, v); });
+                vehicles = cachedVehicles;
+              }
             }
           } catch (_) {}
+        }
+
+        // 2. Eğer Edge belleğinde hiç araç yoksa veya veriler 30 dakikadan eskiyse: Vercel / Firestore'dan çek
+        const hasFreshData = vehicles.some(v => {
+          const t = new Date(v.updatedAt || v.timestamp).getTime();
+          return !isNaN(t) && (now - t) < 30 * 60 * 1000;
+        });
+
+        if (!hasFreshData) {
+          try {
+            const fwdHeaders = new Headers(request.headers);
+            fwdHeaders.set('X-Forwarded-From', 'Cloudflare-Edge');
+            const originRes = await fetch(request.url, {
+              method: 'GET',
+              headers: fwdHeaders
+            });
+            if (originRes.ok) {
+              const originData = await originRes.json();
+              if (originData.success && Array.isArray(originData.vehicles) && originData.vehicles.length > 0) {
+                vehicles = originData.vehicles;
+                vehicles.forEach(v => { if (v && v.id) liveFleet.set(v.id, v); });
+
+                // Cache API'ye 60 saniyelik önbellek kaydet
+                const cacheKey = new Request(CACHE_URL, { method: 'GET' });
+                const cacheRes = new Response(JSON.stringify(vehicles), {
+                  headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' }
+                });
+                ctx.waitUntil(caches.default.put(cacheKey, cacheRes).catch(() => {}));
+              }
+            }
+          } catch (fErr) {
+            console.error('Origin get_live fallback hatasi:', fErr?.message || fErr);
+          }
         }
 
         return new Response(JSON.stringify({
@@ -130,18 +160,17 @@ export default {
         });
       }
 
-      // Bu bir GPS isteği mi? (save-location VEYA lat/lon barındıran herhangi bir istek)
+      // Bu bir GPS isteği mi?
       const hasCoords = (data.lat !== undefined && data.lon !== undefined) ||
                         (data.location && data.location.coords) ||
                         (data.coords);
       const isSaveLocation = url.pathname.includes('save-location') || url.pathname.includes('location') || hasCoords;
 
       if (!isSaveLocation) {
-        // GPS olmayan diğer API isteklerini (örn: drive, version, gib) doğrudan Vercel'e ilet
         return fetch(request);
       }
 
-      // Her gelen GPS veya location isteğini radar gibi kaydet
+      // Her gelen GPS veya location isteğini kaydet
       logEvent('incoming_gps_hit', {
         path: url.pathname,
         method: request.method,
@@ -163,9 +192,10 @@ export default {
         const delId = String(data.id || data.deviceId || '').trim();
         if (delId) {
           liveFleet.delete(delId);
-          if (env.LIVE_FLEET_KV) {
-            await env.LIVE_FLEET_KV.put('live_fleet_state', JSON.stringify(Array.from(liveFleet.values())));
-          }
+          // Vercel'e de ilet
+          const fwdHeaders = new Headers(request.headers);
+          fwdHeaders.set('X-Forwarded-From', 'Cloudflare-Edge');
+          ctx.waitUntil(fetch(request.url, { method: request.method, headers: fwdHeaders, body: rawBodyText || undefined }).catch(() => {}));
         }
         return new Response(JSON.stringify({ success: true, deleted: delId }), {
           status: 200,
@@ -211,7 +241,7 @@ export default {
         });
       }
 
-      // Standart ISO Timestamp Formatlayıcı (UNIX saniye / ms / ISO desteği)
+      // Standart ISO Timestamp Formatlayıcı
       let formattedTimestamp = new Date().toISOString();
       if (pointTimestamp) {
         const strVal = String(pointTimestamp).trim();
@@ -244,18 +274,8 @@ export default {
       // Discord'a anlık GPS telemetri bildirimini gönder
       notifyDiscord(`🌐 [EDGE GPS] Cihaz: **${deviceId}** | Lat: ${rawLat.toFixed(5)} | Lon: ${rawLon.toFixed(5)} | Hız: ${speed.toFixed(1)} km/s | Saat: ${pointTimestamp}`);
 
-      // Edge In-Memory Filo Güncellemesi (KV kalıcı bellekten yükle)
+      // Edge In-Memory Filo Güncellemesi
       let vehicle = liveFleet.get(deviceId);
-      if (!vehicle && env.LIVE_FLEET_KV) {
-        try {
-          const kvState = await env.LIVE_FLEET_KV.get('live_fleet_state', 'json');
-          if (Array.isArray(kvState)) {
-            kvState.forEach(v => { if (v && v.id) liveFleet.set(v.id, v); });
-            vehicle = liveFleet.get(deviceId);
-          }
-        } catch (_) {}
-      }
-
       if (!vehicle) {
         vehicle = {
           id: deviceId,
@@ -297,18 +317,32 @@ export default {
 
       liveFleet.set(deviceId, vehicle);
 
-      // Cloudflare KV Kalıcı Depolama Senkronizasyonu
-      if (env.LIVE_FLEET_KV) {
+      // Cloudflare Data Center Cache API'ye hemen kaydet (Sıfır kota, sınırsız yazma)
+      try {
+        const cacheKey = new Request(CACHE_URL, { method: 'GET' });
+        const cacheRes = new Response(JSON.stringify(Array.from(liveFleet.values())), {
+          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' }
+        });
+        ctx.waitUntil(caches.default.put(cacheKey, cacheRes).catch(() => {}));
+      } catch (_) {}
+
+      // Vercel Origin'e Arka Planda İlet (Firestore live_positions ve daily_routes için)
+      try {
+        const fwdHeaders = new Headers(request.headers);
+        fwdHeaders.set('X-Forwarded-From', 'Cloudflare-Edge');
         ctx.waitUntil(
-          env.LIVE_FLEET_KV.put('live_fleet_state', JSON.stringify(Array.from(liveFleet.values())))
-            .catch(e => console.error('KV Put Error:', e.message))
+          fetch(request.url, {
+            method: request.method,
+            headers: fwdHeaders,
+            body: request.method === 'POST' ? rawBodyText : undefined
+          }).catch(fErr => console.error('Vercel async fwd error:', fErr?.message || fErr))
         );
-      }
+      } catch (_) {}
 
       // Yanıt
       return new Response(JSON.stringify({
         success: true,
-        message: 'Konum Edge uzerine islendi (Sifir Firestore Kotasi)',
+        message: 'Konum Edge ve Veritabanina islendi',
         id: deviceId
       }), {
         status: 200,
