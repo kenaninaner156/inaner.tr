@@ -703,13 +703,21 @@ export default function LiveTracking({
     el.addEventListener('wheel', onWheel, { passive: false });
   }, []);
 
+  const DEFAULT_MAPPINGS = {
+    Mert: { driverName: 'Mert', plate: '06 FTN 692' },
+    Goksel: { driverName: 'Göksel', plate: '06 FTN 692' },
+    'Göksel': { driverName: 'Göksel', plate: '06 FTN 692' }
+  };
+
   const getVehicleInfo = (deviceId) => {
-    const m = deviceMappings[deviceId];
-    if (!m) return { driverName: `Cihaz (${deviceId})`, plate: '' };
-    const truck = (trucks || []).find(t => t.id === m.truckId);
+    const def = DEFAULT_MAPPINGS[deviceId] || {};
+    const m = deviceMappings?.[deviceId];
+    const truck = (trucks || []).find(t => t.id === m?.truckId);
+    const driverName = m?.driverName || def.driverName || (deviceId ? `Cihaz (${deviceId})` : 'Bilinmeyen');
+    const plate = truck?.plate || m?.plate || def.plate || '';
     return {
-      driverName: m.driverName || deviceId,
-      plate: truck?.plate || ''
+      driverName,
+      plate
     };
   };
 
@@ -723,7 +731,7 @@ export default function LiveTracking({
       const isOnline  = (now - new Date(lastPoint.timestamp).getTime()) < 30 * 60 * 1000;
       const speedKmh  = isOnline ? Math.round((lastPoint.speed || 0) * 1.852) : 0;
       const { km, durationMin, topSpeedKmh, avgSpeedKmh } = calcStats(latestSession);
-      const isMapped  = !!deviceMappings[driverId];
+      const isMapped  = !!deviceMappings?.[driverId] || !!DEFAULT_MAPPINGS[driverId];
       const info = getVehicleInfo(driverId);
       
       const isParked = isOnline && speedKmh <= 7;

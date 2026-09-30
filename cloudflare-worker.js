@@ -63,11 +63,19 @@ export default {
         try {
           rawBodyText = await request.text();
           if (rawBodyText) {
-            const bodyJson = JSON.parse(rawBodyText);
-            if (Array.isArray(bodyJson) && bodyJson.length > 0) {
-              data = { ...data, ...bodyJson[0] };
-            } else if (bodyJson && typeof bodyJson === 'object') {
-              data = { ...data, ...bodyJson };
+            try {
+              const bodyJson = JSON.parse(rawBodyText);
+              if (Array.isArray(bodyJson) && bodyJson.length > 0) {
+                data = { ...data, ...bodyJson[0] };
+              } else if (bodyJson && typeof bodyJson === 'object') {
+                data = { ...data, ...bodyJson };
+              }
+            } catch (_) {
+              // URL-encoded form verisi olarak ayrıştır (Traccar ve standart istemciler)
+              const formParams = new URLSearchParams(rawBodyText);
+              formParams.forEach((value, key) => {
+                data[key] = value;
+              });
             }
           }
         } catch (_) {}
