@@ -1,11 +1,10 @@
 /**
- * İnaner Logistics - Cloudflare Edge Telemetri Hub (Geniş Kapsamlı GPS Radarı)
+ * İnaner Logistics - Cloudflare Edge Telemetri Hub & D1 SQL Motoru
  * Rota: *inaner.tr/api/*
  */
 
 const liveFleet = new Map();
 const debugLogs = [];
-let lastVercelFetchTime = 0;
 
 function logEvent(type, data) {
   debugLogs.unshift({
@@ -35,7 +34,58 @@ const CORS_HEADERS = {
   'Access-Control-Max-Age': '86400'
 };
 
-const CACHE_URL = 'https://inaner.tr/api/save-location?action=internal_fleet_cache';
+// Mesafe Hesaplayıcı (Haversine km)
+function haversineKm(lat1, lon1, lat2, lon2) {
+  if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return 0;
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Poligon Geofence Kontrolü (Ray-Casting)
+function isPointInPolygon(point, polygon) {
+  if (!point || !polygon || polygon.length < 3) return false;
+  const x = Number(point.lat);
+  const y = Number(point.lon);
+  if (isNaN(x) || isNaN(y)) return false;
+
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const p1 = polygon[i];
+    const p2 = polygon[j];
+    const xi = Number(p1.lat !== undefined ? p1.lat : p1[0]);
+    const yi = Number(p1.lon !== undefined ? p1.lon : p1[1]);
+    const xj = Number(p2.lat !== undefined ? p2.lat : p2[0]);
+    const yj = Number(p2.lon !== undefined ? p2.lon : p2[1]);
+    const intersect = ((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function isPointInGeofence(pt, geofence) {
+  if (!pt || !geofence) return false;
+  if (Array.isArray(geofence.polygon) && geofence.polygon.length >= 3) {
+    return isPointInPolygon(pt, geofence.polygon);
+  }
+  if (geofence.lat !== undefined && geofence.lon !== undefined) {
+    return haversineKm(pt.lat, pt.lon, geofence.lat, geofence.lon) <= (geofence.radiusKm || 0.5);
+  }
+  return false;
+}
+
+// Türkiye Saati Tarih Formatlayıcı (UTC+3 -> YYYY-MM-DD)
+function getTurkeyDateStr(timestamp) {
+  try {
+    const d = timestamp ? new Date(timestamp) : new Date();
+    const trMs = d.getTime() + 3 * 3600 * 1000;
+    return new Date(trMs).toISOString().slice(0, 10);
+  } catch (_) {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
 
 export default {
   async fetch(request, env, ctx) {
@@ -79,13 +129,25 @@ export default {
 
       const action = data.action || url.searchParams.get('action');
 
-      // Canlı Debug / Teşhis Sorgusu
-      if (action === 'get_debug' || action === 'get_logs') {
+      // ── 1. D1 TEST & TEŞHİS UCU ──
+      if (action === 'test_d1' || action === 'get_debug') {
+        let d1Stats = { hasD1: !!env.DB };
+        if (env.DB) {
+          try {
+            const liveCount = await env.DB.prepare('SELECT COUNT(*) as cnt FROM live_positions').first();
+            const pointsCount = await env.DB.prepare('SELECT COUNT(*) as cnt FROM route_points').first();
+            const geoCount = await env.DB.prepare('SELECT COUNT(*) as cnt FROM geofences').first();
+            d1Stats.liveCount = liveCount?.cnt || 0;
+            d1Stats.pointsCount = pointsCount?.cnt || 0;
+            d1Stats.geoCount = geoCount?.cnt || 0;
+          } catch (dErr) {
+            d1Stats.error = dErr.message;
+          }
+        }
         return new Response(JSON.stringify({
           success: true,
-          totalLoggedEvents: debugLogs.length,
+          d1Stats,
           liveFleetCount: liveFleet.size,
-          lastVercelFetchAgeMs: Date.now() - lastVercelFetchTime,
           liveFleet: Array.from(liveFleet.values()),
           recentLogs: debugLogs
         }), {
@@ -94,77 +156,143 @@ export default {
         });
       }
 
-      // Harita Ekranı Canlı Filo Verisi (Anlık Senkronize)
-      if (action === 'get_live' || action === 'get_vehicles') {
-        const now = Date.now();
-        let vehicles = Array.from(liveFleet.values());
+      // ── 2. GEOFENCE SENKRONİZASYON UCU ──
+      if (action === 'sync_geofences' && request.method === 'POST') {
+        if (!env.DB) {
+          return new Response(JSON.stringify({ error: 'D1 not bound' }), { status: 500, headers: CORS_HEADERS });
+        }
+        const incomingGeos = Array.isArray(data.geofences) ? data.geofences : [];
+        for (const g of incomingGeos) {
+          if (!g.id || !g.name) continue;
+          const polyStr = JSON.stringify(g.polygon || []);
+          await env.DB.prepare(`
+            INSERT INTO geofences (id, name, polygon_json, lat, lon, radius_km, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              name = excluded.name,
+              polygon_json = excluded.polygon_json,
+              lat = excluded.lat,
+              lon = excluded.lon,
+              radius_km = excluded.radius_km
+          `).bind(g.id, g.name, polyStr, g.lat || null, g.lon || null, g.radiusKm || 1, new Date().toISOString()).run();
+        }
+        return new Response(JSON.stringify({ success: true, count: incomingGeos.length }), {
+          status: 200,
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+        });
+      }
 
-        // 1. Önce yerel PoP Cache API'den taze veri kontrolü
-        try {
-          const cacheKey = new Request(CACHE_URL, { method: 'GET' });
-          const cachedRes = await caches.default.match(cacheKey);
-          if (cachedRes) {
-            const cachedVehicles = await cachedRes.json();
-            if (Array.isArray(cachedVehicles) && cachedVehicles.length > 0) {
-              cachedVehicles.forEach(v => {
-                if (v && v.id) {
-                  const existing = liveFleet.get(v.id);
-                  const vTime = new Date(v.updatedAt || v.timestamp || 0).getTime();
-                  const existTime = existing ? new Date(existing.updatedAt || existing.timestamp || 0).getTime() : 0;
-                  if (!existing || vTime >= existTime) {
-                    liveFleet.set(v.id, v);
+      // ── 3. ROTA GEÇMİŞİ SORGUSU (D1 SQL) ──
+      if (action === 'get_history') {
+        const queryDate = data.date || url.searchParams.get('date') || getTurkeyDateStr();
+        const driverId = data.driverId || data.deviceId || url.searchParams.get('driverId');
+
+        if (env.DB) {
+          try {
+            let sql = 'SELECT device_id, lat, lon, speed, altitude, timestamp, point_time FROM route_points WHERE date = ?';
+            const params = [queryDate];
+            if (driverId) {
+              sql += ' AND device_id = ?';
+              params.push(driverId);
+            }
+            sql += ' ORDER BY point_time ASC';
+
+            const { results } = await env.DB.prepare(sql).bind(...params).all();
+            return new Response(JSON.stringify({
+              success: true,
+              source: 'cloudflare_d1',
+              date: queryDate,
+              count: results?.length || 0,
+              points: results || []
+            }), {
+              status: 200,
+              headers: { ...CORS_HEADERS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
+            });
+          } catch (hErr) {
+            console.error('D1 get_history hatasi:', hErr);
+          }
+        }
+      }
+
+      // ── 4. CANLI FİLO VE AKTİF SEFER SORGUSU (get_live / get_vehicles) ──
+      if (action === 'get_live' || action === 'get_vehicles') {
+        let vehicles = [];
+
+        // D1 Veritabanından Oku
+        if (env.DB) {
+          try {
+            const { results: liveRows } = await env.DB.prepare('SELECT * FROM live_positions').all();
+            if (liveRows && liveRows.length > 0) {
+              const nowMs = Date.now();
+
+              for (const row of liveRows) {
+                const dId = row.device_id;
+                const isOnline = (nowMs - new Date(row.updated_at).getTime()) < 30 * 60 * 1000;
+                
+                // Aktif Sefer Güzergahını D1'den Çek (Özel bölge kapısından veya 30 dk moladan sonraki noktalar)
+                const tripStartTime = row.active_trip_start_time || (nowMs - 2 * 3600 * 1000);
+                
+                const { results: trailRows } = await env.DB.prepare(`
+                  SELECT lat, lon, speed, altitude, timestamp, point_time
+                  FROM route_points
+                  WHERE device_id = ? AND point_time >= ?
+                  ORDER BY point_time ASC
+                  LIMIT 2000
+                `).bind(dId, tripStartTime).all();
+
+                let recentTrail = (trailRows || []).map(p => ({
+                  lat: p.lat,
+                  lon: p.lon,
+                  speed: p.speed,
+                  altitude: p.altitude,
+                  timestamp: p.timestamp
+                }));
+
+                // Eğer aktif seferde henüz 2 nokta yoksa son 50 noktayı al
+                if (recentTrail.length < 2) {
+                  const { results: fallbackRows } = await env.DB.prepare(`
+                    SELECT lat, lon, speed, altitude, timestamp
+                    FROM route_points
+                    WHERE device_id = ?
+                    ORDER BY point_time DESC
+                    LIMIT 100
+                  `).bind(dId).all();
+                  if (fallbackRows && fallbackRows.length > 0) {
+                    recentTrail = fallbackRows.reverse();
                   }
                 }
-              });
-              vehicles = Array.from(liveFleet.values());
-            }
-          }
-        } catch (_) {}
 
-        // 2. Anlık Tazelik Denetimi:
-        // Eğer bellekte hiç araç yoksa VEYA son Vercel sorgusundan bu yana 2 saniye geçmişse Vercel / Firestore'dan çek
-        const lastFetchAge = now - lastVercelFetchTime;
-        const needsOriginSync = vehicles.length === 0 || lastFetchAge >= 2000;
-
-        if (needsOriginSync) {
-          try {
-            const fwdHeaders = new Headers(request.headers);
-            fwdHeaders.set('X-Forwarded-From', 'Cloudflare-Edge');
-            const originRes = await fetch(request.url, {
-              method: 'GET',
-              headers: fwdHeaders
-            });
-            if (originRes.ok) {
-              const originData = await originRes.json();
-              if (originData.success && Array.isArray(originData.vehicles) && originData.vehicles.length > 0) {
-                lastVercelFetchTime = now;
-                originData.vehicles.forEach(v => {
-                  if (v && v.id) {
-                    const existing = liveFleet.get(v.id);
-                    const vTime = new Date(v.updatedAt || v.timestamp || 0).getTime();
-                    const existTime = existing ? new Date(existing.updatedAt || existing.timestamp || 0).getTime() : 0;
-                    if (!existing || vTime >= existTime) {
-                      liveFleet.set(v.id, v);
-                    }
-                  }
+                vehicles.push({
+                  id: dId,
+                  deviceId: dId,
+                  driverId: dId,
+                  companyId: null,
+                  lat: row.lat,
+                  lon: row.lon,
+                  speed: row.speed,
+                  altitude: row.altitude,
+                  timestamp: row.timestamp,
+                  updatedAt: row.updated_at,
+                  dailyKm: Number((row.daily_km || 0).toFixed(1)),
+                  isOnline: isOnline ? true : false,
+                  activeTripStartTime: row.active_trip_start_time,
+                  recentTrail
                 });
-                vehicles = Array.from(liveFleet.values());
-
-                // Cache API'ye sadece 2 saniyelik mikro önbellek kaydet
-                const cacheKey = new Request(CACHE_URL, { method: 'GET' });
-                const cacheRes = new Response(JSON.stringify(vehicles), {
-                  headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=2' }
-                });
-                ctx.waitUntil(caches.default.put(cacheKey, cacheRes).catch(() => {}));
               }
             }
-          } catch (fErr) {
-            console.error('Origin get_live fallback hatasi:', fErr?.message || fErr);
+          } catch (d1Err) {
+            console.error('D1 get_live hatasi:', d1Err);
           }
+        }
+
+        // D1 henüz hazır değilse In-Memory Fallback
+        if (vehicles.length === 0) {
+          vehicles = Array.from(liveFleet.values());
         }
 
         return new Response(JSON.stringify({
           success: true,
+          source: 'cloudflare_d1',
           count: vehicles.length,
           vehicles,
           timestamp: new Date().toISOString()
@@ -189,40 +317,20 @@ export default {
         return fetch(request);
       }
 
-      // Her gelen GPS veya location isteğini kaydet
-      logEvent('incoming_gps_hit', {
-        path: url.pathname,
-        method: request.method,
-        query: url.search,
-        ip: request.headers.get('cf-connecting-ip'),
-        ua: (request.headers.get('user-agent') || '').slice(0, 60),
-        hasBody: !!rawBodyText,
-        bodyPreview: rawBodyText ? rawBodyText.slice(0, 100) : ''
-      });
-
-      // Token doğrulaması
-      const token = data.token || data.params?.token || data.location?.params?.token || url.searchParams.get('token');
-      if (token && token !== EXPECTED_TOKEN) {
-        logEvent('token_mismatch', { receivedToken: token, expected: EXPECTED_TOKEN });
-      }
-
       // Cihaz silme aksiyonu
       if (action === 'delete_device') {
         const delId = String(data.id || data.deviceId || '').trim();
-        if (delId) {
-          liveFleet.delete(delId);
-          // Vercel'e de ilet
-          const fwdHeaders = new Headers(request.headers);
-          fwdHeaders.set('X-Forwarded-From', 'Cloudflare-Edge');
-          ctx.waitUntil(fetch(request.url, { method: request.method, headers: fwdHeaders, body: rawBodyText || undefined }).catch(() => {}));
+        if (delId && env.DB) {
+          await env.DB.prepare('DELETE FROM live_positions WHERE device_id = ?').bind(delId).run();
         }
+        liveFleet.delete(delId);
         return new Response(JSON.stringify({ success: true, deleted: delId }), {
           status: 200,
           headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
         });
       }
 
-      // Koordinat Ayrıştırma (OsmAnd / Traccar / Custom)
+      // ── 5. GPS KOORDİNAT AYRIŞTIRMA (Traccar / OsmAnd / Custom) ──
       let deviceId = 'Bilinmeyen_Cihaz';
       let rawLat, rawLon, speed = 0, altitude = 0;
       let pointTimestamp = new Date().toISOString();
@@ -252,8 +360,10 @@ export default {
         deviceId = String(data.device_id || data.id || 'Bilinmeyen_Cihaz').trim();
       }
 
+      // Goksel -> Göksel Normalizasyonu
+      if (deviceId === 'Goksel') deviceId = 'Göksel';
+
       if (isNaN(rawLat) || isNaN(rawLon) || rawLat < -90 || rawLat > 90 || rawLon < -180 || rawLon > 180) {
-        logEvent('invalid_coordinates', { rawLat, rawLon, deviceId, data });
         return new Response(JSON.stringify({ error: 'Gecersiz koordinat' }), {
           status: 400,
           headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
@@ -265,42 +375,149 @@ export default {
       if (pointTimestamp) {
         const strVal = String(pointTimestamp).trim();
         if (!isNaN(strVal) && /^\d+$/.test(strVal)) {
-          if (strVal.length === 10) {
-            formattedTimestamp = new Date(parseInt(strVal, 10) * 1000).toISOString();
-          } else if (strVal.length === 13) {
-            formattedTimestamp = new Date(parseInt(strVal, 10)).toISOString();
-          }
+          if (strVal.length === 10) formattedTimestamp = new Date(parseInt(strVal, 10) * 1000).toISOString();
+          else if (strVal.length === 13) formattedTimestamp = new Date(parseInt(strVal, 10)).toISOString();
         } else {
           const parsedD = new Date(pointTimestamp);
-          if (!isNaN(parsedD.getTime())) {
-            formattedTimestamp = parsedD.toISOString();
-          }
+          if (!isNaN(parsedD.getTime())) formattedTimestamp = parsedD.toISOString();
         }
       }
       pointTimestamp = formattedTimestamp;
+      const pointTime = new Date(pointTimestamp).getTime();
+      const dateStr = getTurkeyDateStr(pointTimestamp);
+      const isoNow = new Date().toISOString();
 
-      const now = Date.now();
-      const isoNow = new Date(now).toISOString();
+      // Discord Bildirimi
+      notifyDiscord(`🌐 [D1 GPS] Cihaz: **${deviceId}** | Lat: ${rawLat.toFixed(5)} | Lon: ${rawLon.toFixed(5)} | Hız: ${speed.toFixed(1)} km/s | Saat: ${pointTimestamp}`);
 
-      logEvent('valid_gps_parsed', {
-        deviceId,
-        lat: rawLat,
-        lon: rawLon,
-        speed,
-        timestamp: pointTimestamp
-      });
+      // ── 6. D1 SQL ÜZERİNE YAZMA VE GEOFENCE KONTROLÜ ──
+      if (env.DB) {
+        try {
+          // 6.1 Mevcut araç durumunu D1'den oku
+          const existing = await env.DB.prepare('SELECT * FROM live_positions WHERE device_id = ?').bind(deviceId).first();
+          
+          // 6.2 1 Günlük KM Sayacı (Gece 00:00 - 23:59:59)
+          let dailyKm = existing ? (existing.daily_km || 0) : 0;
+          if (!existing || existing.daily_date !== dateStr) {
+            dailyKm = 0; // Yeni gün başladı
+          } else if (existing && existing.lat && existing.lon) {
+            const dist = haversineKm(existing.lat, existing.lon, rawLat, rawLon);
+            if (dist > 0.003 && dist < 5) {
+              dailyKm += dist;
+            }
+          }
 
-      // Discord'a anlık GPS telemetri bildirimini gönder
-      notifyDiscord(`🌐 [EDGE GPS] Cihaz: **${deviceId}** | Lat: ${rawLat.toFixed(5)} | Lon: ${rawLon.toFixed(5)} | Hız: ${speed.toFixed(1)} km/s | Saat: ${pointTimestamp}`);
+          // 6.3 Özel Bölge (Geofence) ve 30 Dakika Mola Kuralı
+          let activeTripStartTime = existing?.active_trip_start_time || pointTime;
+          let activeGeofenceId = existing?.active_geofence_id || null;
+          let geofenceEntryTime = existing?.geofence_entry_time || null;
 
-      // Edge In-Memory Filo Güncellemesi
+          // D1'deki Geofence'leri çek
+          const { results: allGeos } = await env.DB.prepare('SELECT * FROM geofences').all();
+          let currentGeofence = null;
+          if (allGeos && allGeos.length > 0) {
+            const ptObj = { lat: rawLat, lon: rawLon };
+            for (const g of allGeos) {
+              let parsedPoly = [];
+              try { parsedPoly = JSON.parse(g.polygon_json || '[]'); } catch (_) {}
+              const geoObj = { ...g, polygon: parsedPoly };
+              if (isPointInGeofence(ptObj, geoObj)) {
+                currentGeofence = geoObj;
+                break;
+              }
+            }
+          }
+
+          const isStationary = speed < 4;
+
+          if (currentGeofence) {
+            if (activeGeofenceId !== currentGeofence.id) {
+              // Özel bölgeye yeni girdi
+              activeGeofenceId = currentGeofence.id;
+              geofenceEntryTime = pointTime;
+            }
+          } else {
+            // Tır özel bölge DIŞINDA
+            if (activeGeofenceId) {
+              // Özel bölgede en az 2 dakika durup/bekleyip çıktı mı?
+              const timeInside = geofenceEntryTime ? (pointTime - geofenceEntryTime) : 0;
+              if (timeInside >= 2 * 60 * 1000) {
+                // Tesis sahasında bekleyip kapıdan yola çıktığı an -> YENİ SEFERİ BAŞLAT!
+                activeTripStartTime = pointTime;
+              }
+              activeGeofenceId = null;
+              geofenceEntryTime = null;
+            }
+          }
+
+          // 30 Dakika Hareketsizlik (Mola) Kuralı
+          if (existing && existing.updated_at) {
+            const timeSinceLastUpdateMin = (pointTime - new Date(existing.updated_at).getTime()) / 60000;
+            if (timeSinceLastUpdateMin >= 30 && speed > 5) {
+              // 30 dakikalık duraklamadan sonra ilk hareket -> YENİ SEFER BAŞLADI!
+              activeTripStartTime = pointTime;
+            }
+          }
+
+          // 6.4 live_positions UPSERT
+          await env.DB.prepare(`
+            INSERT INTO live_positions (
+              device_id, lat, lon, speed, altitude, timestamp, updated_at,
+              daily_km, daily_date, active_geofence_id, geofence_entry_time,
+              active_trip_start_time, is_online
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            ON CONFLICT(device_id) DO UPDATE SET
+              lat = excluded.lat,
+              lon = excluded.lon,
+              speed = excluded.speed,
+              altitude = excluded.altitude,
+              timestamp = excluded.timestamp,
+              updated_at = excluded.updated_at,
+              daily_km = excluded.daily_km,
+              daily_date = excluded.daily_date,
+              active_geofence_id = excluded.active_geofence_id,
+              geofence_entry_time = excluded.geofence_entry_time,
+              active_trip_start_time = excluded.active_trip_start_time,
+              is_online = 1
+          `).bind(
+            deviceId, rawLat, rawLon, speed, altitude, pointTimestamp, isoNow,
+            dailyKm, dateStr, activeGeofenceId, geofenceEntryTime, activeTripStartTime
+          ).run();
+
+          // 6.5 Akıllı Viraj & Rota Kaydı (route_points INSERT)
+          let shouldRecordPoint = true;
+          if (existing && existing.lat && existing.lon) {
+            const distFromLast = haversineKm(existing.lat, existing.lon, rawLat, rawLon);
+            const speedDiff = Math.abs(speed - (existing.speed || 0));
+            // Araç dururken: En fazla 60 sn'de bir kaydet
+            if (speed < 3 && (existing.speed || 0) < 3) {
+              const timeDiffSec = (pointTime - new Date(existing.timestamp).getTime()) / 1000;
+              shouldRecordPoint = timeDiffSec >= 60 || distFromLast >= 0.03;
+            } else {
+              // Hareket halindeyken: Virajda (hız farkı veya mesafe > 20m) veya 3 sn'de bir
+              shouldRecordPoint = distFromLast >= 0.02 || speedDiff >= 4;
+            }
+          }
+
+          if (shouldRecordPoint) {
+            await env.DB.prepare(`
+              INSERT INTO route_points (device_id, lat, lon, speed, altitude, timestamp, point_time, date)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(deviceId, rawLat, rawLon, speed, altitude, pointTimestamp, pointTime, dateStr).run();
+          }
+
+        } catch (d1SaveErr) {
+          console.error('D1 Save error:', d1SaveErr);
+        }
+      }
+
+      // In-Memory Güncelleme
       let vehicle = liveFleet.get(deviceId);
       if (!vehicle) {
         vehicle = {
           id: deviceId,
           deviceId: deviceId,
           driverId: deviceId,
-          companyId: null,
           lat: rawLat,
           lon: rawLon,
           speed,
@@ -319,51 +536,15 @@ export default {
         vehicle.timestamp = pointTimestamp;
         vehicle.updatedAt = isoNow;
         vehicle.isOnline = true;
-        if (!Array.isArray(vehicle.recentTrail)) {
-          vehicle.recentTrail = [];
-        }
       }
-
-      vehicle.recentTrail.push({
-        lat: rawLat,
-        lon: rawLon,
-        speed,
-        altitude,
-        timestamp: pointTimestamp
-      });
-      if (vehicle.recentTrail.length > 2500) {
-        vehicle.recentTrail = vehicle.recentTrail.slice(-2500);
-      }
-
+      if (!Array.isArray(vehicle.recentTrail)) vehicle.recentTrail = [];
+      vehicle.recentTrail.push({ lat: rawLat, lon: rawLon, speed, altitude, timestamp: pointTimestamp });
+      if (vehicle.recentTrail.length > 500) vehicle.recentTrail = vehicle.recentTrail.slice(-500);
       liveFleet.set(deviceId, vehicle);
 
-      // Cloudflare Data Center Cache API'ye hemen kaydet (Sıfır kota, sınırsız yazma)
-      try {
-        const cacheKey = new Request(CACHE_URL, { method: 'GET' });
-        const cacheRes = new Response(JSON.stringify(Array.from(liveFleet.values())), {
-          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=2' }
-        });
-        ctx.waitUntil(caches.default.put(cacheKey, cacheRes).catch(() => {}));
-      } catch (_) {}
-
-      // Vercel Origin'e Arka Planda İlet (Firestore live_positions ve daily_routes için)
-      try {
-        const fwdHeaders = new Headers(request.headers);
-        fwdHeaders.set('X-Forwarded-From', 'Cloudflare-Edge');
-        fwdHeaders.delete('content-length');
-        ctx.waitUntil(
-          fetch(request.url, {
-            method: request.method,
-            headers: fwdHeaders,
-            body: request.method === 'POST' ? rawBodyText : undefined
-          }).catch(fErr => console.error('Vercel async fwd error:', fErr?.message || fErr))
-        );
-      } catch (_) {}
-
-      // Yanıt
       return new Response(JSON.stringify({
         success: true,
-        message: 'Konum Edge ve Veritabanina islendi',
+        message: 'Konum Cloudflare D1 ve Edge Hub üzerine kaydedildi',
         id: deviceId
       }), {
         status: 200,

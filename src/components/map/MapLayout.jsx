@@ -326,6 +326,17 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
   useEffect(() => {
     localStorage.setItem('map_show_weather', showWeather);
   }, [showWeather]);
+
+  // Geofence listesini Cloudflare D1 veritabanına otomatik senkronize et
+  useEffect(() => {
+    if (Array.isArray(geofences) && geofences.length > 0) {
+      fetch('https://inaner.tr/api/save-location?action=sync_geofences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ geofences })
+      }).catch(() => {});
+    }
+  }, [geofences]);
   
   const [locations, setLocations] = useState([]);
   const [, setLoading] = useState(true);

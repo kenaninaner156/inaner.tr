@@ -851,7 +851,22 @@ export default function RouteHistory({
           }
         }
 
-        // 2.2 daily_routes/{selectedDriver_YYYY-MM-DD} dökümanını tek okumada çek
+        // 2.2 Öncelikli: Cloudflare D1 SQL üzerinden çek (Sıfır Firestore kotası)
+        if (points.length === 0) {
+          try {
+            const d1Res = await fetch(`https://inaner.tr/api/save-location?action=get_history&date=${historyDate}&driverId=${encodeURIComponent(selectedDriver)}&_t=${Date.now()}`);
+            if (d1Res.ok) {
+              const d1Data = await d1Res.json();
+              if (d1Data.success && Array.isArray(d1Data.points) && d1Data.points.length > 0) {
+                points = d1Data.points;
+              }
+            }
+          } catch (d1Err) {
+            console.warn("D1 get_history uyarısı (Firestore fallback deneniyor):", d1Err);
+          }
+        }
+
+        // 2.3 daily_routes/{selectedDriver_YYYY-MM-DD} dökümanı (Fallback)
         if (points.length === 0) {
           try {
             const dailyDocId = `${selectedDriver}_${historyDate}`;

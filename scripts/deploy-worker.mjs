@@ -19,6 +19,11 @@ async function deployWorker() {
         type: 'kv_namespace',
         name: 'LIVE_FLEET_KV',
         namespace_id: '3b47a19f9c9f4946a4dc980400a1b57e'
+      },
+      {
+        type: 'd1',
+        name: 'DB',
+        id: '5ce00dcb-a014-4cd6-8788-627e5b4f92b0'
       }
     ]
   });
