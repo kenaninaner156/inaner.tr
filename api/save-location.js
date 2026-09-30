@@ -14,6 +14,28 @@ export default async function handler(req, res) {
         return res.status(401).json({ error: 'Yetkisiz islem. Gecersiz token.' });
     }
 
+    // Canlı Filo Sorgusu (get_live)
+    if (data.action === 'get_live' || data.action === 'get_vehicles') {
+        try {
+            const edgeRes = await fetch('https://inaner.tr/api/save-location?action=get_live&token=' + EXPECTED_TOKEN);
+            const edgeData = await edgeRes.json();
+            return res.status(200).json(edgeData);
+        } catch (_) {
+            return res.status(200).json({ success: true, count: 0, vehicles: [] });
+        }
+    }
+
+    // Doğrudan Vercel'e gelen sinyalleri Cloudflare Edge Hub'a da ilet
+    if (!req.headers['cf-ray']) {
+        try {
+            fetch('https://inaner.tr/api/save-location?token=' + EXPECTED_TOKEN, {
+                method: req.method,
+                headers: { 'Content-Type': 'application/json' },
+                body: req.method === 'POST' ? JSON.stringify(data) : undefined
+            }).catch(() => {});
+        } catch (_) {}
+    }
+
     try {
         // Cihaz silme işlemi
         if (data.action === 'delete_device' && data.deviceId) {

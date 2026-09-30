@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useContext, useRef, useMemo, useCallback, useDeferredValue } from 'react'
 import { DataContext } from './context/DataContext'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 
@@ -39,6 +39,7 @@ function App() {
     if (savedTab) return savedTab;
     return 'dashboard';
   })
+  const deferredTab = useDeferredValue(activeTab);
   const [isMenuOpen, setIsMenuOpen] = useState(window.innerWidth >= 1024)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024)
   const [theme, setTheme] = useState('dark')
@@ -875,8 +876,8 @@ function App() {
       </aside>
 
       {/* Main Content */}
-      <main className={`${['dashboard', 'map', 'invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive'].includes(activeTab) ? 'h-[100dvh] lg:h-screen overflow-hidden' : 'min-h-screen'} ${mainPaddingLeft}`}>
-        <div className={`flex flex-col w-full ${['dashboard', 'map', 'invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive'].includes(activeTab) ? 'h-full overflow-hidden' : 'min-h-screen'}`}>
+      <main className={`${['dashboard', 'map', 'invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive'].includes(deferredTab) ? 'h-[100dvh] lg:h-screen overflow-hidden' : 'min-h-screen'} ${mainPaddingLeft}`}>
+        <div className={`flex flex-col w-full ${['dashboard', 'map', 'invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive'].includes(deferredTab) ? 'h-full overflow-hidden' : 'min-h-screen'}`}>
 
           {/* Header - Simple & Clean (sticky) */}
           <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map', 'trips', 'dashboard', 'maintenance', 'detaylar', 'invoices', 'earsiv', 'payments', 'personel', 'settings', 'company_admin', 'super_admin', 'company_debts', 'drive'].includes(activeTab) ? 'hidden' : ''}`}
@@ -899,36 +900,36 @@ function App() {
           {/* Content Area */}
           <div 
             className={`flex-1 ${
-              activeTab === 'map' 
+              deferredTab === 'map' 
                 ? 'p-0 h-full overflow-hidden' 
-                : activeTab === 'dashboard'
+                : deferredTab === 'dashboard'
                   ? 'pb-3 sm:pb-4 px-3 sm:px-5 md:px-6 h-full overflow-hidden flex flex-col' 
-                  : ['invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive'].includes(activeTab)
+                  : ['invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive'].includes(deferredTab)
                     ? 'p-2.5 sm:p-4 md:p-5 h-full overflow-hidden flex flex-col'
                     : 'p-3 sm:p-4 md:p-6 xl:p-8'
             }`}
-            style={activeTab === 'dashboard' ? {
+            style={deferredTab === 'dashboard' ? {
               paddingTop: isMobile ? '0' : 'calc(1.35rem + var(--safe-top))',
               paddingRight: 'calc(1.25rem + env(safe-area-inset-right, 0px))',
               paddingLeft: 'calc(1.25rem + env(safe-area-inset-left, 0px))'
             } : undefined}
           >
-            <div key={activeTab} className={['map', 'dashboard'].includes(activeTab) ? 'h-full w-full overflow-hidden' : ['invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive'].includes(activeTab) ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
-              {activeTab === 'dashboard' && <Dashboard onOpenMenu={handleOpenMenu} onNavigate={handleNavigate} isMobile={isMobile} />}
-              {activeTab === 'trips' && <Trips onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {activeTab === 'fuel' && <Fuel onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {activeTab === 'maintenance' && <Maintenance onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {activeTab === 'detaylar' && <Detaylar onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {activeTab === 'invoices' && <Invoices onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {activeTab === 'drive' && <Drive onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {activeTab === 'earsiv' && <EArsiv onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {activeTab === 'payments' && <Payments onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {activeTab === 'company_debts' && <CompanyDebts onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {activeTab === 'personel' && <Personnel onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {activeTab === 'settings' && <SettingsPage onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {activeTab === 'company_admin' && <CompanyAdmin onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {activeTab === 'super_admin' && <SuperAdmin onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {activeTab === 'map' && userRole === 'super_admin' && <MapPage onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+            <div key={deferredTab} className={deferredTab === 'map' ? 'h-full w-full overflow-hidden' : ['invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive', 'dashboard'].includes(deferredTab) ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
+              {deferredTab === 'dashboard' && <Dashboard onOpenMenu={handleOpenMenu} onNavigate={handleNavigate} isMobile={isMobile} />}
+              {deferredTab === 'trips' && <Trips onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {deferredTab === 'fuel' && <Fuel onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {deferredTab === 'maintenance' && <Maintenance onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {deferredTab === 'detaylar' && <Detaylar onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {deferredTab === 'invoices' && <Invoices onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {deferredTab === 'drive' && <Drive onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {deferredTab === 'earsiv' && <EArsiv onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {deferredTab === 'payments' && <Payments onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {deferredTab === 'company_debts' && <CompanyDebts onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {deferredTab === 'personel' && <Personnel onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {deferredTab === 'settings' && <SettingsPage onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {deferredTab === 'company_admin' && <CompanyAdmin onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {deferredTab === 'super_admin' && <SuperAdmin onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {deferredTab === 'map' && userRole === 'super_admin' && <MapPage onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
             </div>
           </div>
         </div>

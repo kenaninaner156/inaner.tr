@@ -118,111 +118,10 @@ const getTurkeyTodayStr = () => {
 };
 
 let globalLocations = [];
-let globalUnsubscribe = null;
 const globalListeners = new Set();
-const dailyRoutesMemoryCache = new Map();
 let globalLoading = true;
 let lastCompanyId = null;
 let cleanupTimeout = null;
-
-// Araç listesini Firestore daily_routes ve recentTrail ile birleştirip tekil konumlara açan yardımcı fonksiyon
-const unrollVehiclesWithDaily = async (vehicles, companyId) => {
-  const todayStr = getTurkeyTodayStr();
-  const filtered = companyId
-    ? vehicles.filter(d => !d.companyId || d.companyId === companyId)
-    : vehicles;
-
-  // Her aktif araç için bugünün rotasını önbellekli çek (5 dakikada en fazla 1 okuma / araç - kota koruması)
-  const dailyRoutePromises = filtered.map(async (veh) => {
-    const dId = veh.deviceId || veh.driverId || veh.id;
-    const cacheKey = `${dId}_${todayStr}`;
-    const cached = dailyRoutesMemoryCache.get(cacheKey);
-    if (cached && (Date.now() - cached.time < 5 * 60 * 1000)) {
-      return { dId, veh, points: cached.points };
-    }
-    try {
-      const dailySnap = await getDoc(doc(db, 'daily_routes', cacheKey));
-      if (dailySnap.exists() && Array.isArray(dailySnap.data().points) && dailySnap.data().points.length > 0) {
-        dailyRoutesMemoryCache.set(cacheKey, { time: Date.now(), points: dailySnap.data().points });
-        return { dId, veh, points: dailySnap.data().points };
-      }
-      // Döküman yoksa veya boşsa önbelleğe boş dizi kaydet (Firestore'a mükerrer istek atmayı engeller)
-      dailyRoutesMemoryCache.set(cacheKey, { time: Date.now(), points: [] });
-    } catch (_) {
-      if (cached) return { dId, veh, points: cached.points };
-      dailyRoutesMemoryCache.set(cacheKey, { time: Date.now(), points: [] });
-    }
-    return { dId, veh, points: [] };
-  });
-
-  const dailyResults = await Promise.all(dailyRoutePromises);
-  const unrolledLocations = [];
-
-  dailyResults.forEach(({ dId, veh, points }) => {
-    let lastTimestampMs = 0;
-
-    // 1. Günün kayıtlı geçmiş noktalarını ekle
-    if (Array.isArray(points) && points.length > 0) {
-      points.forEach(pt => {
-        const ptTime = new Date(pt.timestamp || pt.time || 0).getTime();
-        if (ptTime > lastTimestampMs) lastTimestampMs = ptTime;
-
-        unrolledLocations.push({
-          driverId: dId,
-          deviceId: dId,
-          companyId: veh.companyId || companyId,
-          lat: pt.lat,
-          lon: pt.lon,
-          speed: pt.speed || 0,
-          timestamp: pt.timestamp || pt.time || veh.updatedAt || veh.timestamp,
-          createdAt: pt.timestamp || pt.time || veh.updatedAt || veh.timestamp,
-          ignition: pt.ignition !== undefined ? pt.ignition : ((pt.speed || 0) > 2)
-        });
-      });
-    }
-
-    // 2. recentTrail içerisindeki yüksek çözünürlüklü kesintisiz canlı viraj noktalarını ekle
-    if (Array.isArray(veh.recentTrail) && veh.recentTrail.length > 0) {
-      veh.recentTrail.forEach(pt => {
-        const ptTime = new Date(pt.timestamp || 0).getTime();
-        if (ptTime > lastTimestampMs) {
-          lastTimestampMs = ptTime;
-          unrolledLocations.push({
-            driverId: dId,
-            deviceId: dId,
-            companyId: veh.companyId || companyId,
-            lat: pt.lat,
-            lon: pt.lon,
-            speed: pt.speed || 0,
-            timestamp: pt.timestamp,
-            createdAt: pt.timestamp,
-            ignition: pt.ignition !== undefined ? pt.ignition : ((pt.speed || 0) > 2)
-          });
-        }
-      });
-    }
-
-    // 3. En son anlık konumu (varsa ve yeniyse) ekle
-    if (veh.lat && veh.lon) {
-      const vehTime = new Date(veh.timestamp || veh.recordedAt || veh.updatedAt || 0).getTime();
-      if (vehTime > lastTimestampMs || unrolledLocations.length === 0) {
-        unrolledLocations.push({
-          driverId: dId,
-          deviceId: dId,
-          companyId: veh.companyId || companyId,
-          lat: veh.lat,
-          lon: veh.lon,
-          speed: veh.speed || 0,
-          timestamp: veh.updatedAt || veh.timestamp || Date.now(),
-          createdAt: veh.updatedAt || veh.timestamp || Date.now(),
-          ignition: veh.ignition !== undefined ? veh.ignition : ((veh.speed || 0) > 2)
-        });
-      }
-    }
-  });
-
-  return unrolledLocations;
-};
 
 let edgePollerInterval = null;
 
@@ -347,12 +246,8 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
     return () => {};
   }
 
-  // 2. Canlı Mod: Cloudflare Edge (Öncelikli & Sıfır Kota) + Firestore (Yedek)
+  // 2. Canlı Mod: Tamamen Cloudflare Edge (Sıfır Firestore Kotası)
   if (lastCompanyId !== companyId) {
-    if (globalUnsubscribe) {
-      globalUnsubscribe();
-      globalUnsubscribe = null;
-    }
     if (edgePollerInterval) {
       clearInterval(edgePollerInterval);
       edgePollerInterval = null;
@@ -366,36 +261,24 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
   globalListeners.add(listener);
 
   // Önbellekteki verileri anında gönder (yükleme gecikmesini sıfırlar)
-  onUpdate(globalLocations, globalLoading);
-
-  // Cloudflare Edge Canlı Akışını Başlat (Sıfır Firestore Kotası, 2.5 saniye periyot)
-  if (!edgePollerInterval) {
-    pollEdgeLive(companyId);
-    edgePollerInterval = setInterval(() => pollEdgeLive(companyId), 2500);
+  if (globalLocations.length > 0) {
+    onUpdate(globalLocations, false);
+  } else {
+    try {
+      const cached = localStorage.getItem('cached_live_locations');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          onUpdate(parsed, false);
+        }
+      }
+    } catch (_) {}
   }
 
-  if (!globalUnsubscribe) {
-    globalLoading = true;
-    const q = collection(db, 'live_positions');
-
-    globalUnsubscribe = onSnapshot(q, async (snap) => {
-      // Yalnızca Firestore'da gerçekten var olan aktif araçları işle (silinen test araçları anında yok olur)
-      const allVehicles = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-      const unrolledLocations = await unrollVehiclesWithDaily(allVehicles, companyId);
-      // Eğer Edge'den daha güncel veri gelmişse üzerine yazma
-      if (globalLocations.length === 0 || unrolledLocations.length > globalLocations.length) {
-        globalLocations = unrolledLocations;
-        globalLoading = false;
-        try {
-          localStorage.setItem('cached_live_locations', JSON.stringify(unrolledLocations));
-        } catch (_) {}
-        globalListeners.forEach(l => l.onUpdate(unrolledLocations, false));
-      }
-    }, (error) => {
-      // Firestore kotası (429) durumunda sessiz kal, Edge canlı akışı zaten ekranı besliyor
-      globalLoading = false;
-    });
+  // Cloudflare Edge Canlı Akışını Başlat (Sıfır Firestore Kotası, 2 saniyede bir)
+  if (!edgePollerInterval) {
+    pollEdgeLive(companyId);
+    edgePollerInterval = setInterval(() => pollEdgeLive(companyId), 2000);
   }
 
   return () => {
@@ -407,10 +290,6 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
           if (edgePollerInterval) {
             clearInterval(edgePollerInterval);
             edgePollerInterval = null;
-          }
-          if (globalUnsubscribe) {
-            globalUnsubscribe();
-            globalUnsubscribe = null;
           }
           globalLoading = true;
           globalLocations = [];

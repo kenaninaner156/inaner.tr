@@ -720,7 +720,7 @@ export default function LiveTracking({
       const lastPoint = latestSession[latestSession.length - 1];
       if (!lastPoint || isNaN(lastPoint.lat)) return null;
       
-      const isOnline  = (now - new Date(lastPoint.timestamp).getTime()) < 15 * 60 * 1000;
+      const isOnline  = (now - new Date(lastPoint.timestamp).getTime()) < 30 * 60 * 1000;
       const speedKmh  = isOnline ? Math.round((lastPoint.speed || 0) * 1.852) : 0;
       const { km, durationMin, topSpeedKmh, avgSpeedKmh } = calcStats(latestSession);
       const isMapped  = !!deviceMappings[driverId];

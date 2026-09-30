@@ -7,10 +7,23 @@
  * 2. Firestore'a sürekli yazma yapmaz; canlı takip verisini Edge üzerinde tutar.
  * 3. Harita paneline "GET /api/save-location?action=get_live" ile 20ms'de anlık canlı filo verisini sunar.
  * 4. Firestore kotasını canlı takip için SIFIRA (0) indirir.
+ * 5. Detaylı canlı erişim ve cihaz loglarını tutar (?action=get_debug).
  */
 
 // Edge In-Memory Canlı Filo Durumu
 const liveFleet = new Map();
+
+// Son 60 adet gelen istek logu (Adli analiz ve canlı teşhis)
+const debugLogs = [];
+
+function logEvent(type, data) {
+  debugLogs.unshift({
+    time: new Date().toISOString(),
+    type,
+    ...data
+  });
+  if (debugLogs.length > 60) debugLogs.pop();
+}
 
 // Cihaz bazlı arşivleme zamanlayıcısı (Sadece 10 dakikada bir veya duruşta Vercel'e iletim)
 const deviceArchiveTracker = new Map();
@@ -63,14 +76,29 @@ export default {
       // Token doğrulaması
       const token = data.token || data.params?.token || data.location?.params?.token || url.searchParams.get('token');
       if (token !== EXPECTED_TOKEN) {
+        logEvent('unauthorized', { ip: request.headers.get('cf-connecting-ip'), url: request.url });
         return new Response(JSON.stringify({ error: 'Yetkisiz islem. Gecersiz token.' }), {
           status: 401,
           headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
         });
       }
 
-      // 2. Harita Ekranı İçin Canlı Filo Sorgusu (GET ?action=get_live)
       const action = data.action || url.searchParams.get('action');
+
+      // Teşhis ve Adli Analiz Ucu (?action=get_debug)
+      if (action === 'get_debug' || action === 'get_logs') {
+        return new Response(JSON.stringify({
+          success: true,
+          liveFleetCount: liveFleet.size,
+          liveFleet: Array.from(liveFleet.values()),
+          recentLogs: debugLogs
+        }), {
+          status: 200,
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
+        });
+      }
+
+      // 2. Harita Ekranı İçin Canlı Filo Sorgusu (GET ?action=get_live)
       if (action === 'get_live' || action === 'get_vehicles') {
         const vehicles = Array.from(liveFleet.values());
         return new Response(JSON.stringify({
@@ -92,6 +120,7 @@ export default {
       if (action === 'delete_device') {
         const delId = String(data.id || data.deviceId || '').trim();
         if (delId) liveFleet.delete(delId);
+        logEvent('delete_device', { delId });
         const vercelUrl = new URL(request.url);
         return await fetch(new Request(vercelUrl.toString(), {
           method: request.method,
@@ -131,6 +160,7 @@ export default {
       }
 
       if (isNaN(rawLat) || isNaN(rawLon) || rawLat < -90 || rawLat > 90 || rawLon < -180 || rawLon > 180) {
+        logEvent('invalid_coords', { rawLat, rawLon, deviceId, method: request.method });
         return new Response(JSON.stringify({ error: 'Gecersiz koordinat' }), {
           status: 400,
           headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
@@ -139,6 +169,16 @@ export default {
 
       const now = Date.now();
       const isoNow = new Date(now).toISOString();
+
+      // Gelen GPS sinyalini logla
+      logEvent('gps_received', {
+        deviceId,
+        lat: rawLat,
+        lon: rawLon,
+        speed,
+        timestamp: pointTimestamp,
+        ua: (request.headers.get('user-agent') || '').slice(0, 50)
+      });
 
       // 4. Edge In-Memory Filo Güncellemesi (Sıfır Firestore Kotası)
       let vehicle = liveFleet.get(deviceId);
@@ -167,7 +207,7 @@ export default {
         vehicle.isOnline = true;
       }
 
-      // Son 250 noktalık kesintisiz viraj kuyruğu (recentTrail)
+      // Son 500 noktalık kesintisiz viraj kuyruğu (recentTrail)
       vehicle.recentTrail.push({
         lat: rawLat,
         lon: rawLon,
@@ -175,13 +215,13 @@ export default {
         altitude,
         timestamp: pointTimestamp
       });
-      if (vehicle.recentTrail.length > 250) {
-        vehicle.recentTrail = vehicle.recentTrail.slice(-250);
+      if (vehicle.recentTrail.length > 500) {
+        vehicle.recentTrail = vehicle.recentTrail.slice(-500);
       }
 
       liveFleet.set(deviceId, vehicle);
 
-      // 5. Arka Planda Kota Dostu Arşivleme (Sadece 10 dakikada bir veya araç durduğunda Vercel'e ilet)
+      // 5. Arka Planda Kota Dostu Arşivleme (Sadece 10 dakikada bir veya duruşta Vercel'e ilet)
       const lastArch = deviceArchiveTracker.get(deviceId) || { time: 0, isStopped: true };
       const isStopped = speed <= 2;
       const timeSinceArch = (now - lastArch.time) / 1000;
@@ -211,6 +251,7 @@ export default {
       });
 
     } catch (err) {
+      logEvent('error', { message: err.message, stack: err.stack });
       return new Response(JSON.stringify({ error: err.message }), {
         status: 500,
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
