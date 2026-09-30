@@ -275,10 +275,10 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
     } catch (_) {}
   }
 
-  // Cloudflare Edge Canlı Akışını Başlat (Sıfır Firestore Kotası, 2 saniyede bir)
+  // Cloudflare Edge Canlı Akışını Başlat (Sıfır Firestore Kotası, 1 saniyede bir gerçek zamanlı)
   if (!edgePollerInterval) {
     pollEdgeLive(companyId);
-    edgePollerInterval = setInterval(() => pollEdgeLive(companyId), 2000);
+    edgePollerInterval = setInterval(() => pollEdgeLive(companyId), 1000);
   }
 
   return () => {

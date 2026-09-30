@@ -372,12 +372,16 @@ function SidebarItem({
     setIsCameraFollowActive(true);
   };
 
+  const pointTime = vehicle.pointTime || getPointTime(lastPoint);
+  const diffSec = Math.max(0, Math.floor((Date.now() - pointTime) / 1000));
+  const livePingText = diffSec < 60 ? `${diffSec} sn önce` : `${Math.floor(diffSec / 60)} dk önce`;
+
   // Sadece plaka veya çevrimdışı / park durumu
   const subtitleText = !isOnline 
     ? (plate ? `${plate} • Çevrimdışı` : 'Çevrimdışı') 
     : (speedKmh <= 7 && parkDurationText
         ? (plate ? `${plate} • Park (${parkDurationText})` : `Park (${parkDurationText})`)
-        : (plate || ''));
+        : (plate ? `${plate} • ${livePingText}` : livePingText));
 
   return (
     <div className={`w-full rounded-2xl border transition-all duration-200 overflow-hidden ${borderClass} ${bgClass}`}>
@@ -676,10 +680,10 @@ export default function LiveTracking({
   const [zoom, setZoom] = useState(13);
   const didInitRef = useRef(false);
 
-  // Canlı park süresi sayacı için periyodik güncelleme (30 saniyede bir)
+  // Canlı park süresi sayacı ve saniyelik sinyal akışı için periyodik güncelleme (1 saniyede bir)
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 30000);
+    const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -763,6 +767,7 @@ export default function LiveTracking({
         driverId, 
         latestSession, 
         lastPoint, 
+        pointTime,
         isOnline, 
         speedKmh, 
         km, 
@@ -802,12 +807,14 @@ export default function LiveTracking({
         .custom-vehicle-marker-div {
           background: transparent !important;
           border: none !important;
+          transition: transform 0.85s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+          will-change: transform;
         }
 
         /* Pulse animations for vehicles on the map */
         @keyframes markerPulseActive {
-          0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
-          70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+          0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+          70% { box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); }
           100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
         }
         @keyframes markerPulseUnmapped {
@@ -816,7 +823,7 @@ export default function LiveTracking({
           100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
         }
         .pulse-active {
-          animation: markerPulseActive 2s infinite;
+          animation: markerPulseActive 1.5s infinite;
         }
         .pulse-unmapped {
           animation: markerPulseUnmapped 2s infinite;
