@@ -54,14 +54,7 @@ export default {
       const speed = rawSpeed > 0 ? rawSpeed : 0;
       const now = Date.now();
 
-      // 2. Akıllı Telemetri Filtresi (Edge Rate-Limiter)
-      // Araç duruyorsa (hız <= 2) her 60 saniyede bir, hareket halindeyse her 15-20 saniyede bir Vercel'e ilet.
-      const last = deviceLastPing.get(deviceId) || { time: 0, speed: 0 };
-      const timeDiff = (now - last.time) / 1000;
-      const isStopped = speed <= 2;
-      const speedDiff = Math.abs(speed - last.speed);
 
-      // İletim kararı:
       // 2. Akıllı Telemetri Filtresi (Yüksek Çözünürlüklü Kesintisiz Rota)
       // - Durma / kalkma anı: 0 gecikmeyle anında ilet
       // - Araç hareket halindeyse (hız > 2): En fazla 3 saniyede bir veya hız farkında (>= 5 km/s) anında ilet
