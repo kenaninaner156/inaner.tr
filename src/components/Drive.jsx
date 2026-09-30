@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useContext } from 'react';
+import { createPortal } from 'react-dom';
 import {
     Folder, FolderPlus, File, FileText, Image as ImageIcon, FileSpreadsheet,
     FileArchive, Film, Code, Download, Trash2, Eye, Pencil, Search,
@@ -91,17 +92,26 @@ function Drive({ onOpenMenu, isMobile }) {
         e.preventDefault();
         e.stopPropagation();
 
-        const menuWidth = 210;
-        const menuHeight = isFolder ? 160 : 220;
+        const rect = e.currentTarget?.getBoundingClientRect();
+        const menuWidth = 176;
+        const menuHeight = isFolder ? 80 : 120;
 
-        let x = e.clientX;
-        let y = e.clientY;
+        // Tıklanan çerçevenin sol hizasında açılması için rect.left kullanılır
+        let x = rect ? rect.left : e.clientX;
+        let y = rect ? Math.max(10, Math.min(e.clientY, rect.bottom - 20)) : e.clientY;
 
-        if (x + menuWidth > window.innerWidth) {
+        // Viewport sınır kontrolleri
+        if (x + menuWidth > window.innerWidth - 10) {
             x = Math.max(10, window.innerWidth - menuWidth - 10);
         }
-        if (y + menuHeight > window.innerHeight) {
+        if (x < 10) {
+            x = 10;
+        }
+        if (y + menuHeight > window.innerHeight - 10) {
             y = Math.max(10, window.innerHeight - menuHeight - 10);
+        }
+        if (y < 10) {
+            y = 10;
         }
 
         setContextMenu({ item, isFolder, x, y });
@@ -1310,79 +1320,36 @@ function Drive({ onOpenMenu, isMobile }) {
             </AnimatePresence>
 
             {/* ── WINDOWS TARZI SAĞ TIK BAĞLAM MENÜSÜ (CONTEXT MENU) ── */}
-            <AnimatePresence>
-                {contextMenu && (
-                    <>
-                        {/* Şeffaf Dış Tıklama Alanı */}
-                        <div
-                            className="fixed inset-0 z-50 bg-transparent"
-                            onClick={() => setContextMenu(null)}
-                            onContextMenu={(e) => {
-                                e.preventDefault();
-                                setContextMenu(null);
-                            }}
-                        />
+            {typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
+                    {contextMenu && (
+                        <>
+                            {/* Şeffaf Dış Tıklama Alanı */}
+                            <div
+                                className="fixed inset-0 z-[9998] bg-transparent"
+                                onClick={() => setContextMenu(null)}
+                                onContextMenu={(e) => {
+                                    e.preventDefault();
+                                    setContextMenu(null);
+                                }}
+                            />
 
-                        {/* Menü Paneli */}
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: -4 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            transition={{ duration: 0.1, ease: 'easeOut' }}
-                            style={{
-                                position: 'fixed',
-                                left: `${contextMenu.x}px`,
-                                top: `${contextMenu.y}px`,
-                                zIndex: 51
-                            }}
-                            className="w-52 bg-[#0b0e17]/95 backdrop-blur-xl border border-white/[0.1] rounded-xl shadow-2xl shadow-black/90 p-1.5 text-xs select-none space-y-0.5"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            {/* Öğe Başlığı (Kompakt) */}
-                            <div className="px-2.5 py-1.5 text-[11px] font-semibold text-zinc-400 border-b border-white/[0.06] mb-1 flex items-center gap-2 truncate">
-                                {contextMenu.isFolder ? (
-                                    <Folder size={13} className="text-emerald-400 shrink-0" />
-                                ) : (
-                                    <FileText size={13} className="text-cyan-400 shrink-0" />
-                                )}
-                                <span className="truncate text-zinc-300">{contextMenu.item.name}</span>
-                            </div>
-
-                            {contextMenu.isFolder ? (
-                                <button
-                                    onClick={() => {
-                                        const folder = contextMenu.item;
-                                        setContextMenu(null);
-                                        handleOpenFolder(folder);
-                                    }}
-                                    className="w-full h-8 px-2.5 rounded-lg flex items-center gap-2.5 text-zinc-200 hover:text-white hover:bg-white/[0.08] transition-colors"
-                                >
-                                    <Folder size={14} className="text-emerald-400" />
-                                    <span>Klasörü Aç</span>
-                                </button>
-                            ) : (
-                                <>
-                                    <button
-                                        onClick={() => {
-                                            const file = contextMenu.item;
-                                            setContextMenu(null);
-                                            setPreviewItem(file);
-                                        }}
-                                        className="w-full h-8 px-2.5 rounded-lg flex items-center gap-2.5 text-zinc-200 hover:text-white hover:bg-white/[0.08] transition-colors"
-                                    >
-                                        <Eye size={14} className="text-cyan-400" />
-                                        <span>Önizle</span>
-                                    </button>
-                                    <a
-                                        href={`/api/drive?action=view&path=${encodeURIComponent(contextMenu.item.relativePath)}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        onClick={() => setContextMenu(null)}
-                                        className="w-full h-8 px-2.5 rounded-lg flex items-center gap-2.5 text-zinc-200 hover:text-white hover:bg-white/[0.08] transition-colors"
-                                    >
-                                        <ExternalLink size={14} className="text-zinc-400" />
-                                        <span>Yeni Sekmede Aç</span>
-                                    </a>
+                            {/* Menü Paneli */}
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                transition={{ duration: 0.1, ease: 'easeOut' }}
+                                style={{
+                                    position: 'fixed',
+                                    left: `${contextMenu.x}px`,
+                                    top: `${contextMenu.y}px`,
+                                    zIndex: 9999
+                                }}
+                                className="w-44 bg-[#0b0e17]/95 backdrop-blur-xl border border-white/[0.1] rounded-xl shadow-2xl shadow-black/90 p-1 text-xs select-none space-y-0.5"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {!contextMenu.isFolder && (
                                     <a
                                         href={`/api/drive?action=download&path=${encodeURIComponent(contextMenu.item.relativePath)}`}
                                         download
@@ -1392,40 +1359,39 @@ function Drive({ onOpenMenu, isMobile }) {
                                         <Download size={14} className="text-emerald-400" />
                                         <span>İndir</span>
                                     </a>
-                                </>
-                            )}
+                                )}
 
-                            <div className="border-t border-white/[0.06] my-1" />
+                                <button
+                                    onClick={() => {
+                                        const item = contextMenu.item;
+                                        setContextMenu(null);
+                                        setRenameItem(item);
+                                        setRenameNewName(item.name);
+                                        setRenameError(null);
+                                    }}
+                                    className="w-full h-8 px-2.5 rounded-lg flex items-center gap-2.5 text-zinc-200 hover:text-white hover:bg-white/[0.08] transition-colors"
+                                >
+                                    <Pencil size={14} className="text-zinc-400" />
+                                    <span>Yeniden Adlandır</span>
+                                </button>
 
-                            <button
-                                onClick={() => {
-                                    const item = contextMenu.item;
-                                    setContextMenu(null);
-                                    setRenameItem(item);
-                                    setRenameNewName(item.name);
-                                    setRenameError(null);
-                                }}
-                                className="w-full h-8 px-2.5 rounded-lg flex items-center gap-2.5 text-zinc-200 hover:text-white hover:bg-white/[0.08] transition-colors"
-                            >
-                                <Pencil size={14} className="text-zinc-400" />
-                                <span>Yeniden Adlandır</span>
-                            </button>
-
-                            <button
-                                onClick={() => {
-                                    const item = contextMenu.item;
-                                    setContextMenu(null);
-                                    setDeleteItem(item);
-                                }}
-                                className="w-full h-8 px-2.5 rounded-lg flex items-center gap-2.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"
-                            >
-                                <Trash2 size={14} />
-                                <span>Sil</span>
-                            </button>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+                                <button
+                                    onClick={() => {
+                                        const item = contextMenu.item;
+                                        setContextMenu(null);
+                                        setDeleteItem(item);
+                                    }}
+                                    className="w-full h-8 px-2.5 rounded-lg flex items-center gap-2.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"
+                                >
+                                    <Trash2 size={14} />
+                                    <span>Sil</span>
+                                </button>
+                            </motion.div>
+                        </>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
 
             {/* ── 4. YENİ KLASÖR MODALI ── */}
             <AnimatePresence>
