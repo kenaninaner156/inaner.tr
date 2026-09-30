@@ -97,9 +97,20 @@ export default {
           try {
             const kvState = await env.LIVE_FLEET_KV.get('live_fleet_state', 'json');
             if (Array.isArray(kvState) && kvState.length > 0) {
-              vehicles = kvState;
+              vehicles = kvState.map(veh => {
+                if (veh && Array.isArray(veh.recentTrail)) {
+                  veh.recentTrail = veh.recentTrail.map(pt => {
+                    let ts = pt.timestamp;
+                    if (ts && /^\d{10}$/.test(String(ts).trim())) {
+                      ts = new Date(parseInt(ts, 10) * 1000).toISOString();
+                    }
+                    return { ...pt, timestamp: ts };
+                  });
+                }
+                return veh;
+              });
               // in-memory senkronizasyonu
-              kvState.forEach(v => { if (v && v.id) liveFleet.set(v.id, v); });
+              vehicles.forEach(v => { if (v && v.id) liveFleet.set(v.id, v); });
             }
           } catch (_) {}
         }
@@ -200,6 +211,25 @@ export default {
         });
       }
 
+      // Standart ISO Timestamp Formatlayıcı (UNIX saniye / ms / ISO desteği)
+      let formattedTimestamp = new Date().toISOString();
+      if (pointTimestamp) {
+        const strVal = String(pointTimestamp).trim();
+        if (!isNaN(strVal) && /^\d+$/.test(strVal)) {
+          if (strVal.length === 10) {
+            formattedTimestamp = new Date(parseInt(strVal, 10) * 1000).toISOString();
+          } else if (strVal.length === 13) {
+            formattedTimestamp = new Date(parseInt(strVal, 10)).toISOString();
+          }
+        } else {
+          const parsedD = new Date(pointTimestamp);
+          if (!isNaN(parsedD.getTime())) {
+            formattedTimestamp = parsedD.toISOString();
+          }
+        }
+      }
+      pointTimestamp = formattedTimestamp;
+
       const now = Date.now();
       const isoNow = new Date(now).toISOString();
 
@@ -214,8 +244,18 @@ export default {
       // Discord'a anlık GPS telemetri bildirimini gönder
       notifyDiscord(`🌐 [EDGE GPS] Cihaz: **${deviceId}** | Lat: ${rawLat.toFixed(5)} | Lon: ${rawLon.toFixed(5)} | Hız: ${speed.toFixed(1)} km/s | Saat: ${pointTimestamp}`);
 
-      // Edge In-Memory Filo Güncellemesi
+      // Edge In-Memory Filo Güncellemesi (KV kalıcı bellekten yükle)
       let vehicle = liveFleet.get(deviceId);
+      if (!vehicle && env.LIVE_FLEET_KV) {
+        try {
+          const kvState = await env.LIVE_FLEET_KV.get('live_fleet_state', 'json');
+          if (Array.isArray(kvState)) {
+            kvState.forEach(v => { if (v && v.id) liveFleet.set(v.id, v); });
+            vehicle = liveFleet.get(deviceId);
+          }
+        } catch (_) {}
+      }
+
       if (!vehicle) {
         vehicle = {
           id: deviceId,
@@ -239,6 +279,9 @@ export default {
         vehicle.timestamp = pointTimestamp;
         vehicle.updatedAt = isoNow;
         vehicle.isOnline = true;
+        if (!Array.isArray(vehicle.recentTrail)) {
+          vehicle.recentTrail = [];
+        }
       }
 
       vehicle.recentTrail.push({

@@ -728,7 +728,8 @@ export default function LiveTracking({
       const lastPoint = latestSession[latestSession.length - 1];
       if (!lastPoint || isNaN(lastPoint.lat)) return null;
       
-      const isOnline  = (now - new Date(lastPoint.timestamp).getTime()) < 30 * 60 * 1000;
+      const pointTime = getPointTime(lastPoint);
+      const isOnline  = pointTime > 0 && (now - pointTime) < 30 * 60 * 1000;
       const speedKmh  = isOnline ? Math.round((lastPoint.speed || 0) * 1.852) : 0;
       const { km, durationMin, topSpeedKmh, avgSpeedKmh } = calcStats(latestSession);
       const isMapped  = !!deviceMappings?.[driverId] || !!DEFAULT_MAPPINGS[driverId];
@@ -740,17 +741,17 @@ export default function LiveTracking({
 
       if (isParked) {
         const allPoints = sessions.flat();
-        let parkStartTime = new Date(lastPoint.timestamp).getTime();
+        let parkStartTime = pointTime;
 
         for (let i = allPoints.length - 1; i >= 0; i--) {
           const pt = allPoints[i];
           const ptSpeedKmh = Math.round((pt.speed || 0) * 1.852);
           if (ptSpeedKmh > 7) {
             const stopPt = allPoints[i + 1] || pt;
-            parkStartTime = new Date(stopPt.timestamp).getTime();
+            parkStartTime = getPointTime(stopPt);
             break;
           }
-          parkStartTime = new Date(pt.timestamp).getTime();
+          parkStartTime = getPointTime(pt);
         }
 
         const diffMs = Math.max(0, now - parkStartTime);

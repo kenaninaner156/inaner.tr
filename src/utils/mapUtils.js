@@ -20,24 +20,20 @@ export function haversineKm(lat1, lon1, lat2, lon2) {
  */
 export function getPointTime(p) {
   if (!p) return 0;
-  if (p.timestamp !== undefined && p.timestamp !== null) {
-    if (typeof p.timestamp === 'number') return p.timestamp;
-    if (p.timestamp.seconds !== undefined) return p.timestamp.seconds * 1000;
-    const t = new Date(p.timestamp).getTime();
-    if (!isNaN(t)) return t;
-  }
-  if (p.createdAt !== undefined && p.createdAt !== null) {
-    if (typeof p.createdAt === 'number') return p.createdAt;
-    if (p.createdAt.seconds !== undefined) return p.createdAt.seconds * 1000;
-    const t = new Date(p.createdAt).getTime();
-    if (!isNaN(t)) return t;
-  }
-  if (p.deviceTime) {
-    const t = new Date(p.deviceTime).getTime();
-    if (!isNaN(t)) return t;
-  }
-  if (p.fixTime) {
-    const t = new Date(p.fixTime).getTime();
+  const raw = p.timestamp !== undefined && p.timestamp !== null ? p.timestamp : (p.createdAt || p.deviceTime || p.fixTime);
+  if (raw !== undefined && raw !== null) {
+    if (typeof raw === 'number') {
+      return raw < 1e11 ? raw * 1000 : raw;
+    }
+    if (raw.seconds !== undefined) {
+      return raw.seconds * 1000;
+    }
+    const str = String(raw).trim();
+    if (!isNaN(str) && /^\d+$/.test(str)) {
+      const num = parseInt(str, 10);
+      return num < 1e11 ? num * 1000 : num;
+    }
+    const t = new Date(str).getTime();
     if (!isNaN(t)) return t;
   }
   return 0;
