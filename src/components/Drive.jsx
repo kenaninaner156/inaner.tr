@@ -84,6 +84,42 @@ function Drive({ onOpenMenu, isMobile }) {
     // Önizleme Modalı
     const [previewItem, setPreviewItem] = useState(null);
 
+    // Windows Tarzı Sağ Tık Bağlam Menüsü Durumu
+    const [contextMenu, setContextMenu] = useState(null);
+
+    const handleContextMenu = (e, item, isFolder = false) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const menuWidth = 210;
+        const menuHeight = isFolder ? 160 : 220;
+
+        let x = e.clientX;
+        let y = e.clientY;
+
+        if (x + menuWidth > window.innerWidth) {
+            x = Math.max(10, window.innerWidth - menuWidth - 10);
+        }
+        if (y + menuHeight > window.innerHeight) {
+            y = Math.max(10, window.innerHeight - menuHeight - 10);
+        }
+
+        setContextMenu({ item, isFolder, x, y });
+    };
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') setContextMenu(null);
+        };
+        const handleDismiss = () => setContextMenu(null);
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('scroll', handleDismiss, true);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('scroll', handleDismiss, true);
+        };
+    }, []);
+
     // Sürükle-Bırak Durumu
     const [isWindowDragging, setIsWindowDragging] = useState(false);
     const [dragOverFolder, setDragOverFolder] = useState(null);
@@ -882,6 +918,7 @@ function Drive({ onOpenMenu, isMobile }) {
                                                                                 onDragLeave={() => setDragOverFolder(null)}
                                                                                 onDrop={(e) => handleFolderDropTarget(e, folder)}
                                                                                 onClick={() => handleOpenFolder(folder)}
+                                                                                onContextMenu={(e) => handleContextMenu(e, folder, true)}
                                                                                 whileHover={{ y: -2, scale: 1.01 }}
                                                                                 whileTap={{ scale: 0.97 }}
                                                                                 transition={{ duration: 0.12 }}
@@ -948,6 +985,7 @@ function Drive({ onOpenMenu, isMobile }) {
                                                                                 onDragLeave={() => setDragOverFolder(null)}
                                                                                 onDrop={(e) => handleFolderDropTarget(e, folder)}
                                                                                 onClick={() => handleOpenFolder(folder)}
+                                                                                onContextMenu={(e) => handleContextMenu(e, folder, true)}
                                                                                 whileTap={{ scale: 0.99 }}
                                                                                 transition={{ duration: 0.1 }}
                                                                                 className={`group px-4 py-2.5 flex items-center justify-between hover:bg-white/[0.03] transition-colors cursor-pointer text-xs select-none ${
@@ -1022,7 +1060,8 @@ function Drive({ onOpenMenu, isMobile }) {
                                                                                 key={file.id}
                                                                                 draggable
                                                                                 onDragStart={(e) => handleItemDragStart(e, file)}
-                                                                                onDoubleClick={() => setPreviewItem(file)}
+                                                                                onClick={() => setPreviewItem(file)}
+                                                                                onContextMenu={(e) => handleContextMenu(e, file, false)}
                                                                                 whileHover={{ y: -2, scale: 1.01 }}
                                                                                 whileTap={{ scale: 0.98 }}
                                                                                 transition={{ duration: 0.12 }}
@@ -1044,9 +1083,6 @@ function Drive({ onOpenMenu, isMobile }) {
                                                                                         <div className="image-fallback-icon hidden w-full h-full items-center justify-center text-zinc-600 bg-zinc-900/50">
                                                                                             <ImageIcon size={24} />
                                                                                         </div>
-                                                                                        <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-md text-[9px] font-mono text-zinc-300 uppercase border border-white/10">
-                                                                                            {cleanExt}
-                                                                                        </span>
                                                                                     </div>
                                                                                 ) : isPdf ? (
                                                                                     <div className="w-full h-28 sm:h-32 mb-2 rounded-lg overflow-hidden bg-[#07090e] border border-white/[0.04] relative flex items-center justify-center group-hover:border-white/10 transition-colors">
@@ -1055,18 +1091,12 @@ function Drive({ onOpenMenu, isMobile }) {
                                                                                             alt={file.name}
                                                                                             fallbackIcon={<FileText size={24} className="text-rose-400" />}
                                                                                         />
-                                                                                        <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-md text-[9px] font-mono text-rose-300 uppercase border border-rose-500/20 z-10">
-                                                                                            PDF
-                                                                                        </span>
                                                                                     </div>
                                                                                 ) : (
                                                                                     <div className="flex items-start justify-between gap-2 mb-2">
                                                                                         <div className={`w-8 h-8 rounded-lg ${visual.bg} ${visual.border} border flex items-center justify-center ${visual.color} shrink-0`}>
                                                                                             <IconComp size={16} />
                                                                                         </div>
-                                                                                        <span className="text-[10px] font-mono text-zinc-500 uppercase">
-                                                                                            {cleanExt}
-                                                                                        </span>
                                                                                     </div>
                                                                                 )}
 
@@ -1078,45 +1108,6 @@ function Drive({ onOpenMenu, isMobile }) {
                                                                                         <span>{file.sizeFormatted}</span>
                                                                                         <span>{new Date(file.modifiedAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}</span>
                                                                                     </div>
-                                                                                </div>
-
-                                                                                {/* Hover Aksiyon Çubuğu */}
-                                                                                <div className="absolute inset-x-2 bottom-2 bg-[#090c13]/95 border border-white/[0.08] backdrop-blur-sm rounded-lg p-1 hidden group-hover:flex items-center justify-around z-10 shadow-lg">
-                                                                                    <button
-                                                                                        onClick={(e) => { e.stopPropagation(); setPreviewItem(file); }}
-                                                                                        className="p-1 text-zinc-400 hover:text-white rounded"
-                                                                                        title="Önizle"
-                                                                                    >
-                                                                                        <Eye size={12} />
-                                                                                    </button>
-                                                                                    <a
-                                                                                        href={`/api/drive?action=download&path=${encodeURIComponent(file.relativePath)}`}
-                                                                                        download
-                                                                                        onClick={(e) => e.stopPropagation()}
-                                                                                        className="p-1 text-zinc-400 hover:text-white rounded"
-                                                                                        title="İndir"
-                                                                                    >
-                                                                                        <Download size={12} />
-                                                                                    </a>
-                                                                                    <button
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            setRenameItem(file);
-                                                                                            setRenameNewName(file.name);
-                                                                                            setRenameError(null);
-                                                                                        }}
-                                                                                        className="p-1 text-zinc-400 hover:text-white rounded"
-                                                                                        title="Yeniden Adlandır"
-                                                                                    >
-                                                                                        <Pencil size={12} />
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={(e) => { e.stopPropagation(); setDeleteItem(file); }}
-                                                                                        className="p-1 text-zinc-400 hover:text-rose-400 rounded"
-                                                                                        title="Sil"
-                                                                                    >
-                                                                                        <Trash2 size={12} />
-                                                                                    </button>
                                                                                 </div>
                                                                             </motion.div>
                                                                         );
@@ -1136,7 +1127,8 @@ function Drive({ onOpenMenu, isMobile }) {
                                                                                 key={file.id}
                                                                                 draggable
                                                                                 onDragStart={(e) => handleItemDragStart(e, file)}
-                                                                                onDoubleClick={() => setPreviewItem(file)}
+                                                                                onClick={() => setPreviewItem(file)}
+                                                                                onContextMenu={(e) => handleContextMenu(e, file, false)}
                                                                                 whileTap={{ scale: 0.99 }}
                                                                                 transition={{ duration: 0.1 }}
                                                                                 className="group px-4 py-2.5 flex items-center justify-between hover:bg-white/[0.03] transition-colors cursor-pointer text-xs select-none"
@@ -1314,6 +1306,124 @@ function Drive({ onOpenMenu, isMobile }) {
                             </div>
                         )}
                     </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* ── WINDOWS TARZI SAĞ TIK BAĞLAM MENÜSÜ (CONTEXT MENU) ── */}
+            <AnimatePresence>
+                {contextMenu && (
+                    <>
+                        {/* Şeffaf Dış Tıklama Alanı */}
+                        <div
+                            className="fixed inset-0 z-50 bg-transparent"
+                            onClick={() => setContextMenu(null)}
+                            onContextMenu={(e) => {
+                                e.preventDefault();
+                                setContextMenu(null);
+                            }}
+                        />
+
+                        {/* Menü Paneli */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.1, ease: 'easeOut' }}
+                            style={{
+                                position: 'fixed',
+                                left: `${contextMenu.x}px`,
+                                top: `${contextMenu.y}px`,
+                                zIndex: 51
+                            }}
+                            className="w-52 bg-[#0b0e17]/95 backdrop-blur-xl border border-white/[0.1] rounded-xl shadow-2xl shadow-black/90 p-1.5 text-xs select-none space-y-0.5"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Öğe Başlığı (Kompakt) */}
+                            <div className="px-2.5 py-1.5 text-[11px] font-semibold text-zinc-400 border-b border-white/[0.06] mb-1 flex items-center gap-2 truncate">
+                                {contextMenu.isFolder ? (
+                                    <Folder size={13} className="text-emerald-400 shrink-0" />
+                                ) : (
+                                    <FileText size={13} className="text-cyan-400 shrink-0" />
+                                )}
+                                <span className="truncate text-zinc-300">{contextMenu.item.name}</span>
+                            </div>
+
+                            {contextMenu.isFolder ? (
+                                <button
+                                    onClick={() => {
+                                        const folder = contextMenu.item;
+                                        setContextMenu(null);
+                                        handleOpenFolder(folder);
+                                    }}
+                                    className="w-full h-8 px-2.5 rounded-lg flex items-center gap-2.5 text-zinc-200 hover:text-white hover:bg-white/[0.08] transition-colors"
+                                >
+                                    <Folder size={14} className="text-emerald-400" />
+                                    <span>Klasörü Aç</span>
+                                </button>
+                            ) : (
+                                <>
+                                    <button
+                                        onClick={() => {
+                                            const file = contextMenu.item;
+                                            setContextMenu(null);
+                                            setPreviewItem(file);
+                                        }}
+                                        className="w-full h-8 px-2.5 rounded-lg flex items-center gap-2.5 text-zinc-200 hover:text-white hover:bg-white/[0.08] transition-colors"
+                                    >
+                                        <Eye size={14} className="text-cyan-400" />
+                                        <span>Önizle</span>
+                                    </button>
+                                    <a
+                                        href={`/api/drive?action=view&path=${encodeURIComponent(contextMenu.item.relativePath)}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={() => setContextMenu(null)}
+                                        className="w-full h-8 px-2.5 rounded-lg flex items-center gap-2.5 text-zinc-200 hover:text-white hover:bg-white/[0.08] transition-colors"
+                                    >
+                                        <ExternalLink size={14} className="text-zinc-400" />
+                                        <span>Yeni Sekmede Aç</span>
+                                    </a>
+                                    <a
+                                        href={`/api/drive?action=download&path=${encodeURIComponent(contextMenu.item.relativePath)}`}
+                                        download
+                                        onClick={() => setContextMenu(null)}
+                                        className="w-full h-8 px-2.5 rounded-lg flex items-center gap-2.5 text-zinc-200 hover:text-white hover:bg-white/[0.08] transition-colors"
+                                    >
+                                        <Download size={14} className="text-emerald-400" />
+                                        <span>İndir</span>
+                                    </a>
+                                </>
+                            )}
+
+                            <div className="border-t border-white/[0.06] my-1" />
+
+                            <button
+                                onClick={() => {
+                                    const item = contextMenu.item;
+                                    setContextMenu(null);
+                                    setRenameItem(item);
+                                    setRenameNewName(item.name);
+                                    setRenameError(null);
+                                }}
+                                className="w-full h-8 px-2.5 rounded-lg flex items-center gap-2.5 text-zinc-200 hover:text-white hover:bg-white/[0.08] transition-colors"
+                            >
+                                <Pencil size={14} className="text-zinc-400" />
+                                <span>Yeniden Adlandır</span>
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    const item = contextMenu.item;
+                                    setContextMenu(null);
+                                    setDeleteItem(item);
+                                }}
+                                className="w-full h-8 px-2.5 rounded-lg flex items-center gap-2.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"
+                            >
+                                <Trash2 size={14} />
+                                <span>Sil</span>
+                            </button>
+                        </motion.div>
+                    </>
                 )}
             </AnimatePresence>
 
