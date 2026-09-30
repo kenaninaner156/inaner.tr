@@ -36,6 +36,7 @@ export default async function handler(req, res) {
                         recentTrail: Array.isArray(d.recentTrail) ? d.recentTrail : []
                     });
                 });
+                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
                 return res.status(200).json({ success: true, count: vehicles.length, vehicles, timestamp: new Date().toISOString() });
             } catch (fErr) {
                 console.warn('Firestore get_live uyarisi:', fErr?.message || fErr);

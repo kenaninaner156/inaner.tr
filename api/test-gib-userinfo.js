@@ -1,17 +1,29 @@
 import admin from 'firebase-admin';
 import { EInvoiceApi } from 'e-fatura';
 
-if (!admin.apps.length) {
-    admin.initializeApp({
-        credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY))
-    });
+let db = null;
+function getDb() {
+    if (!db && process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+        try {
+            if (!admin.apps.length) {
+                admin.initializeApp({
+                    credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY))
+                });
+            }
+            db = admin.firestore();
+        } catch (_) {}
+    }
+    return db;
 }
-const db = admin.firestore();
 
 export default async function handler(req, res) {
+    const firestore = getDb();
+    if (!firestore) {
+        return res.status(500).json({ error: 'Database connection unavailable' });
+    }
     try {
         const docId = 'info'; 
-        const companyDoc = await db.collection('company_data').doc(docId).get();
+        const companyDoc = await firestore.collection('company_data').doc(docId).get();
         const data = companyDoc.data();
         
         const api = new EInvoiceApi();

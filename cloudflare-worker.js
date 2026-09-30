@@ -5,6 +5,7 @@
 
 const liveFleet = new Map();
 const debugLogs = [];
+let lastVercelFetchTime = 0;
 
 function logEvent(type, data) {
   debugLogs.unshift({
@@ -84,6 +85,7 @@ export default {
           success: true,
           totalLoggedEvents: debugLogs.length,
           liveFleetCount: liveFleet.size,
+          lastVercelFetchAgeMs: Date.now() - lastVercelFetchTime,
           liveFleet: Array.from(liveFleet.values()),
           recentLogs: debugLogs
         }), {
@@ -92,33 +94,39 @@ export default {
         });
       }
 
-      // Harita Ekranı Canlı Filo Verisi
+      // Harita Ekranı Canlı Filo Verisi (Anlık Senkronize)
       if (action === 'get_live' || action === 'get_vehicles') {
-        let vehicles = Array.from(liveFleet.values());
         const now = Date.now();
+        let vehicles = Array.from(liveFleet.values());
 
-        // 1. Önce Edge Data Center Cache API kontrolü yap
-        if (vehicles.length === 0) {
-          try {
-            const cacheKey = new Request(CACHE_URL, { method: 'GET' });
-            const cachedRes = await caches.default.match(cacheKey);
-            if (cachedRes) {
-              const cachedVehicles = await cachedRes.json();
-              if (Array.isArray(cachedVehicles) && cachedVehicles.length > 0) {
-                cachedVehicles.forEach(v => { if (v && v.id) liveFleet.set(v.id, v); });
-                vehicles = cachedVehicles;
-              }
+        // 1. Önce yerel PoP Cache API'den taze veri kontrolü
+        try {
+          const cacheKey = new Request(CACHE_URL, { method: 'GET' });
+          const cachedRes = await caches.default.match(cacheKey);
+          if (cachedRes) {
+            const cachedVehicles = await cachedRes.json();
+            if (Array.isArray(cachedVehicles) && cachedVehicles.length > 0) {
+              cachedVehicles.forEach(v => {
+                if (v && v.id) {
+                  const existing = liveFleet.get(v.id);
+                  const vTime = new Date(v.updatedAt || v.timestamp || 0).getTime();
+                  const existTime = existing ? new Date(existing.updatedAt || existing.timestamp || 0).getTime() : 0;
+                  if (!existing || vTime >= existTime) {
+                    liveFleet.set(v.id, v);
+                  }
+                }
+              });
+              vehicles = Array.from(liveFleet.values());
             }
-          } catch (_) {}
-        }
+          }
+        } catch (_) {}
 
-        // 2. Eğer Edge belleğinde hiç araç yoksa veya veriler 30 dakikadan eskiyse: Vercel / Firestore'dan çek
-        const hasFreshData = vehicles.some(v => {
-          const t = new Date(v.updatedAt || v.timestamp).getTime();
-          return !isNaN(t) && (now - t) < 30 * 60 * 1000;
-        });
+        // 2. Anlık Tazelik Denetimi:
+        // Eğer bellekte hiç araç yoksa VEYA son Vercel sorgusundan bu yana 2 saniye geçmişse Vercel / Firestore'dan çek
+        const lastFetchAge = now - lastVercelFetchTime;
+        const needsOriginSync = vehicles.length === 0 || lastFetchAge >= 2000;
 
-        if (!hasFreshData) {
+        if (needsOriginSync) {
           try {
             const fwdHeaders = new Headers(request.headers);
             fwdHeaders.set('X-Forwarded-From', 'Cloudflare-Edge');
@@ -129,13 +137,23 @@ export default {
             if (originRes.ok) {
               const originData = await originRes.json();
               if (originData.success && Array.isArray(originData.vehicles) && originData.vehicles.length > 0) {
-                vehicles = originData.vehicles;
-                vehicles.forEach(v => { if (v && v.id) liveFleet.set(v.id, v); });
+                lastVercelFetchTime = now;
+                originData.vehicles.forEach(v => {
+                  if (v && v.id) {
+                    const existing = liveFleet.get(v.id);
+                    const vTime = new Date(v.updatedAt || v.timestamp || 0).getTime();
+                    const existTime = existing ? new Date(existing.updatedAt || existing.timestamp || 0).getTime() : 0;
+                    if (!existing || vTime >= existTime) {
+                      liveFleet.set(v.id, v);
+                    }
+                  }
+                });
+                vehicles = Array.from(liveFleet.values());
 
-                // Cache API'ye 60 saniyelik önbellek kaydet
+                // Cache API'ye sadece 2 saniyelik mikro önbellek kaydet
                 const cacheKey = new Request(CACHE_URL, { method: 'GET' });
                 const cacheRes = new Response(JSON.stringify(vehicles), {
-                  headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' }
+                  headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=2' }
                 });
                 ctx.waitUntil(caches.default.put(cacheKey, cacheRes).catch(() => {}));
               }
@@ -155,7 +173,8 @@ export default {
           headers: {
             ...CORS_HEADERS,
             'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache, no-store, must-revalidate'
+            'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+            'Pragma': 'no-cache'
           }
         });
       }
@@ -321,7 +340,7 @@ export default {
       try {
         const cacheKey = new Request(CACHE_URL, { method: 'GET' });
         const cacheRes = new Response(JSON.stringify(Array.from(liveFleet.values())), {
-          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' }
+          headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=2' }
         });
         ctx.waitUntil(caches.default.put(cacheKey, cacheRes).catch(() => {}));
       } catch (_) {}
@@ -330,6 +349,7 @@ export default {
       try {
         const fwdHeaders = new Headers(request.headers);
         fwdHeaders.set('X-Forwarded-From', 'Cloudflare-Edge');
+        fwdHeaders.delete('content-length');
         ctx.waitUntil(
           fetch(request.url, {
             method: request.method,
