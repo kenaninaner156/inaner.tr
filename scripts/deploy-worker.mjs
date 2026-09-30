@@ -13,7 +13,14 @@ async function deployWorker() {
   const boundary = '----WebKitFormBoundaryWorkerDeploy' + Date.now();
   const metadata = JSON.stringify({
     main_module: 'worker.js',
-    compatibility_date: '2024-09-01'
+    compatibility_date: '2024-09-01',
+    bindings: [
+      {
+        type: 'kv_namespace',
+        name: 'LIVE_FLEET_KV',
+        namespace_id: '3b47a19f9c9f4946a4dc980400a1b57e'
+      }
+    ]
   });
 
   const parts = [

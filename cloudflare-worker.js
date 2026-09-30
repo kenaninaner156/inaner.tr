@@ -92,7 +92,18 @@ export default {
 
       // Harita Ekranı Canlı Filo Verisi
       if (action === 'get_live' || action === 'get_vehicles') {
-        const vehicles = Array.from(liveFleet.values());
+        let vehicles = Array.from(liveFleet.values());
+        if (env.LIVE_FLEET_KV) {
+          try {
+            const kvState = await env.LIVE_FLEET_KV.get('live_fleet_state', 'json');
+            if (Array.isArray(kvState) && kvState.length > 0) {
+              vehicles = kvState;
+              // in-memory senkronizasyonu
+              kvState.forEach(v => { if (v && v.id) liveFleet.set(v.id, v); });
+            }
+          } catch (_) {}
+        }
+
         return new Response(JSON.stringify({
           success: true,
           count: vehicles.length,
@@ -139,13 +150,16 @@ export default {
       // Cihaz silme aksiyonu
       if (action === 'delete_device') {
         const delId = String(data.id || data.deviceId || '').trim();
-        if (delId) liveFleet.delete(delId);
-        const vercelUrl = new URL(request.url);
-        return await fetch(new Request(vercelUrl.toString(), {
-          method: request.method,
-          headers: request.headers,
-          body: request.method === 'POST' ? rawBodyText : undefined
-        }));
+        if (delId) {
+          liveFleet.delete(delId);
+          if (env.LIVE_FLEET_KV) {
+            await env.LIVE_FLEET_KV.put('live_fleet_state', JSON.stringify(Array.from(liveFleet.values())));
+          }
+        }
+        return new Response(JSON.stringify({ success: true, deleted: delId }), {
+          status: 200,
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+        });
       }
 
       // Koordinat Ayrıştırma (OsmAnd / Traccar / Custom)
@@ -239,6 +253,14 @@ export default {
       }
 
       liveFleet.set(deviceId, vehicle);
+
+      // Cloudflare KV Kalıcı Depolama Senkronizasyonu
+      if (env.LIVE_FLEET_KV) {
+        ctx.waitUntil(
+          env.LIVE_FLEET_KV.put('live_fleet_state', JSON.stringify(Array.from(liveFleet.values())))
+            .catch(e => console.error('KV Put Error:', e.message))
+        );
+      }
 
       // Yanıt
       return new Response(JSON.stringify({
