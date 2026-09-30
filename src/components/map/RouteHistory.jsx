@@ -625,21 +625,23 @@ export default function RouteHistory({
 
   const DEFAULT_MAPPINGS = {
     Mert: { driverName: 'Mert' },
-    Goksel: { driverName: 'Göksel' },
-    'Göksel': { driverName: 'Göksel' }
+    'Göksel': { driverName: 'Göksel' },
+    Goksel: { driverName: 'Göksel' }
   };
 
   const availableDrivers = React.useMemo(() => {
     const list = [];
-    ['Mert', 'Goksel'].forEach(d => {
+    ['Mert', 'Göksel'].forEach(d => {
       if (!list.includes(d)) list.push(d);
     });
     Object.keys(deviceMappings || {}).forEach(d => {
-      if (d && !list.includes(d)) list.push(d);
+      const normalized = d === 'Goksel' ? 'Göksel' : d;
+      if (normalized && !list.includes(normalized)) list.push(normalized);
     });
     (liveLocations || []).forEach(l => {
-      const id = l.driverId || l.deviceId;
-      if (id && !list.includes(id)) list.push(id);
+      const rawId = l.driverId || l.deviceId;
+      const normalized = rawId === 'Goksel' ? 'Göksel' : rawId;
+      if (normalized && !list.includes(normalized)) list.push(normalized);
     });
     return list;
   }, [deviceMappings, liveLocations]);

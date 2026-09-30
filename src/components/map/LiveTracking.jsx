@@ -699,8 +699,9 @@ export default function LiveTracking({
   };
 
   const getVehicleInfo = (deviceId) => {
-    const def = DEFAULT_MAPPINGS[deviceId] || {};
-    const m = deviceMappings?.[deviceId];
+    const normalized = deviceId === 'Goksel' ? 'Göksel' : deviceId;
+    const def = DEFAULT_MAPPINGS[normalized] || DEFAULT_MAPPINGS[deviceId] || {};
+    const m = deviceMappings?.[normalized] || deviceMappings?.[deviceId];
     const truck = (trucks || []).find(t => t.id === m?.truckId);
     const driverName = m?.driverName || def.driverName || (deviceId ? `Cihaz (${deviceId})` : 'Bilinmeyen');
     const plate = truck?.plate || m?.plate || def.plate || '';
