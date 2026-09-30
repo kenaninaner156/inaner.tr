@@ -25,15 +25,34 @@ export default async function handler(req, res) {
         }
     }
 
-    // Doğrudan Vercel'e gelen sinyalleri Cloudflare Edge Hub'a da ilet
+    // Discord Webhook Bildirim Yardımcısı
+    const DISCORD_WEBHOOK = process.env.DISCORD_WEBHOOK_URL || "https://discord.com/api/webhooks/1517513169105453076/EINW0QQLQqMD-Nnl1LTNPIIC-d2oX1_qTns9JZXL4bX2qqLibE1NIG98E0--efZSrcyc";
+    const notifyDiscord = async (msg) => {
+        try {
+            await fetch(DISCORD_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: msg })
+            });
+        } catch (_) {}
+    };
+
+    // Doğrudan Vercel'e gelen sinyalleri Cloudflare Edge Hub'a tam URL ve parametrelerle eksiksiz ilet
     if (!req.headers['cf-ray']) {
         try {
-            fetch('https://inaner.tr/api/save-location?token=' + EXPECTED_TOKEN, {
+            const parsedUrl = new URL(req.url, 'http://localhost');
+            const targetUrl = 'https://inaner.tr/api/save-location' + parsedUrl.search;
+            await fetch(targetUrl, {
                 method: req.method,
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': req.headers['content-type'] || 'application/json',
+                    'X-Forwarded-From': 'Vercel-Function'
+                },
                 body: req.method === 'POST' ? JSON.stringify(data) : undefined
-            }).catch(() => {});
-        } catch (_) {}
+            });
+        } catch (fErr) {
+            console.error("Cloudflare Edge iletim hatasi:", fErr.message);
+        }
     }
 
     try {
@@ -128,6 +147,9 @@ export default async function handler(req, res) {
 
         const cleanDeviceId = String(deviceId).trim();
         const dateStr = getTurkeyDateStr(formattedTimestamp);
+
+        // Discord'a ham veri sinyalini anında düşür (teşhis ve canlı kontrol için)
+        notifyDiscord(`📡 [VERCEL GPS] Cihaz: **${cleanDeviceId}** | Lat: ${lat.toFixed(5)} | Lon: ${lon.toFixed(5)} | Hız: ${speed.toFixed(1)} km/s | Saat: ${formattedTimestamp}`);
 
         const plainLocationData = {
             driverId: cleanDeviceId,

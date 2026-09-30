@@ -1,19 +1,9 @@
 /**
- * İnaner Logistics - Cloudflare Edge Telemetri Hub (Sıfır Firestore Kotası)
- * Rota: *inaner.tr/api/save-location*
- * 
- * Bu Worker:
- * 1. Telefonlardan gelen 2-3 saniyelik ham GPS verilerini Edge hafızasında karşılar.
- * 2. Firestore'a sürekli yazma yapmaz; canlı takip verisini Edge üzerinde tutar.
- * 3. Harita paneline "GET /api/save-location?action=get_live" ile 20ms'de anlık canlı filo verisini sunar.
- * 4. Firestore kotasını canlı takip için SIFIRA (0) indirir.
- * 5. Detaylı canlı erişim ve cihaz loglarını tutar (?action=get_debug).
+ * İnaner Logistics - Cloudflare Edge Telemetri Hub (Geniş Kapsamlı GPS Radarı)
+ * Rota: *inaner.tr/api/*
  */
 
-// Edge In-Memory Canlı Filo Durumu
 const liveFleet = new Map();
-
-// Son 60 adet gelen istek logu (Adli analiz ve canlı teşhis)
 const debugLogs = [];
 
 function logEvent(type, data) {
@@ -22,16 +12,25 @@ function logEvent(type, data) {
     type,
     ...data
   });
-  if (debugLogs.length > 60) debugLogs.pop();
+  if (debugLogs.length > 100) debugLogs.pop();
 }
 
-// Cihaz bazlı arşivleme zamanlayıcısı (Sadece 10 dakikada bir veya duruşta Vercel'e iletim)
-const deviceArchiveTracker = new Map();
+const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1517513169105453076/EINW0QQLQqMD-Nnl1LTNPIIC-d2oX1_qTns9JZXL4bX2qqLibE1NIG98E0--efZSrcyc";
+
+async function notifyDiscord(content) {
+  try {
+    await fetch(DISCORD_WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content })
+    });
+  } catch (_) {}
+}
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Forwarded-From',
   'Access-Control-Max-Age': '86400'
 };
 
@@ -39,20 +38,15 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // OPTIONS preflight sorgularını anında yanıtla (CORS)
+    // OPTIONS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
-    }
-
-    // Yalnızca /api/save-location isteklerini karşıla
-    if (!url.pathname.includes('/api/save-location')) {
-      return fetch(request);
     }
 
     try {
       const EXPECTED_TOKEN = "inaner123";
 
-      // 1. Parametreleri Çözümle
+      // Parametreleri Çözümle
       let data = {};
       url.searchParams.forEach((value, key) => {
         data[key] = value;
@@ -71,7 +65,7 @@ export default {
                 data = { ...data, ...bodyJson };
               }
             } catch (_) {
-              // URL-encoded form verisi olarak ayrıştır (Traccar ve standart istemciler)
+              // URLSearchParams fallback
               const formParams = new URLSearchParams(rawBodyText);
               formParams.forEach((value, key) => {
                 data[key] = value;
@@ -81,22 +75,12 @@ export default {
         } catch (_) {}
       }
 
-      // Token doğrulaması
-      const token = data.token || data.params?.token || data.location?.params?.token || url.searchParams.get('token');
-      if (token !== EXPECTED_TOKEN) {
-        logEvent('unauthorized', { ip: request.headers.get('cf-connecting-ip'), url: request.url });
-        return new Response(JSON.stringify({ error: 'Yetkisiz islem. Gecersiz token.' }), {
-          status: 401,
-          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
-        });
-      }
-
+      // Canlı Debug / Teşhis Sorgusu
       const action = data.action || url.searchParams.get('action');
-
-      // Teşhis ve Adli Analiz Ucu (?action=get_debug)
       if (action === 'get_debug' || action === 'get_logs') {
         return new Response(JSON.stringify({
           success: true,
+          totalLoggedEvents: debugLogs.length,
           liveFleetCount: liveFleet.size,
           liveFleet: Array.from(liveFleet.values()),
           recentLogs: debugLogs
@@ -106,7 +90,7 @@ export default {
         });
       }
 
-      // 2. Harita Ekranı İçin Canlı Filo Sorgusu (GET ?action=get_live)
+      // Harita Ekranı Canlı Filo Verisi
       if (action === 'get_live' || action === 'get_vehicles') {
         const vehicles = Array.from(liveFleet.values());
         return new Response(JSON.stringify({
@@ -124,11 +108,38 @@ export default {
         });
       }
 
+      // Bu bir GPS isteği mi? (save-location VEYA lat/lon barındıran herhangi bir istek)
+      const hasCoords = (data.lat !== undefined && data.lon !== undefined) ||
+                        (data.location && data.location.coords) ||
+                        (data.coords);
+      const isSaveLocation = url.pathname.includes('save-location') || url.pathname.includes('location') || hasCoords;
+
+      if (!isSaveLocation) {
+        // GPS olmayan diğer API isteklerini (örn: drive, version, gib) doğrudan Vercel'e ilet
+        return fetch(request);
+      }
+
+      // Her gelen GPS veya location isteğini radar gibi kaydet
+      logEvent('incoming_gps_hit', {
+        path: url.pathname,
+        method: request.method,
+        query: url.search,
+        ip: request.headers.get('cf-connecting-ip'),
+        ua: (request.headers.get('user-agent') || '').slice(0, 60),
+        hasBody: !!rawBodyText,
+        bodyPreview: rawBodyText ? rawBodyText.slice(0, 100) : ''
+      });
+
+      // Token doğrulaması
+      const token = data.token || data.params?.token || data.location?.params?.token || url.searchParams.get('token');
+      if (token && token !== EXPECTED_TOKEN) {
+        logEvent('token_mismatch', { receivedToken: token, expected: EXPECTED_TOKEN });
+      }
+
       // Cihaz silme aksiyonu
       if (action === 'delete_device') {
         const delId = String(data.id || data.deviceId || '').trim();
         if (delId) liveFleet.delete(delId);
-        logEvent('delete_device', { delId });
         const vercelUrl = new URL(request.url);
         return await fetch(new Request(vercelUrl.toString(), {
           method: request.method,
@@ -137,7 +148,7 @@ export default {
         }));
       }
 
-      // 3. Konum Verisini Ayrıştır (OsmAnd / Traccar / Standart JSON)
+      // Koordinat Ayrıştırma (OsmAnd / Traccar / Custom)
       let deviceId = 'Bilinmeyen_Cihaz';
       let rawLat, rawLon, speed = 0, altitude = 0;
       let pointTimestamp = new Date().toISOString();
@@ -168,7 +179,7 @@ export default {
       }
 
       if (isNaN(rawLat) || isNaN(rawLon) || rawLat < -90 || rawLat > 90 || rawLon < -180 || rawLon > 180) {
-        logEvent('invalid_coords', { rawLat, rawLon, deviceId, method: request.method });
+        logEvent('invalid_coordinates', { rawLat, rawLon, deviceId, data });
         return new Response(JSON.stringify({ error: 'Gecersiz koordinat' }), {
           status: 400,
           headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
@@ -178,17 +189,18 @@ export default {
       const now = Date.now();
       const isoNow = new Date(now).toISOString();
 
-      // Gelen GPS sinyalini logla
-      logEvent('gps_received', {
+      logEvent('valid_gps_parsed', {
         deviceId,
         lat: rawLat,
         lon: rawLon,
         speed,
-        timestamp: pointTimestamp,
-        ua: (request.headers.get('user-agent') || '').slice(0, 50)
+        timestamp: pointTimestamp
       });
 
-      // 4. Edge In-Memory Filo Güncellemesi (Sıfır Firestore Kotası)
+      // Discord'a anlık GPS telemetri bildirimini gönder
+      notifyDiscord(`🌐 [EDGE GPS] Cihaz: **${deviceId}** | Lat: ${rawLat.toFixed(5)} | Lon: ${rawLon.toFixed(5)} | Hız: ${speed.toFixed(1)} km/s | Saat: ${pointTimestamp}`);
+
+      // Edge In-Memory Filo Güncellemesi
       let vehicle = liveFleet.get(deviceId);
       if (!vehicle) {
         vehicle = {
@@ -215,7 +227,6 @@ export default {
         vehicle.isOnline = true;
       }
 
-      // Son 500 noktalık kesintisiz viraj kuyruğu (recentTrail)
       vehicle.recentTrail.push({
         lat: rawLat,
         lon: rawLon,
@@ -229,26 +240,7 @@ export default {
 
       liveFleet.set(deviceId, vehicle);
 
-      // 5. Arka Planda Kota Dostu Arşivleme (Sadece 10 dakikada bir veya duruşta Vercel'e ilet)
-      const lastArch = deviceArchiveTracker.get(deviceId) || { time: 0, isStopped: true };
-      const isStopped = speed <= 2;
-      const timeSinceArch = (now - lastArch.time) / 1000;
-      const shouldArchive = (lastArch.time === 0) || 
-                            (isStopped !== lastArch.isStopped && timeSinceArch >= 30) || 
-                            (timeSinceArch >= 600);
-
-      if (shouldArchive) {
-        deviceArchiveTracker.set(deviceId, { time: now, isStopped });
-        ctx.waitUntil(
-          fetch(new Request(url.toString(), {
-            method: request.method,
-            headers: request.headers,
-            body: request.method === 'POST' ? rawBodyText : undefined
-          })).catch(() => {})
-        );
-      }
-
-      // Telefona 15ms'de başarılı yanıt dön (Telefon tekrar denemez, batarya korunur)
+      // Yanıt
       return new Response(JSON.stringify({
         success: true,
         message: 'Konum Edge uzerine islendi (Sifir Firestore Kotasi)',
@@ -259,7 +251,7 @@ export default {
       });
 
     } catch (err) {
-      logEvent('error', { message: err.message, stack: err.stack });
+      logEvent('fatal_error', { message: err.message });
       return new Response(JSON.stringify({ error: err.message }), {
         status: 500,
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
