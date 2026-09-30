@@ -44,6 +44,7 @@ function App() {
   const [theme, setTheme] = useState('dark')
   const [activeNotification, setActiveNotification] = useState(null)
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
+  const [isUserMenuAnimating, setIsUserMenuAnimating] = useState(false)
   const userMenuRef = useRef(null)
   const navRef = useRef(null)
 
@@ -679,6 +680,10 @@ function App() {
                   lastTapTimeRef.current = now;
                   lastTapTabRef.current = item.id;
                 } else {
+                  if (isUserMenuOpen) {
+                    setIsUserMenuOpen(false);
+                    setIsUserMenuAnimating(false);
+                  }
                   setActiveTab(item.id);
                   if (isMobile) setIsMenuOpen(false);
                 }
@@ -699,7 +704,7 @@ function App() {
                   {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 rounded-xl transition-colors duration-150 -z-10 pointer-events-none" />}
                   {isActive && (
                     <motion.div 
-                      layoutId="sidebar-active-apple"
+                      layoutId={(isUserMenuOpen || isUserMenuAnimating) ? undefined : "sidebar-active-apple"}
                       className={`absolute inset-0 rounded-xl border ${item.theme}`}
                       style={{ zIndex: 0 }} 
                       initial={false}
@@ -764,6 +769,8 @@ function App() {
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+                onAnimationStart={() => setIsUserMenuAnimating(true)}
+                onAnimationComplete={() => setIsUserMenuAnimating(false)}
                 onUpdate={() => {
                   if (navRef.current) {
                     navRef.current.scrollTop = navRef.current.scrollHeight;
