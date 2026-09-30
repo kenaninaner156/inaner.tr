@@ -24,6 +24,7 @@
     "framer-motion": "^12.36.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.576.0",
+    "pdfjs-dist": "^6.3.289",
     "postcss": "^8.5.8",
     "react": "^19.2.0",
     "react-chartjs-2": "^5.3.1",

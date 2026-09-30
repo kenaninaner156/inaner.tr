@@ -47,7 +47,7 @@ const createVehicleIcon = (isOnline, isMapped, speedKmh = 0, isFollowed = false)
         justify-content: center;
         overflow: hidden;
         cursor: pointer;
-        transition: all 0.25s ease;
+        transition: border-color 0.25s ease, box-shadow 0.25s ease;
       ">
         <img src="/tir-clear.png?v=8" style="
           width: 72%;
@@ -792,8 +792,6 @@ export default function LiveTracking({
         .custom-vehicle-marker-div {
           background: transparent !important;
           border: none !important;
-          transition: transform 0.85s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
-          will-change: transform;
         }
 
         /* Pulse animations for vehicles on the map */

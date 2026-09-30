@@ -4,11 +4,12 @@ import {
     FileArchive, Film, Code, Download, Trash2, Eye, Pencil, Search,
     RefreshCw, CheckCircle2, AlertCircle, X, Upload, UploadCloud,
     ChevronRight, ChevronLeft, ChevronDown, ChevronUp, LayoutGrid, List,
-    Settings, HardDrive, Check, Clock, Menu, ArrowRight
+    Settings, HardDrive, Check, Clock, Menu, ArrowRight, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
+import PdfPreviewThumbnail from './PdfPreviewThumbnail';
 
 // Dosya uzantısına göre ikon ve renk belirleyici
 function getFileVisual(ext = '', fileName = '') {
@@ -1013,6 +1014,7 @@ function Drive({ onOpenMenu, isMobile }) {
                                                                     {filteredFiles.map(file => {
                                                                         const cleanExt = (file.extension || '').toLowerCase().replace('.', '');
                                                                         const isImage = ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'].includes(cleanExt);
+                                                                        const isPdf = cleanExt === 'pdf';
                                                                         const visual = getFileVisual(file.extension, file.name);
                                                                         const IconComp = visual.icon;
                                                                         return (
@@ -1044,6 +1046,17 @@ function Drive({ onOpenMenu, isMobile }) {
                                                                                         </div>
                                                                                         <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-md text-[9px] font-mono text-zinc-300 uppercase border border-white/10">
                                                                                             {cleanExt}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                ) : isPdf ? (
+                                                                                    <div className="w-full h-28 sm:h-32 mb-2 rounded-lg overflow-hidden bg-[#07090e] border border-white/[0.04] relative flex items-center justify-center group-hover:border-white/10 transition-colors">
+                                                                                        <PdfPreviewThumbnail
+                                                                                            url={`/api/drive?action=view&path=${encodeURIComponent(file.relativePath)}`}
+                                                                                            alt={file.name}
+                                                                                            fallbackIcon={<FileText size={24} className="text-rose-400" />}
+                                                                                        />
+                                                                                        <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-md text-[9px] font-mono text-rose-300 uppercase border border-rose-500/20 z-10">
+                                                                                            PDF
                                                                                         </span>
                                                                                     </div>
                                                                                 ) : (
@@ -1115,6 +1128,7 @@ function Drive({ onOpenMenu, isMobile }) {
                                                                     {filteredFiles.map(file => {
                                                                         const cleanExt = (file.extension || '').toLowerCase().replace('.', '');
                                                                         const isImage = ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'].includes(cleanExt);
+                                                                        const isPdf = cleanExt === 'pdf';
                                                                         const visual = getFileVisual(file.extension, file.name);
                                                                         const IconComp = visual.icon;
                                                                         return (
@@ -1144,6 +1158,15 @@ function Drive({ onOpenMenu, isMobile }) {
                                                                                             <div className="list-fallback-icon hidden w-full h-full flex items-center justify-center text-zinc-500">
                                                                                                 <IconComp size={14} />
                                                                                             </div>
+                                                                                        </div>
+                                                                                    ) : isPdf ? (
+                                                                                        <div className="w-7 h-7 rounded-lg overflow-hidden shrink-0 border border-rose-500/20 bg-[#07090e] flex items-center justify-center relative">
+                                                                                            <PdfPreviewThumbnail
+                                                                                                url={`/api/drive?action=view&path=${encodeURIComponent(file.relativePath)}`}
+                                                                                                alt={file.name}
+                                                                                                isMini={true}
+                                                                                                fallbackIcon={<FileText size={14} className="text-rose-400" />}
+                                                                                            />
                                                                                         </div>
                                                                                     ) : (
                                                                                         <div className={`w-7 h-7 rounded-lg ${visual.bg} ${visual.border} border flex items-center justify-center ${visual.color} shrink-0`}>
@@ -1460,6 +1483,16 @@ function Drive({ onOpenMenu, isMobile }) {
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                    <a
+                                        href={`/api/drive?action=view&path=${encodeURIComponent(previewItem.relativePath)}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="h-7 px-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs rounded-lg flex items-center gap-1.5 transition-colors"
+                                        title="Yeni Sekmede Aç"
+                                    >
+                                        <ExternalLink size={13} />
+                                        <span className="hidden sm:inline">Yeni Sekmede Aç</span>
+                                    </a>
                                     <a
                                         href={`/api/drive?action=download&path=${encodeURIComponent(previewItem.relativePath)}`}
                                         download
