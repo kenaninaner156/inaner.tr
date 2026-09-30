@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext, useRef, useMemo, useCallback } from 'react'
 import { DataContext } from './context/DataContext'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 
 import {
   Menu, X, Truck, MapPin, FileText, Droplet, Wrench,
@@ -541,8 +541,6 @@ function App() {
     { id: 'company_debts', label: 'Borç & Kredi', icon: <Landmark size={20} />, theme: 'bg-gradient-to-r from-amber-600 to-yellow-600 border-amber-400/30 text-white shadow-sm', hoverText: 'group-hover:text-amber-400' },
     { id: 'personel', label: 'Personel', icon: <Users size={20} />, theme: 'bg-gradient-to-r from-orange-600 to-amber-600 border-orange-400/30 text-white shadow-sm', hoverText: 'group-hover:text-orange-400' },
     { id: 'map', label: 'Harita', icon: <MapPin size={20} />, theme: 'bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-400/30 text-white shadow-sm', hoverText: 'group-hover:text-blue-400' },
-    { id: 'company_admin', label: 'Şirket Yönetimi', icon: <Building2 size={20} />, theme: 'bg-gradient-to-r from-indigo-600 to-violet-600 border-indigo-400/30 text-white shadow-sm', hoverText: 'group-hover:text-indigo-400' },
-    { id: 'super_admin', label: 'SaaS Yönetimi', icon: <Server size={20} />, theme: 'bg-gradient-to-r from-fuchsia-600 to-pink-600 border-fuchsia-400/30 text-white shadow-sm', hoverText: 'group-hover:text-fuchsia-400' },
   ]
 
   const filteredMenuItems = menuItems.filter(item => {
@@ -552,12 +550,10 @@ function App() {
 
     if (userRole === 'super_admin') return true;
 
-    if (userRole === 'company_admin') {
-      return item.id !== 'super_admin';
-    }
+    if (userRole === 'company_admin') return true;
 
     // Default 'şoför' -> Sadece operasyonel sekmeleri görür
-    return !['super_admin', 'company_admin', 'map', 'personel', 'earsiv', 'company_debts', 'invoices', 'payments', 'drive'].includes(item.id);
+    return !['map', 'personel', 'earsiv', 'company_debts', 'invoices', 'payments', 'drive'].includes(item.id);
   })
 
 
@@ -658,153 +654,70 @@ function App() {
         </div>
 
         {/* Nav Links */}
-        <nav className="flex-1 px-4 pt-3 sm:pt-6 pb-6 space-y-1.5 overflow-y-auto relative custom-scrollbar">
-          {filteredMenuItems.map((item) => {
-            const isActive = activeTab === item.id;
+        <LayoutGroup id="sidebar-main-nav">
+          <nav 
+            className="flex-1 px-4 pt-3 sm:pt-6 pb-6 space-y-1.5 overflow-y-auto relative custom-scrollbar"
+            style={{ scrollbarGutter: 'stable' }}
+          >
+            {filteredMenuItems.map((item) => {
+              const isActive = activeTab === item.id;
+              const isTruckScoped = TRUCK_SCOPED_TABS.includes(item.id);
 
-            // ── Şirket Yönetimi: morph eden buton + ayrı expand (Tır seçimi için) ──
-            if (item.id === 'company_admin') {
-              const activeTruckPlate = trucks.find(t => t.id === activeTruckId)?.plate || 'Tır Seçin';
-              const otherTrucks = trucks.filter(t => t.id !== activeTruckId);
-              
-              return (
-                <div key={item.id}>
-                  <button onClick={() => { setActiveTab(item.id); if (isMobile) setIsMenuOpen(false); }}
-                    className={`w-full relative flex items-center space-x-3 px-4 h-10 rounded-xl text-left group transition-all duration-300 outline-none ${isActive ? 'font-medium text-white' : 'text-slate-400 hover:text-slate-200'}`}>
-                    {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 rounded-xl transition-colors duration-300 -z-10" />}
-                    {isActive && (
-                      <motion.div layoutId="sidebar-active-apple"
-                        className={`absolute inset-0 rounded-xl border ${item.theme}`}
-                        style={{ zIndex: 0 }} initial={false}
-                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}
-                      />
-                    )}
-                    <div className={`relative z-10 flex items-center flex-shrink-0 transition-transform duration-300 ${isActive ? 'scale-110 drop-shadow-md text-white/90' : `text-slate-500 group-hover:scale-110 ${item.hoverText}`}`}>
-                      {item.icon}
-                    </div>
-                    <div className="flex-1 self-stretch overflow-hidden relative z-10 flex flex-col justify-center">
-                      <motion.span
-                        className="text-sm tracking-wide drop-shadow-md leading-none text-left"
-                        animate={{ y: isActive ? -3 : 0 }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}>
-                        {item.label}
-                      </motion.span>
-                      <motion.span
-                        className="absolute left-0 right-0 text-[10px] text-indigo-200/75 font-medium truncate leading-none"
-                        style={{ top: 0 }}
-                        animate={{ y: isActive ? 27 : 50, opacity: isActive ? 1 : 0 }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}>
-                        {activeTruckPlate}
-                      </motion.span>
-                    </div>
-                    {/* Expand chevron (Sürücüler araç değiştiremez, sadece yöneticiler) */}
-                    {userRole !== 'şoför' && otherTrucks.length > 0 && (
-                      <motion.div
-                        animate={{ opacity: isActive ? 1 : 0 }}
-                        transition={{ duration: 0.15 }}
-                        onClick={(e) => { e.stopPropagation(); if (isActive) setShowTruckExpand(v => !v); }}
-                        className="relative z-20 p-1 rounded-md hover:bg-white/15 transition-colors flex-shrink-0 cursor-pointer"
-                        style={{ pointerEvents: isActive ? 'auto' : 'none' }}>
-                        <motion.div animate={{ rotate: showTruckExpand ? 180 : 0 }}
-                          transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}>
-                          <ChevronDown size={12} className="text-indigo-300/70" />
-                        </motion.div>
-                      </motion.div>
-                    )}
-                  </button>
-
-                  {/* Tır listesi - sadece expand açıkken ve aktifken */}
-                  <AnimatePresence>
-                    {isActive && showTruckExpand && userRole !== 'şoför' && (
-                      <motion.div key="company-trucks"
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
-                        className="overflow-hidden">
-                        <div className="mx-1 mt-1 mb-0.5 bg-indigo-500/5 border border-indigo-500/15 rounded-xl overflow-hidden">
-                          {/* Aktif Tır */}
-                          <div className="flex items-center gap-2.5 px-3 py-2.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0 shadow-[0_0_6px_rgba(99,102,241,0.5)]" />
-                            <span className="text-xs font-semibold text-indigo-200 flex-1 truncate">{activeTruckPlate}</span>
-                            <span className="text-[8px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide">Aktif</span>
-                          </div>
-                          {/* Diğer Tırlar */}
-                          {otherTrucks.map((t, i) => (
-                            <div key={t.id}>
-                              {i === 0 && <div className="h-px bg-indigo-500/10 mx-3" />}
-                              <button onClick={() => { setActiveTruckId(t.id); setShowTruckExpand(false); }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-indigo-500/10 transition-colors group/co">
-                                <Truck size={11} className="text-slate-600 group-hover/co:text-indigo-400 transition-colors flex-shrink-0" />
-                                <span className="text-xs text-slate-400 group-hover/co:text-white transition-colors truncate">{t.plate}</span>
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-            }
-
-            // ── Normal nav itemları ──
-            const isTruckScoped = TRUCK_SCOPED_TABS.includes(item.id);
-
-            const handleItemClick = () => {
-              if (isActive && isTruckScoped) {
-                const now = Date.now();
-                if (lastTapTabRef.current === item.id && (now - lastTapTimeRef.current) < 380) {
-                  handleQuickTruckSwitch(item.id);
-                  lastTapTimeRef.current = 0;
-                  lastTapTabRef.current = null;
-                  return;
-                }
-                lastTapTimeRef.current = now;
-                lastTapTabRef.current = item.id;
-              } else {
-                setActiveTab(item.id);
-                if (isMobile) setIsMenuOpen(false);
-              }
-            };
-
-            return (
-              <button 
-                key={item.id} 
-                onClick={handleItemClick}
-                onDoubleClick={(e) => {
-                  if (isActive && isTruckScoped) {
-                    e.preventDefault();
+              const handleItemClick = () => {
+                if (isActive && isTruckScoped) {
+                  const now = Date.now();
+                  if (lastTapTabRef.current === item.id && (now - lastTapTimeRef.current) < 380) {
                     handleQuickTruckSwitch(item.id);
+                    lastTapTimeRef.current = 0;
+                    lastTapTabRef.current = null;
+                    return;
                   }
-                }}
-                className={`w-full relative flex items-center space-x-3 px-4 py-2.5 rounded-xl group transition-all duration-300 outline-none select-none ${isActive ? 'font-medium text-white' : 'text-slate-400 hover:text-slate-200'}`}
-              >
-                {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 rounded-xl transition-colors duration-300 -z-10" />}
-                {isActive && (
-                  <motion.div layoutId="sidebar-active-apple"
-                    className={`absolute inset-0 rounded-xl border ${item.theme}`}
-                    style={{ zIndex: 0 }} initial={false}
-                    transition={{ type: 'spring', stiffness: 400, damping: 32, mass: 0.8 }}
-                  />
-                )}
-                <div 
+                  lastTapTimeRef.current = now;
+                  lastTapTabRef.current = item.id;
+                } else {
+                  setActiveTab(item.id);
+                  if (isMobile) setIsMenuOpen(false);
+                }
+              };
+
+              return (
+                <button 
+                  key={item.id} 
+                  onClick={handleItemClick}
                   onDoubleClick={(e) => {
                     if (isActive && isTruckScoped) {
-                      e.stopPropagation();
                       e.preventDefault();
                       handleQuickTruckSwitch(item.id);
                     }
                   }}
-                  className={`relative z-10 flex items-center transition-colors duration-200 ${isActive ? 'text-white' : `text-slate-500 group-hover:text-slate-300 ${item.hoverText}`}`}
-                  title={isActive && isTruckScoped && userRole !== 'şoför' && trucks.length > 1 ? 'Çift tıklayarak aracı değiştirin' : undefined}
+                  className={`w-full relative flex items-center space-x-3 px-4 py-2.5 rounded-xl group transition-colors duration-150 outline-none select-none ${isActive ? 'font-medium text-white' : 'text-slate-400 hover:text-slate-200'}`}
                 >
-                  {item.icon}
-                </div>
+                  {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 rounded-xl transition-colors duration-150 -z-10 pointer-events-none" />}
+                  {isActive && (
+                    <motion.div 
+                      layoutId="sidebar-active-apple"
+                      className={`absolute inset-0 rounded-xl border ${item.theme}`}
+                      style={{ zIndex: 0 }} 
+                      initial={false}
+                      transition={{ type: 'spring', stiffness: 450, damping: 35, mass: 0.6 }}
+                    />
+                  )}
+                  <div 
+                    onDoubleClick={(e) => {
+                      if (isActive && isTruckScoped) {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleQuickTruckSwitch(item.id);
+                      }
+                    }}
+                    className={`relative z-10 flex items-center transition-colors duration-150 ${isActive ? 'text-white' : `text-slate-500 group-hover:text-slate-300 ${item.hoverText}`}`}
+                    title={isActive && isTruckScoped && userRole !== 'şoför' && trucks.length > 1 ? 'Çift tıklayarak aracı değiştirin' : undefined}
+                  >
+                    {item.icon}
+                  </div>
 
-                {/* Buton içi odaklı plaka bildirimi */}
-                <div className="flex-1 text-left relative overflow-hidden h-5 flex items-center z-10">
-                  <AnimatePresence initial={false}>
+                  {/* Buton içi odaklı plaka bildirimi veya etiket */}
+                  <div className="flex-1 text-left relative overflow-hidden h-5 flex items-center z-10">
                     {activeSwitchTab === item.id && activeSwitchPlate ? (
                       <motion.span
                         key="switch-plate"
@@ -817,30 +730,22 @@ function App() {
                         {activeSwitchPlate}
                       </motion.span>
                     ) : (
-                      <motion.span
-                        key="normal-label"
-                        initial={{ y: -16, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        exit={{ y: 16, opacity: 0 }}
-                        transition={{ type: 'spring', stiffness: 650, damping: 32, mass: 0.5 }}
-                        className="absolute inset-x-0 flex items-center text-sm font-medium tracking-wide text-white select-none truncate"
-                      >
+                      <span className="text-sm font-medium tracking-wide text-white select-none truncate">
                         {item.label}
-                      </motion.span>
+                      </span>
                     )}
-                  </AnimatePresence>
-                </div>
-                {item.badge > 0 && (
-                  <span className="relative z-10 bg-red-500/20 border border-red-500/30 text-red-100 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center justify-center flex-shrink-0">{item.badge}</span>
-                )}
-                {item.badge_beta && (
-                  <span className="relative z-10 bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 tracking-wide">BETA</span>
-                )}
-              </button>
-            );
-          })}
-
-        </nav>
+                  </div>
+                  {item.badge > 0 && (
+                    <span className="relative z-10 bg-red-500/20 border border-red-500/30 text-red-100 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center justify-center flex-shrink-0">{item.badge}</span>
+                  )}
+                  {item.badge_beta && (
+                    <span className="relative z-10 bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 tracking-wide">BETA</span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </LayoutGroup>
 
         {/* Footer: Kullanıcı Profili ve Bar İçi Menü */}
         <div ref={userMenuRef} className="p-3 border-t border-white/[0.06] bg-[#0a0d14] shrink-0 z-20 relative"
@@ -852,10 +757,10 @@ function App() {
           <AnimatePresence initial={false}>
             {isUserMenuOpen && (
               <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
                 className="overflow-hidden mb-2"
               >
                 <div className="space-y-1 pb-1">

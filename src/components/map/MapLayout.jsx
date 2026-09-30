@@ -224,6 +224,71 @@ const unrollVehiclesWithDaily = async (vehicles, companyId) => {
   return unrolledLocations;
 };
 
+let edgePollerInterval = null;
+
+const pollEdgeLive = async (companyId) => {
+  try {
+    const res = await fetch('https://inaner.tr/api/save-location?action=get_live&token=inaner123', {
+      cache: 'no-store'
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.success && Array.isArray(data.vehicles) && data.vehicles.length > 0) {
+      const filtered = companyId
+        ? data.vehicles.filter(d => !d.companyId || d.companyId === companyId)
+        : data.vehicles;
+
+      const unrolledLocations = [];
+      filtered.forEach(veh => {
+        const dId = veh.deviceId || veh.driverId || veh.id;
+        // 1. Son viraj noktaları (recentTrail)
+        if (Array.isArray(veh.recentTrail) && veh.recentTrail.length > 0) {
+          veh.recentTrail.forEach(pt => {
+            unrolledLocations.push({
+              driverId: dId,
+              deviceId: dId,
+              companyId: veh.companyId || companyId,
+              lat: pt.lat,
+              lon: pt.lon,
+              speed: pt.speed || 0,
+              altitude: pt.altitude || 0,
+              timestamp: pt.timestamp,
+              createdAt: pt.timestamp,
+              ignition: (pt.speed || 0) > 2
+            });
+          });
+        }
+        // 2. Anlık en son nokta
+        if (veh.lat && veh.lon) {
+          unrolledLocations.push({
+            driverId: dId,
+            deviceId: dId,
+            companyId: veh.companyId || companyId,
+            lat: veh.lat,
+            lon: veh.lon,
+            speed: veh.speed || 0,
+            altitude: veh.altitude || 0,
+            timestamp: veh.updatedAt || veh.timestamp || new Date().toISOString(),
+            createdAt: veh.updatedAt || veh.timestamp || new Date().toISOString(),
+            ignition: (veh.speed || 0) > 2
+          });
+        }
+      });
+
+      if (unrolledLocations.length > 0) {
+        globalLocations = unrolledLocations;
+        globalLoading = false;
+        try {
+          localStorage.setItem('cached_live_locations', JSON.stringify(unrolledLocations));
+        } catch (_) {}
+        globalListeners.forEach(l => l.onUpdate(unrolledLocations, false));
+      }
+    }
+  } catch (_) {
+    // Ağ kopması durumunda sessiz kal
+  }
+};
+
 const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
   if (cleanupTimeout) {
     clearTimeout(cleanupTimeout);
@@ -282,12 +347,15 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
     return () => {};
   }
 
-  // 2. Canlı Firestore Modu
-  // Şirket değiştiyse aboneliği sıfırla
+  // 2. Canlı Mod: Cloudflare Edge (Öncelikli & Sıfır Kota) + Firestore (Yedek)
   if (lastCompanyId !== companyId) {
     if (globalUnsubscribe) {
       globalUnsubscribe();
       globalUnsubscribe = null;
+    }
+    if (edgePollerInterval) {
+      clearInterval(edgePollerInterval);
+      edgePollerInterval = null;
     }
     globalLocations = [];
     globalLoading = true;
@@ -300,6 +368,12 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
   // Önbellekteki verileri anında gönder (yükleme gecikmesini sıfırlar)
   onUpdate(globalLocations, globalLoading);
 
+  // Cloudflare Edge Canlı Akışını Başlat (Sıfır Firestore Kotası, 2.5 saniye periyot)
+  if (!edgePollerInterval) {
+    pollEdgeLive(companyId);
+    edgePollerInterval = setInterval(() => pollEdgeLive(companyId), 2500);
+  }
+
   if (!globalUnsubscribe) {
     globalLoading = true;
     const q = collection(db, 'live_positions');
@@ -309,52 +383,18 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
       const allVehicles = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
       const unrolledLocations = await unrollVehiclesWithDaily(allVehicles, companyId);
-      globalLocations = unrolledLocations;
-      globalLoading = false;
-      try {
-        localStorage.setItem('cached_live_locations', JSON.stringify(unrolledLocations));
-      } catch (_) {}
-
-      // Tüm dinleyicileri güncelle
-      globalListeners.forEach(l => l.onUpdate(unrolledLocations, false));
-    }, (error) => {
-      console.warn('live_positions verisi dinleme uyarısı:', error?.message || error);
-      globalLoading = false;
-      // Hata durumunda (Örn: Firestore 429 Kota Aşımı) mevcut veya önbellekteki son konumları koru
-      if (globalLocations.length === 0) {
+      // Eğer Edge'den daha güncel veri gelmişse üzerine yazma
+      if (globalLocations.length === 0 || unrolledLocations.length > globalLocations.length) {
+        globalLocations = unrolledLocations;
+        globalLoading = false;
         try {
-          const cached = localStorage.getItem('cached_live_locations');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              globalLocations = parsed;
-            }
-          }
+          localStorage.setItem('cached_live_locations', JSON.stringify(unrolledLocations));
         } catch (_) {}
-        if (globalLocations.length === 0 && typeof window !== 'undefined' && window.__INANER_OFFLINE_DB__?.live_positions) {
-          const offDb = window.__INANER_OFFLINE_DB__;
-          const fallbackList = [];
-          (offDb.live_positions || []).forEach(veh => {
-            if (veh.lat && veh.lon) {
-              fallbackList.push({
-                driverId: veh.deviceId || veh.driverId || veh.id,
-                deviceId: veh.deviceId || veh.driverId || veh.id,
-                companyId: veh.companyId || companyId,
-                lat: veh.lat,
-                lon: veh.lon,
-                speed: veh.speed || 0,
-                timestamp: veh.updatedAt || veh.timestamp || Date.now(),
-                createdAt: veh.updatedAt || veh.timestamp || Date.now(),
-                ignition: veh.ignition || false
-              });
-            }
-          });
-          if (fallbackList.length > 0) {
-            globalLocations = fallbackList;
-          }
-        }
+        globalListeners.forEach(l => l.onUpdate(unrolledLocations, false));
       }
-      globalListeners.forEach(l => l.onUpdate(globalLocations, false));
+    }, (error) => {
+      // Firestore kotası (429) durumunda sessiz kal, Edge canlı akışı zaten ekranı besliyor
+      globalLoading = false;
     });
   }
 
@@ -363,13 +403,19 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
     // Haritadan tamamen çıkıldığında kota tasarrufu için 5 dakikalık bekleme süresi
     if (globalListeners.size === 0) {
       cleanupTimeout = setTimeout(() => {
-        if (globalListeners.size === 0 && globalUnsubscribe) {
-          globalUnsubscribe();
-          globalUnsubscribe = null;
+        if (globalListeners.size === 0) {
+          if (edgePollerInterval) {
+            clearInterval(edgePollerInterval);
+            edgePollerInterval = null;
+          }
+          if (globalUnsubscribe) {
+            globalUnsubscribe();
+            globalUnsubscribe = null;
+          }
           globalLoading = true;
           globalLocations = [];
           lastCompanyId = null;
-          console.log("Firestore live_positions aboneliği inaktivite nedeniyle kapatıldı.");
+          console.log("Canlı takip aboneliği inaktivite nedeniyle durduruldu.");
         }
       }, 5 * 60 * 1000); // 5 dakika
     }
