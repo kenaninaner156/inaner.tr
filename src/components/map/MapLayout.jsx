@@ -74,17 +74,21 @@ function MapClickHandler({ pickingLocation, onLocationPicked }) {
   return null;
 }
 
-// Sekme geçişlerinde haritayı pürüzsüzce odaklayan bileşen
+// Sekme geçişlerinde ve ilk veri yüklenişinde haritayı pürüzsüzce odaklayan bileşen
 function MapCameraSync({ activeTab, sessionsByDriver, deviceMappings }) {
   const map = useMap();
   const prevTabRef = useRef(activeTab);
+  const didInitialFocusRef = useRef(false);
 
   useEffect(() => {
-    if (prevTabRef.current === activeTab) return;
-    
+    const isTabChange = prevTabRef.current !== activeTab;
+    const shouldFocusInitial = !didInitialFocusRef.current && activeTab === 'live';
+
+    if (!isTabChange && !shouldFocusInitial) return;
+
     if (activeTab === 'live') {
       const activeLocations = Object.entries(sessionsByDriver)
-        .filter(([driverId]) => !!deviceMappings[driverId] && sessionsByDriver[driverId].length > 0)
+        .filter(([, sessions]) => sessions && sessions.length > 0)
         .map(([, sessions]) => {
           const lp = sessions[sessions.length - 1];
           const lastPoint = lp[lp.length - 1];
@@ -92,11 +96,11 @@ function MapCameraSync({ activeTab, sessionsByDriver, deviceMappings }) {
         }).filter(p => p && !isNaN(p[0]));
 
       if (activeLocations.length === 1) {
-        // Tek araç varsa dibine kadar (zoom 18 vs) girmemesi için 11'de bırakıyoruz
-        // Ayrıca flyTo değil setView kullanıyoruz ki canvas bulanıklaşmasın
-        map.setView(activeLocations[0], 11, { animate: true, duration: 1 });
+        map.setView(activeLocations[0], 12, { animate: true, duration: 1 });
+        if (shouldFocusInitial) didInitialFocusRef.current = true;
       } else if (activeLocations.length > 1) {
-        map.fitBounds(L.latLngBounds(activeLocations), { padding: [80, 80], maxZoom: 11, animate: true, duration: 1 });
+        map.fitBounds(L.latLngBounds(activeLocations), { padding: [80, 80], maxZoom: 12, animate: true, duration: 1 });
+        if (shouldFocusInitial) didInitialFocusRef.current = true;
       }
     }
     prevTabRef.current = activeTab;
@@ -114,6 +118,7 @@ const getTurkeyTodayStr = () => {
 let globalLocations = [];
 let globalUnsubscribe = null;
 const globalListeners = new Set();
+const dailyRoutesMemoryCache = new Map();
 let globalLoading = true;
 let lastCompanyId = null;
 let cleanupTimeout = null;
@@ -124,6 +129,59 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
     cleanupTimeout = null;
   }
 
+  // 1. Çevrimdışı / USB Disk Modu Desteği (window.__INANER_OFFLINE_DB__)
+  if (typeof window !== 'undefined' && (window.__INANER_OFFLINE_DB__ || window.location.protocol === 'file:' || window.location.port === '3456')) {
+    const offDb = window.__INANER_OFFLINE_DB__ || {};
+    const allVehicles = offDb.live_positions || [];
+    const todayStr = getTurkeyTodayStr();
+    const dailyRoutes = offDb.daily_routes || [];
+
+    const filtered = companyId
+      ? allVehicles.filter(d => !d.companyId || d.companyId === companyId)
+      : allVehicles;
+
+    const unrolledLocations = [];
+    filtered.forEach((veh) => {
+      const dId = veh.deviceId || veh.driverId || veh.id;
+      const routeDoc = dailyRoutes.find(r => r.id === `${dId}_${todayStr}`) || dailyRoutes.find(r => r.id && r.id.startsWith(dId));
+      const points = routeDoc?.points;
+
+      if (Array.isArray(points) && points.length > 0) {
+        points.forEach(pt => {
+          unrolledLocations.push({
+            driverId: dId,
+            deviceId: dId,
+            companyId: veh.companyId || companyId,
+            lat: pt.lat,
+            lon: pt.lon,
+            speed: pt.speed || 0,
+            timestamp: pt.timestamp || pt.time || veh.updatedAt || veh.timestamp,
+            createdAt: pt.timestamp || pt.time || veh.updatedAt || veh.timestamp,
+            ignition: pt.ignition !== undefined ? pt.ignition : (veh.ignition || false)
+          });
+        });
+      } else if (veh.lat && veh.lon) {
+        unrolledLocations.push({
+          driverId: dId,
+          deviceId: dId,
+          companyId: veh.companyId || companyId,
+          lat: veh.lat,
+          lon: veh.lon,
+          speed: veh.speed || 0,
+          timestamp: veh.updatedAt || veh.timestamp || Date.now(),
+          createdAt: veh.updatedAt || veh.timestamp || Date.now(),
+          ignition: veh.ignition || false
+        });
+      }
+    });
+
+    globalLocations = unrolledLocations;
+    globalLoading = false;
+    onUpdate(unrolledLocations, false);
+    return () => {};
+  }
+
+  // 2. Canlı Firestore Modu
   // Şirket değiştiyse aboneliği sıfırla
   if (lastCompanyId !== companyId) {
     if (globalUnsubscribe) {
@@ -152,16 +210,23 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
         ? allVehicles.filter(d => !d.companyId || d.companyId === companyId)
         : allVehicles;
 
-      // Her aktif araç için bugünün tam rotasını daily_routes dökümanından çek (1 okuma / araç)
+      // Her aktif araç için bugünün rotasını önbellekli çek (5 dakikada en fazla 1 okuma / araç - kota koruması)
       const dailyRoutePromises = filtered.map(async (veh) => {
         const dId = veh.deviceId || veh.driverId || veh.id;
+        const cacheKey = `${dId}_${todayStr}`;
+        const cached = dailyRoutesMemoryCache.get(cacheKey);
+        if (cached && (Date.now() - cached.time < 5 * 60 * 1000)) {
+          return { dId, veh, points: cached.points };
+        }
         try {
-          const dailySnap = await getDoc(doc(db, 'daily_routes', `${dId}_${todayStr}`));
+          const dailySnap = await getDoc(doc(db, 'daily_routes', cacheKey));
           if (dailySnap.exists() && Array.isArray(dailySnap.data().points) && dailySnap.data().points.length > 0) {
+            dailyRoutesMemoryCache.set(cacheKey, { time: Date.now(), points: dailySnap.data().points });
             return { dId, veh, points: dailySnap.data().points };
           }
         } catch (e) {
           console.warn(`daily_routes okuma atlandı (${dId}):`, e);
+          if (cached) return { dId, veh, points: cached.points };
         }
         return { dId, veh, points: null };
       });
@@ -170,9 +235,14 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
 
       const unrolledLocations = [];
       dailyResults.forEach(({ dId, veh, points }) => {
-        // Eğer bugünün tam rotası varsa eksiksiz tüm günün rotasını kullan (Örn: 90.9 km)
+        let lastTimestampMs = 0;
+
+        // 1. Günün kayıtlı noktalarını ekle
         if (Array.isArray(points) && points.length > 0) {
           points.forEach(pt => {
+            const ptTime = new Date(pt.timestamp || pt.time || 0).getTime();
+            if (ptTime > lastTimestampMs) lastTimestampMs = ptTime;
+
             unrolledLocations.push({
               driverId: dId,
               deviceId: dId,
@@ -185,31 +255,94 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
               ignition: pt.ignition !== undefined ? pt.ignition : (veh.ignition || false)
             });
           });
-        } else if (veh.lat && veh.lon) {
-          // Eğer daily_routes henüz oluşmadıysa en azından anlık tek noktayı göster
-          unrolledLocations.push({
-            driverId: dId,
-            deviceId: dId,
-            companyId: veh.companyId || companyId,
-            lat: veh.lat,
-            lon: veh.lon,
-            speed: veh.speed || 0,
-            timestamp: veh.updatedAt || veh.timestamp || Date.now(),
-            createdAt: veh.updatedAt || veh.timestamp || Date.now(),
-            ignition: veh.ignition || false
+        }
+
+        // 2. recentTrail içerisindeki dökümana henüz yazılmamış yeni canlı noktaları ekle
+        if (Array.isArray(veh.recentTrail) && veh.recentTrail.length > 0) {
+          veh.recentTrail.forEach(pt => {
+            const ptTime = new Date(pt.timestamp || 0).getTime();
+            if (ptTime > lastTimestampMs) {
+              lastTimestampMs = ptTime;
+              unrolledLocations.push({
+                driverId: dId,
+                deviceId: dId,
+                companyId: veh.companyId || companyId,
+                lat: pt.lat,
+                lon: pt.lon,
+                speed: pt.speed || 0,
+                timestamp: pt.timestamp,
+                createdAt: pt.timestamp,
+                ignition: pt.ignition !== undefined ? pt.ignition : (veh.ignition || false)
+              });
+            }
           });
+        }
+
+        // 3. En güncel anlık konumu (varsa ve yeniyse) ekle
+        if (veh.lat && veh.lon) {
+          const vehTime = new Date(veh.timestamp || veh.recordedAt || 0).getTime();
+          if (vehTime > lastTimestampMs || unrolledLocations.length === 0) {
+            unrolledLocations.push({
+              driverId: dId,
+              deviceId: dId,
+              companyId: veh.companyId || companyId,
+              lat: veh.lat,
+              lon: veh.lon,
+              speed: veh.speed || 0,
+              timestamp: veh.updatedAt || veh.timestamp || Date.now(),
+              createdAt: veh.updatedAt || veh.timestamp || Date.now(),
+              ignition: veh.ignition || false
+            });
+          }
         }
       });
 
       globalLocations = unrolledLocations;
       globalLoading = false;
+      try {
+        localStorage.setItem('cached_live_locations', JSON.stringify(unrolledLocations));
+      } catch (_) {}
 
       // Tüm dinleyicileri güncelle
       globalListeners.forEach(l => l.onUpdate(unrolledLocations, false));
     }, (error) => {
-      console.error('live_positions verisi çekme hatası:', error);
+      console.warn('live_positions verisi dinleme uyarısı:', error?.message || error);
       globalLoading = false;
-      globalListeners.forEach(l => l.onError(error));
+      // Hata durumunda (Örn: Firestore 429 Kota Aşımı) mevcut veya önbellekteki son konumları koru
+      if (globalLocations.length === 0) {
+        try {
+          const cached = localStorage.getItem('cached_live_locations');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              globalLocations = parsed;
+            }
+          }
+        } catch (_) {}
+        if (globalLocations.length === 0 && typeof window !== 'undefined' && window.__INANER_OFFLINE_DB__?.live_positions) {
+          const offDb = window.__INANER_OFFLINE_DB__;
+          const fallbackList = [];
+          (offDb.live_positions || []).forEach(veh => {
+            if (veh.lat && veh.lon) {
+              fallbackList.push({
+                driverId: veh.deviceId || veh.driverId || veh.id,
+                deviceId: veh.deviceId || veh.driverId || veh.id,
+                companyId: veh.companyId || companyId,
+                lat: veh.lat,
+                lon: veh.lon,
+                speed: veh.speed || 0,
+                timestamp: veh.updatedAt || veh.timestamp || Date.now(),
+                createdAt: veh.updatedAt || veh.timestamp || Date.now(),
+                ignition: veh.ignition || false
+              });
+            }
+          });
+          if (fallbackList.length > 0) {
+            globalLocations = fallbackList;
+          }
+        }
+      }
+      globalListeners.forEach(l => l.onUpdate(globalLocations, false));
     });
   }
 
@@ -258,6 +391,7 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
   
   const [locations, setLocations] = useState([]);
   const [, setLoading] = useState(true);
+  const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
   const [deviceMappings, setDeviceMappings] = useState({});
   // Her zaman tek bir günü yükle: kota tasarrufu için en iyi yaklaşım
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -316,27 +450,64 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
         setLoading(isLoading);
         if (!isLoading) {
           onReady?.();
+          // Başarılı veri geldi, kota aşımı yok
+          setIsQuotaExceeded(false);
         }
       },
       (error) => {
-        console.error('Harita verisi yüklenirken hata:', error);
-        alert('Harita verisi yüklenemedi. Yetki veya bağlantı hatası: ' + error.message);
+        console.warn('Harita verisi yüklenirken uyarı:', error?.message || error);
         setLoading(false);
+        // Firebase 429 kota aşımı: araçları yanlış offline gösterme
+        if (error?.code === 'resource-exhausted' || error?.message?.includes('429') || error?.message?.toLowerCase().includes('quota')) {
+          setIsQuotaExceeded(true);
+        }
       }
     );
     return () => unsubscribe();
   }, [activeCompanyId]);
 
   useEffect(() => {
+    // 1. Çevrimdışı / Bellek Kontrolü (window.__INANER_OFFLINE_DB__)
+    const isOfflineMode = typeof window !== 'undefined' && (window.__INANER_OFFLINE_DB__ || window.location.protocol === 'file:' || window.location.port === '3456');
     const mappingsDocId = `device_mappings_${activeCompanyId || 'default'}`;
-    const unsubscribe = onSnapshot(doc(db, 'company_data', mappingsDocId), (s) => {
-      if (s.exists()) {
-        setDeviceMappings(s.data());
-      } else {
-        setDeviceMappings({});
+
+    if (isOfflineMode && window.__INANER_OFFLINE_DB__?.company_data) {
+      const compData = window.__INANER_OFFLINE_DB__.company_data;
+      const targetDoc = compData.find(d => d.id === mappingsDocId) || 
+                        compData.find(d => d.id === 'device_mappings_inaner_logistics') ||
+                        compData.find(d => d.id === 'device_mappings');
+      if (targetDoc) {
+        const { id, ...mappings } = targetDoc;
+        setDeviceMappings(mappings);
+        return;
       }
-    });
-    return () => unsubscribe();
+    }
+
+    // 2. Canlı Firestore Dinleyicisi
+    try {
+      const unsubscribe = onSnapshot(doc(db, 'company_data', mappingsDocId), (s) => {
+        if (s.exists()) {
+          setDeviceMappings(s.data());
+        } else {
+          setDeviceMappings({});
+        }
+      }, (err) => {
+        console.warn('device_mappings okuma uyarısı:', err?.message || err);
+        if (window.__INANER_OFFLINE_DB__?.company_data) {
+          const compData = window.__INANER_OFFLINE_DB__.company_data;
+          const targetDoc = compData.find(d => d.id === mappingsDocId) || 
+                            compData.find(d => d.id === 'device_mappings_inaner_logistics') ||
+                            compData.find(d => d.id === 'device_mappings');
+          if (targetDoc) {
+            const { id, ...mappings } = targetDoc;
+            setDeviceMappings(mappings);
+          }
+        }
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.warn('device_mappings dinleyici başlatılamadı:', e);
+    }
   }, [activeCompanyId]);
 
   // ── sessionsByDriver (Canlı Takip) ─────────────────────────────────────

@@ -62,11 +62,20 @@ export default {
       const speedDiff = Math.abs(speed - last.speed);
 
       // İletim kararı:
-      // - Eğer araç duruyorsa ve 45 saniyeden az geçmişse -> İletme (Edge'den 200 dön)
-      // - Eğer araç hareket halindeyse ve 15 saniyeden az geçmişse ve ani hız farkı yoksa -> İletme
+      // 2. Akıllı Telemetri Filtresi (Yüksek Çözünürlüklü Kesintisiz Rota)
+      // - Durma / kalkma anı: 0 gecikmeyle anında ilet
+      // - Araç hareket halindeyse (hız > 2): En fazla 3 saniyede bir veya hız farkında (>= 5 km/s) anında ilet
+      // - Araç dururken: En fazla 30 saniyede bir ilet
+      const last = deviceLastPing.get(deviceId) || { time: 0, speed: 0, isStopped: true };
+      const timeDiff = (now - last.time) / 1000;
+      const isStopped = speed <= 2;
+      const speedDiff = Math.abs(speed - last.speed);
+
+      const stateChanged = isStopped !== last.isStopped;
       const shouldForward = (last.time === 0) || 
-                            (isStopped && timeDiff >= 45) ||
-                            (!isStopped && (timeDiff >= 15 || speedDiff >= 15));
+                            stateChanged ||
+                            (isStopped && timeDiff >= 30) ||
+                            (!isStopped && (timeDiff >= 3 || speedDiff >= 5));
 
       if (!shouldForward) {
         // Telefona/Cihaza anında başarılı yanıt dön (cihaz tekrar denemez, telefon bataryası korunur)
@@ -81,7 +90,7 @@ export default {
       }
 
       // İletim yapılıyor, son iletim zamanını güncelle
-      deviceLastPing.set(deviceId, { time: now, speed: speed });
+      deviceLastPing.set(deviceId, { time: now, speed: speed, isStopped: isStopped });
 
       // 3. İsteği Asıl Vercel API'sine İlet
       const targetUrl = new URL(request.url);

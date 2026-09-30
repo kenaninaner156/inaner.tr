@@ -46,5 +46,14 @@ lint_results.json
 git_log.txt
 firebase_backup.json
 
+# Hassas Yedekleme ve Token Dosyaları
+firebase_refresh_token.txt
+firebase_access_token.txt
+cached_token.txt
+check-pass.mjs
+backups/
+scripts/test-*.mjs
+
 .vercel
 .env*.local
+

@@ -52,7 +52,7 @@
       const pic = localStorage.getItem('tir_profile_pic');
       if (pic) {
         // If it's an old default icon path, clear it to force the new one
-        if (pic.startsWith('/tir-icon') || pic.startsWith('/unnamed') || pic.startsWith('/tir-clear')) {
+        if (pic.startsWith('/tir-icon') || pic.startsWith('/unnamed') || pic.startsWith('/tir-clear') || pic.startsWith('/logo') || pic.includes('logo') || pic.includes('app_')) {
           localStorage.removeItem('tir_profile_pic');
         } else {
           const link = document.querySelector("link[rel~='icon']");

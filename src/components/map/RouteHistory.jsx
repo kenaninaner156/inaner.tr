@@ -666,6 +666,24 @@ export default function RouteHistory({
 
     // 2. Geçmiş bir gün ise: daily_routes koleksiyonundan o günün en çok noktasına sahip aracını bul
     let isCancelled = false;
+    const isOfflineMode = typeof window !== 'undefined' && (window.__INANER_OFFLINE_DB__ || window.location.protocol === 'file:' || window.location.port === '3456');
+    if (isOfflineMode && window.__INANER_OFFLINE_DB__?.daily_routes) {
+      const dailyRoutes = window.__INANER_OFFLINE_DB__.daily_routes;
+      const results = drivers.map(d => {
+        const routeDoc = dailyRoutes.find(r => r.id === `${d}_${historyDate}`) || dailyRoutes.find(r => r.id && r.id.startsWith(d));
+        return { driver: d, ptsCount: (routeDoc?.points || []).length };
+      });
+      results.sort((a, b) => b.ptsCount - a.ptsCount);
+      const best = results[0];
+      const currentDriverData = results.find(r => r.driver === selectedDriver);
+      if (!selectedDriver || (!currentDriverData?.ptsCount && best?.ptsCount > 0)) {
+        if (best?.driver) {
+          setSelectedDriver(best.driver);
+        }
+      }
+      return;
+    }
+
     Promise.all(
       drivers.map(async (d) => {
         try {
@@ -697,26 +715,51 @@ export default function RouteHistory({
   // Seçili driver veya tarih değiştiğinde veriyi çek (Önbellekten veya Firebase'den)
   // Hangi günlerin cachelendiğini periyodik olarak veya araç değişince çek
   useEffect(() => {
-    if (!isVisible || !selectedDriver || !activeCompanyId) return;
-    const q = query(
-      collection(db, 'vehicle_daily_stats'),
-      where('deviceId', '==', selectedDriver),
-      where('companyId', '==', activeCompanyId)
-    );
-    getDocs(q).then(snap => {
-      const full = [];
+    if (!isVisible || !selectedDriver) return;
+    const today = new Date().toISOString().slice(0, 10);
+
+    const processDocs = (docs) => {
+      const full = [today];
       const empty = [];
-      snap.docs.forEach(doc => {
-        const data = doc.data();
+      docs.forEach(d => {
+        const data = d.data();
         if (data.sessionsJson === '[]' || Number(data.totalKm || 0) === 0) {
-          empty.push(data.date);
-        } else {
+          if (data.date && data.date !== today) empty.push(data.date);
+        } else if (data.date) {
           full.push(data.date);
         }
       });
       setCachedDates([...new Set(full)]);
       setEmptyCachedDates([...new Set(empty)]);
-    }).catch(err => console.error("Cache listesi çekilemedi:", err));
+    };
+
+    const qWithCompany = activeCompanyId ? query(
+      collection(db, 'vehicle_daily_stats'),
+      where('deviceId', '==', selectedDriver),
+      where('companyId', '==', activeCompanyId)
+    ) : null;
+
+    if (qWithCompany) {
+      getDocs(qWithCompany).then(snap => {
+        if (snap.docs.length > 0) {
+          processDocs(snap.docs);
+        } else {
+          // Fallback: Şirket kısıtlaması olmadan sadece cihaz adına göre dene
+          getDocs(query(collection(db, 'vehicle_daily_stats'), where('deviceId', '==', selectedDriver)))
+            .then(s => processDocs(s.docs))
+            .catch(() => setCachedDates([today]));
+        }
+      }).catch(err => {
+        console.warn("vehicle_daily_stats company query uyarısı (fallback deneniyor):", err);
+        getDocs(query(collection(db, 'vehicle_daily_stats'), where('deviceId', '==', selectedDriver)))
+          .then(s => processDocs(s.docs))
+          .catch(() => setCachedDates([today]));
+      });
+    } else {
+      getDocs(query(collection(db, 'vehicle_daily_stats'), where('deviceId', '==', selectedDriver)))
+        .then(s => processDocs(s.docs))
+        .catch(() => setCachedDates([today]));
+    }
   }, [selectedDriver, activeCompanyId, isVisible]);
 
   useEffect(() => {
@@ -753,18 +796,39 @@ export default function RouteHistory({
         const isToday = historyDate === todayStr;
         let points = [];
 
-        // 2.1 daily_routes/{selectedDriver_YYYY-MM-DD} dökümanını tek okumada çek
-        try {
-          const dailyDocId = `${selectedDriver}_${historyDate}`;
-          const dailySnap = await getDoc(doc(db, 'daily_routes', dailyDocId));
-          if (dailySnap.exists() && Array.isArray(dailySnap.data().points) && dailySnap.data().points.length > 0) {
-            points = dailySnap.data().points;
+        // 2.0 Bugün ise: Öncelikli olarak hafızadaki canlı konum noktalarını kullan (0 read, anlık veri)
+        if (isToday && Array.isArray(liveLocations) && liveLocations.length > 0) {
+          const livePts = liveLocations.filter(l => l.driverId === selectedDriver || l.deviceId === selectedDriver);
+          if (livePts.length > 0) {
+            points = livePts;
           }
-        } catch (dailyErr) {
-          console.warn("daily_routes okuma uyarısı (fallback deneniyor):", dailyErr);
         }
 
-        // 2.2 Fallback: Eğer daily_routes'da yoksa veya eski kayıt ise truck_routes'dan çek
+        // 2.1 Çevrimdışı Bellek / USB Disk Desteği (window.__INANER_OFFLINE_DB__)
+        const isOfflineMode = typeof window !== 'undefined' && (window.__INANER_OFFLINE_DB__ || window.location.protocol === 'file:' || window.location.port === '3456');
+        if (points.length === 0 && isOfflineMode && window.__INANER_OFFLINE_DB__?.daily_routes) {
+          const dailyRoutes = window.__INANER_OFFLINE_DB__.daily_routes;
+          const dailyDocId = `${selectedDriver}_${historyDate}`;
+          const routeDoc = dailyRoutes.find(r => r.id === dailyDocId) || dailyRoutes.find(r => r.id && r.id.startsWith(selectedDriver));
+          if (routeDoc && Array.isArray(routeDoc.points) && routeDoc.points.length > 0) {
+            points = routeDoc.points;
+          }
+        }
+
+        // 2.2 daily_routes/{selectedDriver_YYYY-MM-DD} dökümanını tek okumada çek
+        if (points.length === 0) {
+          try {
+            const dailyDocId = `${selectedDriver}_${historyDate}`;
+            const dailySnap = await getDoc(doc(db, 'daily_routes', dailyDocId));
+            if (dailySnap.exists() && Array.isArray(dailySnap.data().points) && dailySnap.data().points.length > 0) {
+              points = dailySnap.data().points;
+            }
+          } catch (dailyErr) {
+            console.warn("daily_routes okuma uyarısı (fallback deneniyor):", dailyErr);
+          }
+        }
+
+        // 2.3 Fallback: Eğer daily_routes'da yoksa veya eski kayıt ise truck_routes'dan çek
         if (points.length === 0) {
           const [y, m, d] = historyDate.split('-').map(Number);
           const dayStart = new Date(y, m - 1, d, -4, 0, 0, 0); // Önceki gün 20:00
@@ -799,10 +863,9 @@ export default function RouteHistory({
         }
         
         // 3. VERİYİ SIKIŞTIR VE SEFERLERE BÖL
-        // Tolerans tekrar 30 dakikaya çekildi, ancak manuel birleştirmeler eklendi.
         const rawSessions = groupIntoSessions(points, 30, geofences, manualSplits || [], manualMerges || []);
         
-        // SADECE BAŞLANGIÇ TARİHİ SEÇİLİ GÜN OLANLARI FİLTRELE VE SİLİNENLERİ ÇIKAR (Türkiye Europe/Istanbul Saat Dilimi)
+        // SADECE Seçili günde aktivitesi olan veya o gün başlayan seferleri al (Gece yarısı geçişlerini koru)
         const getTurkeyDateStr = (dateOrIso) => {
           try {
             const d = new Date(dateOrIso);
@@ -828,8 +891,10 @@ export default function RouteHistory({
           // Silinmiş mi kontrol et
           if (manualDeletes?.includes(session[0].timestamp)) return false;
 
+          // Seferin başlangıç veya herhangi bir noktası seçili gün ile eşleşiyorsa göster
           const sessionStartDate = getTurkeyDateStr(session[0].timestamp);
-          return sessionStartDate === historyDate;
+          const hasPointsOnDate = sessionStartDate === historyDate || session.some(pt => getTurkeyDateStr(pt.timestamp) === historyDate);
+          return hasPointsOnDate;
         });
 
         // 1MB Firestore sınırını aşmamak için "Dinamik Sıkıştırma Algoritması"

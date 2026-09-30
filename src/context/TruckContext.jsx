@@ -26,6 +26,25 @@ export const TruckProvider = ({ children }) => {
 
     // Fetch all trucks for the active company
     useEffect(() => {
+        // Çevrimdışı / USB Disk Modu Denetimi
+        if (typeof window !== 'undefined' && (window.__INANER_OFFLINE_DB__ || window.location.port === '3456')) {
+            const allTrucks = window.__INANER_OFFLINE_DB__?.trucks || [];
+            const companyTrucks = allTrucks.filter(t => (!activeCompanyId || t.companyId === activeCompanyId) && !t.deleted);
+            setTrucks(companyTrucks);
+
+            const savedId = localStorage.getItem('tir_active_truck_id');
+            if (companyTrucks.length > 0) {
+                if (savedId && companyTrucks.some(t => t.id === savedId)) {
+                    setActiveTruckIdState(savedId);
+                } else {
+                    setActiveTruckIdState(companyTrucks[0].id);
+                }
+            } else {
+                setActiveTruckIdState('');
+            }
+            return;
+        }
+
         const hasSession = !!localStorage.getItem('tir_auth_kenan_v1');
         if (!hasSession || !activeCompanyId) return;
 

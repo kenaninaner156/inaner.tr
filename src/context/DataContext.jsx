@@ -17,21 +17,27 @@ export const DataProvider = ({ children }) => {
     const [fuelRecords, setFuelRecords] = useState([]);
     const [allCompanyFuelRecords, setAllCompanyFuelRecords] = useState([]);
     const [maintenanceRecords, setMaintenanceRecords] = useState([]);
+    const [allCompanyMaintenance, setAllCompanyMaintenance] = useState([]);
     const [paymentRecords, setPaymentRecords] = useState([]);
+    const [allCompanyPayments, setAllCompanyPayments] = useState([]);
     const [maintenanceFolders, setMaintenanceFolders] = useState([]);
+    const [allCompanyFolders, setAllCompanyFolders] = useState([]);
     const [adminLog, setAdminLog] = useState([]);
     const [pendingUsers, setPendingUsers] = useState([]);
     const [approvedUsers, setApprovedUsers] = useState([]);
     const [docs, setDocs] = useState({});
     const [penalties, setPenalties] = useState([]);
+    const [allCompanyPenalties, setAllCompanyPenalties] = useState([]);
     const [invoices, setInvoices] = useState([]);
     const [shoppingItems, setShoppingItems] = useState([]);
+    const [allCompanyShopping, setAllCompanyShopping] = useState([]);
     const [geofences, setGeofences] = useState([]);
     const [manualSplits, setManualSplits] = useState([]);
     const [manualMerges, setManualMerges] = useState([]);
     const [manualDeletes, setManualDeletes] = useState([]);
     const [customRouteNames, setCustomRouteNames] = useState({});
     const [payouts, setPayouts] = useState([]);
+    const [allCompanyPayouts, setAllCompanyPayouts] = useState([]);
     const [premiums, setPremiums] = useState([]);
     const [companyNotifications, setCompanyNotifications] = useState([]);
     const [personnelList, setPersonnelList] = useState([]);
@@ -61,6 +67,21 @@ export const DataProvider = ({ children }) => {
     const [dataError, setDataError] = useState(null);
 
     const [currentSession, setCurrentSession] = useState(() => {
+        // Çevrimdışı / USB Disk Modunda Otomatik Super Admin Başlat
+        if (typeof window !== 'undefined' && (window.__INANER_OFFLINE_DB__ || window.location.protocol === 'file:' || window.location.port === '3456')) {
+            return {
+                username: 'kenan',
+                uid: 'offline_super_admin',
+                role: 'super_admin',
+                ip: '127.0.0.1 (USB)',
+                device: 'İnaner.tr Donanım Sürücüsü (D:)',
+                location: 'Yerel Kurtarma Masası',
+                isOfflineMode: true,
+                companyId: 'inaner_logistics',
+                sessionStart: new Date().toISOString()
+            };
+        }
+
         const token = localStorage.getItem('tir_auth_kenan_v1');
         const user = localStorage.getItem('tir_current_user');
         const uid = localStorage.getItem('tir_current_uid');
@@ -176,6 +197,150 @@ export const DataProvider = ({ children }) => {
 
     // Firebase Listener Setup
     useEffect(() => {
+        // ─── ÇEVRİMDIŞI / USB DİSK MODUNDA VERİLERİ DİREKT YEREL BELLEKTEN YÜKLE ───
+        if (typeof window !== 'undefined' && window.__INANER_OFFLINE_DB__) {
+            const offDb = window.__INANER_OFFLINE_DB__;
+            const sortData = (data) => [...(data || [])].sort((a, b) => {
+                const dateDiff = new Date(b.date || 0) - new Date(a.date || 0);
+                if (dateDiff !== 0) return dateDiff;
+                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+            });
+
+            // 1. Trips (Şirket İzolasyonu + Aktif Araç Filtresi)
+            const compTrips = (offDb.trips || []).filter(d => (!activeCompanyId || d.companyId === activeCompanyId) && !d.deleted);
+            const sortedTrips = sortData(compTrips);
+            setAllCompanyTrips(sortedTrips);
+            setTrips(sortedTrips.filter(d => !activeTruckId || d.truckId === activeTruckId));
+
+            // 2. Fuel (Şirket İzolasyonu + Aktif Araç Filtresi)
+            const compFuel = (offDb.fuel || []).filter(d => (!activeCompanyId || d.companyId === activeCompanyId) && !d.deleted);
+            const sortedFuel = sortData(compFuel);
+            setAllCompanyFuelRecords(sortedFuel);
+            setFuelRecords(sortedFuel.filter(d => !activeTruckId || d.truckId === activeTruckId));
+
+            // 3. Maintenance (Şirket İzolasyonu + Aktif Araç Filtresi)
+            const compMaint = (offDb.maintenance || []).filter(d => (!activeCompanyId || d.companyId === activeCompanyId) && !d.deleted);
+            const sortedMaint = sortData(compMaint);
+            setAllCompanyMaintenance(sortedMaint);
+            setMaintenanceRecords(sortedMaint.filter(d => !activeTruckId || d.truckId === activeTruckId));
+
+            // 4. Payments (Vergi & SGK - Şirket İzolasyonu + Aktif Araç Filtresi)
+            const compPayments = (offDb.payments || []).filter(d => (!activeCompanyId || d.companyId === activeCompanyId) && !d.deleted);
+            const sortedPayments = sortData(compPayments);
+            setAllCompanyPayments(sortedPayments);
+            setPaymentRecords(sortedPayments.filter(d => !activeTruckId || d.truckId === activeTruckId || !d.truckId || d.category === 'SGK & Vergi' || d.subCategory === 'sgk'));
+
+            // 5. Penalties (Şirket İzolasyonu + Aktif Araç Filtresi)
+            const compPenalties = (offDb.penalties || []).filter(d => (!activeCompanyId || d.companyId === activeCompanyId) && !d.deleted);
+            const sortedPenalties = sortData(compPenalties);
+            setAllCompanyPenalties(sortedPenalties);
+            setPenalties(sortedPenalties.filter(d => !activeTruckId || d.truckId === activeTruckId));
+
+            // 6. Maintenance Folders
+            const compFolders = (offDb.maintenance_folders || []).filter(d => (!activeCompanyId || d.companyId === activeCompanyId) && !d.deleted);
+            const sortedFolders = compFolders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            setAllCompanyFolders(sortedFolders);
+            setMaintenanceFolders(sortedFolders.filter(d => !activeTruckId || d.truckId === activeTruckId));
+
+            // 7. Invoices (Şirket İzolasyonu)
+            const compInvoices = (offDb.invoices || []).filter(d => (!activeCompanyId || d.companyId === activeCompanyId) && !d.deleted);
+            setInvoices(compInvoices.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+
+            // 8. Payouts (Şirket İzolasyonu + Aktif Araç Filtresi)
+            const compPayouts = (offDb.payouts || []).filter(d => (!activeCompanyId || d.companyId === activeCompanyId) && !d.deleted);
+            const sortedPayouts = compPayouts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            setAllCompanyPayouts(sortedPayouts);
+            setPayouts(sortedPayouts.filter(d => !activeTruckId || d.truckId === activeTruckId));
+
+            // 9. Spare Parts & Mechanics
+            const compSpare = (offDb.spare_parts || []).filter(d => !activeCompanyId || d.companyId === activeCompanyId);
+            setSpareParts(compSpare.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+
+            const compMech = (offDb.mechanics || []).filter(d => !activeCompanyId || d.companyId === activeCompanyId);
+            setMechanics(compMech);
+
+            // 10. Shopping List
+            const compShop = (offDb.shopping_list || []).filter(d => (!activeCompanyId || d.companyId === activeCompanyId));
+            const sortedShop = compShop.sort((a, b) => (a.order || 0) - (b.order || 0));
+            setAllCompanyShopping(sortedShop);
+            setShoppingItems(sortedShop.filter(d => !activeTruckId || d.truckId === activeTruckId));
+
+            // 11. Geofences & Splits / Merges / Deletes
+            const compGeo = (offDb.geofences || []).filter(d => !activeCompanyId || d.companyId === activeCompanyId);
+            setGeofences(compGeo);
+
+            setManualSplits((offDb.manual_splits || []).filter(d => !activeCompanyId || d.companyId === activeCompanyId).map(d => d.timestamp));
+            setManualMerges((offDb.manual_merges || []).filter(d => !activeCompanyId || d.companyId === activeCompanyId).map(d => d.timestamp));
+            setManualDeletes((offDb.manual_deletes || []).filter(d => !activeCompanyId || d.companyId === activeCompanyId).map(d => d.timestamp));
+
+            const customRouteMap = {};
+            (offDb.custom_route_names || []).filter(d => !activeCompanyId || d.companyId === activeCompanyId).forEach(d => {
+                customRouteMap[d.timestamp] = d.name;
+            });
+            setCustomRouteNames(customRouteMap);
+
+            // 12. Personnel List
+            const compPersonnel = (offDb.personnel || []).filter(d => !activeCompanyId || d.companyId === activeCompanyId);
+            compPersonnel.sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '', 'tr'));
+            if (compPersonnel.length > 0) setPersonnelList(compPersonnel);
+
+            // 13. Company Data & System Settings
+            const cDataMap = {};
+            if (offDb.company_data && Array.isArray(offDb.company_data)) {
+                offDb.company_data.forEach(d => { cDataMap[d.id] = d; });
+            }
+
+            // Docs
+            if (activeCompanyId && activeTruckId) {
+                const docsDoc = cDataMap[`${activeCompanyId}_${activeTruckId}_docs`];
+                setDocs(docsDoc || {});
+            } else {
+                setDocs({});
+            }
+
+            // Info & Defaults
+            const infoDoc = cDataMap[activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`];
+            if (infoDoc) {
+                if (infoDoc.vehicleInfo) setVehicleInfo(prev => ({ ...prev, ...infoDoc.vehicleInfo }));
+                if (infoDoc.defaultInvoiceGroupingMode) setInvoiceGroupingMode(infoDoc.defaultInvoiceGroupingMode);
+                if (infoDoc.personnelList && Array.isArray(infoDoc.personnelList)) setPersonnelList(infoDoc.personnelList);
+                if (infoDoc.drivers) setDrivers(infoDoc.drivers);
+                if (infoDoc.dailyNotes) setDailyNotes(infoDoc.dailyNotes);
+                if (infoDoc.sparePartCategories) setSparePartCategories(infoDoc.sparePartCategories);
+                if (infoDoc.maintenanceTypes) setMaintenanceTypes(infoDoc.maintenanceTypes);
+                if (infoDoc.periodicMaintenanceItems) setPeriodicMaintenanceItems(infoDoc.periodicMaintenanceItems);
+                if (infoDoc.premiums) setPremiums(infoDoc.premiums);
+                if (infoDoc.routeHistory) setRouteHistory(infoDoc.routeHistory);
+            }
+
+            // Draft Invoice
+            if (activeCompanyId && activeTruckId) {
+                const draftDoc = cDataMap[`${activeCompanyId}_${activeTruckId}_draft`];
+                setDraftInvoice(draftDoc?.draftInvoice || null);
+            }
+
+            // Commercial Routes
+            const routesDoc = cDataMap[`${activeCompanyId}_routes`];
+            if (routesDoc && Array.isArray(routesDoc.routes)) {
+                setRoutes(routesDoc.routes);
+            } else if (activeCompanyId && activeTruckId) {
+                const truckRoutesDoc = cDataMap[`${activeCompanyId}_${activeTruckId}_routes`];
+                if (truckRoutesDoc && Array.isArray(truckRoutesDoc.routes)) {
+                    setRoutes(truckRoutesDoc.routes);
+                }
+            }
+
+            // Saved Tracking Routes
+            const trackingRoutesDoc = cDataMap[`saved_tracking_routes_${activeCompanyId}`];
+            if (trackingRoutesDoc && trackingRoutesDoc.routes) {
+                setSavedTrackingRoutes(trackingRoutesDoc.routes);
+            }
+
+            setIsDataLoading(false);
+            setDataError(null);
+            return;
+        }
+
         // Only establish Firestore snapshot listeners if we have an active, authenticated user session
         if (!currentSession?.username || !activeCompanyId) {
             setIsDataLoading(false);
@@ -188,14 +353,19 @@ export const DataProvider = ({ children }) => {
         setFuelRecords([]);
         setAllCompanyFuelRecords([]);
         setMaintenanceRecords([]);
+        setAllCompanyMaintenance([]);
         setPaymentRecords([]);
+        setAllCompanyPayments([]);
         setMaintenanceFolders([]);
+        setAllCompanyFolders([]);
         setAdminLog([]);
         setPendingUsers([]);
         setApprovedUsers([]);
         setPenalties([]);
+        setAllCompanyPenalties([]);
         setInvoices([]);
         setShoppingItems([]);
+        setAllCompanyShopping([]);
         setSpareParts([]);
         setMechanics([]);
         setGeofences([]);
@@ -205,6 +375,7 @@ export const DataProvider = ({ children }) => {
         setCustomRouteNames({});
         setDocs({});
         setPayouts([]);
+        setAllCompanyPayouts([]);
         setPremiums([]);
         
         // Defaults for non-existing company docs
@@ -217,13 +388,84 @@ export const DataProvider = ({ children }) => {
             { id: '3', name: 'Hava Filtresi', intervalKm: 20000, warningKm: 1000 }
         ] : []); // Other companies start fresh or with empty templates
 
-        // Only show loading spinner on company change, not truck switch
-        if (!activeTruckId) setIsDataLoading(true);
+        // Önbellekten Hızlı Başlatma (Cache-First: 0ms Açılış & Kota Koruma)
+        const cacheKey = `inaner_cache_${activeCompanyId}`;
+        let hasCache = false;
+        try {
+            const rawCache = localStorage.getItem(cacheKey);
+            if (rawCache) {
+                const parsed = JSON.parse(rawCache);
+                if (parsed && typeof parsed === 'object') {
+                    if (Array.isArray(parsed.trips) && parsed.trips.length > 0) {
+                        setAllCompanyTrips(parsed.trips);
+                        setTrips(parsed.trips.filter(d => !activeTruckId || d.truckId === activeTruckId));
+                        hasCache = true;
+                    }
+                    if (Array.isArray(parsed.fuel)) {
+                        setAllCompanyFuelRecords(parsed.fuel);
+                        setFuelRecords(parsed.fuel.filter(d => !activeTruckId || d.truckId === activeTruckId));
+                    }
+                    if (Array.isArray(parsed.maintenance)) {
+                        setAllCompanyMaintenance(parsed.maintenance);
+                        setMaintenanceRecords(parsed.maintenance.filter(d => !activeTruckId || d.truckId === activeTruckId));
+                    }
+                    if (Array.isArray(parsed.payments)) {
+                        setAllCompanyPayments(parsed.payments);
+                        setPaymentRecords(parsed.payments.filter(d => !activeTruckId || d.truckId === activeTruckId || !d.truckId || d.category === 'SGK & Vergi' || d.subCategory === 'sgk'));
+                    }
+                    if (Array.isArray(parsed.penalties)) {
+                        setAllCompanyPenalties(parsed.penalties);
+                        setPenalties(parsed.penalties.filter(d => !activeTruckId || d.truckId === activeTruckId));
+                    }
+                    if (Array.isArray(parsed.invoices)) setInvoices(parsed.invoices);
+                    if (Array.isArray(parsed.folders)) {
+                        setAllCompanyFolders(parsed.folders);
+                        setMaintenanceFolders(parsed.folders.filter(d => !activeTruckId || d.truckId === activeTruckId));
+                    }
+                    if (Array.isArray(parsed.payouts)) {
+                        setAllCompanyPayouts(parsed.payouts);
+                        setPayouts(parsed.payouts.filter(d => !activeTruckId || d.truckId === activeTruckId));
+                    }
+                    if (Array.isArray(parsed.shopping)) {
+                        setAllCompanyShopping(parsed.shopping);
+                        setShoppingItems(parsed.shopping.filter(d => !activeTruckId || d.truckId === activeTruckId));
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn("Önbellek okuma atlandı:", e);
+        }
+
+        setIsDataLoading(!hasCache);
+
+        const safetyTimer = setTimeout(() => {
+            setIsDataLoading(false);
+        }, 2000);
 
         const unsubs = [];
         const isAdminSession = currentSession?.role === 'super_admin' || currentSession?.role === 'company_admin' || currentSession?.role === 'admin';
 
         setDataError(null);
+
+        // Önbelleğe debounced yazma fonksiyonu (kota ve performans koruması)
+        const saveCacheDebounced = (() => {
+            let timer = null;
+            return (chunk) => {
+                clearTimeout(timer);
+                timer = setTimeout(() => {
+                    try {
+                        const existingRaw = localStorage.getItem(cacheKey);
+                        const existing = existingRaw ? JSON.parse(existingRaw) : {};
+                        localStorage.setItem(cacheKey, JSON.stringify({ ...existing, ...chunk }));
+                    } catch (_) {}
+                }, 1000);
+            };
+        })();
+
+        const handleSnapError = (colName) => (error) => {
+            console.warn(`[Firestore] ${colName} dinleme uyarısı (Önbellek korundu):`, error?.message || error);
+            setIsDataLoading(false);
+        };
 
         // Helper function for sorting by date and createdAt
         const sortData = (data) => data.sort((a, b) => {
@@ -235,48 +477,50 @@ export const DataProvider = ({ children }) => {
         // 1. Trips config
         unsubs.push(onSnapshot(query(collection(db, 'trips'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const allTripsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-            setAllCompanyTrips(sortData([...allTripsData]));
-            const data = allTripsData.filter(d => !activeTruckId || d.truckId === activeTruckId);
-            setTrips(sortData(data));
-        }));
+            const sorted = sortData([...allTripsData]);
+            setAllCompanyTrips(sorted);
+            saveCacheDebounced({ trips: sorted });
+        }, handleSnapError('trips')));
 
         // 2. Fuel config
         unsubs.push(onSnapshot(query(collection(db, 'fuel'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const allFuelData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-            setAllCompanyFuelRecords(sortData([...allFuelData]));
-            const data = allFuelData.filter(d => !activeTruckId || d.truckId === activeTruckId);
-            setFuelRecords(sortData(data));
-        }));
+            const sorted = sortData([...allFuelData]);
+            setAllCompanyFuelRecords(sorted);
+            saveCacheDebounced({ fuel: sorted });
+        }, handleSnapError('fuel')));
 
         // 3. Maintenance config
         unsubs.push(onSnapshot(query(collection(db, 'maintenance'), where('companyId', '==', activeCompanyId)), (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                .filter(d => !activeTruckId || d.truckId === activeTruckId);
-            setMaintenanceRecords(sortData(data));
-        }));
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            const sorted = sortData(data);
+            setAllCompanyMaintenance(sorted);
+            saveCacheDebounced({ maintenance: sorted });
+        }, handleSnapError('maintenance')));
 
         // 4. Payments config
         unsubs.push(onSnapshot(query(collection(db, 'payments'), where('companyId', '==', activeCompanyId)), (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                .filter(d => !activeTruckId || d.truckId === activeTruckId || !d.truckId || d.category === 'SGK & Vergi' || d.subCategory === 'sgk');
-            setPaymentRecords(sortData(data));
-        }));
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            const sorted = sortData(data);
+            setAllCompanyPayments(sorted);
+            saveCacheDebounced({ payments: sorted });
+        }, handleSnapError('payments')));
 
         // 5. Penalties config
         unsubs.push(onSnapshot(query(collection(db, 'penalties'), where('companyId', '==', activeCompanyId)), (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                .filter(d => !activeTruckId || d.truckId === activeTruckId);
-            // penalties have 'date', sort them using helper
-            setPenalties(sortData(data));
-        }));
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            const sorted = sortData(data);
+            setAllCompanyPenalties(sorted);
+            saveCacheDebounced({ penalties: sorted });
+        }, handleSnapError('penalties')));
 
         // 6. Maintenance Folders config
         unsubs.push(onSnapshot(query(collection(db, 'maintenance_folders'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                .filter(d => !activeTruckId || d.truckId === activeTruckId)
                 .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-            setMaintenanceFolders(data);
-        }));
+            setAllCompanyFolders(data);
+            saveCacheDebounced({ folders: data });
+        }, handleSnapError('maintenance_folders')));
 
         // 7. AdminLogs config (Admin Only)
         if (isAdminSession) {
@@ -304,9 +548,8 @@ export const DataProvider = ({ children }) => {
         // 8.5 Payouts config
         unsubs.push(onSnapshot(query(collection(db, 'payouts'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                .filter(d => !activeTruckId || d.truckId === activeTruckId)
                 .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-            setPayouts(data);
+            setAllCompanyPayouts(data);
         }));
 
         // 9. Users config (Admin Only)
@@ -337,9 +580,8 @@ export const DataProvider = ({ children }) => {
         // 11.5 Shopping List config
         unsubs.push(onSnapshot(query(collection(db, 'shopping_list'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                .filter(d => !activeTruckId || d.truckId === activeTruckId)
                 .sort((a, b) => (a.order || 0) - (b.order || 0));
-            setShoppingItems(data);
+            setAllCompanyShopping(data);
         }));
 
         // 11.6 Geofences config
@@ -409,17 +651,6 @@ export const DataProvider = ({ children }) => {
         }, (err) => {
             console.warn('Personnel collection listener info (company_data fallback active):', err?.message || err);
         }));
-
-        // 12. Docs config
-        if (activeCompanyId && activeTruckId) {
-            unsubs.push(onSnapshot(doc(db, 'company_data', `${activeCompanyId}_${activeTruckId}_docs`), (docSnapshot) => {
-                if (docSnapshot.exists()) {
-                    setDocs(docSnapshot.data() || {});
-                } else { setDocs({}); }
-            }));
-        } else {
-            setDocs({});
-        }
 
         // 13. System Info and Defaults config
         unsubs.push(onSnapshot(doc(db, 'company_data', activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId}_info`), (docSnapshot) => {
@@ -504,19 +735,6 @@ export const DataProvider = ({ children }) => {
             setIsDataLoading(false);
         }));
 
-        // 13.7 Truck-specific draft invoice
-        if (activeCompanyId && activeTruckId) {
-            unsubs.push(onSnapshot(doc(db, 'company_data', `${activeCompanyId}_${activeTruckId}_draft`), (docSnapshot) => {
-                if (docSnapshot.exists() && docSnapshot.data().draftInvoice) {
-                    setDraftInvoice(docSnapshot.data().draftInvoice);
-                } else {
-                    setDraftInvoice(null);
-                }
-            }));
-        } else {
-            setDraftInvoice(null);
-        }
-
         // 13.5. Commercial Routes config (Şirket Geneli Ortak Güzergah Hafızası)
         if (activeCompanyId) {
             unsubs.push(onSnapshot(doc(db, 'company_data', `${activeCompanyId}_routes`), async (docSnapshot) => {
@@ -525,20 +743,9 @@ export const DataProvider = ({ children }) => {
                 } else {
                     // Şirket düzeyinde henüz rota dökümanı yoksa veya boşsa, mevcut araç dökümanlarını tara ve aktar
                     let fallbackRoutes = [];
-                    if (activeTruckId) {
-                        try {
-                            const truckSnap = await getDoc(doc(db, 'company_data', `${activeCompanyId}_${activeTruckId}_routes`));
-                            if (truckSnap.exists() && Array.isArray(truckSnap.data().routes) && truckSnap.data().routes.length > 0) {
-                                fallbackRoutes = truckSnap.data().routes;
-                            }
-                        } catch (e) {
-                            console.warn("Aktif araç rota kontrolü:", e);
-                        }
-                    }
-
-                    if (fallbackRoutes.length === 0 && Array.isArray(trucks) && trucks.length > 0) {
+                    if (Array.isArray(trucks) && trucks.length > 0) {
                         for (const t of trucks) {
-                            if (t.id && t.id !== activeTruckId) {
+                            if (t.id) {
                                 try {
                                     const otherTruckSnap = await getDoc(doc(db, 'company_data', `${activeCompanyId}_${t.id}_routes`));
                                     if (otherTruckSnap.exists() && Array.isArray(otherTruckSnap.data().routes) && otherTruckSnap.data().routes.length > 0) {
@@ -568,7 +775,7 @@ export const DataProvider = ({ children }) => {
             setRoutes([]);
         }
 
-        // 13.6. Saved Tracking Routes (Company-Wide or Truck-Specific, let's make it Company-Wide like device mappings)
+        // 13.6. Saved Tracking Routes (Company-Wide)
         if (activeCompanyId) {
             unsubs.push(onSnapshot(doc(db, 'company_data', `saved_tracking_routes_${activeCompanyId}`), (docSnapshot) => {
                 if (docSnapshot.exists() && docSnapshot.data().routes) {
@@ -581,16 +788,80 @@ export const DataProvider = ({ children }) => {
             setSavedTrackingRoutes([]);
         }
 
-        // 14. Presence config
-        unsubs.push(onSnapshot(collection(db, 'presence'), (snapshot) => {
-            const now = new Date();
-            const active = snapshot.docs
-                .map(doc => ({ ...doc.data(), id: doc.id }))
-                .filter(u => {
-                    const last = new Date(u.lastActive);
-                    return (now - last) < 5 * 60 * 1000;
-                });
-            setOnlineUsers(active);
+        // 14. Presence config (Yalnızca Yönetici oturumlarında dinlenir - kota tasarrufu)
+        if (isAdminSession) {
+            unsubs.push(onSnapshot(collection(db, 'presence'), (snapshot) => {
+                const now = new Date();
+                const active = snapshot.docs
+                    .map(doc => ({ ...doc.data(), id: doc.id }))
+                    .filter(u => {
+                        const last = new Date(u.lastActive);
+                        return (now - last) < 10 * 60 * 1000;
+                    });
+                setOnlineUsers(active);
+            }));
+        } else {
+            setOnlineUsers([]);
+        }
+
+        return () => {
+            clearTimeout(safetyTimer);
+            unsubs.forEach(unsub => unsub());
+        };
+    }, [currentSession?.username, activeCompanyId]);
+
+    // ─── AKTİF ARAÇ FİLTRELEME (SIFIR FIRESTORE OKUMASI / 0 READ COST) ───
+    useEffect(() => {
+        setTrips(allCompanyTrips.filter(d => !activeTruckId || d.truckId === activeTruckId));
+        setFuelRecords(allCompanyFuelRecords.filter(d => !activeTruckId || d.truckId === activeTruckId));
+        setMaintenanceRecords(allCompanyMaintenance.filter(d => !activeTruckId || d.truckId === activeTruckId));
+        setPaymentRecords(allCompanyPayments.filter(d => !activeTruckId || d.truckId === activeTruckId || !d.truckId || d.category === 'SGK & Vergi' || d.subCategory === 'sgk'));
+        setPenalties(allCompanyPenalties.filter(d => !activeTruckId || d.truckId === activeTruckId));
+        setMaintenanceFolders(allCompanyFolders.filter(d => !activeTruckId || d.truckId === activeTruckId));
+        setPayouts(allCompanyPayouts.filter(d => !activeTruckId || d.truckId === activeTruckId));
+        setShoppingItems(allCompanyShopping.filter(d => !activeTruckId || d.truckId === activeTruckId));
+    }, [activeTruckId, allCompanyTrips, allCompanyFuelRecords, allCompanyMaintenance, allCompanyPayments, allCompanyPenalties, allCompanyFolders, allCompanyPayouts, allCompanyShopping]);
+
+    // ─── AKTİF ARAÇ DÖKÜMANLARI (YALNIZCA 2 TEKİL BELGE DİNLENİR: DOCS & DRAFT) ───
+    useEffect(() => {
+        if (typeof window !== 'undefined' && window.__INANER_OFFLINE_DB__) {
+            const offDb = window.__INANER_OFFLINE_DB__;
+            const cDataMap = {};
+            if (offDb.company_data && Array.isArray(offDb.company_data)) {
+                offDb.company_data.forEach(d => { cDataMap[d.id] = d; });
+            }
+            if (activeCompanyId && activeTruckId) {
+                setDocs(cDataMap[`${activeCompanyId}_${activeTruckId}_docs`] || {});
+                const draftDoc = cDataMap[`${activeCompanyId}_${activeTruckId}_draft`];
+                setDraftInvoice(draftDoc?.draftInvoice || null);
+            } else {
+                setDocs({});
+                setDraftInvoice(null);
+            }
+            return;
+        }
+
+        if (!currentSession?.username || !activeCompanyId || !activeTruckId) {
+            setDocs({});
+            setDraftInvoice(null);
+            return;
+        }
+
+        const unsubs = [];
+        unsubs.push(onSnapshot(doc(db, 'company_data', `${activeCompanyId}_${activeTruckId}_docs`), (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                setDocs(docSnapshot.data() || {});
+            } else {
+                setDocs({});
+            }
+        }));
+
+        unsubs.push(onSnapshot(doc(db, 'company_data', `${activeCompanyId}_${activeTruckId}_draft`), (docSnapshot) => {
+            if (docSnapshot.exists() && docSnapshot.data().draftInvoice) {
+                setDraftInvoice(docSnapshot.data().draftInvoice);
+            } else {
+                setDraftInvoice(null);
+            }
         }));
 
         return () => {
@@ -626,7 +897,7 @@ export const DataProvider = ({ children }) => {
         };
 
         updatePresence();
-        const timer = setInterval(updatePresence, 60000); // 1 dakikada bir güncelle
+        const timer = setInterval(updatePresence, 300000); // 5 dakikada bir guncelle (kota optimizasyonu)
 
         const handleUnload = () => {
             // Tarayıcı kapanırken olabildiğince hızlı silmeye çalış
@@ -641,7 +912,7 @@ export const DataProvider = ({ children }) => {
             clearInterval(timer);
             window.removeEventListener('beforeunload', handleUnload);
         };
-    }, [currentSession]);
+    }, [currentSession?.username, currentSession?.presenceId]);
 
     // Firebase'e veri yazan Admin Log
     const addLog = async (action, detail, meta = null, overrideUser = null) => {
