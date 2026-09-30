@@ -92,26 +92,19 @@ function Drive({ onOpenMenu, isMobile }) {
         e.preventDefault();
         e.stopPropagation();
 
-        const rect = e.currentTarget?.getBoundingClientRect();
         const menuWidth = 176;
         const menuHeight = isFolder ? 80 : 120;
 
-        // Tıklanan çerçevenin sol hizasında açılması için rect.left kullanılır
-        let x = rect ? rect.left : e.clientX;
-        let y = rect ? Math.max(10, Math.min(e.clientY, rect.bottom - 20)) : e.clientY;
+        // Windows tarzı: Tıklanan imleç noktası doğrudan menünün sol üst köşesine gelir
+        let x = e.clientX;
+        let y = e.clientY;
 
-        // Viewport sınır kontrolleri
-        if (x + menuWidth > window.innerWidth - 10) {
-            x = Math.max(10, window.innerWidth - menuWidth - 10);
+        // Viewport sınır kontrolleri (ekranın dışına taşmaması için)
+        if (x + menuWidth > window.innerWidth - 8) {
+            x = Math.max(8, window.innerWidth - menuWidth - 8);
         }
-        if (x < 10) {
-            x = 10;
-        }
-        if (y + menuHeight > window.innerHeight - 10) {
-            y = Math.max(10, window.innerHeight - menuHeight - 10);
-        }
-        if (y < 10) {
-            y = 10;
+        if (y + menuHeight > window.innerHeight - 8) {
+            y = Math.max(8, window.innerHeight - menuHeight - 8);
         }
 
         setContextMenu({ item, isFolder, x, y });
@@ -1336,14 +1329,15 @@ function Drive({ onOpenMenu, isMobile }) {
 
                             {/* Menü Paneli */}
                             <motion.div
-                                initial={{ opacity: 0, scale: 0.95, y: -4 }}
-                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
-                                transition={{ duration: 0.1, ease: 'easeOut' }}
+                                transition={{ duration: 0.08, ease: 'easeOut' }}
                                 style={{
                                     position: 'fixed',
                                     left: `${contextMenu.x}px`,
                                     top: `${contextMenu.y}px`,
+                                    transformOrigin: 'top left',
                                     zIndex: 9999
                                 }}
                                 className="w-44 bg-[#0b0e17]/95 backdrop-blur-xl border border-white/[0.1] rounded-xl shadow-2xl shadow-black/90 p-1 text-xs select-none space-y-0.5"
