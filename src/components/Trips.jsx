@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect, useRef, useMemo } from 'react';
+﻿import React, { useState, useContext, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Search, MapPin, X, ChevronDown, Check, Trash2, Paperclip, FileText, Pencil, StickyNote, Truck, Menu, Calendar, Scale, Activity, Wallet, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
@@ -1675,4 +1675,4 @@ const Trips = ({ onOpenMenu, isMobile }) => {
         </div>
     );
 };
-export default React.memo(Trips);
+export default Trips;

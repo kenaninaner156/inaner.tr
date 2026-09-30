@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useContext } from 'react';
+﻿import React, { useState, useEffect, useRef, useContext } from 'react';
 import { Settings as SettingsIcon, Database, Save, Server, ShieldCheck, Camera, UploadCloud, Truck, Loader2, Globe, Key, AlertCircle, Link2, Unlink, CheckCircle2, Menu } from 'lucide-react';
 import WipeData from './WipeData';
 import { DataContext } from '../context/DataContext';
@@ -431,4 +431,4 @@ const Settings = ({ onOpenMenu, isMobile } = {}) => {
     );
 };
 
-export default React.memo(Settings);
+export default Settings;

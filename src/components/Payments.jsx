@@ -1,4 +1,4 @@
-import React, { useState, useContext, useMemo, useEffect } from 'react';
+﻿import React, { useState, useContext, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { DataContext } from '../context/DataContext';
 import { useCompany } from '../context/CompanyContext';
@@ -1371,4 +1371,4 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
     );
 };
 
-export default React.memo(Payments);
+export default Payments;

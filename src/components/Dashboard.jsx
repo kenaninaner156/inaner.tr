@@ -1,4 +1,4 @@
-import React, { useContext, useState, useMemo, useEffect, useCallback } from 'react';
+﻿import React, { useContext, useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -591,7 +591,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                             <p className="font-medium text-xs">Bu dönemde kayıtlı veri bulunamadı.</p>
                         </div>
                     ) : (
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={180}>
                             <ComposedChart
                                 data={chartData}
                                 margin={{ top: 10, right: 15, left: -25, bottom: 20 }}
@@ -927,7 +927,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                             <p className="text-[10px] opacity-70">Sefer kaydedildikçe grafik oluşacaktır.</p>
                         </div>
                     ) : (
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={180}>
                             <ComposedChart
                                 data={chartData}
                                 margin={{ top: 8, right: 10, left: -22, bottom: 5 }}
@@ -1230,4 +1230,4 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     );
 };
 
-export default React.memo(Dashboard);
+export default Dashboard;

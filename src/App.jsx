@@ -1,6 +1,6 @@
-import { useState, useEffect, useContext, useRef, useMemo, useCallback, useDeferredValue } from 'react'
+import { useState, useEffect, useContext, useRef, useMemo, useCallback } from 'react'
 import { DataContext } from './context/DataContext'
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 
 import {
   Menu, X, Truck, MapPin, FileText, Droplet, Wrench,
@@ -39,7 +39,6 @@ function App() {
     if (savedTab) return savedTab;
     return 'dashboard';
   })
-  const deferredTab = useDeferredValue(activeTab);
   const [isMenuOpen, setIsMenuOpen] = useState(window.innerWidth >= 1024)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024)
   const [theme, setTheme] = useState('dark')
@@ -64,16 +63,21 @@ function App() {
     };
   }, [isUserMenuOpen]);
 
+  const prevScrollTopRef = useRef(0);
+
   // Alt kullanıcı menüsü açıldığında üstteki menü butonlarının aynı anda yukarı yükselmesi için senkronize kaydırma
   useEffect(() => {
-    if (isUserMenuOpen && navRef.current) {
-      const el = navRef.current;
-      requestAnimationFrame(() => {
-        el.scrollTo({
-          top: el.scrollHeight,
+    if (isUserMenuOpen) {
+      if (navRef.current) {
+        prevScrollTopRef.current = navRef.current.scrollTop;
+      }
+    } else {
+      if (navRef.current && prevScrollTopRef.current !== undefined) {
+        navRef.current.scrollTo({
+          top: prevScrollTopRef.current,
           behavior: 'smooth'
         });
-      });
+      }
     }
   }, [isUserMenuOpen]);
 
@@ -533,15 +537,15 @@ function App() {
     { id: 'dashboard', label: 'Özet', icon: <PieChart size={20} />, theme: 'bg-gradient-to-r from-violet-600 to-purple-600 border-violet-400/30 text-white shadow-sm', hoverText: 'group-hover:text-violet-400' },
     { id: 'trips', label: 'Seferler', icon: <MapPin size={20} />, theme: 'bg-gradient-to-r from-sky-600 to-blue-600 border-sky-400/30 text-white shadow-sm', hoverText: 'group-hover:text-sky-400' },
     { id: 'fuel', label: 'Mazot Fişleri', icon: <Droplet size={20} />, theme: 'bg-gradient-to-r from-cyan-600 to-teal-600 border-cyan-400/30 text-white shadow-sm', hoverText: 'group-hover:text-cyan-400' },
+    { id: 'map', label: 'Harita', icon: <MapPin size={20} />, theme: 'bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-400/30 text-white shadow-sm', hoverText: 'group-hover:text-blue-400' },
     { id: 'maintenance', label: 'Araç Bakım', icon: <Wrench size={20} />, theme: 'bg-gradient-to-r from-amber-600 to-orange-600 border-amber-400/30 text-white shadow-sm', hoverText: 'group-hover:text-amber-400' },
     { id: 'detaylar', label: 'Ceza & Belgeler', icon: <AlertTriangle size={20} />, badge: notifCount, theme: 'bg-gradient-to-r from-red-600 to-rose-600 border-red-400/30 text-white shadow-sm', hoverText: 'group-hover:text-red-400' },
     { id: 'invoices', label: 'Fatura Durumu', icon: <FileText size={20} />, theme: 'bg-gradient-to-r from-indigo-600 to-sky-500 border-indigo-400/30 text-white shadow-sm', hoverText: 'group-hover:text-sky-400' },
-    { id: 'drive', label: 'İnaner Drive', icon: <HardDrive size={20} />, theme: 'bg-gradient-to-r from-emerald-600 to-teal-600 border-emerald-400/30 text-white shadow-sm', hoverText: 'group-hover:text-emerald-400' },
     { id: 'earsiv', label: 'E-Arşiv Fatura', icon: <Receipt size={20} />, theme: 'bg-gradient-to-r from-orange-600 to-amber-600 border-orange-400/30 text-white shadow-sm', hoverText: 'group-hover:text-orange-400' },
-    { id: 'payments', label: 'Vergi & SGK', icon: <Scale size={20} />, theme: 'bg-gradient-to-r from-amber-600 to-yellow-600 border-amber-400/30 text-white shadow-sm', hoverText: 'group-hover:text-amber-400' },
+    { id: 'drive', label: 'İnaner Drive', icon: <HardDrive size={20} />, theme: 'bg-gradient-to-r from-emerald-600 to-teal-600 border-emerald-400/30 text-white shadow-sm', hoverText: 'group-hover:text-emerald-400' },
     { id: 'company_debts', label: 'Borç & Kredi', icon: <Landmark size={20} />, theme: 'bg-gradient-to-r from-amber-600 to-yellow-600 border-amber-400/30 text-white shadow-sm', hoverText: 'group-hover:text-amber-400' },
+    { id: 'payments', label: 'Vergi & SGK', icon: <Scale size={20} />, theme: 'bg-gradient-to-r from-amber-600 to-yellow-600 border-amber-400/30 text-white shadow-sm', hoverText: 'group-hover:text-amber-400' },
     { id: 'personel', label: 'Personel', icon: <Users size={20} />, theme: 'bg-gradient-to-r from-orange-600 to-amber-600 border-orange-400/30 text-white shadow-sm', hoverText: 'group-hover:text-orange-400' },
-    { id: 'map', label: 'Harita', icon: <MapPin size={20} />, theme: 'bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-400/30 text-white shadow-sm', hoverText: 'group-hover:text-blue-400' },
   ]
 
   const filteredMenuItems = menuItems.filter(item => {
@@ -655,11 +659,10 @@ function App() {
         </div>
 
         {/* Nav Links */}
-        <LayoutGroup id="sidebar-main-nav">
-          <nav 
-            className="flex-1 px-4 pt-3 sm:pt-6 pb-6 space-y-1.5 overflow-y-auto relative custom-scrollbar"
-            style={{ scrollbarGutter: 'stable' }}
-          >
+        <nav 
+          ref={navRef}
+          className="flex-1 px-4 pt-3 sm:pt-6 pb-6 space-y-1.5 overflow-y-auto relative custom-scrollbar"
+        >
             {filteredMenuItems.map((item) => {
               const isActive = activeTab === item.id;
               const isTruckScoped = TRUCK_SCOPED_TABS.includes(item.id);
@@ -746,7 +749,6 @@ function App() {
               );
             })}
           </nav>
-        </LayoutGroup>
 
         {/* Footer: Kullanıcı Profili ve Bar İçi Menü */}
         <div ref={userMenuRef} className="p-3 border-t border-white/[0.06] bg-[#0a0d14] shrink-0 z-20 relative"
@@ -758,10 +760,15 @@ function App() {
           <AnimatePresence initial={false}>
             {isUserMenuOpen && (
               <motion.div
-                initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+                onUpdate={() => {
+                  if (navRef.current) {
+                    navRef.current.scrollTop = navRef.current.scrollHeight;
+                  }
+                }}
                 className="overflow-hidden mb-2"
               >
                 <div className="space-y-1 pb-1">
@@ -876,8 +883,8 @@ function App() {
       </aside>
 
       {/* Main Content */}
-      <main className={`${['dashboard', 'map', 'invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive'].includes(deferredTab) ? 'h-[100dvh] lg:h-screen overflow-hidden' : 'min-h-screen'} ${mainPaddingLeft}`}>
-        <div className={`flex flex-col w-full ${['dashboard', 'map', 'invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive'].includes(deferredTab) ? 'h-full overflow-hidden' : 'min-h-screen'}`}>
+      <main className={`${['dashboard', 'map', 'invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive'].includes(activeTab) ? 'h-[100dvh] lg:h-screen overflow-hidden' : 'min-h-screen'} ${mainPaddingLeft}`}>
+        <div className={`flex flex-col w-full ${['dashboard', 'map', 'invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive'].includes(activeTab) ? 'h-full overflow-hidden' : 'min-h-screen'}`}>
 
           {/* Header - Simple & Clean (sticky) */}
           <div className={`sticky top-0 z-30 px-6 pb-4 flex items-center justify-between bg-[var(--bg-base)] border-b border-[var(--border-color)] transition-all duration-300 ${['fuel', 'map', 'trips', 'dashboard', 'maintenance', 'detaylar', 'invoices', 'earsiv', 'payments', 'personel', 'settings', 'company_admin', 'super_admin', 'company_debts', 'drive'].includes(activeTab) ? 'hidden' : ''}`}
@@ -900,36 +907,36 @@ function App() {
           {/* Content Area */}
           <div 
             className={`flex-1 ${
-              deferredTab === 'map' 
+              activeTab === 'map' 
                 ? 'p-0 h-full overflow-hidden' 
-                : deferredTab === 'dashboard'
+                : activeTab === 'dashboard'
                   ? 'pb-3 sm:pb-4 px-3 sm:px-5 md:px-6 h-full overflow-hidden flex flex-col' 
-                  : ['invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive'].includes(deferredTab)
+                  : ['invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive'].includes(activeTab)
                     ? 'p-2.5 sm:p-4 md:p-5 h-full overflow-hidden flex flex-col'
                     : 'p-3 sm:p-4 md:p-6 xl:p-8'
             }`}
-            style={deferredTab === 'dashboard' ? {
+            style={activeTab === 'dashboard' ? {
               paddingTop: isMobile ? '0' : 'calc(1.35rem + var(--safe-top))',
               paddingRight: 'calc(1.25rem + env(safe-area-inset-right, 0px))',
               paddingLeft: 'calc(1.25rem + env(safe-area-inset-left, 0px))'
             } : undefined}
           >
-            <div key={deferredTab} className={deferredTab === 'map' ? 'h-full w-full overflow-hidden' : ['invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive', 'dashboard'].includes(deferredTab) ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
-              {deferredTab === 'dashboard' && <Dashboard onOpenMenu={handleOpenMenu} onNavigate={handleNavigate} isMobile={isMobile} />}
-              {deferredTab === 'trips' && <Trips onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {deferredTab === 'fuel' && <Fuel onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {deferredTab === 'maintenance' && <Maintenance onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {deferredTab === 'detaylar' && <Detaylar onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {deferredTab === 'invoices' && <Invoices onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {deferredTab === 'drive' && <Drive onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {deferredTab === 'earsiv' && <EArsiv onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {deferredTab === 'payments' && <Payments onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {deferredTab === 'company_debts' && <CompanyDebts onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {deferredTab === 'personel' && <Personnel onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {deferredTab === 'settings' && <SettingsPage onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {deferredTab === 'company_admin' && <CompanyAdmin onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {deferredTab === 'super_admin' && <SuperAdmin onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {deferredTab === 'map' && userRole === 'super_admin' && <MapPage onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+            <div key={activeTab} className={activeTab === 'map' ? 'h-full w-full overflow-hidden' : ['invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive', 'dashboard'].includes(activeTab) ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
+              {activeTab === 'dashboard' && <Dashboard onOpenMenu={handleOpenMenu} onNavigate={handleNavigate} isMobile={isMobile} />}
+              {activeTab === 'trips' && <Trips onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'fuel' && <Fuel onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'maintenance' && <Maintenance onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'detaylar' && <Detaylar onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'invoices' && <Invoices onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'drive' && <Drive onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'earsiv' && <EArsiv onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'payments' && <Payments onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'company_debts' && <CompanyDebts onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'personel' && <Personnel onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'settings' && <SettingsPage onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'company_admin' && <CompanyAdmin onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'super_admin' && <SuperAdmin onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'map' && userRole === 'super_admin' && <MapPage onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
             </div>
           </div>
         </div>

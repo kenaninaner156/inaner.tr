@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+﻿import React, { useState, useContext } from 'react';
 import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
 import { DataContext } from '../context/DataContext';
@@ -1630,4 +1630,4 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
     );
 };
 
-export default React.memo(CompanyAdmin);
+export default CompanyAdmin;

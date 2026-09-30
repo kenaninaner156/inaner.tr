@@ -1,4 +1,4 @@
-import React, { useState, useContext, useRef, useEffect } from 'react';
+﻿import React, { useState, useContext, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Droplet, Plus, MapPin, X, Trash2, Paperclip, FileText, Download, Pencil, StickyNote, ChevronDown, Calendar, Activity, Wallet, TrendingUp, Gauge, Fuel as FuelIcon, Menu, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
@@ -1226,4 +1226,4 @@ return (
     );
 };
 
-export default React.memo(Fuel);
+export default Fuel;

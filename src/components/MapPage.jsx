@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import MapLayout from './map/MapLayout';
 
 const MapPage = ({ onOpenMenu, isMobile }) => {
@@ -9,4 +9,4 @@ const MapPage = ({ onOpenMenu, isMobile }) => {
     );
 };
 
-export default React.memo(MapPage);
+export default MapPage;

@@ -1,4 +1,4 @@
-import React, { useContext, useState, useRef, useEffect, useMemo } from 'react';
+﻿import React, { useContext, useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Printer, Save, PlusCircle, CheckCircle, Clock, Trash2, StickyNote, Paperclip, Menu, Calendar, User, ChevronDown, Check, Edit2, Layers, ListChecks, AlertCircle, X } from 'lucide-react';
@@ -1307,4 +1307,4 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
     );
 };
 
-export default React.memo(Invoices);
+export default Invoices;

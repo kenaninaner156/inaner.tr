@@ -1,4 +1,4 @@
-import React, { useContext, useState, useRef, useEffect, useMemo } from 'react';
+﻿import React, { useContext, useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -3157,4 +3157,4 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
     );
 };
 
-export default React.memo(Personnel);
+export default Personnel;

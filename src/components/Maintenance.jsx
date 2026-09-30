@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from 'react';
+﻿import React, { useState, useContext, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Wrench, Plus, Calendar, X, MapPin, Truck, Trash2, Pencil, Check, User, Users, FileText, StickyNote, AlertCircle, ChevronDown, Download, Eye, Paperclip, FolderOpen, FolderPlus, Map, Phone, Package, ShoppingCart, Link, GripVertical, ExternalLink, Settings as SettingsIcon, AlertTriangle, CheckCircle, Disc, Menu } from 'lucide-react';
 import { motion, Reorder, AnimatePresence } from 'framer-motion';
@@ -1673,4 +1673,4 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
     );
 };
 
-export default React.memo(Maintenance);
+export default Maintenance;

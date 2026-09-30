@@ -583,18 +583,17 @@ input[type="number"] {
 @keyframes pageEnter {
   from {
     opacity: 0;
-    transform: scale(0.97);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: translateY(0);
   }
 }
 
 .page-transition {
-  animation: pageEnter 0.3s cubic-bezier(0.2, 0, 0, 1) both;
-  transform: translateZ(0);
-  isolation: isolate;
+  animation: pageEnter 0.16s ease-out both;
+  will-change: opacity, transform;
 }
 
 /* Sidebar Nav Scrollbar */

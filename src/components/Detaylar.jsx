@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -1147,4 +1147,4 @@ const Detaylar = ({ onOpenMenu, isMobile }) => {
     );
 };
 
-export default React.memo(Detaylar);
+export default Detaylar;

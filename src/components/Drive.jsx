@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useContext } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo, useContext } from 'react';
 import {
     Folder, FolderPlus, File, FileText, Image as ImageIcon, FileSpreadsheet,
     FileArchive, Film, Code, Download, Trash2, Eye, Pencil, Search,
@@ -1466,4 +1466,4 @@ function Drive({ onOpenMenu, isMobile }) {
     );
 }
 
-export default React.memo(Drive);
+export default Drive;

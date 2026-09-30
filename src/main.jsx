@@ -1,4 +1,3 @@
-import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
@@ -54,13 +53,11 @@ if ('serviceWorker' in navigator) {
 }
 
 createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <CompanyProvider>
-      <TruckProvider>
-        <DataProvider>
-          <App />
-        </DataProvider>
-      </TruckProvider>
-    </CompanyProvider>
-  </StrictMode>,
+  <CompanyProvider>
+    <TruckProvider>
+      <DataProvider>
+        <App />
+      </DataProvider>
+    </TruckProvider>
+  </CompanyProvider>,
 )

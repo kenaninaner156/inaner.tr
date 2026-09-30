@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+﻿import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DataContext } from '../context/DataContext';
@@ -1382,7 +1382,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                             Henüz dönem hakediş verisi bulunamadı.
                                         </div>
                                     ) : (
-                                        <ResponsiveContainer width="100%" height="100%">
+                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
                                             <ComposedChart data={chartData} margin={{ top: 15, right: 15, left: -20, bottom: 0 }}>
                                                 <defs>
                                                     {/* Dikey İğne / Barkod Dokusu (Fotoğraftaki Dikey Eşitleyici Çizgileri) */}
@@ -2810,4 +2810,4 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
     );
 };
 
-export default React.memo(EArsiv);
+export default EArsiv;

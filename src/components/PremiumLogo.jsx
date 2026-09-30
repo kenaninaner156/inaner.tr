@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Menü sekmelerinin tema renkleri sırasıyla
@@ -159,4 +159,4 @@ function PremiumLogo() {
   );
 }
 
-export default React.memo(PremiumLogo);
+export default PremiumLogo;

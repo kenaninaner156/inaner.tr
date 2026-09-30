@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
+﻿import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
     Landmark, 
@@ -3243,4 +3243,4 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
     );
 };
 
-export default React.memo(CompanyDebts);
+export default CompanyDebts;
