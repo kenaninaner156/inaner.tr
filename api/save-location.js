@@ -16,28 +16,38 @@ export default async function handler(req, res) {
 
     // Canlı Filo Sorgusu (get_live)
     if (data.action === 'get_live' || data.action === 'get_vehicles') {
-        try {
-            const snapshot = await db.collection('live_positions').get();
-            const vehicles = [];
-            snapshot.forEach(doc => {
-                const d = doc.data();
-                vehicles.push({
-                    id: doc.id,
-                    deviceId: d.deviceId || doc.id,
-                    driverId: d.driverId || doc.id,
-                    companyId: d.companyId || null,
-                    lat: d.lat,
-                    lon: d.lon,
-                    speed: d.speed || 0,
-                    altitude: d.altitude || 0,
-                    timestamp: d.timestamp,
-                    updatedAt: d.recordedAt || d.timestamp,
-                    recentTrail: Array.isArray(d.recentTrail) ? d.recentTrail : []
+        if (db) {
+            try {
+                const snapshot = await db.collection('live_positions').get();
+                const vehicles = [];
+                snapshot.forEach(doc => {
+                    const d = doc.data();
+                    vehicles.push({
+                        id: doc.id,
+                        deviceId: d.deviceId || doc.id,
+                        driverId: d.driverId || doc.id,
+                        companyId: d.companyId || null,
+                        lat: d.lat,
+                        lon: d.lon,
+                        speed: d.speed || 0,
+                        altitude: d.altitude || 0,
+                        timestamp: d.timestamp,
+                        updatedAt: d.recordedAt || d.timestamp,
+                        recentTrail: Array.isArray(d.recentTrail) ? d.recentTrail : []
+                    });
                 });
-            });
-            return res.status(200).json({ success: true, count: vehicles.length, vehicles, timestamp: new Date().toISOString() });
-        } catch (fErr) {
-            console.error('Firestore get_live hatasi:', fErr?.message || fErr);
+                return res.status(200).json({ success: true, count: vehicles.length, vehicles, timestamp: new Date().toISOString() });
+            } catch (fErr) {
+                console.warn('Firestore get_live uyarisi:', fErr?.message || fErr);
+            }
+        }
+
+        // Edge Hub Fallback (Canlı telemetri verisini inaner.tr Edge'den al)
+        try {
+            const edgeRes = await fetch('https://inaner.tr/api/save-location?action=get_live&token=' + EXPECTED_TOKEN);
+            const edgeData = await edgeRes.json();
+            return res.status(200).json(edgeData);
+        } catch (_) {
             return res.status(200).json({ success: true, count: 0, vehicles: [] });
         }
     }
