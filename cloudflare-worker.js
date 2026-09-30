@@ -291,8 +291,8 @@ export default {
         altitude,
         timestamp: pointTimestamp
       });
-      if (vehicle.recentTrail.length > 500) {
-        vehicle.recentTrail = vehicle.recentTrail.slice(-500);
+      if (vehicle.recentTrail.length > 2500) {
+        vehicle.recentTrail = vehicle.recentTrail.slice(-2500);
       }
 
       liveFleet.set(deviceId, vehicle);

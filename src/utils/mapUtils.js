@@ -42,7 +42,7 @@ export function getPointTime(p) {
 /**
  * GPS sıçramalarını ve zaman sırası bozukluklarını (örümcek ağı / yelpaze çizgilerini) temizler.
  */
-export function cleanGpsSpikes(points, maxSpeedKmh = 140) {
+export function cleanGpsSpikes(points, maxSpeedKmh = 180) {
   if (!points || points.length < 2) return points || [];
   
   // 1. Geçersiz koordinatları ayıkla ve KESİN KRONOLOJİK SIRAYA DİZ
@@ -255,24 +255,22 @@ export function groupIntoSessions(rawPoints, maxGapMinutes = 30, geofences = [],
 }
 
 /**
- * Sadece belirli bir mesafeden (örneğin 200m = 0.2km) fazla hareket edilmişse noktaları tutar.
- * Performansı artırır ve GPS sapmalarını engeller.
+ * Telefonun yolladığı her noktayı doğrudan korur, hiçbir tasarruf filtresi uygulamaz.
  */
-export function filterSessionPoints(points, minDistanceKm = 0.2) {
-  if (!points || points.length < 2) return points;
+export function filterSessionPoints(points, minDistanceKm = 0) {
+  if (!points || points.length < 2) return points || [];
+  if (minDistanceKm === 0) {
+    return points.filter(pt => pt && !isNaN(pt.lat) && !isNaN(pt.lon));
+  }
 
-  const filtered = [points[0]]; // İlk noktayı her zaman al
+  const filtered = [points[0]];
   let lastPoint = points[0];
 
   for (let i = 1; i < points.length; i++) {
     const pt = points[i];
-    // Geçerli koordinat kontrolü
     if (isNaN(pt.lat) || isNaN(pt.lon)) continue;
 
     const dist = haversineKm(lastPoint.lat, lastPoint.lon, pt.lat, pt.lon);
-
-    // Eğer son nokta ise her halükarda ekle (bitiş noktasını kaçırmamak için)
-    // Veya mesafe minDistanceKm'den büyükse ekle
     if (dist >= minDistanceKm || i === points.length - 1) {
       filtered.push(pt);
       lastPoint = pt;
