@@ -308,6 +308,7 @@ export default {
           timestamp: pointTimestamp,
           updatedAt: isoNow,
           isOnline: true,
+          dailyKm: 0,
           recentTrail: []
         };
       } else {

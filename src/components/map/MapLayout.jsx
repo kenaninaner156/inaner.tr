@@ -169,7 +169,8 @@ const pollEdgeLive = async (companyId) => {
             altitude: veh.altitude || 0,
             timestamp: veh.updatedAt || veh.timestamp || new Date().toISOString(),
             createdAt: veh.updatedAt || veh.timestamp || new Date().toISOString(),
-            ignition: (veh.speed || 0) > 2
+            ignition: (veh.speed || 0) > 2,
+            dailyKm: typeof veh.dailyKm === 'number' ? veh.dailyKm : undefined
           });
         }
       });

@@ -2,6 +2,15 @@
 import admin from 'firebase-admin';
 import { db } from '../lib/firebaseAdmin.js';
 
+function getHaversineKm(lat1, lon1, lat2, lon2) {
+    if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return 0;
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 export default async function handler(req, res) {
     if (req.method !== 'GET' && req.method !== 'POST') {
         return res.status(405).json({ error: 'Sadece GET veya POST kabul edilir' });
@@ -18,10 +27,37 @@ export default async function handler(req, res) {
     if (data.action === 'get_live' || data.action === 'get_vehicles') {
         if (db) {
             try {
+                // Türkiye Yerel Tarihi (UTC+3, YYYY-MM-DD)
+                const nowTurkey = new Date(Date.now() + 3 * 3600 * 1000);
+                const todayDateStr = nowTurkey.toISOString().slice(0, 10);
+
                 const snapshot = await db.collection('live_positions').get();
                 const vehicles = [];
-                snapshot.forEach(doc => {
+                for (const doc of snapshot.docs) {
                     const d = doc.data();
+                    let dailyKm = d.dailyKm;
+
+                    // Eğer dailyKm henüz hesaplanmamışsa veya tarih bugüne ait değilse, daily_routes dokümanından topla
+                    if (dailyKm === undefined || d.dailyDate !== todayDateStr) {
+                        try {
+                            const dailySnap = await db.collection('daily_routes').doc(`${doc.id}_${todayDateStr}`).get();
+                            if (dailySnap.exists) {
+                                const pts = dailySnap.data().points || [];
+                                let totalKm = 0;
+                                for (let i = 1; i < pts.length; i++) {
+                                    const dist = getHaversineKm(pts[i-1].lat, pts[i-1].lon, pts[i].lat, pts[i].lon);
+                                    if (dist > 0.003 && dist < 5) totalKm += dist;
+                                }
+                                dailyKm = Number(totalKm.toFixed(1));
+                                doc.ref.set({ dailyKm, dailyDate: todayDateStr }, { merge: true }).catch(() => {});
+                            } else {
+                                dailyKm = 0;
+                            }
+                        } catch (_) {
+                            dailyKm = 0;
+                        }
+                    }
+
                     vehicles.push({
                         id: doc.id,
                         deviceId: d.deviceId || doc.id,
@@ -33,9 +69,10 @@ export default async function handler(req, res) {
                         altitude: d.altitude || 0,
                         timestamp: d.timestamp,
                         updatedAt: d.recordedAt || d.timestamp,
+                        dailyKm: typeof dailyKm === 'number' ? dailyKm : 0,
                         recentTrail: Array.isArray(d.recentTrail) ? d.recentTrail : []
                     });
-                });
+                }
                 res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
                 return res.status(200).json({ success: true, count: vehicles.length, vehicles, timestamp: new Date().toISOString() });
             } catch (fErr) {
@@ -238,6 +275,21 @@ export default async function handler(req, res) {
                     ? (timeDiffSec >= 60 || distDiff >= 0.0004) 
                     : (timeDiffSec >= 3 || Math.abs(speed - (lastLiveData?.speed || 0)) >= 5 || distDiff >= 0.0003));
 
+            // 1 Günlük KM Sayacı (Gece 00:00'dan 00:00'a kadar)
+            let dailyKm = lastLiveData?.dailyKm || 0;
+            const lastDailyDate = lastLiveData?.dailyDate;
+
+            if (lastDailyDate !== dateStr) {
+                // Yeni gün başladı (gece 00:00): Sayacı 0'dan başlat
+                dailyKm = 0;
+            } else if (lastLiveData?.lat && lastLiveData?.lon) {
+                const distKm = getHaversineKm(lastLiveData.lat, lastLiveData.lon, lat, lon);
+                // 3 metreden büyük ve 5 km'den küçük mantıklı hareketleri kümülatif ekle
+                if (distKm > 0.003 && distKm < 5) {
+                    dailyKm += distKm;
+                }
+            }
+
             // 1. live_positions güncelle
             await liveRef.set({
                 deviceId: cleanDeviceId,
@@ -249,6 +301,8 @@ export default async function handler(req, res) {
                 timestamp: formattedTimestamp,
                 recordedAt: new Date().toISOString(),
                 lastDailyTimestamp: shouldRecordToDaily ? formattedTimestamp : (lastLiveData?.lastDailyTimestamp || formattedTimestamp),
+                dailyKm: Number(dailyKm.toFixed(1)),
+                dailyDate: dateStr,
                 recentTrail
             }, { merge: true });
 

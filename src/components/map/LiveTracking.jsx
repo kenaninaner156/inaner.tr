@@ -720,7 +720,23 @@ export default function LiveTracking({
       const pointTime = getPointTime(lastPoint);
       const isOnline  = pointTime > 0 && (now - pointTime) < 30 * 60 * 1000;
       const speedKmh  = isOnline ? Math.round((lastPoint.speed || 0) * 1.852) : 0;
-      const { km, durationMin, topSpeedKmh, avgSpeedKmh } = calcStats(latestSession);
+      // 1 Günlük KM Sayacı (Gece 00:00'dan 00:00'a kadar)
+      const todayMidnight = new Date();
+      todayMidnight.setHours(0, 0, 0, 0);
+      const midnightTime = todayMidnight.getTime();
+
+      let dailyKmVal = 0;
+      if (lastPoint && typeof lastPoint.dailyKm === 'number' && lastPoint.dailyKm > 0) {
+        dailyKmVal = lastPoint.dailyKm;
+      } else {
+        const allDriverPoints = sessions.flat();
+        const todayPoints = allDriverPoints.filter(p => getPointTime(p) >= midnightTime);
+        const stats = calcStats(todayPoints.length >= 2 ? todayPoints : latestSession);
+        dailyKmVal = stats.km;
+      }
+
+      const { durationMin, topSpeedKmh, avgSpeedKmh } = calcStats(latestSession);
+      const km = dailyKmVal;
       const isMapped  = !!deviceMappings?.[driverId] || !!DEFAULT_MAPPINGS[driverId];
       const info = getVehicleInfo(driverId);
       
