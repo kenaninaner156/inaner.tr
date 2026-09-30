@@ -75,36 +75,38 @@ function MapClickHandler({ pickingLocation, onLocationPicked }) {
 }
 
 // Sekme geçişlerinde ve ilk veri yüklenişinde haritayı pürüzsüzce odaklayan bileşen
-function MapCameraSync({ activeTab, sessionsByDriver, deviceMappings }) {
+function MapCameraSync({ activeTab, sessionsByDriver }) {
   const map = useMap();
   const prevTabRef = useRef(activeTab);
   const didInitialFocusRef = useRef(false);
 
   useEffect(() => {
+    // Sadece sekme değiştiğinde veya sayfa ilk açılışında tek sefer çalışır
     const isTabChange = prevTabRef.current !== activeTab;
-    const shouldFocusInitial = !didInitialFocusRef.current && activeTab === 'live';
+    if (!isTabChange && didInitialFocusRef.current) return;
 
-    if (!isTabChange && !shouldFocusInitial) return;
-
+    // Canlı takip açıkken kamera kontrolünü LiveTracking bileşeni üstlenir
     if (activeTab === 'live') {
-      const activeLocations = Object.entries(sessionsByDriver)
+      if (didInitialFocusRef.current) return;
+      const activeLocations = Object.entries(sessionsByDriver || {})
         .filter(([, sessions]) => sessions && sessions.length > 0)
         .map(([, sessions]) => {
           const lp = sessions[sessions.length - 1];
           const lastPoint = lp[lp.length - 1];
           return lastPoint ? [lastPoint.lat, lastPoint.lon] : null;
-        }).filter(p => p && !isNaN(p[0]));
+        }).filter(p => p && !isNaN(p[0]) && !isNaN(p[1]));
 
-      if (activeLocations.length === 1) {
-        map.setView(activeLocations[0], 12, { animate: true, duration: 1 });
-        if (shouldFocusInitial) didInitialFocusRef.current = true;
-      } else if (activeLocations.length > 1) {
-        map.fitBounds(L.latLngBounds(activeLocations), { padding: [80, 80], maxZoom: 12, animate: true, duration: 1 });
-        if (shouldFocusInitial) didInitialFocusRef.current = true;
+      if (activeLocations.length > 0) {
+        didInitialFocusRef.current = true;
+        if (activeLocations.length === 1) {
+          map.setView(activeLocations[0], 14, { animate: true, duration: 0.8 });
+        } else {
+          map.fitBounds(L.latLngBounds(activeLocations), { padding: [100, 100], maxZoom: 13, animate: true, duration: 0.8 });
+        }
       }
     }
     prevTabRef.current = activeTab;
-  }, [activeTab, sessionsByDriver, deviceMappings, map]);
+  }, [activeTab, sessionsByDriver, map]);
 
   return null;
 }

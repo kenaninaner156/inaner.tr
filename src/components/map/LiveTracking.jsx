@@ -78,6 +78,60 @@ function getSpeedColor(speedKnots) {
   return '#22c55e';
 }
 
+// ── Harita Görsel Merkezleme Yardımcıları (Sidebar 300px Ofset Desteği) ────
+const centerVehicleOnMap = (map, lat, lon, zoom = 15, hasSidebar = true) => {
+  if (!map || isNaN(lat) || isNaN(lon)) return;
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+  const targetZoom = zoom || map.getZoom() || 15;
+  
+  if (isDesktop && hasSidebar) {
+    const point = map.project([lat, lon], targetZoom);
+    const offsetPoint = L.point(point.x - 150, point.y);
+    const targetLatLng = map.unproject(offsetPoint, targetZoom);
+    map.setView(targetLatLng, targetZoom, { animate: true, duration: 0.8 });
+  } else {
+    map.setView([lat, lon], targetZoom, { animate: true, duration: 0.8 });
+  }
+};
+
+const panVehicleOnMap = (map, lat, lon, hasSidebar = true) => {
+  if (!map || isNaN(lat) || isNaN(lon)) return;
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+  const currentZoom = map.getZoom();
+  
+  if (isDesktop && hasSidebar) {
+    const point = map.project([lat, lon], currentZoom);
+    const offsetPoint = L.point(point.x - 150, point.y);
+    const targetLatLng = map.unproject(offsetPoint, currentZoom);
+    map.panTo(targetLatLng, { animate: true, duration: 0.8 });
+  } else {
+    map.panTo([lat, lon], { animate: true, duration: 0.8 });
+  }
+};
+
+const fitVehiclesBounds = (map, points, hasSidebar = true) => {
+  if (!map || !points || points.length === 0) return;
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+  const bounds = L.latLngBounds(points);
+  
+  if (isDesktop && hasSidebar) {
+    map.fitBounds(bounds, {
+      paddingTopLeft: [100, 340],
+      paddingBottomRight: [80, 80],
+      maxZoom: 14,
+      animate: true,
+      duration: 0.8
+    });
+  } else {
+    map.fitBounds(bounds, {
+      padding: [80, 80],
+      maxZoom: 14,
+      animate: true,
+      duration: 0.8
+    });
+  }
+};
+
 function SpeedPolylines({ session, isFollowed, zoom }) {
   if (!session || session.length < 2) return null;
   
@@ -98,6 +152,18 @@ function SpeedPolylines({ session, isFollowed, zoom }) {
   for (let i = 0; i < cleaned.length - 1; i++) {
     const a = cleaned[i], b = cleaned[i + 1];
     if (isNaN(a.lat) || isNaN(b.lat)) continue;
+
+    // Kopukluk ve imkansız ışınlanma kontrolü (arazi/şehir üzerinden düz hat çekmesini önler)
+    const distKm = haversineKm(a.lat, a.lon, b.lat, b.lon);
+    const tA = getPointTime(a);
+    const tB = getPointTime(b);
+    const timeDiffMin = tA && tB ? Math.abs(tB - tA) / 60000 : 0;
+    const impliedSpeed = timeDiffMin > 0 ? (distKm / (timeDiffMin / 60)) : 0;
+
+    if (distKm > 1.8 && (impliedSpeed > 130 || timeDiffMin > 15)) {
+      continue; // Bu iki nokta arasına çizgi çekme, yeni segmente geç
+    }
+
     const color = getSpeedColor(a.speed);
     const last = segments[segments.length - 1];
     if (last && last.color === color) {
@@ -139,7 +205,8 @@ function MapController({
   setIsCameraFollowActive, 
   didInitRef, 
   setZoom, 
-  isVisible 
+  isVisible,
+  showSidebar
 }) {
   const map = useMap();
   const prevCoordsRef = useRef(null);
@@ -160,27 +227,27 @@ function MapController({
     if (activeVehicles.length === 1) {
       // Sadece 1 aktif araç varsa: Doğrudan o araca zoom 15 ile odaklan
       const pt = activeVehicles[0].lastPoint;
-      map.setView([pt.lat, pt.lon], 15, { animate: true, duration: 0.8 });
+      centerVehicleOnMap(map, pt.lat, pt.lon, 15, showSidebar);
       setFollowedDriverId(activeVehicles[0].driverId);
       setIsCameraFollowActive(true);
       didInitRef.current = true;
     } else if (activeVehicles.length > 1) {
       // Birden fazla aktif araç varsa: Hepsini ekrana sığdır
       const pts = activeVehicles.map(v => [v.lastPoint.lat, v.lastPoint.lon]);
-      map.fitBounds(L.latLngBounds(pts), { padding: [100, 100], maxZoom: 14, animate: true, duration: 0.8 });
+      fitVehiclesBounds(map, pts, showSidebar);
       didInitRef.current = true;
     } else {
       // Aktif araç yoksa: Son konumu olan tüm araçları sığdır veya ilkine odaklan
       const allPts = vehicleList.map(v => [v.lastPoint.lat, v.lastPoint.lon]).filter(p => !isNaN(p[0]) && !isNaN(p[1]));
       if (allPts.length === 1) {
-        map.setView(allPts[0], 12, { animate: true, duration: 0.8 });
+        centerVehicleOnMap(map, allPts[0][0], allPts[0][1], 12, showSidebar);
         didInitRef.current = true;
       } else if (allPts.length > 1) {
-        map.fitBounds(L.latLngBounds(allPts), { padding: [100, 100], maxZoom: 12, animate: true, duration: 0.8 });
+        fitVehiclesBounds(map, allPts, showSidebar);
         didInitRef.current = true;
       }
     }
-  }, [vehicleList, map, didInitRef, isVisible, setFollowedDriverId, setIsCameraFollowActive]);
+  }, [vehicleList, map, didInitRef, isVisible, setFollowedDriverId, setIsCameraFollowActive, showSidebar]);
 
   // 2. TAKİP MODUNDA ARACI ORTALA (KULLANICI TIKLAYINCA VEYA CANLI HAREKETTE)
   useEffect(() => {
@@ -205,23 +272,21 @@ function MapController({
     // Araç zaten seçiliyse ve yeni konum geldiyse (canlı takip) pürüzsüz kaydır
     if (prevCoordsRef.current !== coordsKey) {
       prevCoordsRef.current = coordsKey;
-      map.panTo([p.lat, p.lon], { animate: true, duration: 0.8 });
+      panVehicleOnMap(map, p.lat, p.lon, showSidebar);
     }
-  }, [vehicleList, followedDriverId, map, isVisible, isCameraFollowActive]);
+  }, [vehicleList, followedDriverId, map, isVisible, isCameraFollowActive, showSidebar]);
 
   return null;
 }
 
-function VehicleMarker({ driverId, lastPoint, isOnline, isFollowed, speedKmh, name, isMapped, parkDurationText, setFollowedDriverId, setIsCameraFollowActive }) {
+function VehicleMarker({ driverId, lastPoint, isOnline, isFollowed, speedKmh, name, isMapped, parkDurationText, setFollowedDriverId, setIsCameraFollowActive, showSidebar }) {
   const map = useMap();
   const markerRef = useRef(null);
 
   const handleClick = () => {
     setFollowedDriverId(driverId);
     setIsCameraFollowActive(true);
-    setTimeout(() => {
-      map.setView([lastPoint.lat, lastPoint.lon], 15, { animate: true, duration: 1 });
-    }, 20);
+    centerVehicleOnMap(map, lastPoint.lat, lastPoint.lon, 15, showSidebar);
   };
 
   return (
@@ -287,7 +352,7 @@ function SidebarItem({
     : 'bg-[#0f141d]/70 hover:bg-[#111622]/80';
 
   const handleHeaderClick = () => {
-    map.setView([lastPoint.lat, lastPoint.lon], 15, { animate: true, duration: 0.8 });
+    centerVehicleOnMap(map, lastPoint.lat, lastPoint.lon, 15, true);
     setFollowedDriverId(driverId);
     setIsCameraFollowActive(true);
   };
@@ -710,6 +775,11 @@ export default function LiveTracking({
         .vehicle-popup .leaflet-popup-content { margin: 0; width: 160px !important; }
         .vehicle-popup .leaflet-popup-close-button { display: none !important; }
         
+        .custom-vehicle-marker-div {
+          background: transparent !important;
+          border: none !important;
+        }
+
         /* Pulse animations for vehicles on the map */
         @keyframes markerPulseActive {
           0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
@@ -738,6 +808,7 @@ export default function LiveTracking({
         didInitRef={didInitRef} 
         setZoom={setZoom} 
         isVisible={isVisible}
+        showSidebar={showSidebar}
       />
 
       {isVisible && vehicleList.map(v => {
@@ -761,6 +832,7 @@ export default function LiveTracking({
               parkDurationText={v.parkDurationText}
               setFollowedDriverId={setFollowedDriverId} 
               setIsCameraFollowActive={setIsCameraFollowActive}
+              showSidebar={showSidebar}
             />
           </React.Fragment>
         );

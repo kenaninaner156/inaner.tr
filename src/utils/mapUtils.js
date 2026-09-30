@@ -46,7 +46,7 @@ export function getPointTime(p) {
 /**
  * GPS sıçramalarını ve zaman sırası bozukluklarını (örümcek ağı / yelpaze çizgilerini) temizler.
  */
-export function cleanGpsSpikes(points, maxSpeedKmh = 160) {
+export function cleanGpsSpikes(points, maxSpeedKmh = 140) {
   if (!points || points.length < 2) return points || [];
   
   // 1. Geçersiz koordinatları ayıkla ve KESİN KRONOLOJİK SIRAYA DİZ
@@ -74,12 +74,24 @@ export function cleanGpsSpikes(points, maxSpeedKmh = 160) {
     const distKm = haversineKm(Number(prev.lat), Number(prev.lon), Number(curr.lat), Number(curr.lon));
     const impliedSpeedKmh = distKm / (timeDiffSec / 3600);
 
-    // Eğer nokta imkansız bir hızla sıçrıyorsa (>160 km/h) ve sonraki nokta prev'e daha yakınsa
-    if (impliedSpeedKmh > maxSpeedKmh && i < sorted.length - 1) {
-      const next = sorted[i + 1];
-      const distToNext = haversineKm(Number(prev.lat), Number(prev.lon), Number(next.lat), Number(next.lon));
-      if (distToNext < distKm * 0.65) {
-        continue; // Bozuk sıçrayan noktayı yut
+    // Eğer nokta imkansız bir hızla sıçrıyorsa (>140 km/h)
+    if (impliedSpeedKmh > maxSpeedKmh) {
+      if (i < sorted.length - 1) {
+        const next = sorted[i + 1];
+        const distToNext = haversineKm(Number(prev.lat), Number(prev.lon), Number(next.lat), Number(next.lon));
+        // Eğer sonraki nokta prev'e yakınsa, curr bozuk bir sıçramadır: atla
+        if (distToNext < distKm * 0.65) {
+          continue;
+        }
+        // Eğer sonraki nokta curr'e çok yakınsa, prev bozuk bir sıçramadır: prev'i curr ile değiştir
+        const distCurrToNext = haversineKm(Number(curr.lat), Number(curr.lon), Number(next.lat), Number(next.lon));
+        if (distCurrToNext < distToNext * 0.5) {
+          cleaned[cleaned.length - 1] = curr;
+          continue;
+        }
+      } else {
+        // Son nokta imkansız bir hızla sıçrıyorsa (örn: baz istasyonu veya merkez koordinatı): atla
+        continue;
       }
     }
 
