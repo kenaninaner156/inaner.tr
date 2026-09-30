@@ -1230,4 +1230,4 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     );
 };
 
-export default Dashboard;
+export default React.memo(Dashboard);

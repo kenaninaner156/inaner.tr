@@ -809,4 +809,4 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
     );
 };
 
-export default SuperAdmin;
+export default React.memo(SuperAdmin);

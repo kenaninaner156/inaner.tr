@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>İnaner Logistics - Çevrimdışı Veri ve Kurtarma Masası</title>
+    <style>
+        :root {
+            --bg-base: #0a0d14;
+            --bg-surface: #101522;
+            --bg-card: #151b2d;
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-highlight: rgba(255, 255, 255, 0.16);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-blue: #38bdf8;
+            --accent-emerald: #34d399;
+            --accent-amber: #fbbf24;
+            --accent-rose: #f43f5e;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: var(--font-family);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            padding: 20px;
+        }
+
+        .container { max-width: 1440px; margin: 0 auto; }
+        
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; }
+        .brand .badge {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: rgba(56, 189, 248, 0.12);
+            color: var(--accent-blue);
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid rgba(56, 189, 248, 0.25);
+        }
+
+        .meta-info {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        .meta-item strong { color: var(--text-primary); }
+
+        /* KPI Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .kpi-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            padding: 18px 20px;
+            border-radius: 10px;
+        }
+        .kpi-label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+        .kpi-value { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-top: 4px; }
+        .kpi-sub { font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px; }
+
+        /* Navigation Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 8px;
+            overflow-x: auto;
+        }
+        .tab-btn {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid transparent;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .tab-btn:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.03);
+        }
+        .tab-btn.active {
+            color: var(--text-primary);
+            background: var(--bg-card);
+            border-color: var(--border-highlight);
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .search-box {
+            position: relative;
+            flex: 1;
+            max-width: 400px;
+        }
+        .search-box input {
+            width: 100%;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            outline: none;
+        }
+        .search-box input:focus {
+            border-color: var(--accent-blue);
+        }
+
+        /* Data Tables */
+        .table-container {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            text-align: left;
+        }
+        th {
+            background: rgba(255, 255, 255, 0.02);
+            padding: 12px 16px;
+            color: var(--text-muted);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-subtle);
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+        }
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.015);
+            color: var(--text-primary);
+        }
+        .num { font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
+        .tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .tag-green { background: rgba(52, 211, 153, 0.12); color: var(--accent-emerald); }
+        .tag-amber { background: rgba(251, 191, 36, 0.12); color: var(--accent-amber); }
+        .tag-blue { background: rgba(56, 189, 248, 0.12); color: var(--accent-blue); }
+
+        /* Media Link */
+        .doc-link {
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .doc-link:hover { text-decoration: underline; }
+
+        /* Fallback Dropzone */
+        .dropzone {
+            display: none;
+            background: var(--bg-surface);
+            border: 2px dashed var(--border-highlight);
+            padding: 40px;
+            text-align: center;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        .dropzone.visible { display: block; }
+        .dropzone p { color: var(--text-secondary); margin-bottom: 12px; }
+        .dropzone button {
+            background: var(--accent-blue);
+            color: #000;
+            font-weight: 600;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .empty-state {
+            padding: 40px;
+            text-align: center;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="brand">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-blue);">
+                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+                </svg>
+                <h1>İnaner Logistics</h1>
+                <span class="badge">Çevrimdışı Kurtarma Masası</span>
+            </div>
+            <div class="meta-info">
+                <div class="meta-item">Son Senkron: <strong id="lbl-timestamp">Yükleniyor...</strong></div>
+                <div class="meta-item">Koleksiyon: <strong id="lbl-col-count">-</strong></div>
+                <div class="meta-item">Toplam Kayıt: <strong id="lbl-total-records">-</strong></div>
+            </div>
+        </header>
+
+        <!-- Yerel Dosya Seçim Uyarısı (CORS durumunda) -->
+        <div id="dropzone" class="dropzone">
+            <p>Tarayıcı güvenlik kuralları nedeniyle yerel JSON dosyası doğrudan okunamadı.</p>
+            <p>Lütfen yedek klasöründeki <strong>all_collections.json</strong> dosyasını seçin:</p>
+            <input type="file" id="file-input" accept=".json" style="display: none;" onchange="handleFileSelect(event)">
+            <button onclick="document.getElementById('file-input').click()">Dosya Seç (all_collections.json)</button>
+        </div>
+
+        <!-- KPI Kartları -->
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Kayıtlı Seferler</div>
+                <div class="kpi-value num" id="kpi-trips">0</div>
+                <div class="kpi-sub">Arşivlenen toplam rota</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Mazot Alımları</div>
+                <div class="kpi-value num" id="kpi-fuel">0</div>
+                <div class="kpi-sub" id="kpi-fuel-liters">0 Litre</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Servis & Bakım</div>
+                <div class="kpi-value num" id="kpi-maintenance">0</div>
+                <div class="kpi-sub">Tamir ve parça işlemi</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Resmi Faturalar</div>
+                <div class="kpi-value num" id="kpi-invoices">0</div>
+                <div class="kpi-sub">GİB ve sistem belgeleri</div>
+            </div>
+        </div>
+
+        <!-- Sekmeler -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('trips')">Seferler</button>
+            <button class="tab-btn" onclick="switchTab('fuel')">Mazot Fişleri</button>
+            <button class="tab-btn" onclick="switchTab('maintenance')">Bakım & Servis</button>
+            <button class="tab-btn" onclick="switchTab('invoices')">Faturalar</button>
+            <button class="tab-btn" onclick="switchTab('payments')">Cari Ödemeler</button>
+            <button class="tab-btn" onclick="switchTab('penalties')">Cezalar</button>
+            <button class="tab-btn" onclick="switchTab('spare_parts')">Yedek Parça</button>
+            <button class="tab-btn" onclick="switchTab('company_data')">Evraklar & Ayarlar</button>
+        </div>
+
+        <!-- Araç Çubuğu -->
+        <div class="toolbar">
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Bu tabloda ara..." onkeyup="filterTable()">
+            </div>
+            <div id="table-info" style="font-size: 0.85rem; color: var(--text-muted);">
+                Kayıt sayısı: 0
+            </div>
+        </div>
+
+        <!-- Tablo Alanı -->
+        <div class="table-container">
+            <table id="data-table">
+                <thead id="table-head"></thead>
+                <tbody id="table-body">
+                    <tr><td colspan="6" class="empty-state">Veriler yükleniyor...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let dbData = {};
+        let activeTab = 'trips';
+
+        // Sayfa açıldığında otomatik JSON çekmeyi dene
+        window.addEventListener('DOMContentLoaded', async () => {
+            const candidateUrls = [
+                'latest/all_collections.json',
+                'all_collections.json',
+                'database/trips.json'
+            ];
+
+            let loaded = false;
+            for (const url of candidateUrls) {
+                try {
+                    const res = await fetch(url);
+                    if (res.ok) {
+                        const json = await res.json();
+                        if (url.includes('all_collections.json')) {
+                            dbData = json;
+                            loaded = true;
+                            break;
+                        }
+                    }
+                } catch (e) {
+                    // CORS hatası verirse dropzone açılacak
+                }
+            }
+
+            if (loaded) {
+                initDashboard();
+            } else {
+                document.getElementById('dropzone').classList.add('visible');
+            }
+        });
+
+        // Kullanıcı manuel dosya yüklerse
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    dbData = JSON.parse(evt.target.result);
+                    document.getElementById('dropzone').classList.remove('visible');
+                    initDashboard();
+                } catch (err) {
+                    alert('Geçersiz JSON dosyası: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function initDashboard() {
+            // Meta bilgileri doldur
+            let totalRecords = 0;
+            const keys = Object.keys(dbData);
+            keys.forEach(k => {
+                if (Array.isArray(dbData[k])) totalRecords += dbData[k].length;
+            });
+
+            document.getElementById('lbl-timestamp').innerText = new Date().toLocaleDateString('tr-TR', {
+                year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+            document.getElementById('lbl-col-count').innerText = keys.length;
+            document.getElementById('lbl-total-records').innerText = totalRecords;
+
+            // KPI'ları doldur
+            const trips = dbData.trips || [];
+            const fuel = dbData.fuel || [];
+            const maintenance = dbData.maintenance || [];
+            const invoices = dbData.invoices || [];
+
+            document.getElementById('kpi-trips').innerText = trips.length;
+            document.getElementById('kpi-fuel').innerText = fuel.length;
+            
+            let totalLiters = 0;
+            fuel.forEach(f => totalLiters += (parseFloat(f.liters) || 0));
+            document.getElementById('kpi-fuel-liters').innerText = totalLiters.toLocaleString('tr-TR') + ' Litre';
+
+            document.getElementById('kpi-maintenance').innerText = maintenance.length;
+            document.getElementById('kpi-invoices').innerText = invoices.length;
+
+            renderTable();
+        }
+
+        function switchTab(tabName) {
+            activeTab = tabName;
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('onclick').includes(tabName));
+            });
+            document.getElementById('search-input').value = '';
+            renderTable();
+        }
+
+        function renderTable() {
+            const records = dbData[activeTab] || [];
+            const head = document.getElementById('table-head');
+            const body = document.getElementById('table-body');
+            document.getElementById('table-info').innerText = `Kayıt sayısı: ${records.length}`;
+
+            if (records.length === 0) {
+                head.innerHTML = '';
+                body.innerHTML = `<tr><td class="empty-state">Bu kategoride arşivlenmiş kayıt bulunmuyor.</td></tr>`;
+                return;
+            }
+
+            // Tablo sütun şemaları
+            if (activeTab === 'trips') {
+                head.innerHTML = `<tr><th>Tarih</th><th>Araç Plaka</th><th>Başlangıç</th><th>Varış</th><th>Mesafe</th><th>Şoför</th></tr>`;
+                body.innerHTML = records.map(r => `
+                    <tr>
+                        <td class="num">${r.date || r.createdAt?.slice(0,10) || '-'}</td>
+                        <td><span class="tag tag-blue">${r.truckPlate || r.truckId || '-'}</span></td>
+                        <td>${r.from || r.startLocation || '-'}</td>
+                        <td>${r.to || r.endLocation || '-'}</td>
+                        <td class="num">${r.km ? r.km + ' KM' : '-'}</td>
+                        <td>${r.driverName || '-'}</td>
+                    </tr>
+                `).join('');
+            } else if (activeTab === 'fuel') {
+                head.innerHTML = `<tr><th>Tarih</th><th>Araç</th><th>İstasyon</th><th>Litre</th><th>Birim Fiyat</th><th>Toplam Tutar</th><th>Fiş Belgesi</th></tr>`;
+                body.innerHTML = records.map(r => `
+                    <tr>
+                        <td class="num">${r.date || '-'}</td>
+                        <td><span class="tag tag-blue">${r.truckPlate || r.truckId || '-'}</span></td>
+                        <td>${r.station || '-'}</td>
+                        <td class="num">${r.liters ? r.liters + ' L' : '-'}</td>
+                        <td class="num">${r.unitPrice ? r.unitPrice + ' ₺' : '-'}</td>
+                        <td class="num"><strong style="color: var(--accent-emerald)">${r.totalAmount ? Number(r.totalAmount).toLocaleString('tr-TR') + ' ₺' : '-'}</strong></td>
+                        <td>${renderMediaLink(r.receiptUrl || r.documentUrl || r.imageUrl, 'Fiş Görseli')}</td>
+                    </tr>
+                `).join('');
+            } else if (activeTab === 'invoices') {
+                head.innerHTML = `<tr><th>Tarih</th><th>Fatura No / UUID</th><th>Alıcı Firma</th><th>KDV Hariç</th><th>Toplam Tutar</th><th>GİB Durumu</th></tr>`;
+                body.innerHTML = records.map(r => `
+                    <tr>
+                        <td class="num">${r.date || r.createdAt?.slice(0,10) || '-'}</td>
+                        <td class="num" style="font-size:0.75rem">${r.gibUuid || r.invoiceNo || r.id}</td>
+                        <td><strong>${r.recipientTitle || r.companyName || '-'}</strong></td>
+                        <td class="num">${r.baseAmount ? Number(r.baseAmount).toLocaleString('tr-TR') + ' ₺' : '-'}</td>
+                        <td class="num"><strong style="color: var(--accent-emerald)">${r.totalAmount ? Number(r.totalAmount).toLocaleString('tr-TR') + ' ₺' : '-'}</strong></td>
+                        <td><span class="tag tag-green">${r.status || 'Onaylandı'}</span></td>
+                    </tr>
+                `).join('');
+            } else if (activeTab === 'maintenance') {
+                head.innerHTML = `<tr><th>Tarih</th><th>Araç</th><th>Bakım Türü</th><th>Tamirci/Servis</th><th>Maliyet</th><th>Belge</th></tr>`;
+                body.innerHTML = records.map(r => `
+                    <tr>
+                        <td class="num">${r.date || '-'}</td>
+                        <td><span class="tag tag-blue">${r.truckPlate || r.truckId || '-'}</span></td>
+                        <td>${r.type || r.title || '-'}</td>
+                        <td>${r.mechanic || r.serviceName || '-'}</td>
+                        <td class="num">${r.cost ? Number(r.cost).toLocaleString('tr-TR') + ' ₺' : '-'}</td>
+                        <td>${renderMediaLink(r.documentUrl || r.invoiceUrl, 'Servis Faturası')}</td>
+                    </tr>
+                `).join('');
+            } else {
+                // Genel Dinamik Tablo
+                const sample = records[0] || {};
+                const cols = Object.keys(sample).slice(0, 6);
+                head.innerHTML = `<tr>` + cols.map(c => `<th>${c}</th>`).join('') + `</tr>`;
+                body.innerHTML = records.map(r => `
+                    <tr>` + cols.map(c => `<td>${formatCellValue(r[c])}</td>`).join('') + `</tr>
+                `).join('');
+            }
+        }
+
+        function renderMediaLink(url, label) {
+            if (!url) return '<span style="color: var(--text-muted)">-</span>';
+            return `<a class="doc-link" href="${url}" target="_blank">${label}</a>`;
+        }
+
+        function formatCellValue(val) {
+            if (val === null || val === undefined) return '-';
+            if (typeof val === 'object') return JSON.stringify(val).slice(0, 40) + '...';
+            if (typeof val === 'string' && (val.startsWith('http://') || val.startsWith('https://'))) {
+                return renderMediaLink(val, 'Belgeyi Aç');
+            }
+            return String(val);
+        }
+
+        function filterTable() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            const rows = document.getElementById('table-body').getElementsByTagName('tr');
+            for (let row of rows) {
+                const text = row.innerText.toLowerCase();
+                row.style.display = text.includes(query) ? '' : 'none';
+            }
+        }
+    </script>
+</body>
+</html>

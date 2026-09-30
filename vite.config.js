@@ -18,14 +18,14 @@ function apiDevMiddleware() {
             const module = await import(`${url.pathToFileURL(filePath).href}?t=${Date.now()}`);
             const handler = module.default;
             
-            const customRes = {
+            const customRes = Object.assign(Object.create(res), {
               statusCode: 200,
               status(code) {
                 res.statusCode = code;
                 return customRes;
               },
               json(data) {
-                res.setHeader('Content-Type', 'application/json');
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
                 res.end(JSON.stringify(data));
               },
               send(data) {
@@ -33,8 +33,23 @@ function apiDevMiddleware() {
               },
               setHeader(k, v) {
                 res.setHeader(k, v);
+              },
+              write(...args) {
+                return res.write(...args);
+              },
+              end(...args) {
+                return res.end(...args);
+              },
+              on(...args) {
+                return res.on(...args);
+              },
+              once(...args) {
+                return res.once(...args);
+              },
+              emit(...args) {
+                return res.emit(...args);
               }
-            };
+            });
             
             let body = {};
             if (['POST', 'PUT', 'PATCH'].includes(req.method)) {

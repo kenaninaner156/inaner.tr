@@ -9,4 +9,4 @@ const MapPage = ({ onOpenMenu, isMobile }) => {
     );
 };
 
-export default MapPage;
+export default React.memo(MapPage);

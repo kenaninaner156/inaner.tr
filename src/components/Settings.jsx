@@ -182,7 +182,7 @@ const Settings = ({ onOpenMenu, isMobile } = {}) => {
                 <div className="p-6 border-b border-[var(--border-color)] flex items-center justify-between">
                     <h4 className="font-bold text-lg text-[var(--text-primary)] flex items-center">
                         <Camera className="mr-2 text-zinc-400" size={20} />
-                        Araç Profil Resmi
+                        Profil Resmi
                     </h4>
                 </div>
                 <div className="p-6 flex flex-col sm:flex-row items-center gap-6">
@@ -190,7 +190,7 @@ const Settings = ({ onOpenMenu, isMobile } = {}) => {
                         {profilePic ? (
                             <img
                                 src={profilePic}
-                                alt="Truck Profile"
+                                alt="Profil Resmi"
                                 className="w-full h-full object-cover bg-white"
                                 onError={() => setProfilePic(null)}
                             />
@@ -207,7 +207,7 @@ const Settings = ({ onOpenMenu, isMobile } = {}) => {
                     </div>
                     <div className="flex-1 space-y-3 text-center sm:text-left">
                         <p className="text-[var(--text-secondary)] text-sm">
-                            Menüde aracınızın adının yanında görünecek fotoğrafı buradan yükleyebilirsiniz.
+                            Menüde kullanıcı profilinizin yanında görünecek fotoğrafı buradan yükleyebilirsiniz.
                         </p>
                         {profilePic && profilePic.startsWith('http') && (
                             <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-medium">
@@ -431,4 +431,4 @@ const Settings = ({ onOpenMenu, isMobile } = {}) => {
     );
 };
 
-export default Settings;
+export default React.memo(Settings);

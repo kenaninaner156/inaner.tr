@@ -1371,4 +1371,4 @@ const Payments = ({ onOpenMenu, isMobile } = {}) => {
     );
 };
 
-export default Payments;
+export default React.memo(Payments);

@@ -1226,4 +1226,4 @@ return (
     );
 };
 
-export default Fuel;
+export default React.memo(Fuel);

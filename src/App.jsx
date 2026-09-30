@@ -1,10 +1,10 @@
-import { useState, useEffect, useContext, useRef } from 'react'
+import { useState, useEffect, useContext, useRef, useMemo, useCallback } from 'react'
 import { DataContext } from './context/DataContext'
 import { motion, AnimatePresence } from 'framer-motion'
 
 import {
   Menu, X, Truck, MapPin, FileText, Droplet, Wrench,
-  CreditCard, PieChart, Calendar, Settings, Shield, LogOut, Bell, AlertTriangle, Sun, Moon, Waves, ChevronDown, Building2, Server, Users, Receipt, Landmark, Scale, HardDrive
+  CreditCard, PieChart, Calendar, Settings, Shield, LogOut, Bell, AlertTriangle, Sun, Moon, Waves, ChevronDown, ChevronUp, User, Building2, Server, Users, Receipt, Landmark, Scale, HardDrive
 } from 'lucide-react'
 import Dashboard from './components/Dashboard'
 import Trips from './components/Trips'
@@ -26,7 +26,7 @@ import Personnel from './components/Personnel'
 import EArsiv from './components/EArsiv'
 import Drive from './components/Drive'
 import { sendDiscordAlert } from './services/discordWebhook'
-import { db, messaging } from './services/firebaseConfig'
+import { auth, db, messaging } from './services/firebaseConfig'
 import { onMessage } from 'firebase/messaging'
 import { doc, updateDoc, setDoc, arrayUnion } from 'firebase/firestore'
 import { requestAndSaveNotificationToken } from './services/notificationService'
@@ -43,6 +43,39 @@ function App() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024)
   const [theme, setTheme] = useState('dark')
   const [activeNotification, setActiveNotification] = useState(null)
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
+  const userMenuRef = useRef(null)
+  const navRef = useRef(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    if (isUserMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isUserMenuOpen]);
+
+  // Alt kullanıcı menüsü açıldığında üstteki menü butonlarının aynı anda yukarı yükselmesi için senkronize kaydırma
+  useEffect(() => {
+    if (isUserMenuOpen && navRef.current) {
+      const el = navRef.current;
+      requestAnimationFrame(() => {
+        el.scrollTo({
+          top: el.scrollHeight,
+          behavior: 'smooth'
+        });
+      });
+    }
+  }, [isUserMenuOpen]);
+
   const [bomPhase, setBomPhase] = useState(null); // null | 'fall' | 'recover'
   const bomSequence = useRef([]);
   const BOM_KEYS = ['b', 'o', 'm'];
@@ -115,11 +148,46 @@ function App() {
     if (meta) meta.setAttribute('content', next === 'light' ? '#f8f9fa' : '#07090E');
   }
 
-  const { currentSession, logoutSession, isDataLoading, dataError, docs, penalties, companyNotifications, acknowledgeNotification, markNotificationAsRead } = useContext(DataContext)
+  const { currentSession, logoutSession, isDataLoading, dataError, docs, penalties, companyNotifications, acknowledgeNotification, markNotificationAsRead, personnel, approvedUsers } = useContext(DataContext)
   const { activeCompanyId, setActiveCompanyId, companyData, companies } = useCompany()
   const { activeTruckId, setActiveTruckId, activeTruckData, trucks } = useTruck()
   const currentUser = currentSession;
-  const userRole = currentUser?.username === 'kenan' ? 'super_admin' : String(currentUser?.role || 'user').toLowerCase();
+  const userRole = (currentUser?.username === 'kenan' || (typeof window !== 'undefined' && localStorage.getItem('tir_current_user') === 'kenan'))
+    ? 'super_admin'
+    : String(currentUser?.role || (typeof window !== 'undefined' && localStorage.getItem('tir_current_role')) || 'user').toLowerCase();
+
+  // Kullanıcı Profil Fotoğrafı (Google Hesabı, Ayarlar Araç Resmi, Personel Avatarı veya Kullanıcı Profili)
+  const matchedPersonAvatar = useMemo(() => {
+    if (!currentUser?.username) return null;
+    const lower = currentUser.username.toLowerCase().trim();
+    if (personnel?.length) {
+      const foundPerson = personnel.find(p => 
+        p.name?.toLowerCase().trim() === lower || 
+        p.username?.toLowerCase().trim() === lower ||
+        p.id?.toLowerCase().trim() === lower
+      );
+      if (foundPerson?.avatarUrl) return foundPerson.avatarUrl;
+    }
+    if (approvedUsers && typeof approvedUsers === 'object') {
+      const usersList = Array.isArray(approvedUsers) ? approvedUsers : Object.values(approvedUsers);
+      const foundUser = usersList.find(u => u.username?.toLowerCase().trim() === lower);
+      if (foundUser?.photoURL || foundUser?.avatarUrl || foundUser?.imageUrl) {
+        return foundUser.photoURL || foundUser.avatarUrl || foundUser.imageUrl;
+      }
+    }
+    return null;
+  }, [currentUser?.username, personnel, approvedUsers]);
+
+  // Profil Fotoğrafı (Öncelik: Ayarlar'daki Profil Resmi: activeTruckData?.imageUrl veya araç resmi)
+  const truckProfilePic = activeTruckData?.imageUrl || trucks?.find(t => t?.imageUrl)?.imageUrl || null;
+  const [photoError, setPhotoError] = useState(false);
+
+  const userPhoto = useMemo(() => {
+    if (photoError) return null;
+    return truckProfilePic || matchedPersonAvatar || null;
+  }, [photoError, truckProfilePic, matchedPersonAvatar]);
+
+
 
   const [showTruckExpand, setShowTruckExpand] = useState(false);
 
@@ -442,6 +510,24 @@ function App() {
 
   const notifCount = unreadDocsCount + unreadPenaltiesCount;
 
+  const ALL_PAGE_TITLES = {
+    dashboard: 'Özet',
+    trips: 'Seferler',
+    fuel: 'Mazot Fişleri',
+    maintenance: 'Araç Bakım',
+    detaylar: 'Ceza & Belgeler',
+    invoices: 'Fatura Durumu',
+    drive: 'İnaner Drive',
+    earsiv: 'E-Arşiv Fatura',
+    payments: 'Vergi & SGK',
+    company_debts: 'Borç & Kredi',
+    personel: 'Personel',
+    map: 'Harita',
+    company_admin: 'Şirket Yönetimi',
+    super_admin: 'SaaS Yönetimi',
+    settings: 'Sistem Ayarları'
+  };
+
   const menuItems = [
     { id: 'dashboard', label: 'Özet', icon: <PieChart size={20} />, theme: 'bg-gradient-to-r from-violet-600 to-purple-600 border-violet-400/30 text-white shadow-sm', hoverText: 'group-hover:text-violet-400' },
     { id: 'trips', label: 'Seferler', icon: <MapPin size={20} />, theme: 'bg-gradient-to-r from-sky-600 to-blue-600 border-sky-400/30 text-white shadow-sm', hoverText: 'group-hover:text-sky-400' },
@@ -459,8 +545,6 @@ function App() {
     { id: 'super_admin', label: 'SaaS Yönetimi', icon: <Server size={20} />, theme: 'bg-gradient-to-r from-fuchsia-600 to-pink-600 border-fuchsia-400/30 text-white shadow-sm', hoverText: 'group-hover:text-fuchsia-400' },
   ]
 
-
-
   const filteredMenuItems = menuItems.filter(item => {
     if (item.id === 'personel' && !companyData?.personnelEnabled) return false;
     if (item.id === 'map' && !companyData?.mapEnabled) return false;
@@ -472,9 +556,10 @@ function App() {
       return item.id !== 'super_admin';
     }
 
-    // Default 'şoför' (Sürücü) -> Sadece operasyonel sekmeleri görür (Seferler, Yakıt, Bakım, Masraflar)
+    // Default 'şoför' -> Sadece operasyonel sekmeleri görür
     return !['super_admin', 'company_admin', 'map', 'personel', 'earsiv', 'company_debts', 'invoices', 'payments', 'drive'].includes(item.id);
   })
+
 
   // Sürücü rolü için kısıtlı sayfalara erişim engeli
   useEffect(() => {
@@ -482,6 +567,9 @@ function App() {
       setActiveTab('trips');
     }
   }, [userRole, activeTab]);
+
+  const handleOpenMenu = () => setIsMenuOpen(true);
+  const handleNavigate = (tab) => setActiveTab(tab);
 
   // Login ekranı
   if (!currentUser) {
@@ -714,7 +802,7 @@ function App() {
                   {item.icon}
                 </div>
 
-                {/* Buton içi odaklı plaka bildirimi (Sıfır bekleme, eşzamanlı akışkan slot kayması) */}
+                {/* Buton içi odaklı plaka bildirimi */}
                 <div className="flex-1 text-left relative overflow-hidden h-5 flex items-center z-10">
                   <AnimatePresence initial={false}>
                     {activeSwitchTab === item.id && activeSwitchPlate ? (
@@ -754,23 +842,130 @@ function App() {
 
         </nav>
 
-        {/* Footer: User & Theme */}
-        <div className="p-4 pl-10 pr-6 pb-6 flex items-center justify-between"
+        {/* Footer: Kullanıcı Profili ve Bar İçi Menü */}
+        <div ref={userMenuRef} className="p-3 border-t border-white/[0.06] bg-[#0a0d14] shrink-0 z-20 relative"
           style={{ 
-            paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))'
+            paddingBottom: 'calc(1.2rem + env(safe-area-inset-bottom, 0px))'
           }}>
-          <button 
-            onClick={() => setActiveTab('settings')}
-            className="text-xs text-slate-500 font-medium truncate max-w-[120px] hover:text-slate-200 transition-colors cursor-pointer outline-none text-left" 
-            title="Sistem Ayarları"
+
+          {/* Barın İçerisinde Açılan Menü (Kullanıcı Butonunun Üzerinde Akıcı Yükselir) */}
+          <AnimatePresence initial={false}>
+            {isUserMenuOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="overflow-hidden mb-2"
+              >
+                <div className="space-y-1 pb-1">
+                  {/* 1. Şirket Yönetimi */}
+                  <button
+                    onClick={() => {
+                      setActiveTab('company_admin');
+                      setIsUserMenuOpen(false);
+                      if (isMobile) setIsMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium transition-colors ${
+                      activeTab === 'company_admin'
+                        ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                      activeTab === 'company_admin' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/[0.04] text-zinc-400'
+                    }`}>
+                      <Building2 size={13} />
+                    </div>
+                    <span className="flex-1 text-left truncate">Şirket Yönetimi</span>
+                  </button>
+
+                  {/* 2. SaaS Yönetimi (Super Admin için) */}
+                  {userRole === 'super_admin' && (
+                    <button
+                      onClick={() => {
+                        setActiveTab('super_admin');
+                        setIsUserMenuOpen(false);
+                        if (isMobile) setIsMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium transition-colors ${
+                        activeTab === 'super_admin'
+                          ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold'
+                          : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+                      }`}
+                    >
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                        activeTab === 'super_admin' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/[0.04] text-zinc-400'
+                      }`}>
+                        <Server size={13} />
+                      </div>
+                      <span className="flex-1 text-left truncate">SaaS Yönetimi</span>
+                    </button>
+                  )}
+
+                  {/* 3. Ayarlar */}
+                  <button
+                    onClick={() => {
+                      setActiveTab('settings');
+                      setIsUserMenuOpen(false);
+                      if (isMobile) setIsMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium transition-colors ${
+                      activeTab === 'settings'
+                        ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                      activeTab === 'settings' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/[0.04] text-zinc-400'
+                    }`}>
+                      <Settings size={13} />
+                    </div>
+                    <span className="flex-1 text-left truncate">Ayarlar</span>
+                  </button>
+
+                  {/* Çıkış Yap */}
+                  <div className="pt-1 mt-1 border-t border-white/[0.04]">
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-medium text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors"
+                    >
+                      <div className="w-6 h-6 rounded-lg bg-rose-500/10 flex items-center justify-center shrink-0 text-rose-400">
+                        <LogOut size={13} />
+                      </div>
+                      <span className="flex-1 text-left truncate">Çıkış Yap</span>
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Kullanıcı Butonu (Çerçevesiz, Oksuz, Sade, Profil Fotoğraflı) */}
+          <button
+            onClick={() => setIsUserMenuOpen(prev => !prev)}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition-colors select-none group ${
+              isUserMenuOpen || ['company_admin', 'super_admin', 'settings'].includes(activeTab)
+                ? 'bg-white/[0.05] text-white'
+                : 'hover:bg-white/[0.03] text-zinc-300 hover:text-white'
+            }`}
           >
-            {currentUser.username}
+            {userPhoto ? (
+              <img
+                src={userPhoto}
+                alt={currentUser?.username || 'Kullanıcı'}
+                className="w-7 h-7 rounded-full object-cover ring-1 ring-white/10 shrink-0"
+                onError={() => setPhotoError(true)}
+              />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold text-xs shrink-0 uppercase">
+                {currentUser?.username ? currentUser.username[0] : 'K'}
+              </div>
+            )}
+            <span className="text-xs font-semibold truncate capitalize">
+              {currentUser?.username || 'Kullanıcı'}
+            </span>
           </button>
-          <div className="flex items-center gap-2">
-            <button onClick={handleLogout} title="Oturumu Kapat" className="p-2 rounded-full text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-300 cursor-pointer">
-              <LogOut size={14} />
-            </button>
-          </div>
         </div>
       </aside>
 
@@ -791,7 +986,7 @@ function App() {
                 </button>
               )}
               <h2 className="text-xl font-medium tracking-tight text-slate-100">
-                {menuItems.find(i => i.id === activeTab)?.label || 'Bilinmeyen'}
+                {ALL_PAGE_TITLES[activeTab] || menuItems.find(i => i.id === activeTab)?.label || 'Yönetim Paneli'}
               </h2>
             </div>
           </div>
@@ -814,21 +1009,21 @@ function App() {
             } : undefined}
           >
             <div key={activeTab} className={['map', 'dashboard'].includes(activeTab) ? 'h-full w-full overflow-hidden' : ['invoices', 'earsiv', 'company_debts', 'personel', 'payments', 'drive'].includes(activeTab) ? 'page-transition h-full flex flex-col overflow-hidden' : 'page-transition'}>
-              {activeTab === 'dashboard' && <Dashboard onOpenMenu={() => setIsMenuOpen(true)} onNavigate={setActiveTab} isMobile={isMobile} />}
-              {activeTab === 'trips' && <Trips onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'fuel' && <Fuel onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'maintenance' && <Maintenance onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'detaylar' && <Detaylar onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'invoices' && <Invoices onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'drive' && <Drive onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'earsiv' && <EArsiv onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'payments' && <Payments onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'company_debts' && <CompanyDebts onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'personel' && <Personnel onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'settings' && <SettingsPage onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'company_admin' && <CompanyAdmin onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'super_admin' && <SuperAdmin onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
-              {activeTab === 'map' && userRole === 'super_admin' && <MapPage onOpenMenu={() => setIsMenuOpen(true)} isMobile={isMobile} />}
+              {activeTab === 'dashboard' && <Dashboard onOpenMenu={handleOpenMenu} onNavigate={handleNavigate} isMobile={isMobile} />}
+              {activeTab === 'trips' && <Trips onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'fuel' && <Fuel onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'maintenance' && <Maintenance onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'detaylar' && <Detaylar onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'invoices' && <Invoices onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'drive' && <Drive onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'earsiv' && <EArsiv onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'payments' && <Payments onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'company_debts' && <CompanyDebts onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'personel' && <Personnel onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'settings' && <SettingsPage onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'company_admin' && <CompanyAdmin onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'super_admin' && <SuperAdmin onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'map' && userRole === 'super_admin' && <MapPage onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
             </div>
           </div>
         </div>

@@ -3157,4 +3157,4 @@ const Personnel = ({ onOpenMenu, isMobile } = {}) => {
     );
 };
 
-export default Personnel;
+export default React.memo(Personnel);

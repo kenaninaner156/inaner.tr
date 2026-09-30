@@ -1147,4 +1147,4 @@ const Detaylar = ({ onOpenMenu, isMobile }) => {
     );
 };
 
-export default Detaylar;
+export default React.memo(Detaylar);

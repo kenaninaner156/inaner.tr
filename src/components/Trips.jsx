@@ -1675,4 +1675,4 @@ const Trips = ({ onOpenMenu, isMobile }) => {
         </div>
     );
 };
-export default Trips;
+export default React.memo(Trips);

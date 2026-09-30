@@ -11,7 +11,19 @@ export const CompanyProvider = ({ children }) => {
     const [activeCompanyId, setActiveCompanyId] = useState(() => {
         return localStorage.getItem('tir_current_company') || 'inaner_logistics';
     });
-    const [companyData, setCompanyData] = useState(null);
+    const [companyData, setCompanyData] = useState(() => {
+        try {
+            const cached = localStorage.getItem('tir_cached_company_data');
+            if (cached) return JSON.parse(cached);
+        } catch (_) {}
+        return {
+            id: localStorage.getItem('tir_current_company') || 'inaner_logistics',
+            name: 'İnaner Logistics',
+            personnelEnabled: true,
+            mapEnabled: true,
+            earsivEnabled: true
+        };
+    });
     const [companies, setCompanies] = useState([]);
 
     // 1. Sirketler Listesini Dinle (Tek dinleyici, sirket degisiminde tekrar sorgu atmaz)
@@ -45,6 +57,9 @@ export const CompanyProvider = ({ children }) => {
         const current = companies.find(c => c.id === activeCompanyId);
         if (current) {
             setCompanyData(current);
+            try {
+                localStorage.setItem('tir_cached_company_data', JSON.stringify(current));
+            } catch (_) {}
         }
     }, [activeCompanyId, companies]);
 

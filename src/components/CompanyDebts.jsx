@@ -3243,4 +3243,4 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
     );
 };
 
-export default CompanyDebts;
+export default React.memo(CompanyDebts);

@@ -1307,4 +1307,4 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
     );
 };
 
-export default Invoices;
+export default React.memo(Invoices);

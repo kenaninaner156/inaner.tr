@@ -1630,4 +1630,4 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
     );
 };
 
-export default CompanyAdmin;
+export default React.memo(CompanyAdmin);

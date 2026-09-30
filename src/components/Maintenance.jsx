@@ -1673,4 +1673,4 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
     );
 };
 
-export default Maintenance;
+export default React.memo(Maintenance);

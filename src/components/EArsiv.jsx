@@ -2810,4 +2810,4 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
     );
 };
 
-export default EArsiv;
+export default React.memo(EArsiv);
