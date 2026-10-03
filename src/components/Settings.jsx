@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useContext } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import { Settings as SettingsIcon, Database, Save, Server, ShieldCheck, Camera, UploadCloud, Truck, Loader2, Globe, Key, AlertCircle, Link2, Unlink, CheckCircle2, Menu } from 'lucide-react';
 import WipeData from './WipeData';
 import { DataContext } from '../context/DataContext';
@@ -13,7 +13,7 @@ const Settings = ({ onOpenMenu, isMobile } = {}) => {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState('');
     const fileInputRef = useRef(null);
-    const IMGBB_KEY = 'b9783b951fef452d9dee0c3c0fc206cc';
+
 
     // Google Link State
     const [googleLinkStatus, setGoogleLinkStatus] = useState({ type: '', message: '' });
@@ -49,14 +49,39 @@ const Settings = ({ onOpenMenu, isMobile } = {}) => {
 
     // URL hook kaldırıldı
 
+    const IMGBB_KEY = 'b9783b951fef452d9dee0c3c0fc206cc';
+
+    // Görseli Canvas üzerinden JPEG'e sıkıştırır
+    const compressImage = (file) => new Promise((resolve) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+            const MAX = 1200;
+            let { width, height } = img;
+            if (width > MAX || height > MAX) {
+                if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+                else { width = Math.round(width * MAX / height); height = MAX; }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+            URL.revokeObjectURL(url);
+            canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.85);
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+        img.src = url;
+    });
+
     const handleImageUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
         setIsUploading(true);
         setUploadError('');
         try {
+            const compressed = await compressImage(file);
             const formData = new FormData();
-            formData.append('image', file);
+            formData.append('image', compressed, 'photo.jpg');
             const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, {
                 method: 'POST',
                 body: formData,
@@ -67,15 +92,17 @@ const Settings = ({ onOpenMenu, isMobile } = {}) => {
                 setProfilePic(url);
                 await updateTruckImage(activeTruckId, url);
             } else {
-                setUploadError('Yükleme başarısız. Tekrar deneyin.');
+                setUploadError(`Yükleme başarısız: ${data?.error?.message || JSON.stringify(data)}`);
             }
-        } catch {
-            
-            setUploadError('Bağlantı hatası. İnternet bağlantınızı kontrol edin.');
+        } catch (err) {
+            console.error('Upload hatası:', err);
+            setUploadError(`Hata: ${err?.message || err}`);
         } finally {
             setIsUploading(false);
         }
     };
+
+
 
     const handlePasswordChange = async (e) => {
         e.preventDefault();

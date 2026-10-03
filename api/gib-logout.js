@@ -1,61 +1,6 @@
 /* eslint-env node */
-import admin from 'firebase-admin';
-import fs from 'fs';
+import { db, adminAuth as auth } from '../lib/firebaseAdmin.js';
 import { EInvoiceApi } from 'e-fatura';
-
-// Initialize Firebase Admin SDK (Single Instance Check)
-if (!admin.apps.length) {
-    try {
-        let projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID;
-        let clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-        let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-
-        // Local development fallback
-        const localJsonPath = "C:/Users/kenan/Desktop/tr/v2-tir-firebase-adminsdk-fbsvc-7c846d0b8b.json";
-        if ((!privateKey || !clientEmail) && fs.existsSync(localJsonPath)) {
-            try {
-                const fbData = JSON.parse(fs.readFileSync(localJsonPath, 'utf-8'));
-                projectId = fbData.project_id;
-                clientEmail = fbData.client_email;
-                privateKey = fbData.private_key;
-                console.log("Firebase Admin SDK local JSON configuration loaded successfully.");
-            } catch (jsonErr) {
-                console.error("Error reading local Firebase JSON file:", jsonErr);
-            }
-        }
-
-        // Clean and sanitize inputs
-        if (projectId) {
-            projectId = projectId.trim();
-            if (projectId.startsWith('"') && projectId.endsWith('"')) projectId = projectId.substring(1, projectId.length - 1);
-            if (projectId.startsWith("'") && projectId.endsWith("'")) projectId = projectId.substring(1, projectId.length - 1);
-        }
-        if (clientEmail) {
-            clientEmail = clientEmail.trim();
-            if (clientEmail.startsWith('"') && clientEmail.endsWith('"')) clientEmail = clientEmail.substring(1, clientEmail.length - 1);
-            if (clientEmail.startsWith("'") && clientEmail.endsWith("'")) clientEmail = clientEmail.substring(1, clientEmail.length - 1);
-        }
-        if (privateKey) {
-            privateKey = privateKey.trim();
-            if (privateKey.startsWith('"') && privateKey.endsWith('"')) privateKey = privateKey.substring(1, privateKey.length - 1);
-            if (privateKey.startsWith("'") && privateKey.endsWith("'")) privateKey = privateKey.substring(1, privateKey.length - 1);
-            privateKey = privateKey.replace(/\\n/g, '\n');
-        }
-
-        admin.initializeApp({
-            credential: admin.credential.cert({
-                projectId,
-                clientEmail,
-                privateKey
-            })
-        });
-    } catch (err) {
-        console.error("Firebase Admin SDK initialization failed:", err);
-    }
-}
-
-const db = admin.apps.length ? admin.firestore() : null;
-const auth = admin.apps.length ? admin.auth() : null;
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {

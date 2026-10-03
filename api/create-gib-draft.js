@@ -1,61 +1,6 @@
 /* eslint-env node */
-import admin from 'firebase-admin';
-import fs from 'fs';
+import { db, adminAuth as auth } from '../lib/firebaseAdmin.js';
 import { EInvoiceApi, EInvoiceCurrencyType, EInvoiceCountry, EInvoiceUnitType, InvoiceType } from 'e-fatura';
-
-// Initialize Firebase Admin SDK (Single Instance Check)
-if (!admin.apps.length) {
-    try {
-        let projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID;
-        let clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-        let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-
-        // Local development fallback
-        const localJsonPath = "C:/Users/kenan/Desktop/tr/v2-tir-firebase-adminsdk-fbsvc-7c846d0b8b.json";
-        if ((!privateKey || !clientEmail) && fs.existsSync(localJsonPath)) {
-            try {
-                const fbData = JSON.parse(fs.readFileSync(localJsonPath, 'utf-8'));
-                projectId = fbData.project_id;
-                clientEmail = fbData.client_email;
-                privateKey = fbData.private_key;
-                console.log("Firebase Admin SDK local JSON configuration loaded successfully.");
-            } catch (jsonErr) {
-                console.error("Error reading local Firebase JSON file:", jsonErr);
-            }
-        }
-
-        // Clean and sanitize inputs to prevent quote wrapping issues from Vercel settings
-        if (projectId) {
-            projectId = projectId.trim();
-            if (projectId.startsWith('"') && projectId.endsWith('"')) projectId = projectId.substring(1, projectId.length - 1);
-            if (projectId.startsWith("'") && projectId.endsWith("'")) projectId = projectId.substring(1, projectId.length - 1);
-        }
-        if (clientEmail) {
-            clientEmail = clientEmail.trim();
-            if (clientEmail.startsWith('"') && clientEmail.endsWith('"')) clientEmail = clientEmail.substring(1, clientEmail.length - 1);
-            if (clientEmail.startsWith("'") && clientEmail.endsWith("'")) clientEmail = clientEmail.substring(1, clientEmail.length - 1);
-        }
-        if (privateKey) {
-            privateKey = privateKey.trim();
-            if (privateKey.startsWith('"') && privateKey.endsWith('"')) privateKey = privateKey.substring(1, privateKey.length - 1);
-            if (privateKey.startsWith("'") && privateKey.endsWith("'")) privateKey = privateKey.substring(1, privateKey.length - 1);
-            privateKey = privateKey.replace(/\\n/g, '\n');
-        }
-
-        admin.initializeApp({
-            credential: admin.credential.cert({
-                projectId,
-                clientEmail,
-                privateKey
-            })
-        });
-    } catch (err) {
-        console.error("Firebase Admin SDK initialization failed:", err);
-    }
-}
-
-const db = admin.apps.length ? admin.firestore() : null;
-const auth = admin.apps.length ? admin.auth() : null;
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -343,13 +288,33 @@ export default async function handler(req, res) {
         
         try {
             const targetDate = date ? new Date(date) : new Date();
-            const sDate = new Date(targetDate);
-            sDate.setDate(sDate.getDate() - 14);
-            const eDate = new Date(targetDate);
-            eDate.setDate(eDate.getDate() + 14);
-            
-            // Search the recent drafts around the invoice date (28-day window)
-            const recentDrafts = await api.getBasicInvoices({ startDate: sDate, endDate: eDate });
+            const today = new Date();
+            const searchWindows = [];
+
+            // GİB maksimum 7 günlük aralığa izin verir
+            const s1 = new Date(targetDate); s1.setDate(s1.getDate() - 3);
+            const e1 = new Date(targetDate); e1.setDate(e1.getDate() + 3);
+            searchWindows.push({ start: s1, end: e1 });
+
+            const s2 = new Date(today); s2.setDate(s2.getDate() - 6);
+            const e2 = new Date(today);
+            searchWindows.push({ start: s2, end: e2 });
+
+            const recentDrafts = [];
+            const seen = new Set();
+            for (const w of searchWindows) {
+                try {
+                    const list = await api.getBasicInvoices({ startDate: w.start, endDate: w.end });
+                    for (const d of (list || [])) {
+                        if (d.error) continue;
+                        const uid = d.uuid || d.ettn;
+                        if (uid && !seen.has(uid)) {
+                            seen.add(uid);
+                            recentDrafts.push(d);
+                        }
+                    }
+                } catch (_) {}
+            }
             
             const cleanBuyerVkn = (buyer.taxOrIdentityNumber || '').replace(/\s/g, '').trim();
 

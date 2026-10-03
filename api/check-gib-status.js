@@ -1,48 +1,6 @@
 /* eslint-env node */
-import admin from 'firebase-admin';
-import fs from 'fs';
+import { db } from '../lib/firebaseAdmin.js';
 import { EInvoiceApi } from 'e-fatura';
-
-function getDb() {
-    if (!admin.apps.length) {
-        try {
-            let projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID;
-            let clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-            let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-
-            const localJsonPath = "C:/Users/kenan/Desktop/tr/v2-tir-firebase-adminsdk-fbsvc-7c846d0b8b.json";
-            if ((!privateKey || !clientEmail) && fs.existsSync(localJsonPath)) {
-                try {
-                    const fbData = JSON.parse(fs.readFileSync(localJsonPath, 'utf-8'));
-                    projectId = fbData.project_id;
-                    clientEmail = fbData.client_email;
-                    privateKey = fbData.private_key;
-                } catch (jsonErr) {
-                    console.error("Error reading local Firebase JSON file:", jsonErr);
-                }
-            }
-
-            if (projectId && clientEmail && privateKey) {
-                admin.initializeApp({
-                    credential: admin.credential.cert({
-                        projectId,
-                        clientEmail,
-                        privateKey: privateKey.replace(/\\n/g, '\n')
-                    })
-                });
-            } else if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-                admin.initializeApp({
-                    credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY))
-                });
-            } else {
-                admin.initializeApp();
-            }
-        } catch (e) {
-            console.warn("Firebase Admin Init warning:", e.message);
-        }
-    }
-    return admin.firestore();
-}
 
 export default async function handler(req, res) {
     const startTime = Date.now();
@@ -52,16 +10,17 @@ export default async function handler(req, res) {
         let testMode = req.body?.gibTestMode !== undefined ? req.body.gibTestMode : (req.query?.gibTestMode !== undefined ? req.query.gibTestMode === 'true' : undefined);
 
         if (!username || !password) {
-            try {
-                const db = getDb();
-                const docId = 'info';
-                const companyDoc = await db.collection('company_data').doc(docId).get();
-                const data = companyDoc.exists ? companyDoc.data() : {};
-                username = username || data.gibUsername;
-                password = password || data.gibPassword;
-                if (testMode === undefined) testMode = data.gibTestMode ?? false;
-            } catch (dbErr) {
-                console.warn("Db fallback error:", dbErr.message);
+            if (db) {
+                try {
+                    const docId = 'info';
+                    const companyDoc = await db.collection('company_data').doc(docId).get();
+                    const data = companyDoc.exists ? companyDoc.data() : {};
+                    username = username || data.gibUsername;
+                    password = password || data.gibPassword;
+                    if (testMode === undefined) testMode = data.gibTestMode ?? false;
+                } catch (dbErr) {
+                    console.warn("Db fallback error:", dbErr.message);
+                }
             }
         }
         if (testMode === undefined) testMode = false;

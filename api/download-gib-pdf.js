@@ -94,31 +94,40 @@ export default async function handler(req, res) {
                 else if (invoiceData.createdAt) targetDate = new Date(invoiceData.createdAt);
                 else targetDate = new Date();
 
-                const startDate = new Date(targetDate);
-                startDate.setDate(startDate.getDate() - 14);
-                const endDate = new Date(targetDate);
-                endDate.setDate(endDate.getDate() + 14);
+                const today = new Date();
+                const searchWindows = [];
 
-                let drafts = [];
-                try {
-                    drafts = await api.getBasicInvoices({ startDate, endDate });
-                } catch (dErr) {}
+                const s1 = new Date(targetDate); s1.setDate(s1.getDate() - 3);
+                const e1 = new Date(targetDate); e1.setDate(e1.getDate() + 3);
+                searchWindows.push({ start: s1, end: e1 });
 
-                if (!drafts || drafts.length === 0) {
+                const s2 = new Date(today); s2.setDate(s2.getDate() - 6);
+                const e2 = new Date(today);
+                searchWindows.push({ start: s2, end: e2 });
+
+                const seenUuids = new Set();
+                const drafts = [];
+
+                for (const w of searchWindows) {
                     try {
-                        const today = new Date();
-                        const past28 = new Date(today);
-                        past28.setDate(past28.getDate() - 28);
-                        drafts = await api.getBasicInvoices({ startDate: past28, endDate: today });
-                    } catch (dErr2) {}
+                        const list = await api.getBasicInvoices({ startDate: w.start, endDate: w.end });
+                        for (const d of (list || [])) {
+                            if (d.error) continue;
+                            const uid = d.uuid || d.ettn;
+                            if (uid && !seenUuids.has(uid)) {
+                                seenUuids.add(uid);
+                                drafts.push(d);
+                            }
+                        }
+                    } catch (_) {}
                 }
 
                 const buyerVkn = (invoiceData.buyerVkn || invoiceData.buyer?.taxOrIdentityNumber || invoiceData.taxOrIdentityNumber || '').replace(/\s/g, '').trim();
-                let found = (drafts || []).find(d => (d.uuid === realUuid || d.ettn === realUuid));
+                let found = drafts.find(d => (d.uuid === realUuid || d.ettn === realUuid));
                 if (!found && buyerVkn) {
-                    found = (drafts || []).find(d => (d.taxOrIdentityNumber || d.aliciVknTckn || '').replace(/\s/g, '').trim() === buyerVkn);
+                    found = drafts.find(d => (d.taxOrIdentityNumber || d.aliciVknTckn || '').replace(/\s/g, '').trim() === buyerVkn);
                 }
-                if (!found && drafts && drafts.length === 1) {
+                if (!found && drafts.length === 1) {
                     found = drafts[0];
                 }
 

@@ -96,83 +96,88 @@ export default async function handler(req, res) {
             targetDate = new Date();
         }
         
-        // GIB portal REJECTS queries larger than 1 month, returning an empty list!
-        // We query a safe 28-day window around targetDate.
-        let startDate = new Date(targetDate);
-        startDate.setDate(startDate.getDate() - 14);
-        
-        let endDate = new Date(targetDate);
-        endDate.setDate(endDate.getDate() + 14);
+        // 3. Find BasicInvoice
+        // GİB portalı 7 günden uzun tarih aralıklarını 'Seçilen tarih aralığı 7 günden fazla olamaz!' hatası ile reddeder.
+        // Bu nedenle güvenli 6 günlük pencereler halinde arama yapıyoruz.
+        const searchWindows = [];
+        const tDate = new Date(targetDate);
+        const today = new Date();
 
-        let basicInvoice = null;
+        // 1. targetDate etrafında 6 günlük pencere (-3 gün, +3 gün)
+        const s1 = new Date(tDate); s1.setDate(s1.getDate() - 3);
+        const e1 = new Date(tDate); e1.setDate(e1.getDate() + 3);
+        searchWindows.push({ start: s1, end: e1 });
 
-        // Try direct findBasicInvoice first
-        if (invoiceData.gibUuid) {
+        // 2. Bugün etrafında 6 günlük pencere (-6 gün, bugün)
+        const s2 = new Date(today); s2.setDate(s2.getDate() - 6);
+        const e2 = new Date(today);
+        searchWindows.push({ start: s2, end: e2 });
+
+        // 3. targetDate öncesi 6 günlük pencere (-9 gün, -3 gün)
+        const s3 = new Date(tDate); s3.setDate(s3.getDate() - 9);
+        const e3 = new Date(tDate); e3.setDate(e3.getDate() - 3);
+        searchWindows.push({ start: s3, end: e3 });
+
+        // 4. targetDate sonrası 6 günlük pencere (+3 gün, +9 gün)
+        const s4 = new Date(tDate); s4.setDate(s4.getDate() + 3);
+        const e4 = new Date(tDate); e4.setDate(e4.getDate() + 9);
+        searchWindows.push({ start: s4, end: e4 });
+
+        const seenUuids = new Set();
+        const drafts = [];
+
+        for (const w of searchWindows) {
             try {
-                basicInvoice = await api.findBasicInvoice(invoiceData.gibUuid, {
-                    startDate: startDate,
-                    endDate: endDate
-                });
-            } catch (findErr) {
-                console.warn("[sign-gib-invoice] Direct UUID search failed, attempting fallback resolution...", findErr.message);
+                const list = await api.getBasicInvoices({ startDate: w.start, endDate: w.end });
+                for (const d of (list || [])) {
+                    if (d.error) continue;
+                    const uid = d.uuid || d.ettn;
+                    if (uid && !seenUuids.has(uid)) {
+                        seenUuids.add(uid);
+                        drafts.push(d);
+                    }
+                }
+            } catch (err) {
+                console.warn("[sign-gib-invoice] Window search error:", err.message);
             }
         }
 
-        // Fallback: If not found directly, search drafts in targetDate window and current window
-        if (!basicInvoice) {
-            let drafts = [];
-            try {
-                drafts = await api.getBasicInvoices({ startDate: startDate, endDate: endDate });
-            } catch (dErr) {
-                console.warn("[sign-gib-invoice] Error getting drafts around targetDate:", dErr.message);
+        let basicInvoice = null;
+
+        if (drafts.length > 0) {
+            // 1. UUID eşleşmesi (Doğrudan saklanan gibUuid)
+            if (invoiceData.gibUuid) {
+                basicInvoice = drafts.find(d => (d.uuid === invoiceData.gibUuid || d.ettn === invoiceData.gibUuid));
             }
-
-            // If empty, also try the last 28 days from today
-            if (!drafts || drafts.length === 0) {
-                try {
-                    const today = new Date();
-                    const past28 = new Date(today);
-                    past28.setDate(past28.getDate() - 28);
-                    drafts = await api.getBasicInvoices({ startDate: past28, endDate: today });
-                } catch (dErr2) {
-                    console.warn("[sign-gib-invoice] Error getting drafts from last 28 days:", dErr2.message);
-                }
-            }
-
-            if (drafts && drafts.length > 0) {
-                // 1. Try matching by UUID (stored gibUuid)
-                let found = drafts.find(d => (d.uuid === invoiceData.gibUuid || d.ettn === invoiceData.gibUuid));
-                
-                // 2. Try matching by Buyer VKN for unapproved drafts
-                if (!found) {
-                    const buyerVkn = (invoiceData.buyerVkn || invoiceData.buyer?.taxOrIdentityNumber || invoiceData.taxOrIdentityNumber || '').replace(/\s/g, '').trim();
-                    if (buyerVkn) {
-                        found = [...drafts].reverse().find(d => {
-                            const dVkn = (d.taxOrIdentityNumber || d.aliciVknTckn || '').replace(/\s/g, '').trim();
-                            const dStatus = d.approvalStatus || d.onayDurumu || '';
-                            return dVkn === buyerVkn && (dStatus === 'Onaylanmadı' || dStatus.toLowerCase().includes('onaylanma'));
-                        });
-                    }
-                }
-
-                // 3. If there is only one unapproved draft in total, pick it
-                if (!found) {
-                    const unapprovedDrafts = drafts.filter(d => {
+            
+            // 2. Alıcı VKN eşleşmesi (Onaylanmamış taslaklar arasından)
+            if (!basicInvoice) {
+                const buyerVkn = (invoiceData.buyerVkn || invoiceData.buyer?.taxOrIdentityNumber || invoiceData.taxOrIdentityNumber || '').replace(/\s/g, '').trim();
+                if (buyerVkn) {
+                    basicInvoice = [...drafts].reverse().find(d => {
+                        const dVkn = (d.taxOrIdentityNumber || d.aliciVknTckn || '').replace(/\s/g, '').trim();
                         const dStatus = d.approvalStatus || d.onayDurumu || '';
-                        return dStatus === 'Onaylanmadı' || dStatus.toLowerCase().includes('onaylanma');
+                        return dVkn === buyerVkn && (dStatus === 'Onaylanmadı' || dStatus.toLowerCase().includes('onaylanma'));
                     });
-                    if (unapprovedDrafts.length === 1) {
-                        found = unapprovedDrafts[0];
-                    }
                 }
+            }
 
-                if (found) {
-                    basicInvoice = found;
-                    const realUuid = found.uuid || found.ettn;
-                    if (realUuid && realUuid !== invoiceData.gibUuid) {
-                        console.log(`[sign-gib-invoice] Successfully recovered real UUID: ${realUuid}`);
-                        await invoiceRef.update({ gibUuid: realUuid });
-                    }
+            // 3. Sistemde onaylanmamış tek taslak varsa seç
+            if (!basicInvoice) {
+                const unapprovedDrafts = drafts.filter(d => {
+                    const dStatus = d.approvalStatus || d.onayDurumu || '';
+                    return dStatus === 'Onaylanmadı' || dStatus.toLowerCase().includes('onaylanma');
+                });
+                if (unapprovedDrafts.length === 1) {
+                    basicInvoice = unapprovedDrafts[0];
+                }
+            }
+
+            if (basicInvoice) {
+                const realUuid = basicInvoice.uuid || basicInvoice.ettn;
+                if (realUuid && realUuid !== invoiceData.gibUuid) {
+                    console.log(`[sign-gib-invoice] Successfully recovered real UUID: ${realUuid}`);
+                    await invoiceRef.update({ gibUuid: realUuid });
                 }
             }
         }

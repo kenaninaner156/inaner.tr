@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "rundev": "vite",
     "build": "node scripts/generate-version.js && vite build && node scripts/deploy-to-drive.mjs",
     "lint": "eslint .",
     "preview": "vite preview",

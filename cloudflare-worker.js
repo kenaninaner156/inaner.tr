@@ -96,6 +96,15 @@ export default {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
+    // Telemetri harici tum istekleri (GİB e-Arsiv, Drive, Auth, Admin vb.) istek govdesini tuketmeden dogrudan orijine (Vercel) aktar
+    const isSaveLocationPath = url.pathname.includes('save-location') || url.pathname.includes('location');
+    const queryAction = url.searchParams.get('action');
+    const isTelemetryAction = queryAction && ['test_d1', 'get_debug', 'sync_geofences', 'get_history', 'get_live', 'get_vehicles', 'delete_device'].includes(queryAction);
+
+    if (!isSaveLocationPath && !isTelemetryAction) {
+      return fetch(request);
+    }
+
     try {
       const EXPECTED_TOKEN = "inaner123";
 
@@ -314,6 +323,13 @@ export default {
       const isSaveLocation = url.pathname.includes('save-location') || url.pathname.includes('location') || hasCoords;
 
       if (!isSaveLocation) {
+        if (rawBodyText) {
+          return fetch(request.url, {
+            method: request.method,
+            headers: request.headers,
+            body: rawBodyText
+          });
+        }
         return fetch(request);
       }
 
