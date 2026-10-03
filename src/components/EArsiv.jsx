@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DataContext } from '../context/DataContext';
@@ -567,7 +567,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         try {
             const user = auth.currentUser;
             if (!user) throw new Error("Kullanıcı oturumu bulunamadı.");
-            const token = await user.getIdToken();
+            const token = await user.getIdToken(true);
 
             const res = await fetch('/api/gib-logout', {
                 method: 'POST',
@@ -599,7 +599,9 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         setSmsTargetInvoice(invoice);
         
         try {
-            const token = await auth.currentUser.getIdToken();
+            const user = auth.currentUser;
+            if (!user) throw new Error("Kullanıcı oturumu bulunamadı. Lütfen sayfayı yenileyin.");
+            const token = await user.getIdToken(true);
             const res = await fetch('/api/send-gib-sms', {
                 method: 'POST',
                 headers: {
@@ -635,7 +637,9 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         setIsApprovingSms('submitting');
         
         try {
-            const token = await auth.currentUser.getIdToken();
+            const user = auth.currentUser;
+            if (!user) throw new Error("Kullanıcı oturumu bulunamadı. Lütfen sayfayı yenileyin.");
+            const token = await user.getIdToken(true);
             const res = await fetch('/api/sign-gib-invoice', {
                 method: 'POST',
                 headers: {
@@ -655,7 +659,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                 throw new Error(data.error || 'Fatura imzalanamadı.');
             }
             
-            showToast('success', 'Fatura başarıyla imzalandı!');
+            showToast('success', 'Fatura başarıyla imzalandı ve resmi belgesi eklendi!');
             setSmsModalOpen(false);
             setSmsCode('');
         } catch (err) {
@@ -666,10 +670,27 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
     };
 
     const handleDownloadPdf = async (invoice) => {
+        // 1. Faturada kayıtlı resmi PDF veya belge varsa GİB'e hiç gitmeden doğrudan aç
+        const existingFile = invoice.files?.find(f => 
+            f.name?.toLowerCase().endsWith('.pdf') || 
+            f.type === 'application/pdf' || 
+            f.name?.toLowerCase().includes('e-arsiv') ||
+            f.name?.toLowerCase().includes('gib')
+        ) || invoice.files?.[0];
+
+        if (existingFile) {
+            handleViewManualPdf(existingFile);
+            showToast('info', 'Fatura sistemdeki resmi ekten açıldı.');
+            return;
+        }
+
+        // 2. Ekli dosya yoksa GİB portalından tek seferlik çek, hem aç hem de faturaya kaydet
         setIsDownloadingPdf(invoice.id);
         
         try {
-            const token = await auth.currentUser.getIdToken();
+            const user = auth.currentUser;
+            if (!user) throw new Error("Kullanıcı oturumu bulunamadı. Lütfen sayfayı yenileyin.");
+            const token = await user.getIdToken(true);
             const res = await fetch(`/api/download-gib-pdf?invoiceId=${invoice.id}`, {
                 method: 'GET',
                 headers: {
@@ -687,12 +708,42 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                 throw new Error(errorMsg);
             }
             
-            const blob = await res.blob();
+            const htmlText = await res.text();
+            
+            // Faturaya ek olarak kalıcı kaydet
+            try {
+                const base64Data = 'data:text/html;charset=utf-8;base64,' + btoa(unescape(encodeURIComponent(htmlText)));
+                const docNumber = invoice.invoiceNo || invoice.docId || 'GIB';
+                const officialFile = {
+                    id: Date.now(),
+                    name: `${docNumber}_e-Arsiv.html`,
+                    type: 'text/html',
+                    size: htmlText.length,
+                    data: base64Data
+                };
+                const invoiceRef = doc(db, 'invoices', invoice.id);
+                const currentFiles = invoice.files || [];
+                await updateDoc(invoiceRef, {
+                    files: [...currentFiles, officialFile]
+                });
+            } catch (saveErr) {
+                console.warn('Ek olarak kaydedilemedi:', saveErr);
+            }
+
+            const blob = new Blob([htmlText], { type: 'text/html;charset=utf-8' });
             const url = window.URL.createObjectURL(blob);
-            window.open(url, '_blank');
+            const win = window.open(url, '_blank');
+            if (!win) {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${invoice.invoiceNo || invoice.docId || 'fatura'}_e-Arsiv.html`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
             setTimeout(() => window.URL.revokeObjectURL(url), 10000);
             
-            showToast('success', 'Fatura yeni sekmede açıldı. (Yazdırma ekranı otomatik gelecektir)');
+            showToast('success', 'Fatura GİB portalından çekildi ve faturaya kalıcı olarak eklendi.');
         } catch (err) {
             showToast('error', err.message);
         } finally {
@@ -844,7 +895,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             const user = auth.currentUser;
             if (!user) throw new Error("Oturum bulunamadı. Lütfen sayfayı yenileyip tekrar giriş yapın.");
             
-            const idToken = await user.getIdToken();
+            const idToken = await user.getIdToken(true);
 
             const response = await fetch('/api/create-gib-draft', {
                 method: 'POST',

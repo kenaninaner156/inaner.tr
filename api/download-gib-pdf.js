@@ -140,6 +140,28 @@ export default async function handler(req, res) {
                 }
             }
             
+            // Belgeyi faturaya otomatik ek olarak kaydet (bir sonraki sorgularda GİB'e gitmemek için)
+            try {
+                const currentFiles = invoiceData.files || [];
+                const alreadyAttached = currentFiles.some(f => f.name?.includes('e-Arsiv') || f.name?.includes('GIB') || f.name?.toLowerCase().endsWith('.pdf'));
+                if (!alreadyAttached && htmlString) {
+                    const docNumber = invoiceData.invoiceNo || invoiceData.docId || 'GIB';
+                    const base64Data = 'data:text/html;charset=utf-8;base64,' + Buffer.from(htmlString).toString('base64');
+                    const officialFile = {
+                        id: Date.now(),
+                        name: `${docNumber}_e-Arsiv.html`,
+                        type: 'text/html',
+                        size: Buffer.byteLength(htmlString, 'utf8'),
+                        data: base64Data
+                    };
+                    await invoiceRef.update({
+                        files: [...currentFiles, officialFile]
+                    });
+                }
+            } catch (attErr) {
+                console.warn("[download-gib-pdf] Auto-attach failed:", attErr.message);
+            }
+
             try { await api.logout(); } catch (e) {}
 
             res.setHeader('Content-Type', 'text/html; charset=utf-8');

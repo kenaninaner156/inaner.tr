@@ -193,11 +193,32 @@ export default async function handler(req, res) {
             throw new Error("Fatura imzalama islemi basarisiz oldu. SMS kodu yanlis olabilir.");
         }
 
-        // 5. Update DB Status
-        await invoiceRef.update({
+        // 5. Update DB Status & Auto-attach official invoice document
+        const updatePayload = {
             gibStatus: 'Signed',
             gibStatusDate: new Date().toISOString()
-        });
+        };
+
+        try {
+            const htmlString = await api.getInvoiceHtml(uuid, true, false);
+            if (htmlString) {
+                const currentFiles = invoiceData.files || [];
+                const docNumber = basicInvoice.documentNumber || basicInvoice.belgeNumarasi || invoiceData.invoiceNo || 'GIB';
+                const base64Data = 'data:text/html;charset=utf-8;base64,' + Buffer.from(htmlString).toString('base64');
+                const officialFile = {
+                    id: Date.now(),
+                    name: `${docNumber}_e-Arsiv.html`,
+                    type: 'text/html',
+                    size: Buffer.byteLength(htmlString, 'utf8'),
+                    data: base64Data
+                };
+                updatePayload.files = [...currentFiles, officialFile];
+            }
+        } catch (fetchErr) {
+            console.warn("[sign-gib-invoice] Auto-attach official invoice failed:", fetchErr.message);
+        }
+
+        await invoiceRef.update(updatePayload);
 
         try { await api.logout(); } catch (e) {}
 
