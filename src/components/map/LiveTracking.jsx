@@ -3,43 +3,50 @@ import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line 
 import { Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { calcStats, cleanGpsSpikes, haversineKm, getPointTime } from '../../utils/mapUtils';
+import { snapRouteToRoads, snapPointToRoad } from '../../utils/snapToRoad';
 import { Activity, WifiOff, X, Search, ShieldAlert, Navigation, Compass, Crosshair, ChevronRight, ChevronDown, Check } from 'lucide-react';
 
 // ── Tema renkleri — site ile tam uyumlu ──────────────────────────────────
 const PANEL_BG     = 'rgba(13, 18, 25, 0.96)';
 const PANEL_BORDER = '1px solid rgba(255, 255, 255, 0.05)';
 
-// ── Leaflet Dinamik İkon Oluşturucu (Obsidiyen & Elegant Çerçeve) ────────
+// ── Leaflet Dinamik İkon Oluşturucu (Obsidiyen Çerçeveli Tır İkonu) ────────
+const vehicleIconCache = new Map();
+
 const createVehicleIcon = (isOnline, isMapped, speedKmh = 0, isFollowed = false) => {
   const isMoving = isOnline && speedKmh > 7;
-  
-  let borderColor = 'rgba(255, 255, 255, 0.12)';
+  const cacheKey = `${isOnline ? 1 : 0}_${isMoving ? 1 : 0}_${isFollowed ? 1 : 0}_${isMapped ? 1 : 0}`;
+  if (vehicleIconCache.has(cacheKey)) {
+    return vehicleIconCache.get(cacheKey);
+  }
+
+  let borderColor = 'rgba(255, 255, 255, 0.2)';
   let shadow = '0 4px 14px rgba(0,0,0,0.7)';
   
   if (isFollowed) {
     borderColor = '#34d399';
-    shadow = '0 4px 20px rgba(0,0,0,0.85), 0 0 12px rgba(52, 211, 153, 0.45), inset 0 1px 0 rgba(255,255,255,0.2)';
+    shadow = '0 4px 20px rgba(0,0,0,0.85), 0 0 12px rgba(52, 211, 153, 0.45)';
   } else if (isOnline) {
     if (isMoving) {
-      borderColor = 'rgba(52, 211, 153, 0.8)';
-      shadow = '0 4px 16px rgba(0,0,0,0.75), 0 0 10px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255,255,255,0.15)';
+      borderColor = '#10b981';
+      shadow = '0 4px 16px rgba(0,0,0,0.75), 0 0 10px rgba(16, 185, 129, 0.35)';
     } else {
-      borderColor = 'rgba(245, 158, 11, 0.7)';
-      shadow = '0 4px 16px rgba(0,0,0,0.75), 0 0 8px rgba(245, 158, 11, 0.25), inset 0 1px 0 rgba(255,255,255,0.15)';
+      borderColor = '#f59e0b';
+      shadow = '0 4px 16px rgba(0,0,0,0.75), 0 0 8px rgba(245, 158, 11, 0.3)';
     }
   }
 
   const imgFilter = isOnline 
-    ? 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' 
-    : 'grayscale(1) opacity(0.4)';
+    ? 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))' 
+    : 'grayscale(0.6) opacity(0.65)';
 
   const html = `
-    <div style="position: relative; width: 38px; height: 38px;">
+    <div style="position: relative; width: 40px; height: 40px; pointer-events: auto;">
       <div style="
-        width: 38px;
-        height: 38px;
+        width: 40px;
+        height: 40px;
         background: #0c1018;
-        border: 1.5px solid ${borderColor};
+        border: 2px solid ${borderColor};
         border-radius: 50%;
         box-shadow: ${shadow};
         display: flex;
@@ -47,25 +54,35 @@ const createVehicleIcon = (isOnline, isMapped, speedKmh = 0, isFollowed = false)
         justify-content: center;
         overflow: hidden;
         cursor: pointer;
-        transition: border-color 0.25s ease, box-shadow 0.25s ease;
+        box-sizing: border-box;
       ">
-        <img src="/tir-clear.png?v=8" style="
-          width: 72%;
-          height: 72%;
-          object-fit: contain;
-          filter: ${imgFilter};
-        " />
+        <img 
+          src="/tir-clear.png" 
+          alt="Tır" 
+          style="
+            width: 28px !important;
+            height: 28px !important;
+            max-width: 28px !important;
+            max-height: 28px !important;
+            object-fit: contain !important;
+            filter: ${imgFilter};
+            display: block !important;
+            pointer-events: none;
+          " 
+        />
       </div>
     </div>
   `;
 
-  return L.divIcon({
+  const icon = L.divIcon({
     html: html,
     className: 'custom-vehicle-marker-div',
-    iconSize: [38, 38],
-    iconAnchor: [19, 19],
-    popupAnchor: [0, -20],
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
   });
+
+  vehicleIconCache.set(cacheKey, icon);
+  return icon;
 };
 
 // ── Hıza göre renk (Traccar GPS hız verisi knot cinsindedir: 1 knot = 1.852 km/h) ───
@@ -155,9 +172,25 @@ function SpeedPolylines({ session, isFollowed, zoom }) {
     return cleanGpsSpikes(session);
   }, [session]);
 
+  const [snappedData, setSnappedData] = useState(null);
+
+  useEffect(() => {
+    if (!cleaned || cleaned.length < 2) {
+      setSnappedData(null);
+      return;
+    }
+    let isMounted = true;
+    snapRouteToRoads(cleaned).then(res => {
+      if (isMounted && res && res.allPositions && res.allPositions.length >= 2) {
+        setSnappedData(res);
+      }
+    });
+    return () => { isMounted = false; };
+  }, [cleaned]);
+
   if (!cleaned || cleaned.length < 2) return null;
 
-  const segments = [];
+  const rawSegments = [];
   
   // Dinamik ve akıcı çizgi kalınlığı formülü (zoom derecesine göre kesintisiz ölçeklenir)
   const baseWeight = Math.max(1.5, (zoom - 7) * 0.35 + 1.2);
@@ -180,31 +213,56 @@ function SpeedPolylines({ session, isFollowed, zoom }) {
     }
 
     const color = getSpeedColor(a.speed);
-    const last = segments[segments.length - 1];
+    const last = rawSegments[rawSegments.length - 1];
     if (last && last.color === color) {
       last.positions.push([b.lat, b.lon]);
     } else {
-      segments.push({ color, positions: [[a.lat, a.lon], [b.lat, b.lon]] });
+      rawSegments.push({ color, positions: [[a.lat, a.lon], [b.lat, b.lon]] });
     }
   }
+
+  const rawPositions = cleaned.filter(p => !isNaN(p.lat)).map(p => [p.lat, p.lon]);
+  const displayPositions = snappedData && snappedData.allPositions && snappedData.allPositions.length >= 2
+    ? snappedData.allPositions
+    : rawPositions;
+  const activeSegments = snappedData && snappedData.segments && snappedData.segments.length > 0
+    ? snappedData.segments
+    : rawSegments;
+
+  // 1. SEÇİLİ OLMAYAN DİĞER ARAÇLAR: Silik gölge hat (karışmayı tamamen önler)
+  if (!isFollowed) {
+    const faintWeight = Math.max(1.5, (zoom - 7) * 0.25 + 1.2);
+    return (
+      <Polyline
+        positions={displayPositions}
+        color="#64748b"
+        weight={faintWeight}
+        opacity={0.25}
+        dashArray="4, 4"
+        smoothFactor={1.2}
+      />
+    );
+  }
+
+  // 2. SEÇİLİ ARAÇ: Canlı, parlak, renkli hız segmentleri ve derin alt gölge
   return (
     <>
-      {/* ── Alt Gölge (Yumuşak Dış Hat) ── */}
+      {/* ── Alt Gölge (Derin Dış Hat) ── */}
       <Polyline
-        positions={cleaned.filter(p => !isNaN(p.lat)).map(p => [p.lat, p.lon])}
-        color="#000"
+        positions={displayPositions}
+        color="#000000"
         weight={shadowWeight}
-        opacity={0.35}
+        opacity={0.45}
         smoothFactor={1}
       />
-      {/* ── Renkli Hız Çizgileri (Daima Kesintisiz Düz Çizgi) ── */}
-      {segments.map((seg, i) => (
+      {/* ── Renkli Hız Çizgileri (Tam Olarak Yola Oturtulmuş) ── */}
+      {activeSegments.map((seg, i) => (
         <Polyline
           key={i}
           positions={seg.positions}
           color={seg.color}
           weight={weight}
-          opacity={isFollowed ? 0.95 : 0.8}
+          opacity={0.95}
           smoothFactor={1}
         />
       ))}
@@ -298,29 +356,24 @@ function VehicleMarker({ driverId, lastPoint, isOnline, isFollowed, speedKmh, na
   const map = useMap();
   const markerRef = useRef(null);
 
+  if (!lastPoint || isNaN(lastPoint.lat)) return null;
+
   const handleClick = () => {
     setFollowedDriverId(driverId);
     setIsCameraFollowActive(true);
     centerVehicleOnMap(map, lastPoint.lat, lastPoint.lon, 15, showSidebar);
   };
 
+  const icon = createVehicleIcon(isOnline, isMapped, speedKmh, isFollowed);
+
   return (
     <Marker
       ref={markerRef}
       position={[lastPoint.lat, lastPoint.lon]}
-      icon={createVehicleIcon(isOnline, isMapped, speedKmh, isFollowed)}
+      icon={icon}
       zIndexOffset={isFollowed ? 1000 : 0}
       eventHandlers={{ click: handleClick }}
-    >
-      <Popup className="vehicle-popup" autoPan={false}>
-        <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-          <div style={{ fontWeight: 700, color: '#f1f3f5', fontSize: 11, lineHeight: 1.2 }}>{name}</div>
-          <div style={{ fontSize: 9, color: isOnline ? (speedKmh > 7 ? '#10b981' : '#cbd5e1') : '#64748b', fontWeight: 600 }}>
-            <span>{isOnline ? (speedKmh > 7 ? 'Yolda' : (parkDurationText || 'Park')) : 'Çevrimdışı'}</span>
-          </div>
-        </div>
-      </Popup>
-    </Marker>
+    />
   );
 }
 
@@ -779,6 +832,7 @@ export default function LiveTracking({
         driverName: info.driverName,
         plate: info.plate,
         name: info.driverName,
+        heading: lastPoint.heading || 0,
         isMapped,
         parkDurationMin,
         parkDurationText
@@ -797,36 +851,17 @@ export default function LiveTracking({
   return (
     <>
       <style>{`
-        .vehicle-popup .leaflet-popup-content-wrapper {
-          border-radius: 12px; padding: 0; overflow: hidden;
-          background: ${PANEL_BG}; border: ${PANEL_BORDER};
-          box-shadow: 0 12px 24px rgba(0,0,0,0.6);
-        }
-        .vehicle-popup .leaflet-popup-tip-container { display: none; }
-        .vehicle-popup .leaflet-popup-content { margin: 0; width: 160px !important; }
-        .vehicle-popup .leaflet-popup-close-button { display: none !important; }
-        
         .custom-vehicle-marker-div {
           background: transparent !important;
           border: none !important;
         }
-
-        /* Pulse animations for vehicles on the map */
-        @keyframes markerPulseActive {
-          0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-          70% { box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-        }
-        @keyframes markerPulseUnmapped {
-          0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6); }
-          70% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
-        }
-        .pulse-active {
-          animation: markerPulseActive 1.5s infinite;
-        }
-        .pulse-unmapped {
-          animation: markerPulseUnmapped 2s infinite;
+        .custom-vehicle-marker-div img {
+          width: 28px !important;
+          height: 28px !important;
+          max-width: 28px !important;
+          max-height: 28px !important;
+          object-fit: contain !important;
+          display: block !important;
         }
       `}</style>
 

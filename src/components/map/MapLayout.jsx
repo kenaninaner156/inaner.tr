@@ -151,6 +151,7 @@ const pollEdgeLive = async (companyId) => {
               lon: pt.lon,
               speed: pt.speed || 0,
               altitude: pt.altitude || 0,
+              heading: pt.heading || veh.heading || 0,
               timestamp: pt.timestamp,
               createdAt: pt.timestamp,
               ignition: (pt.speed || 0) > 2
@@ -167,6 +168,7 @@ const pollEdgeLive = async (companyId) => {
             lon: veh.lon,
             speed: veh.speed || 0,
             altitude: veh.altitude || 0,
+            heading: veh.heading || 0,
             timestamp: veh.updatedAt || veh.timestamp || new Date().toISOString(),
             createdAt: veh.updatedAt || veh.timestamp || new Date().toISOString(),
             ignition: (veh.speed || 0) > 2,
