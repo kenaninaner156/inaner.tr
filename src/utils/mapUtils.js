@@ -98,6 +98,18 @@ export function cleanGpsSpikes(points, maxSpeedKmh = 180) {
 }
 
 /**
+ * Traccar GPS hız verisine göre rota segment rengi döndürür (1 knot = 1.852 km/h)
+ */
+export function getSpeedColor(speedKnots) {
+  const kmh = (speedKnots || 0) * 1.852;
+  if (kmh < 5)  return '#ef4444'; // Kırmızı (Duran / Rölanti)
+  if (kmh < 30) return '#f97316'; // Turuncu (Şehir içi yavaş)
+  if (kmh < 70) return '#6366f1'; // İndigo (Orta seyir)
+  if (kmh < 90) return '#38bdf8'; // Açık Mavi (Standart Karayolu Seyri)
+  return '#22c55e'; // Yeşil (Otoyol / Hızlı)
+}
+
+/**
  * Ray-Casting algoritmasıyla bir koordinatın çokgen (poligon) sınırları içinde olup olmadığını kontrol eder.
  * @param {{lat: number, lon: number}} point 
  * @param {Array<[number, number]>} polygon [[lat, lon], [lat, lon], ...]

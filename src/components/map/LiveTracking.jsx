@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line 
 import { Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { calcStats, cleanGpsSpikes, haversineKm, getPointTime } from '../../utils/mapUtils';
-import { snapRouteToRoads, snapPointToRoad } from '../../utils/snapToRoad';
 import { Activity, WifiOff, X, Search, ShieldAlert, Navigation, Compass, Crosshair, ChevronRight, ChevronDown, Check } from 'lucide-react';
 
 // ── Tema renkleri — site ile tam uyumlu ──────────────────────────────────
@@ -172,22 +171,6 @@ function SpeedPolylines({ session, isFollowed, zoom }) {
     return cleanGpsSpikes(session);
   }, [session]);
 
-  const [snappedData, setSnappedData] = useState(null);
-
-  useEffect(() => {
-    if (!cleaned || cleaned.length < 2) {
-      setSnappedData(null);
-      return;
-    }
-    let isMounted = true;
-    snapRouteToRoads(cleaned).then(res => {
-      if (isMounted && res && res.allPositions && res.allPositions.length >= 2) {
-        setSnappedData(res);
-      }
-    });
-    return () => { isMounted = false; };
-  }, [cleaned]);
-
   if (!cleaned || cleaned.length < 2) return null;
 
   const rawSegments = [];
@@ -222,19 +205,13 @@ function SpeedPolylines({ session, isFollowed, zoom }) {
   }
 
   const rawPositions = cleaned.filter(p => !isNaN(p.lat)).map(p => [p.lat, p.lon]);
-  const displayPositions = snappedData && snappedData.allPositions && snappedData.allPositions.length >= 2
-    ? snappedData.allPositions
-    : rawPositions;
-  const activeSegments = snappedData && snappedData.segments && snappedData.segments.length > 0
-    ? snappedData.segments
-    : rawSegments;
 
   // 1. SEÇİLİ OLMAYAN DİĞER ARAÇLAR: Silik gölge hat (karışmayı tamamen önler)
   if (!isFollowed) {
     const faintWeight = Math.max(1.5, (zoom - 7) * 0.25 + 1.2);
     return (
       <Polyline
-        positions={displayPositions}
+        positions={rawPositions}
         color="#64748b"
         weight={faintWeight}
         opacity={0.25}
@@ -249,14 +226,14 @@ function SpeedPolylines({ session, isFollowed, zoom }) {
     <>
       {/* ── Alt Gölge (Derin Dış Hat) ── */}
       <Polyline
-        positions={displayPositions}
+        positions={rawPositions}
         color="#000000"
         weight={shadowWeight}
         opacity={0.45}
         smoothFactor={1}
       />
-      {/* ── Renkli Hız Çizgileri (Tam Olarak Yola Oturtulmuş) ── */}
-      {activeSegments.map((seg, i) => (
+      {/* ── Renkli Gerçek GPS Hız Çizgileri ── */}
+      {rawSegments.map((seg, i) => (
         <Polyline
           key={i}
           positions={seg.positions}
