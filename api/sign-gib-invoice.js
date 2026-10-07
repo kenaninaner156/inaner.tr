@@ -199,6 +199,17 @@ export default async function handler(req, res) {
             gibStatusDate: new Date().toISOString()
         };
 
+        let gibAmount = 0;
+        const rawAmount = basicInvoice?.odenecekTutar || basicInvoice?.vergilerDahilToplam || basicInvoice?.toplamTutar || basicInvoice?.amount;
+        if (typeof rawAmount === 'number') {
+            gibAmount = rawAmount;
+        } else if (typeof rawAmount === 'string') {
+            gibAmount = parseFloat(rawAmount.replace(/\./g, '').replace(',', '.')) || parseFloat(rawAmount) || 0;
+        }
+        if (gibAmount > 0 && (!invoiceData.grandTotal || Number(invoiceData.grandTotal) <= 0)) {
+            updatePayload.grandTotal = gibAmount;
+        }
+
         try {
             const htmlString = await api.getInvoiceHtml(uuid, true, false);
             if (htmlString) {

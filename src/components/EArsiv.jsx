@@ -543,10 +543,15 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         }
         try {
             const invoiceRef = doc(db, 'invoices', inv.id);
-            await updateDoc(invoiceRef, {
+            const est = getInvoiceEstimate(inv);
+            const updatePayload = {
                 gibStatus: 'Signed',
                 gibStatusDate: new Date().toISOString()
-            });
+            };
+            if ((!inv.grandTotal || Number(inv.grandTotal) <= 0) && est?.amount) {
+                updatePayload.grandTotal = est.amount;
+            }
+            await updateDoc(invoiceRef, updatePayload);
             showToast('success', 'Fatura durumu "GİB\'de İmzalandı" olarak güncellendi.');
             if (addLog) addLog("Fatura manuel olarak GİB'de İmzalandı işaretlendi: " + (inv.docId || inv.id), "success");
         } catch (err) {
@@ -660,6 +665,20 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             }
             
             showToast('success', 'Fatura başarıyla imzalandı ve resmi belgesi eklendi!');
+            
+            // Onaylanan faturanın hakediş tutarını kalıcı olarak kaydet
+            if (smsTargetInvoice) {
+                const est = getInvoiceEstimate(smsTargetInvoice);
+                if ((!smsTargetInvoice.grandTotal || Number(smsTargetInvoice.grandTotal) <= 0) && est?.amount) {
+                    try {
+                        const invoiceRef = doc(db, 'invoices', smsTargetInvoice.id);
+                        await updateDoc(invoiceRef, { grandTotal: est.amount });
+                    } catch (saveErr) {
+                        console.warn("Fatura tutarı güncellenirken hata:", saveErr);
+                    }
+                }
+            }
+
             setSmsModalOpen(false);
             setSmsCode('');
         } catch (err) {
@@ -1013,9 +1032,12 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
 
     // Helper: Fatura resmi tutarı veya güzergah hafızasından tahmini hakediş tutarı
     const getInvoiceEstimate = (inv) => {
-        if (inv.grandTotal && Number(inv.grandTotal) > 0) {
-            return { isActual: true, amount: Number(inv.grandTotal) };
+        const directAmount = Number(inv.grandTotal ?? inv.totalAmount ?? inv.totalPayable ?? inv.amount ?? inv.netPrice ?? inv.total ?? 0);
+        if (directAmount > 0) {
+            return { isActual: true, amount: directAmount };
         }
+        
+        const isSigned = inv.gibStatus === 'Signed' || inv.gibStatus === 'Approved' || inv.signed === true;
         const trips = inv.trips || [];
         if (trips.length === 0) return null;
         
@@ -1047,7 +1069,8 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
 
         // Taşımacılık 2/10 Tevkifatlı Net KDV (%16): Matrah * 1.16
         const totalPayable = totalNet * 1.16;
-        return { isActual: false, amount: totalPayable };
+        // GİB'de onaylanmış/imzalanmış faturalarda tutar kesinleştiği için tahmini sayılmaz
+        return { isActual: isSigned, amount: totalPayable };
     };
 
     // GİB Health State & Real Login Handshake Probe
@@ -1091,6 +1114,23 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             checkGibHealth();
         }
     }, [isLoadingSettings, gibTestMode]);
+
+    // GİB'de onaylanmış ancak grandTotal alanı henüz veritabanına yazılmamış faturaları senkronize et
+    useEffect(() => {
+        if (!activeInvoices || activeInvoices.length === 0) return;
+        activeInvoices.forEach(inv => {
+            const isSigned = inv.gibStatus === 'Signed' || inv.gibStatus === 'Approved' || inv.signed === true;
+            if (isSigned && (!inv.grandTotal || Number(inv.grandTotal) <= 0)) {
+                const est = getInvoiceEstimate(inv);
+                if (est && est.amount > 0) {
+                    const invoiceRef = doc(db, 'invoices', inv.id);
+                    updateDoc(invoiceRef, { grandTotal: est.amount }).catch(err => {
+                        console.warn('Onaylı fatura tutarı Firestore kaydedilirken hata:', err);
+                    });
+                }
+            }
+        });
+    }, [activeInvoices, routeHistory]);
 
     // Yıllık Finansal Özet Hesaplamaları (2026)
     const currentYear = 2026;
@@ -2395,7 +2435,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                                                         if (!est) {
                                                                             return <span className="text-slate-600 font-mono text-sm">—</span>;
                                                                         }
-                                                                        if (est.isActual) {
+                                                                        if (est.isActual || isSignedOnGib) {
                                                                             return (
                                                                                 <span className="text-white font-bold font-mono text-sm">
                                                                                     {est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
@@ -2613,7 +2653,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                                                         <span className="text-sm font-bold font-mono text-orange-400">
                                                                             ₺{est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                                         </span>
-                                                                        {!est.isActual && (
+                                                                        {(!est.isActual && !isSignedOnGib) && (
                                                                             <span className="text-[9px] text-slate-500 font-medium leading-none mt-0.5">
                                                                                 (Tahmini Tutar)
                                                                             </span>
