@@ -61,10 +61,18 @@ const HOME_NETWORK_IPS = new Set([
 ].filter(Boolean));
 
 function isClientOnHomeNetwork(req) {
-    const rawIp = req?.headers?.['x-forwarded-for'] || req?.headers?.['x-real-ip'] || req?.socket?.remoteAddress || '';
-    const clientIp = String(rawIp).split(',')[0].trim();
-    if (HOME_NETWORK_IPS.has(clientIp)) return true;
     if (req?.query?.local === '1' || req?.headers?.['x-is-local'] === '1') return true;
+    const allHeaders = [
+        req?.headers?.['cf-connecting-ip'],
+        req?.headers?.['true-client-ip'],
+        req?.headers?.['x-forwarded-for'],
+        req?.headers?.['x-real-ip'],
+        req?.socket?.remoteAddress
+    ].filter(Boolean).join(' ');
+
+    for (const homeIp of HOME_NETWORK_IPS) {
+        if (allHeaders.includes(homeIp)) return true;
+    }
     return false;
 }
 
