@@ -1,128 +1,12 @@
-﻿import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useMemo, useEffect } from 'react';
 import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
 import { DataContext } from '../context/DataContext';
-import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key, BarChart3, Award, User, Bell, Send, Image, FileText, Navigation, MapPin, Activity, CheckCircle, XCircle, Clock, Sparkles, Radio, Volume2, VolumeX, Smartphone, Fuel, Wrench, Receipt, CreditCard, Shield, ExternalLink, RefreshCw, Eye, UploadCloud, Menu, Scale } from 'lucide-react';
+import { Building2, Truck, Users, Plus, Edit2, Trash2, Check, X, AlertTriangle, Key, BarChart3, Award, User, Bell, Send, Smartphone, Tablet, Monitor, Image, FileText, Navigation, MapPin, Activity, CheckCircle, XCircle, Clock, Sparkles, Radio, Volume2, VolumeX, Fuel, Wrench, Receipt, CreditCard, Shield, ExternalLink, RefreshCw, Eye, UploadCloud, Menu, Scale } from 'lucide-react';
 import { db, auth } from '../services/firebaseConfig';
 import { collection, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
-import { requestAndSaveNotificationToken } from '../services/notificationService';
+import { requestAndSaveNotificationToken, updateDeviceCustomName } from '../services/notificationService';
 import { uploadToCloudinary } from '../services/cloudinaryService';
-
-const NOTIF_DESTINATIONS = [
-    { id: 'detaylar', label: 'Bildirimler & Görevler', icon: Bell, color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30' },
-    { id: 'map', label: 'Canlı Harita', icon: MapPin, color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30' },
-    { id: 'trips', label: 'Seferler', icon: Truck, color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' },
-    { id: 'fuel', label: 'Mazot Fişleri', icon: Fuel, color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' },
-    { id: 'maintenance', label: 'Araç Bakım', icon: Wrench, color: 'text-orange-400 bg-orange-500/10 border-orange-500/30' },
-    { id: 'invoices', label: 'Fatura Durumu', icon: FileText, color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' },
-    { id: 'earsiv', label: 'E-Arşiv Fatura', icon: Receipt, color: 'text-pink-400 bg-pink-500/10 border-pink-500/30' },
-    { id: 'payments', label: 'Vergi & SGK', icon: Scale, color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' },
-    { id: 'dashboard', label: 'Özet Panel', icon: BarChart3, color: 'text-blue-400 bg-blue-500/10 border-blue-500/30' },
-];
-
-const AVAILABLE_ICONS = [
-    { id: 'thumbs_up', label: '👍 Onay' },
-    { id: 'check', label: '✅ Tik' },
-    { id: 'x', label: '❌ İptal' },
-    { id: 'alert', label: '⚠️ Sorun' },
-    { id: 'map_pin', label: '📍 Harita' },
-    { id: 'truck', label: '🚚 Tır' },
-    { id: 'fuel', label: '⛽ Mazot' },
-    { id: 'file', label: '📄 Evrak' },
-    { id: 'wrench', label: '🔧 Bakım' },
-    { id: 'message', label: '💬 Sohbet' },
-    { id: 'credit_card', label: '💳 Ödeme' },
-    { id: 'sos', label: '🚨 Acil' }
-];
-
-const BUTTON_PRESETS = [
-    {
-        label: '🤝 Standart Onay (2 Buton)',
-        buttons: [
-            { id: '1', label: 'Onayladım', icon: 'thumbs_up', actionType: 'ack_approved', style: 'emerald' },
-            { id: '2', label: 'Sorun Var', icon: 'x', actionType: 'ack_rejected', style: 'red' }
-        ]
-    },
-    {
-        label: '📍 Canlı Harita + Onay (2 Buton)',
-        buttons: [
-            { id: '1', label: 'Canlı Harita', icon: 'map_pin', actionType: 'navigate', targetTab: 'map', style: 'indigo' },
-            { id: '2', label: 'Anladım', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
-        ]
-    },
-    {
-        label: '⛽ Mazot Fişi + Onay (2 Buton)',
-        buttons: [
-            { id: '1', label: 'Mazot Fişi Yükle', icon: 'fuel', actionType: 'navigate', targetTab: 'fuel', style: 'indigo' },
-            { id: '2', label: 'Tamamdır', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
-        ]
-    },
-    {
-        label: '📋 Sefer Detayları + Onay (2 Buton)',
-        buttons: [
-            { id: '1', label: 'Sefer Detayları', icon: 'truck', actionType: 'navigate', targetTab: 'trips', style: 'indigo' },
-            { id: '2', label: 'Yola Çıktım', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
-        ]
-    },
-    {
-        label: '💬 Butonsuz (Sade Bilgilendirme)',
-        buttons: []
-    }
-];
-
-const QUICK_TEMPLATES = [
-    {
-        title: 'İnaner Lojistik - Görev',
-        body: 'Araç fabrikaya ulaştı, yükleme/boşaltma sırasına giriniz.',
-        tab: 'trips',
-        buttons: [
-            { id: '1', label: 'Fabrika Konumu', icon: 'map_pin', actionType: 'navigate', targetTab: 'map', style: 'indigo' },
-            { id: '2', label: 'Yola Çıktım', icon: 'thumbs_up', actionType: 'ack_approved', style: 'emerald' },
-            { id: '3', label: 'Sorun Var', icon: 'x', actionType: 'ack_rejected', style: 'red' }
-        ],
-        label: '🏭 Fabrikaya Ulaşıldı'
-    },
-    {
-        title: 'İnaner Lojistik - Mazot',
-        body: 'Lütfen aldığınız son yakıt fişinin fotoğrafını sisteme yükleyiniz.',
-        tab: 'fuel',
-        buttons: [
-            { id: '1', label: 'Mazot Fişi Yükle', icon: 'fuel', actionType: 'navigate', targetTab: 'fuel', style: 'indigo' },
-            { id: '2', label: 'Yükledim', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
-        ],
-        label: '⛽ Mazot Fişi Girişi'
-    },
-    {
-        title: 'İnaner Lojistik - Evrak',
-        body: 'Sefer irsaliyesini ve kantar fişini sisteme yükleyiniz.',
-        tab: 'detaylar',
-        buttons: [
-            { id: '1', label: 'Evrakları Aç', icon: 'file', actionType: 'navigate', targetTab: 'detaylar', style: 'amber' },
-            { id: '2', label: 'Tamamdır', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
-        ],
-        label: '📄 Evrak & İrsaliye'
-    },
-    {
-        title: 'İnaner Lojistik - Bakım',
-        body: 'Aracınızın periyodik bakım veya muayene zamanı yaklaşmıştır.',
-        tab: 'maintenance',
-        buttons: [
-            { id: '1', label: 'Bakım Detayı', icon: 'wrench', actionType: 'navigate', targetTab: 'maintenance', style: 'indigo' },
-            { id: '2', label: 'Onayladım', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
-        ],
-        label: '🛑 Bakım Zamanı'
-    },
-    {
-        title: 'İnaner Lojistik - Konum',
-        body: 'Lütfen canlı takip uygulamanızın açık olduğunu teyit ediniz.',
-        tab: 'map',
-        buttons: [
-            { id: '1', label: 'Canlı Harita', icon: 'map_pin', actionType: 'navigate', targetTab: 'map', style: 'indigo' },
-            { id: '2', label: 'Açık / Aktif', icon: 'check', actionType: 'ack_approved', style: 'emerald' }
-        ],
-        label: '📍 Konum Kontrolü'
-    }
-];
 
 const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
     const { activeCompanyId, companyData = {} } = useCompany() || {};
@@ -144,47 +28,177 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
 
     const [activeTab, setActiveTab] = useState('trucks');
 
-    // Bildirim sekmesi durumları
+    // Sadeleştirilmiş Cihaz Tabanlı Bildirim Durumları
     const [notifTitle, setNotifTitle] = useState('İnaner Lojistik Duyuru');
     const [notifBody, setNotifBody] = useState('');
-    const [notifRecipient, setNotifRecipient] = useState('all'); // 'all' veya kullanıcı id'si
-    const [notifTargetTab, setNotifTargetTab] = useState('detaylar');
-    const [notifButtons, setNotifButtons] = useState([
-        { id: '1', label: 'Onayladım', icon: 'thumbs_up', actionType: 'ack_approved', style: 'emerald' },
-        { id: '2', label: 'Sorun Var', icon: 'x', actionType: 'ack_rejected', style: 'red' }
-    ]);
-    const [isSendingNotif, setIsSendingNotif] = useState(false);
+    const [selectedDeviceTokens, setSelectedDeviceTokens] = useState([]);
     const [notifSending, setNotifSending] = useState(false);
-    const [notifSuccess, setNotifSuccess] = useState(false);
-    const [notifError, setNotifError] = useState(null);
     const [notifResult, setNotifResult] = useState(null);
     const [registeringDevice, setRegisteringDevice] = useState(false);
 
-    // Özel İkon Seçici Modalı
-    const [iconPickerIndex, setIconPickerIndex] = useState(null); // hangi butonun ikonu seçiliyor (0, 1 vs.)
+    // Cihaz İsimlendirme Durumları
+    const [editingToken, setEditingToken] = useState(null);
+    const [editingNameValue, setEditingNameValue] = useState('');
+    const [savingName, setSavingName] = useState(false);
 
-    // Resim Yükleme Durumu
-    const [notifImage, setNotifImage] = useState(null);
-    const [isUploadingImage, setIsUploadingImage] = useState(false);
+    // Bu cihazın tokenı (localStorage)
+    const currentLocalToken = typeof window !== 'undefined' ? localStorage.getItem('fcm_device_token') : null;
 
-    // Gelişmiş Bildirim Ayarları
-    const [notifPriority, setNotifPriority] = useState('high'); // 'normal' | 'high'
-    const [notifSound, setNotifSound] = useState(true);
-    const [notifAutoDismiss, setNotifAutoDismiss] = useState(false);
-    const [notifAutoDismissSec, setNotifAutoDismissSec] = useState(15);
-    const [notifVibration, setNotifVibration] = useState(true);
+    // Şirkete ait tüm kayıtlı cihazların listesi (YALNIZCA SON 10 GÜNDE AKTİF OLANLAR)
+    const registeredDevices = useMemo(() => {
+        const list = [];
+        const seenTokens = new Set();
+        const companyUsers = approvedUsers.filter(u => u.companyId === activeCompanyId);
+        const TEN_DAYS_MS = 10 * 24 * 60 * 60 * 1000;
+        const now = Date.now();
 
-    // Önceden Tanımlı Şablonlar
-    const handleApplyPreset = (preset) => {
-        setNotifTitle(preset.title);
-        setNotifBody(preset.body);
-        setNotifTargetTab(preset.tab);
-        setNotifButtons(preset.buttons.map(b => ({ ...b })));
+        companyUsers.forEach(u => {
+            const userNicknames = u.deviceNicknames || {};
+
+            // 1. Varsa detaylı fcmDevices nesneleri
+            if (Array.isArray(u.fcmDevices)) {
+                u.fcmDevices.forEach(d => {
+                    const token = typeof d === 'string' ? d : d?.token;
+                    if (token && !seenTokens.has(token)) {
+                        seenTokens.add(token);
+                        const customName = d.customName || userNicknames[token] || (typeof window !== 'undefined' ? localStorage.getItem(`device_nickname_${token}`) : '') || '';
+                        const lastActive = d.lastActive || u.lastActive || null;
+
+                        list.push({
+                            token,
+                            customName,
+                            deviceName: d.deviceName || `${d.os || 'Cihaz'} (${d.browser || 'Tarayıcı'})`,
+                            model: d.model || d.os || 'Cihaz',
+                            deviceType: d.deviceType || 'Mobil',
+                            os: d.os || 'Bilinmiyor',
+                            browser: d.browser || '',
+                            lastActive,
+                            registeredAt: d.registeredAt || null,
+                            userId: u.id,
+                            userDisplayName: u.fullName || u.username
+                        });
+                    }
+                });
+            }
+
+            // 2. Detaylı listede henüz yer almayan fcmTokens tokenları
+            if (Array.isArray(u.fcmTokens)) {
+                u.fcmTokens.forEach((tok) => {
+                    if (tok && !seenTokens.has(tok)) {
+                        seenTokens.add(tok);
+                        const customName = userNicknames[tok] || (typeof window !== 'undefined' ? localStorage.getItem(`device_nickname_${tok}`) : '') || '';
+                        const lastActive = u.lastActive || null;
+
+                        list.push({
+                            token: tok,
+                            customName,
+                            deviceName: customName || `Kayıtlı Cihaz #${list.length + 1}`,
+                            model: 'Kayıtlı Cihaz',
+                            deviceType: 'Mobil',
+                            os: 'Kayıtlı Cihaz',
+                            browser: '',
+                            lastActive,
+                            registeredAt: null,
+                            userId: u.id,
+                            userDisplayName: u.fullName || u.username
+                        });
+                    }
+                });
+            }
+        });
+
+        // 3. Yalnızca son 10 gün içinde aktif olan cihazları filtrele
+        const filtered = list.filter(d => {
+            if (currentLocalToken && d.token === currentLocalToken) return true;
+            const activeDateStr = d.lastActive || d.registeredAt;
+            if (!activeDateStr) return true;
+            const activeTime = new Date(activeDateStr).getTime();
+            if (isNaN(activeTime)) return true;
+            return (now - activeTime) <= TEN_DAYS_MS;
+        });
+
+        return filtered;
+    }, [approvedUsers, activeCompanyId, currentLocalToken]);
+
+    // Kayıtlı cihazlar yüklendiğinde otomatik olarak tümünü seç
+    useEffect(() => {
+        if (registeredDevices.length > 0 && selectedDeviceTokens.length === 0) {
+            setSelectedDeviceTokens(registeredDevices.map(d => d.token));
+        }
+    }, [registeredDevices]);
+
+    // Mevcut cihazın modelini (iPhone 14 Pro, Samsung vb.) bildirim izni açıksa otomatik senkronize et
+    useEffect(() => {
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted' && auth.currentUser?.uid) {
+            requestAndSaveNotificationToken(auth.currentUser.uid).catch(() => {});
+        }
+    }, []);
+
+    // Cihaza Özel İsim Kaydetme
+    const handleSaveDeviceName = async (dev, newName) => {
+        if (!newName || !newName.trim()) return;
+        setSavingName(true);
+        try {
+            const res = await updateDeviceCustomName(dev.userId, dev.token, newName.trim());
+            if (res.success) {
+                setEditingToken(null);
+                setEditingNameValue('');
+            } else {
+                alert(res.error || 'Cihaz ismi kaydedilemedi.');
+            }
+        } catch (err) {
+            alert(err.message || 'Cihaz ismi kaydedilirken bir hata oluştu.');
+        } finally {
+            setSavingName(false);
+        }
     };
 
-    // Buton Şablonları Hızlı Seçim
-    const handleApplyButtonPreset = (btnPreset) => {
-        setNotifButtons(btnPreset.buttons.map(b => ({ ...b })));
+    // Bildirim Gönderme
+    const handleSendPush = async (e) => {
+        e.preventDefault();
+        if (!notifTitle.trim() || !notifBody.trim()) {
+            setNotifResult({ error: 'Lütfen bildirim başlığı ve mesaj metnini doldurun.' });
+            return;
+        }
+        if (selectedDeviceTokens.length === 0) {
+            setNotifResult({ error: 'Lütfen bildirim gönderilecek en az bir cihaz seçin.' });
+            return;
+        }
+
+        setNotifSending(true);
+        setNotifResult(null);
+
+        try {
+            const res = await callAdminApi('sendPushNotification', {
+                targetTokens: selectedDeviceTokens,
+                title: notifTitle.trim(),
+                body: notifBody.trim(),
+                companyId: activeCompanyId
+            });
+
+            if (res.success && res.sentCount > 0) {
+                setNotifResult({
+                    success: true,
+                    message: `Bildirim başarıyla ${res.sentCount} cihaza iletildi.`
+                });
+                setNotifBody('');
+            } else if (res.success && res.sentCount === 0) {
+                setNotifResult({
+                    success: true,
+                    message: 'Bildirim sisteme kaydedildi ancak seçilen cihazlara ulaşılamadı.'
+                });
+            } else {
+                setNotifResult({
+                    error: res.message || res.error || 'Bildirim gönderilemedi.'
+                });
+            }
+        } catch (err) {
+            setNotifResult({
+                error: err.message || 'Bildirim gönderilirken bir hata oluştu.'
+            });
+        } finally {
+            setNotifSending(false);
+        }
     };
 
     // Trucks state
@@ -1025,16 +1039,18 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                 <div className="space-y-4 animate-in fade-in duration-300">
                     {/* Üst Kart / Panel */}
                     <div className="bg-[#07090e] p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-white/[0.08] space-y-5">
-                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-color)] pb-4">
+                        {/* Başlık ve Cihaz Kayıt Butonu */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
                             <div className="flex items-center space-x-3">
                                 <div className="p-2.5 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400">
-                                    <Bell size={22} className="animate-pulse" />
+                                    <Bell size={22} />
                                 </div>
                                 <div>
-                                    <h4 className="text-lg font-bold text-[var(--text-primary)]">Zengin Anlık Bildirim Stüdyosu</h4>
-                                    <p className="text-xs text-[var(--text-secondary)]">Personel ve şoförlerin telefonlarına zengin aksiyonlu push bildirimleri gönderin</p>
+                                    <h4 className="text-base sm:text-lg font-bold text-white">Anlık Bildirim Gönderimi</h4>
+                                    <p className="text-xs text-slate-400">Şirket cihazlarına anında bildirim ve duyuru iletin</p>
                                 </div>
                             </div>
+
                             <button
                                 type="button"
                                 disabled={registeringDevice}
@@ -1051,8 +1067,11 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                         if (res.success) {
                                             setNotifResult({
                                                 success: true,
-                                                message: '✅ Bu cihaz başarıyla bildirim sistemine kaydedildi! Artık bu telefondan/tarayıcıdan anlık bildirim alabilirsiniz.'
+                                                message: 'Bu cihaz başarıyla bildirim sistemine kaydedildi.'
                                             });
+                                            if (res.token) {
+                                                setSelectedDeviceTokens(prev => Array.from(new Set([...prev, res.token])));
+                                            }
                                         } else {
                                             setNotifResult({
                                                 error: res.error || 'Cihaz kaydedilemedi.'
@@ -1080,403 +1099,212 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                             </button>
                         </div>
 
-                        {/* Canlı İstatistik Sayaçları */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
-                                <div>
-                                    <div className="text-xs text-[var(--text-secondary)] font-medium">Kayıtlı Aktif Cihazlar</div>
-                                    <div className="text-xl font-bold text-white mt-0.5">
-                                        {approvedUsers.filter(u => u.companyId === activeCompanyId).reduce((sum, u) => sum + (u.fcmTokens?.length || 0), 0)} Cihaz
-                                    </div>
-                                </div>
-                                <div className="p-2.5 bg-indigo-500/10 rounded-xl text-indigo-400">
-                                    <Users size={20} />
-                                </div>
+                        {/* Sonuç Mesajı (Bildirim Durumu) */}
+                        {notifResult && (
+                            <div className={`p-4 rounded-xl border text-xs sm:text-sm flex items-start gap-2.5 ${notifResult.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'}`}>
+                                {notifResult.success ? <CheckCircle size={18} className="mt-0.5 flex-shrink-0" /> : <AlertTriangle size={18} className="mt-0.5 flex-shrink-0" />}
+                                <div>{notifResult.success ? notifResult.message : notifResult.error}</div>
                             </div>
-                            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
-                                <div>
-                                    <div className="text-xs text-[var(--text-secondary)] font-medium">Bildirim Alabilecek Personel</div>
-                                    <div className="text-xl font-bold text-emerald-400 mt-0.5">
-                                        {approvedUsers.filter(u => u.companyId === activeCompanyId && u.fcmTokens && u.fcmTokens.length > 0).length} / {approvedUsers.filter(u => u.companyId === activeCompanyId).length} Kişi
-                                    </div>
-                                </div>
-                                <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400">
-                                    <Bell size={20} />
-                                </div>
-                            </div>
-                            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between">
-                                <div>
-                                    <div className="text-xs text-[var(--text-secondary)] font-medium">Gönderilen Bildirim Arşivi</div>
-                                    <div className="text-xl font-bold text-amber-400 mt-0.5">
-                                        {(companyNotifications || []).length} Adet
-                                    </div>
-                                </div>
-                                <div className="p-2.5 bg-amber-500/10 rounded-xl text-amber-400">
-                                    <Activity size={20} />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Hızlı Şablonlar */}
-                        <div>
-                            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-2 flex items-center gap-1.5">
-                                <Sparkles size={14} className="text-amber-400" />
-                                1 Tıkla Hazır Şablonlar
-                            </label>
-                            <div className="flex flex-wrap gap-2">
-                                {QUICK_TEMPLATES.map((tmpl, idx) => (
-                                    <button
-                                        key={idx}
-                                        type="button"
-                                        onClick={() => {
-                                            setNotifTitle(tmpl.title);
-                                            setNotifBody(tmpl.body);
-                                            setNotifTargetTab(tmpl.tab);
-                                            setNotifButtons(tmpl.buttons || []);
-                                        }}
-                                        className="text-xs bg-white/[0.03] hover:bg-white/[0.08] text-slate-300 border border-white/10 hover:border-indigo-500/40 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
-                                    >
-                                        {tmpl.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                        )}
 
                         {/* Bildirim Formu */}
-                        <form onSubmit={async (e) => {
-                            e.preventDefault();
-                            if (!notifBody.trim()) return;
-                            setNotifSending(true);
-                            setNotifResult(null);
+                        <form onSubmit={handleSendPush} className="space-y-5">
+                            {/* 1. Hangi Cihazlara Gönderileceği (Cihaz Seçimi) */}
+                            <div className="space-y-2.5">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                                            <Smartphone size={14} className="text-indigo-400" />
+                                            Bildirim Gönderilecek Cihazlar
+                                            <span className="text-[11px] text-slate-400 font-normal">
+                                                ({selectedDeviceTokens.length} / {registeredDevices.length} Cihaz Seçili)
+                                            </span>
+                                        </label>
+                                        <p className="text-[11px] text-slate-500 mt-0.5">
+                                            Yalnızca son 10 gün içinde aktif olan şirket cihazları listelenir.
+                                        </p>
+                                    </div>
 
-                            try {
-                                const isAll = notifRecipient === 'all';
-                                const res = await callAdminApi('sendPushNotification', {
-                                    allCompany: isAll,
-                                    targetUid: isAll ? null : notifRecipient,
-                                    title: notifTitle.trim(),
-                                    body: notifBody.trim(),
-                                    targetTab: notifTargetTab,
-                                    buttons: notifButtons,
-                                    companyId: activeCompanyId
-                                });
-
-                                if (res.success && res.sentCount > 0) {
-                                    setNotifResult({
-                                        success: true,
-                                        message: `🚀 Bildirim başarıyla gönderildi! Toplam ${res.sentCount} cihaza iletildi ve arşive kaydedildi.`
-                                    });
-                                    setNotifBody('');
-                                } else if (res.success && res.sentCount === 0) {
-                                    setNotifResult({
-                                        success: true,
-                                        message: '✅ Bildirim arşive ve sisteme kaydedildi. (Şu anda bildirim izni açık cihaz bulunamadı).'
-                                    });
-                                } else {
-                                    setNotifResult({
-                                        error: res.message || 'Bildirim gönderilemedi.'
-                                    });
-                                }
-                            } catch (err) {
-                                setNotifResult({ error: err.message || 'Bildirim gönderilirken sunucu hatası oluştu.' });
-                            } finally {
-                                setNotifSending(false);
-                            }
-                        }} className="space-y-5">
-                            {notifResult && (
-                                <div className={`p-4 rounded-xl border text-sm flex items-start gap-2.5 ${notifResult.success ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'}`}>
-                                    {notifResult.success ? <CheckCircle size={18} className="mt-0.5 flex-shrink-0" /> : <AlertTriangle size={18} className="mt-0.5 flex-shrink-0" />}
-                                    <div>{notifResult.success ? notifResult.message : notifResult.error}</div>
-                                </div>
-                            )}
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Alıcı Seçimi</label>
-                                    <select
-                                        value={notifRecipient}
-                                        onChange={(e) => setNotifRecipient(e.target.value)}
-                                        className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3.5 py-2.5 text-sm focus:border-indigo-500 outline-none"
-                                    >
-                                        <option value="all">
-                                            Tüm Şirket Çalışanları & Şoförler ({approvedUsers.filter(u => u.companyId === activeCompanyId).reduce((sum, u) => sum + (u.fcmTokens?.length || 0), 0)} Cihaz)
-                                        </option>
-                                        {approvedUsers
-                                            .filter(u => u.companyId === activeCompanyId)
-                                            .map(u => (
-                                                <option key={u.id} value={u.id}>
-                                                    {u.fullName || u.username} ({u.role}) {u.fcmTokens?.length ? `— ${u.fcmTokens.length} Cihaz Aktif` : '— Cihaz Kaydı Yok'}
-                                                </option>
-                                            ))
-                                        }
-                                    </select>
+                                    {registeredDevices.length > 0 && (
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (selectedDeviceTokens.length === registeredDevices.length) {
+                                                        setSelectedDeviceTokens([]);
+                                                    } else {
+                                                        setSelectedDeviceTokens(registeredDevices.map(d => d.token));
+                                                    }
+                                                }}
+                                                className="text-[11px] text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 px-2.5 py-1 rounded-lg border border-indigo-500/20 transition cursor-pointer"
+                                            >
+                                                {selectedDeviceTokens.length === registeredDevices.length ? 'Seçimi Temizle' : 'Tüm Cihazları Seç'}
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
-                                <div>
-                                    <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Bildirim Başlığı</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={notifTitle}
-                                        onChange={(e) => setNotifTitle(e.target.value)}
-                                        className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3.5 py-2.5 text-sm focus:border-indigo-500 outline-none"
-                                        placeholder="Örn: İnaner Lojistik Görev"
-                                    />
-                                </div>
+                                {registeredDevices.length === 0 ? (
+                                    <div className="p-5 rounded-xl bg-white/[0.02] border border-dashed border-white/10 text-center space-y-1">
+                                        <p className="text-xs text-slate-400">Son 10 gün içinde aktif olan kayıtlı cihaz bulunmuyor.</p>
+                                        <p className="text-[11px] text-slate-500">
+                                            Bildirim almak istediğiniz telefon veya bilgisayardan giriş yapıp yukarıdaki "Bu Cihazı Bildirime Kaydet" butonuna tıklayabilirsiniz.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                                        {registeredDevices.map((dev) => {
+                                            const isSelected = selectedDeviceTokens.includes(dev.token);
+                                            const isCurrentDevice = currentLocalToken === dev.token;
+                                            const isTablet = dev.deviceType === 'Tablet' || dev.os.includes('iPad');
+                                            const isMobile = dev.deviceType === 'Mobil' || dev.os.includes('iPhone') || dev.os.includes('Android');
+                                            const DeviceIcon = isTablet ? Tablet : isMobile ? Smartphone : Monitor;
+                                            const isEditingThis = editingToken === dev.token;
+
+                                            return (
+                                                <div
+                                                    key={dev.token}
+                                                    onClick={() => {
+                                                        if (isEditingThis) return;
+                                                        setSelectedDeviceTokens(prev => 
+                                                            isSelected ? prev.filter(t => t !== dev.token) : [...prev, dev.token]
+                                                        );
+                                                    }}
+                                                    className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2.5 ${
+                                                        isSelected
+                                                            ? 'bg-indigo-600/15 border-indigo-500/50 shadow-sm shadow-indigo-600/10'
+                                                            : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] opacity-75 hover:opacity-100'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                                                            <div className={`p-2 rounded-lg flex-shrink-0 mt-0.5 ${
+                                                                isSelected ? 'bg-indigo-500/20 text-indigo-300' : 'bg-white/[0.04] text-slate-400'
+                                                            }`}>
+                                                                <DeviceIcon size={18} />
+                                                            </div>
+                                                            <div className="min-w-0 flex-1">
+                                                                {isEditingThis ? (
+                                                                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                                                        <input
+                                                                            type="text"
+                                                                            autoFocus
+                                                                            value={editingNameValue}
+                                                                            onChange={(e) => setEditingNameValue(e.target.value)}
+                                                                            onKeyDown={(e) => {
+                                                                                if (e.key === 'Enter') handleSaveDeviceName(dev, editingNameValue);
+                                                                                if (e.key === 'Escape') setEditingToken(null);
+                                                                            }}
+                                                                            placeholder="Örn: Kenan iPhone 14 Pro"
+                                                                            className="bg-[#05070a] border border-indigo-500/60 rounded-lg px-2 py-1 text-xs text-white outline-none w-full"
+                                                                        />
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={savingName || !editingNameValue.trim()}
+                                                                            onClick={() => handleSaveDeviceName(dev, editingNameValue)}
+                                                                            className="p-1 rounded-md bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition cursor-pointer flex-shrink-0"
+                                                                            title="Kaydet"
+                                                                        >
+                                                                            <Check size={13} />
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setEditingToken(null)}
+                                                                            className="p-1 rounded-md bg-white/[0.05] text-slate-400 hover:text-white transition cursor-pointer flex-shrink-0"
+                                                                            title="İptal"
+                                                                        >
+                                                                            <X size={13} />
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                                        <span className="text-xs font-bold text-white truncate max-w-[170px]" title={dev.customName || dev.deviceName}>
+                                                                            {dev.customName || dev.deviceName}
+                                                                        </span>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setEditingToken(dev.token);
+                                                                                setEditingNameValue(dev.customName || dev.deviceName || '');
+                                                                            }}
+                                                                            className="p-1 rounded hover:bg-white/10 text-slate-500 hover:text-indigo-300 transition cursor-pointer"
+                                                                            title="Cihaza İsim Ver / Değiştir"
+                                                                        >
+                                                                            <Edit2 size={11} />
+                                                                        </button>
+                                                                        {isCurrentDevice && (
+                                                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                                                                Bu Cihaz
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Cihaz Donanım Detayı & Kullanıcı Bilgisi */}
+                                                                <div className="text-[11px] text-slate-400 truncate mt-1">
+                                                                    {dev.customName ? `${dev.deviceName} · ` : ''}{dev.deviceType} · @{dev.userDisplayName || 'kenan'}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className={`w-4 h-4 rounded-md border flex items-center justify-center flex-shrink-0 mt-1 ${
+                                                            isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-white/20 bg-white/[0.02]'
+                                                        }`}>
+                                                            {isSelected && <Check size={11} strokeWidth={3} />}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Alt Çizgi: Son Giriş Tarihi */}
+                                                    <div className="pt-2 border-t border-white/[0.04] flex items-center justify-between text-[10px] text-slate-500">
+                                                        <span>Son Aktiflik:</span>
+                                                        <span className="font-medium text-slate-400">
+                                                            {dev.lastActive ? new Date(dev.lastActive).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Bugün'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
 
+                            {/* 2. Bildirim Başlığı */}
                             <div>
-                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Bildirim Mesajı</label>
+                                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                                    Bildirim Başlığı
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={notifTitle}
+                                    onChange={(e) => setNotifTitle(e.target.value)}
+                                    className="w-full bg-[#0a0d14] border border-white/[0.08] text-white rounded-xl px-3.5 py-2.5 text-sm focus:border-indigo-500 outline-none transition"
+                                    placeholder="Örn: İnaner Lojistik Duyuru"
+                                />
+                            </div>
+
+                            {/* 3. Bildirim Mesajı */}
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                                    Bildirim Mesajı
+                                </label>
                                 <textarea
                                     required
                                     rows={3}
                                     value={notifBody}
                                     onChange={(e) => setNotifBody(e.target.value)}
-                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-xl px-3.5 py-2.5 text-sm focus:border-indigo-500 outline-none resize-none"
-                                    placeholder="İletmek istediğiniz mesajı buraya yazın..."
+                                    className="w-full bg-[#0a0d14] border border-white/[0.08] text-white rounded-xl px-3.5 py-2.5 text-sm focus:border-indigo-500 outline-none resize-none transition"
+                                    placeholder="İletmek istediğiniz bildirim metnini buraya yazın..."
                                 />
                             </div>
 
-                            {/* Tıklanınca Açılacak Sayfa (Bildirimler en başta) */}
-                            <div>
-                                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-2 flex items-center gap-1.5">
-                                    <Navigation size={14} className="text-indigo-400" />
-                                    Tıklanınca Açılacak Sayfa (Kilit Ekranı & Bildirim Başlığı)
-                                </label>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                                    {NOTIF_DESTINATIONS.map((dest) => {
-                                        const IconComponent = dest.icon;
-                                        const isSelected = notifTargetTab === dest.id;
-                                        return (
-                                            <button
-                                                key={dest.id}
-                                                type="button"
-                                                onClick={() => setNotifTargetTab(dest.id)}
-                                                className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-2 transition-all text-left cursor-pointer ${
-                                                    isSelected
-                                                        ? 'bg-indigo-600/25 border-indigo-500 text-white shadow-md shadow-indigo-600/20'
-                                                        : 'bg-white/[0.02] border-white/10 text-slate-400 hover:text-slate-200 hover:bg-white/[0.05]'
-                                                }`}
-                                            >
-                                                <div className={`p-1.5 rounded-lg ${dest.color}`}>
-                                                    <IconComponent size={14} />
-                                                </div>
-                                                <span className="truncate">{dest.label}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            {/* Özel Buton Tasarımcısı */}
-                            <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/10 space-y-4">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <div>
-                                        <label className="text-sm font-bold text-white flex items-center gap-1.5">
-                                            <Sparkles size={16} className="text-indigo-400" />
-                                            Özel Buton Tasarımcısı
-                                        </label>
-                                        <p className="text-xs text-slate-400 mt-0.5">
-                                            Bildirim kartında yer alacak aksiyon butonlarını kolayca oluşturun ve düzenleyin (En fazla 6 buton).
-                                        </p>
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        disabled={notifButtons.length >= 6}
-                                        onClick={() => {
-                                            const newId = Date.now().toString();
-                                            setNotifButtons(prev => [
-                                                ...prev,
-                                                { id: newId, label: 'Yeni Buton', icon: 'thumbs_up', actionType: 'ack_approved', style: 'emerald' }
-                                            ]);
-                                        }}
-                                        className="text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1 cursor-pointer shadow-sm"
-                                    >
-                                        <Plus size={13} />
-                                        <span>+ Yeni Buton Ekle</span>
-                                    </button>
-                                </div>
-
-                                {/* Hızlı Buton Seti Şablonları */}
-                                <div>
-                                    <span className="text-[11px] font-semibold text-slate-400 block mb-1.5">Hızlı Buton Seti Şablonu:</span>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {BUTTON_PRESETS.map((preset, pIdx) => (
-                                            <button
-                                                key={pIdx}
-                                                type="button"
-                                                onClick={() => setNotifButtons(preset.buttons)}
-                                                className="text-[11px] bg-white/[0.03] hover:bg-white/[0.08] text-slate-300 border border-white/10 px-2.5 py-1 rounded-lg transition-all cursor-pointer"
-                                            >
-                                                {preset.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Dinamik Buton Listesi & Düzenleyici */}
-                                <div className="space-y-2.5 pt-1">
-                                    {notifButtons.map((btn, idx) => (
-                                        <div
-                                            key={btn.id || idx}
-                                            className="p-3 rounded-xl bg-black/40 border border-white/10 flex flex-wrap items-center gap-2.5"
-                                        >
-                                            <span className="text-xs font-bold text-slate-500 w-4">#{idx + 1}</span>
-
-                                            {/* İkon Seçici */}
-                                            <select
-                                                value={btn.icon}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    setNotifButtons(prev => prev.map(b => b.id === btn.id ? { ...b, icon: val } : b));
-                                                }}
-                                                className="bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-white text-xs rounded-lg px-2 py-1.5 outline-none"
-                                            >
-                                                {AVAILABLE_ICONS.map(ic => (
-                                                    <option key={ic.id} value={ic.id}>{ic.label}</option>
-                                                ))}
-                                            </select>
-
-                                            {/* Buton Metni */}
-                                            <div className="flex-1 min-w-[130px]">
-                                                <input
-                                                    type="text"
-                                                    value={btn.label}
-                                                    onChange={(e) => {
-                                                        const val = e.target.value;
-                                                        setNotifButtons(prev => prev.map(b => b.id === btn.id ? { ...b, label: val } : b));
-                                                    }}
-                                                    placeholder="Buton Yazısı..."
-                                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-white text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-indigo-500 font-semibold"
-                                                />
-                                            </div>
-
-                                            {/* Aksiyon Türü */}
-                                            <div className="min-w-[125px]">
-                                                <select
-                                                    value={btn.actionType}
-                                                    onChange={(e) => {
-                                                        const val = e.target.value;
-                                                        setNotifButtons(prev => prev.map(b => b.id === btn.id ? {
-                                                            ...b,
-                                                            actionType: val,
-                                                            targetTab: val === 'navigate' ? (b.targetTab || 'detaylar') : undefined,
-                                                            style: val === 'ack_approved' ? 'emerald' : val === 'ack_rejected' ? 'red' : 'indigo'
-                                                        } : b));
-                                                    }}
-                                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-white text-xs rounded-lg px-2 py-1.5 outline-none"
-                                                >
-                                                    <option value="ack_approved">🤝 Şoför Onayı</option>
-                                                    <option value="ack_rejected">❌ Sorun Bildirimi</option>
-                                                    <option value="navigate">🚀 Sayfaya Yönlendir</option>
-                                                </select>
-                                            </div>
-
-                                            {/* Hedef Sayfa (Eğer Sayfaya Git ise) */}
-                                            {btn.actionType === 'navigate' && (
-                                                <div className="min-w-[130px]">
-                                                    <select
-                                                        value={btn.targetTab || 'detaylar'}
-                                                        onChange={(e) => {
-                                                            const val = e.target.value;
-                                                            setNotifButtons(prev => prev.map(b => b.id === btn.id ? { ...b, targetTab: val } : b));
-                                                        }}
-                                                        className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-indigo-300 text-xs rounded-lg px-2 py-1.5 outline-none font-semibold"
-                                                    >
-                                                        {NOTIF_DESTINATIONS.map(d => (
-                                                            <option key={d.id} value={d.id}>{d.label}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            )}
-
-                                            {/* Renk Teması */}
-                                            <div className="min-w-[95px]">
-                                                <select
-                                                    value={btn.style || 'indigo'}
-                                                    onChange={(e) => {
-                                                        const val = e.target.value;
-                                                        setNotifButtons(prev => prev.map(b => b.id === btn.id ? { ...b, style: val } : b));
-                                                    }}
-                                                    className="w-full bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-xs rounded-lg px-2 py-1.5 outline-none"
-                                                >
-                                                    <option value="emerald">🟢 Yeşil</option>
-                                                    <option value="red">🔴 Kırmızı</option>
-                                                    <option value="indigo">🔵 İndigo</option>
-                                                    <option value="amber">🟡 Sarı</option>
-                                                    <option value="glass">⚪ Cam</option>
-                                                </select>
-                                            </div>
-
-                                            {/* Sil */}
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setNotifButtons(prev => prev.filter(b => b.id !== btn.id));
-                                                }}
-                                                className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/25 transition-colors cursor-pointer"
-                                                title="Butonu Sil"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
-                                    ))}
-
-                                    {notifButtons.length === 0 && (
-                                        <div className="text-center py-3 text-xs text-slate-500 bg-white/[0.01] rounded-xl border border-dashed border-white/10">
-                                            Tanımlı buton yok. Bildirim yalnızca bilgilendirme metni olarak iletilecektir.
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Canlı Önizleme Kartı (Live Preview Card) */}
-                                <div className="mt-3 p-4 rounded-xl bg-black/60 border border-white/10">
-                                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                        <Eye size={13} className="text-indigo-400" />
-                                        Cihazda Görünecek Canlı Kart Önizlemesi
-                                    </div>
-                                    <div className="p-4 rounded-2xl bg-[#090d16]/95 border border-white/10 shadow-2xl backdrop-blur-xl max-w-md">
-                                        <div className="flex items-start gap-3">
-                                            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center flex-shrink-0">
-                                                <Bell size={16} />
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <h4 className="text-xs font-bold text-white truncate">{notifTitle || 'Bildirim Başlığı'}</h4>
-                                                <p className="text-[11px] text-slate-300 mt-1 leading-snug break-words">
-                                                    {notifBody || 'Bildirim metni burada görünecektir...'}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        {notifButtons.length > 0 && (
-                                            <div className="mt-3 pt-2.5 border-t border-white/5 flex flex-wrap gap-1.5">
-                                                {notifButtons.map((btn, bIdx) => (
-                                                    <div
-                                                        key={bIdx}
-                                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border flex items-center gap-1 ${
-                                                            btn.style === 'emerald' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
-                                                            btn.style === 'red' ? 'bg-red-500/20 text-red-300 border-red-500/30' :
-                                                            btn.style === 'amber' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
-                                                            btn.style === 'glass' ? 'bg-white/10 text-slate-200 border-white/20' :
-                                                            'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
-                                                        }`}
-                                                    >
-                                                        {AVAILABLE_ICONS.find(i => i.id === btn.icon)?.label.split(' ')[0] || '🔘'}
-                                                        <span>{btn.label}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="pt-2">
+                            {/* Gönder Butonu */}
+                            <div className="pt-1">
                                 <button
                                     type="submit"
-                                    disabled={notifSending || !notifBody.trim()}
-                                    className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-600/40 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl text-sm font-bold flex items-center transition-all shadow-lg shadow-indigo-600/30 cursor-pointer"
+                                    disabled={notifSending || !notifTitle.trim() || !notifBody.trim() || selectedDeviceTokens.length === 0}
+                                    className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-600/30 disabled:text-slate-400 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
                                 >
                                     {notifSending ? (
                                         <>
@@ -1485,8 +1313,8 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                         </>
                                     ) : (
                                         <>
-                                            <Send size={16} className="mr-2" />
-                                            Zengin Bildirimi Gönder
+                                            <Send size={15} className="mr-2" />
+                                            Bildirimi Gönder ({selectedDeviceTokens.length} Cihaz)
                                         </>
                                     )}
                                 </button>
@@ -1494,87 +1322,38 @@ const CompanyAdmin = ({ onOpenMenu, isMobile } = {}) => {
                         </form>
                     </div>
 
-                    {/* Son Gönderilen Bildirimler & Canlı Onay Takip Paneli */}
+                    {/* Son Gönderilen Bildirimler Listesi */}
                     <div className="bg-[#07090e] p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-white/[0.08] space-y-4">
-                        <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
+                        <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
                             <div className="flex items-center space-x-2.5">
-                                <Clock size={18} className="text-amber-400" />
-                                <h4 className="text-base font-bold text-[var(--text-primary)]">Gönderilen Bildirimler & Canlı Onay Takibi</h4>
+                                <Clock size={16} className="text-slate-400" />
+                                <h4 className="text-sm sm:text-base font-bold text-white">Son Gönderilen Bildirimler</h4>
                             </div>
-                            <span className="text-xs text-[var(--text-secondary)]">{(companyNotifications || []).length} Kayıt</span>
+                            <span className="text-xs text-slate-500">{(companyNotifications || []).length} Kayıt</span>
                         </div>
 
                         {(!companyNotifications || companyNotifications.length === 0) ? (
-                            <div className="py-8 text-center text-slate-500 text-xs">
+                            <div className="py-6 text-center text-slate-500 text-xs">
                                 Henüz gönderilmiş bir bildirim bulunmuyor.
                             </div>
                         ) : (
-                            <div className="space-y-3">
-                                {companyNotifications.slice(0, 10).map((notif) => {
-                                    const acks = notif.acknowledgements || {};
-                                    const approvedList = Object.values(acks).filter(a => a.status === 'approved');
-                                    const rejectedList = Object.values(acks).filter(a => a.status === 'rejected');
-                                    const readCount = (notif.readBy || []).length;
-
-                                    return (
-                                        <div key={notif.id} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-indigo-500/30 transition-all space-y-3">
-                                            <div className="flex flex-wrap items-start justify-between gap-2">
-                                                <div className="flex items-start gap-3 min-w-0">
-                                                    {notif.imageUrl && (
-                                                        <img src={notif.imageUrl} alt="Ek" className="w-12 h-12 object-cover rounded-lg border border-white/10 flex-shrink-0" />
-                                                    )}
-                                                    <div className="min-w-0">
-                                                        <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className="text-xs font-bold text-white">{notif.title}</span>
-                                                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
-                                                                Hedef: {notif.targetType === 'all' ? 'Tüm Şirket' : 'Özel Alıcı'}
-                                                            </span>
-                                                            {notif.targetTab && (
-                                                                <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/5 text-slate-300 border border-white/10">
-                                                                    Sayfa: {NOTIF_DESTINATIONS.find(d => d.id === notif.targetTab)?.label || notif.targetTab}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <p className="text-xs text-slate-300 mt-1 whitespace-pre-wrap leading-relaxed">{notif.body}</p>
-                                                    </div>
-                                                </div>
-                                                <span className="text-[11px] text-slate-500 font-medium whitespace-nowrap">
-                                                    {notif.createdAt ? new Date(notif.createdAt).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+                            <div className="space-y-2.5">
+                                {companyNotifications.slice(0, 10).map((notif) => (
+                                    <div key={notif.id} className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.05] flex flex-wrap items-start justify-between gap-3">
+                                        <div className="min-w-0 flex-1 space-y-1">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="text-xs font-bold text-white">{notif.title}</span>
+                                                <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.04] text-slate-400 border border-white/[0.06]">
+                                                    {notif.targetType === 'all' ? 'Tüm Şirket' : notif.deviceCount ? `${notif.deviceCount} Cihaz` : 'Seçili Cihazlar'}
                                                 </span>
                                             </div>
-
-                                            {/* Şoför Yanıt ve Onay Durumu */}
-                                            {notif.requireAck && (
-                                                <div className="pt-2 border-t border-white/5 flex flex-wrap items-center gap-3 text-xs">
-                                                    <div className="flex items-center gap-1.5 text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 font-semibold">
-                                                        <CheckCircle size={13} />
-                                                        <span>{approvedList.length} Onay</span>
-                                                        {approvedList.length > 0 && (
-                                                            <span className="text-[10px] text-emerald-300 font-normal">
-                                                                ({approvedList.map(a => a.driverName).join(', ')})
-                                                            </span>
-                                                        )}
-                                                    </div>
-
-                                                    {rejectedList.length > 0 && (
-                                                        <div className="flex items-center gap-1.5 text-red-400 bg-red-500/10 px-2.5 py-1 rounded-lg border border-red-500/20 font-semibold">
-                                                            <XCircle size={13} />
-                                                            <span>{rejectedList.length} Sorun Bildirimi</span>
-                                                            <span className="text-[10px] text-red-300 font-normal">
-                                                                ({rejectedList.map(a => `${a.driverName}${a.note ? `: ${a.note}` : ''}`).join(', ')})
-                                                            </span>
-                                                        </div>
-                                                    )}
-
-                                                    <div className="flex items-center gap-1 text-slate-400 text-[11px] ml-auto">
-                                                        <Eye size={12} />
-                                                        <span>{readCount} Kişi Gördü</span>
-                                                    </div>
-                                                </div>
-                                            )}
+                                            <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{notif.body}</p>
                                         </div>
-                                    );
-                                })}
+                                        <span className="text-[11px] text-slate-500 font-medium whitespace-nowrap">
+                                            {notif.createdAt ? new Date(notif.createdAt).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+                                        </span>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>

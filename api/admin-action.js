@@ -287,7 +287,10 @@ export default async function handler(req, res) {
 
                 let tokens = [];
 
-                if (allCompany) {
+                if (payload.targetTokens && Array.isArray(payload.targetTokens) && payload.targetTokens.length > 0) {
+                    // Kullanıcının seçtiği belirli cihazların FCM tokenları
+                    tokens = payload.targetTokens;
+                } else if (allCompany) {
                     // Şirketteki tüm onaylı kullanıcıların FCM tokenlarını çek
                     const usersSnapshot = await db.collection('approved_users')
                         .where('companyId', '==', targetCompanyId)
@@ -317,7 +320,7 @@ export default async function handler(req, res) {
                         return res.status(404).json({ error: 'Hedef kullanıcı bulunamadı.' });
                     }
                 } else {
-                    return res.status(400).json({ error: 'Hatalı parametreler: targetUid veya allCompany belirtilmelidir.' });
+                    return res.status(400).json({ error: 'Hatalı parametreler: targetTokens, targetUid veya allCompany belirtilmelidir.' });
                 }
 
                 // Benzersiz tokenlar
@@ -383,11 +386,11 @@ export default async function handler(req, res) {
                 const pushActions = [];
                 finalButtons.slice(0, 3).forEach(b => {
                     if (b.actionType === 'ack_approved') {
-                        pushActions.push({ action: 'ack_approved', title: b.label || '👍 Onayladım' });
+                        pushActions.push({ action: 'ack_approved', title: b.label || 'Onayladım' });
                     } else if (b.actionType === 'ack_rejected') {
-                        pushActions.push({ action: 'ack_rejected', title: b.label || '❌ Sorun Var' });
+                        pushActions.push({ action: 'ack_rejected', title: b.label || 'Sorun Var' });
                     } else if (b.actionType === 'navigate' || b.targetTab) {
-                        pushActions.push({ action: `nav_${b.targetTab || 'dashboard'}`, title: b.label || '🚀 Sayfayı Aç' });
+                        pushActions.push({ action: `nav_${b.targetTab || 'dashboard'}`, title: b.label || 'Sayfayı Aç' });
                     }
                 });
 

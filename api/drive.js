@@ -1,9 +1,11 @@
 /* eslint-env node */
+/* global process, Buffer */
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { exec } from 'child_process';
 import util from 'util';
+import net from 'net';
 
 const execPromise = util.promisify(exec);
 
@@ -25,29 +27,108 @@ function getAuthHeader() {
     return 'Basic ' + Buffer.from(`${WEBDAV_CONFIG.user}:${WEBDAV_CONFIG.pass}`).toString('base64');
 }
 
-// Ortam Denetimi: Yerel disk mi yoksa WebDAV bulut köprüsü mü kullanılacak?
-function isWebDavMode(req) {
-    if (req?.query?.mode === 'webdav' || req?.query?.webdav === '1') return true;
-    if (process.env.FORCE_WEBDAV === 'true') return true;
-    if (process.env.VERCEL) return true;
-    if (process.platform !== 'win32') return true;
+// ── AKILLI AĞ VE LOKAL SÜRÜCÜ YÖNETİMİ ──
+let networkDetectionCache = {
+    checkedAt: 0,
+    isLocal: false,
+    driveRoot: null
+};
 
-    // Windows üzerinde doğrudan fiziksel D:\Drive veya Z:\Drive bağlı mı?
-    const candidateDrives = ['D:\\Drive', 'D:\\Inaner_Drive', 'Z:\\Drive', 'Z:\\Inaner_Drive'];
-    const hasLocal = candidateDrives.some(d => fs.existsSync(d));
-    return !hasLocal;
+function testTcpPort(host = '192.168.1.1', port = 445, timeoutMs = 300) {
+    return new Promise((resolve) => {
+        const socket = new net.Socket();
+        socket.setTimeout(timeoutMs);
+        socket.on('connect', () => {
+            socket.destroy();
+            resolve(true);
+        });
+        socket.on('timeout', () => {
+            socket.destroy();
+            resolve(false);
+        });
+        socket.on('error', () => {
+            socket.destroy();
+            resolve(false);
+        });
+        socket.connect(port, host);
+    });
 }
 
-// Güvenli yerel sürücü kök dizini (Lokal mod için)
-function getLocalDriveRoot() {
-    const candidateDrives = ['D:\\Drive', 'D:\\Inaner_Drive', 'Z:\\Drive', 'Z:\\Inaner_Drive', 'C:\\Inaner_Drive'];
-    for (const d of candidateDrives) {
-        if (fs.existsSync(path.dirname(d)) || fs.existsSync(d)) {
-            if (!fs.existsSync(d)) {
-                try { fs.mkdirSync(d, { recursive: true }); } catch (_) {}
-            }
-            return d;
+// Ortam ve Bağlantı Denetimi: Yerel Gigabit Ağ (SMB) mı yoksa WebDAV Bulut Köprüsü mü?
+async function resolveDriveContext(req) {
+    if (req?.query?.mode === 'webdav' || req?.query?.webdav === '1') {
+        return { useWebDAV: true, driveRoot: null, connectionMode: 'cloud' };
+    }
+    if (process.env.FORCE_WEBDAV === 'true' || process.env.VERCEL) {
+        return { useWebDAV: true, driveRoot: null, connectionMode: 'cloud' };
+    }
+
+    const now = Date.now();
+    // 20 saniyelik hafif önbellek
+    if (now - networkDetectionCache.checkedAt < 20000 && networkDetectionCache.checkedAt > 0) {
+        if (networkDetectionCache.isLocal && networkDetectionCache.driveRoot) {
+            return { useWebDAV: false, driveRoot: networkDetectionCache.driveRoot, connectionMode: 'local' };
         }
+        return { useWebDAV: true, driveRoot: null, connectionMode: 'cloud' };
+    }
+
+    // 1. Doğrudan yerel sürücü harfleri (D:\Drive, Z:\Drive vs.)
+    const directDrives = ['D:\\Drive', 'D:\\Inaner_Drive', 'Z:\\Drive', 'Z:\\Inaner_Drive'];
+    for (const d of directDrives) {
+        try {
+            if (fs.existsSync(d)) {
+                networkDetectionCache = { checkedAt: now, isLocal: true, driveRoot: d };
+                return { useWebDAV: false, driveRoot: d, connectionMode: 'local' };
+            }
+        } catch (_) {}
+    }
+
+    // 2. Windows ortamındaysak Keenetic SMB (445) soketini sına (300ms)
+    if (process.platform === 'win32') {
+        const isLanAvailable = await testTcpPort('192.168.1.1', 445, 300);
+        if (isLanAvailable) {
+            const uncCandidates = [
+                '\\\\192.168.1.1\\INANER_DRIVE\\Drive',
+                '\\\\192.168.1.1\\INANER_DRIVE',
+                '\\\\192.168.1.1\\Yedekler\\Drive',
+                '\\\\192.168.1.1\\Yedekler'
+            ];
+            for (const unc of uncCandidates) {
+                try {
+                    if (fs.existsSync(unc)) {
+                        networkDetectionCache = { checkedAt: now, isLocal: true, driveRoot: unc };
+                        return { useWebDAV: false, driveRoot: unc, connectionMode: 'local' };
+                    }
+                } catch (_) {}
+            }
+        }
+    }
+
+    // Ağ dışındaysak veya ulaşılamazsa WebDAV bulut köprüsüne geç
+    networkDetectionCache = { checkedAt: now, isLocal: false, driveRoot: null };
+    return { useWebDAV: true, driveRoot: null, connectionMode: 'cloud' };
+}
+
+// Güvenli yerel sürücü kök dizini (Lokal mod için senkron geri dönüş)
+function getLocalDriveRoot() {
+    if (networkDetectionCache.driveRoot && fs.existsSync(networkDetectionCache.driveRoot)) {
+        return networkDetectionCache.driveRoot;
+    }
+    const candidateDrives = [
+        '\\\\192.168.1.1\\INANER_DRIVE\\Drive',
+        '\\\\192.168.1.1\\INANER_DRIVE',
+        'D:\\Drive',
+        'D:\\Inaner_Drive',
+        'Z:\\Drive',
+        'Z:\\Inaner_Drive',
+        'C:\\Inaner_Drive'
+    ];
+    for (const d of candidateDrives) {
+        try {
+            if (fs.existsSync(d)) {
+                return d;
+            }
+        } catch (_) {}
     }
     const fallback = path.resolve(process.cwd(), 'drive_storage');
     if (!fs.existsSync(fallback)) fs.mkdirSync(fallback, { recursive: true });
@@ -170,7 +251,8 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    const useWebDAV = isWebDavMode(req);
+    const { useWebDAV, driveRoot: dynamicDriveRoot, connectionMode } = await resolveDriveContext(req);
+    const driveRoot = dynamicDriveRoot || getLocalDriveRoot();
 
     try {
         const action = req.query?.action || req.body?.action || 'list';
@@ -204,7 +286,7 @@ export default async function handler(req, res) {
 
                 return res.status(200).json({
                     success: true,
-                    drivePath: 'Keenetic USB (inaner.keenetic.pro)',
+                    drivePath: 'Keenetic Bulut (inaner.keenetic.pro)',
                     totalBytes: totalSpaceBytes,
                     usedBytes: usedSpaceBytes,
                     freeBytes: freeSpaceBytes,
@@ -214,10 +296,11 @@ export default async function handler(req, res) {
                     usedGB: (usedSpaceBytes / (1024 ** 3)).toFixed(2),
                     freeGB: (freeSpaceBytes / (1024 ** 3)).toFixed(1),
                     usagePercent: ((usedSpaceBytes / totalSpaceBytes) * 100).toFixed(1),
-                    isWebDav: true
+                    isWebDav: true,
+                    connectionMode: 'cloud',
+                    isLocalNetwork: false
                 });
             } else {
-                const driveRoot = getLocalDriveRoot();
                 const scanDir = (dir) => {
                     if (!fs.existsSync(dir)) return;
                     try {
@@ -249,7 +332,7 @@ export default async function handler(req, res) {
 
                 return res.status(200).json({
                     success: true,
-                    drivePath: driveRoot,
+                    drivePath: driveRoot.startsWith('\\\\') ? `Keenetic Yerel Ağ (${driveRoot})` : driveRoot,
                     totalBytes: totalSpaceBytes,
                     usedBytes: usedSpaceBytes,
                     freeBytes: freeSpaceBytes,
@@ -259,7 +342,9 @@ export default async function handler(req, res) {
                     usedGB: (usedSpaceBytes / (1024 ** 3)).toFixed(2),
                     freeGB: (freeSpaceBytes / (1024 ** 3)).toFixed(1),
                     usagePercent: ((usedSpaceBytes / totalSpaceBytes) * 100).toFixed(1),
-                    isWebDav: false
+                    isWebDav: false,
+                    connectionMode: 'local',
+                    isLocalNetwork: true
                 });
             }
         }
@@ -286,7 +371,9 @@ export default async function handler(req, res) {
                         folders: [],
                         files: [],
                         breadcrumbs: [{ name: 'Sürücü', path: '' }],
-                        isWebDav: true
+                        isWebDav: true,
+                        connectionMode: 'cloud',
+                        isLocalNetwork: false
                     });
                 }
 
@@ -330,6 +417,26 @@ export default async function handler(req, res) {
                 folders.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
                 files.sort((a, b) => new Date(b.modifiedAt) - new Date(a.modifiedAt));
 
+                // WebDAV modunda alt klasörlerin öğe sayılarını asenkron olarak hesapla
+                if (folders.length > 0) {
+                    await Promise.all(folders.map(async (folder) => {
+                        try {
+                            const subTarget = `Drive/${folder.relativePath}/`;
+                            const subRes = await webdavFetch(subTarget, {
+                                method: 'PROPFIND',
+                                headers: { 'Depth': '1', 'Content-Type': 'application/xml' }
+                            });
+                            if (subRes.ok) {
+                                const subXml = await subRes.text();
+                                const subItems = parseWebdavXml(subXml, `/webdav/Drive/${folder.relativePath}`);
+                                folder.itemCount = subItems.length;
+                            }
+                        } catch (_) {
+                            folder.itemCount = 0;
+                        }
+                    }));
+                }
+
                 const pathParts = relPath ? relPath.split('/') : [];
                 const breadcrumbs = [{ name: 'Sürücü', path: '' }];
                 let accumulatedPath = '';
@@ -344,11 +451,12 @@ export default async function handler(req, res) {
                     folders,
                     files,
                     breadcrumbs,
-                    isWebDav: true
+                    isWebDav: true,
+                    connectionMode: 'cloud',
+                    isLocalNetwork: false
                 });
 
             } else {
-                const driveRoot = getLocalDriveRoot();
                 const targetDir = resolveSafePath(driveRoot, relPath);
 
                 if (!fs.existsSync(targetDir)) {
@@ -423,7 +531,9 @@ export default async function handler(req, res) {
                     folders,
                     files,
                     breadcrumbs,
-                    isWebDav: false
+                    isWebDav: false,
+                    connectionMode: 'local',
+                    isLocalNetwork: true
                 });
             }
         }
@@ -889,19 +999,21 @@ export default async function handler(req, res) {
                 } catch (_) {}
             } else {
                 const candidateManifests = [
+                    '\\\\192.168.1.1\\INANER_DRIVE\\Backup\\latest\\manifest.json',
                     'D:\\Backup\\latest\\manifest.json',
+                    'Z:\\Backup\\latest\\manifest.json',
                     'D:\\Inaner_Backups\\latest\\manifest.json',
                     path.resolve(process.cwd(), 'backups', 'latest', 'manifest.json')
                 ];
 
                 for (const mPath of candidateManifests) {
-                    if (fs.existsSync(mPath)) {
-                        try {
+                    try {
+                        if (fs.existsSync(mPath)) {
                             manifest = JSON.parse(fs.readFileSync(mPath, 'utf-8'));
                             manifestPath = mPath;
                             break;
-                        } catch (_) {}
-                    }
+                        }
+                    } catch (_) {}
                 }
             }
 
@@ -930,7 +1042,7 @@ export default async function handler(req, res) {
                 mediaFilesCount: 21,
                 dailyRoutesSizeMB: '121.6',
                 pdfCount: 38,
-                driveLetter: useWebDAV ? 'Keenetic USB' : (fs.existsSync('D:\\Backup') ? 'D:' : 'Yerel'),
+                driveLetter: useWebDAV ? 'Keenetic Bulut' : (fs.existsSync('\\\\192.168.1.1\\INANER_DRIVE\\Backup') ? 'Keenetic USB' : (fs.existsSync('D:\\Backup') ? 'D:' : 'Yerel')),
                 isWebDav: useWebDAV
             });
         }
@@ -943,9 +1055,23 @@ export default async function handler(req, res) {
                 const projectRoot = process.cwd();
                 const scriptPath = path.join(projectRoot, 'scripts', 'sync-engine.mjs');
 
-                const { stdout } = await execPromise(`node "${scriptPath}" --dest="D:\\Backup"`, {
+                // Dinamik ve erişilebilir hedef yedek dizini belirle
+                let targetBackupDest = '\\\\192.168.1.1\\INANER_DRIVE\\Backup';
+                try {
+                    if (!fs.existsSync('\\\\192.168.1.1\\INANER_DRIVE')) {
+                        const directDrives = ['D:\\Backup', 'Z:\\Backup'];
+                        const foundDirect = directDrives.find(d => {
+                            try { return fs.existsSync(d) || fs.existsSync(path.dirname(d)); } catch (_) { return false; }
+                        });
+                        targetBackupDest = foundDirect || path.resolve(projectRoot, 'backups');
+                    }
+                } catch (_) {
+                    targetBackupDest = path.resolve(projectRoot, 'backups');
+                }
+
+                const { stdout } = await execPromise(`node "${scriptPath}" --dest="${targetBackupDest}"`, {
                     cwd: projectRoot,
-                    timeout: 180000
+                    timeout: 300000
                 });
 
                 return res.status(200).json({

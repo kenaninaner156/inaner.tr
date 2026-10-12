@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
     Landmark, 
@@ -210,6 +210,7 @@ const processSelectedFiles = async (fileList, maxSizeMB = 5) => {
 const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
     const { activeCompanyId, companyData } = useCompany();
     const { trucks = [] } = useTruck();
+    const { addLog } = useContext(DataContext);
 
     // ─── 1. GÜVENLİK & KİLİT MEKANİZMASI (5 Dakikalık Ortak Güvenlik Oturumu) ───
     const { isUnlocked, unlock, lock } = usePinSession();
@@ -268,7 +269,9 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
             where('companyId', '==', activeCompanyId)
         );
         unsubs.push(onSnapshot(loansQuery, (snapshot) => {
-            const data = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+            const data = snapshot.docs
+                .map(d => ({ ...d.data(), id: d.id }))
+                .filter(d => !d.deleted);
             // Tarihe göre sırala
             data.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
             setLoans(data);
@@ -284,7 +287,9 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
             where('companyId', '==', activeCompanyId)
         );
         unsubs.push(onSnapshot(debtsQuery, (snapshot) => {
-            const data = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+            const data = snapshot.docs
+                .map(d => ({ ...d.data(), id: d.id }))
+                .filter(d => !d.deleted);
             data.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
             setOpenDebts(data);
         }, (err) => {
@@ -691,9 +696,13 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
 
     // Krediyi Sil
     const handleDeleteLoan = async (loanId, bankName) => {
-        if (window.confirm(`"${bankName}" kredisini ve tüm taksit planını kalıcı olarak silmek istediğinizden emin misiniz?`)) {
+        if (window.confirm(`"${bankName}" kredisini ve tüm taksit planını silmek istediğinizden emin misiniz?`)) {
             try {
-                await deleteDoc(doc(db, 'loans', loanId));
+                const targetLoan = loans.find(l => l.id === loanId);
+                await updateDoc(doc(db, 'loans', loanId), { deleted: true, deletedAt: new Date().toISOString() });
+                if (addLog) {
+                    addLog('KREDI_SIL', `"${bankName}" kredisi silindi`, { table: 'loans', id: loanId, record: targetLoan });
+                }
             } catch (err) {
                 console.error("Kredi silinemedi:", err);
             }
@@ -1065,7 +1074,11 @@ const CompanyDebts = ({ onOpenMenu, isMobile } = {}) => {
     const handleDeleteOpenDebt = async (debtId, creditor) => {
         if (window.confirm(`"${creditor}" borç kaydını ve ödeme geçmişini silmek istediğinize emin misiniz?`)) {
             try {
-                await deleteDoc(doc(db, 'open_debts', debtId));
+                const targetDebt = openDebts.find(d => d.id === debtId);
+                await updateDoc(doc(db, 'open_debts', debtId), { deleted: true, deletedAt: new Date().toISOString() });
+                if (addLog) {
+                    addLog('BORC_SIL', `"${creditor}" vadesiz borç kaydı silindi`, { table: 'open_debts', id: debtId, record: targetDebt });
+                }
             } catch (err) {
                 console.error("Borç silinemedi:", err);
             }

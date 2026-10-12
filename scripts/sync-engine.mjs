@@ -79,10 +79,17 @@ const COLLECTIONS = [
 
 // Hedef Dizin Belirleme
 function resolveBackupDirectory() {
-    // 1. Komut satırı argümanı: --dest="Z:\Inaner_Backups"
+    // 1. Komut satırı argümanı: --dest="..."
     const destArg = process.argv.find(a => a.startsWith('--dest='));
     if (destArg) {
-        return path.resolve(destArg.split('=')[1].replace(/"/g, ''));
+        const raw = destArg.split('=')[1].replace(/"/g, '').trim();
+        try {
+            const parsedRoot = path.parse(raw).root;
+            // Eğer belirtilen hedef disk kökü sistemde gerçekten varsa
+            if (!parsedRoot || fs.existsSync(parsedRoot) || raw.startsWith('\\\\')) {
+                return raw;
+            }
+        } catch (_) {}
     }
 
     // 2. Ortam değişkeni
@@ -90,19 +97,30 @@ function resolveBackupDirectory() {
         return path.resolve(process.env.BACKUP_DEST_DIR);
     }
 
-    // 3. Olası ağ sürücüleri (D:, Z:, Y:, X: üzerinde Backup kontrolü)
+    // 3. Keenetic SMB paylaşımı (Doğrudan modeme bağlı USB disk)
+    const uncBackup = '\\\\192.168.1.1\\INANER_DRIVE\\Backup';
+    try {
+        if (fs.existsSync('\\\\192.168.1.1\\INANER_DRIVE')) {
+            if (!fs.existsSync(uncBackup)) fs.mkdirSync(uncBackup, { recursive: true });
+            return uncBackup;
+        }
+    } catch (_) {}
+
+    // 4. Olası ağ sürücüleri (D:, Z:, Y:, X: üzerinde Backup kontrolü)
     const candidateDrives = ['D:\\', 'Z:\\', 'Y:\\', 'X:\\', 'W:\\'];
     for (const drive of candidateDrives) {
-        if (fs.existsSync(drive)) {
-            const backupTarget = path.join(drive, 'Backup');
-            if (fs.existsSync(backupTarget)) return backupTarget;
-            const legacyTarget = path.join(drive, 'Inaner_Backups');
-            if (fs.existsSync(legacyTarget)) return legacyTarget;
-            return backupTarget;
-        }
+        try {
+            if (fs.existsSync(drive)) {
+                const backupTarget = path.join(drive, 'Backup');
+                if (fs.existsSync(backupTarget)) return backupTarget;
+                const legacyTarget = path.join(drive, 'Inaner_Backups');
+                if (fs.existsSync(legacyTarget)) return legacyTarget;
+                return backupTarget;
+            }
+        } catch (_) {}
     }
 
-    // 4. Varsayılan yerel klasör
+    // 5. Varsayılan yerel klasör
     return path.join(PROJECT_ROOT, 'backups');
 }
 

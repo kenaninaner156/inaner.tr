@@ -14,11 +14,13 @@ const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 
 function resolveDriveTarget() {
-    const candidateDrives = ['D:\\', 'Z:\\'];
+    const candidateDrives = ['\\\\192.168.1.1\\INANER_DRIVE', 'D:\\', 'Z:\\'];
     for (const drive of candidateDrives) {
-        if (fs.existsSync(drive)) {
-            return drive;
-        }
+        try {
+            if (fs.existsSync(drive)) {
+                return drive;
+            }
+        } catch (_) {}
     }
     return null;
 }

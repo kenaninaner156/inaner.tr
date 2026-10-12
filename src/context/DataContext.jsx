@@ -541,6 +541,7 @@ export const DataProvider = ({ children }) => {
         // 8. Invoices config
         unsubs.push(onSnapshot(query(collection(db, 'invoices'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                .filter(d => !d.deleted)
                 .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             setInvoices(data);
         }));
@@ -568,13 +569,16 @@ export const DataProvider = ({ children }) => {
         // 10. Spare Parts config
         unsubs.push(onSnapshot(query(collection(db, 'spare_parts'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                .filter(d => !d.deleted)
                 .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             setSpareParts(data);
         }));
 
         // 11. Mechanics config
         unsubs.push(onSnapshot(query(collection(db, 'mechanics'), where('companyId', '==', activeCompanyId)), (snapshot) => {
-            setMechanics(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+            const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
+                .filter(d => !d.deleted);
+            setMechanics(data);
         }));
 
         // 11.5 Shopping List config
@@ -812,14 +816,14 @@ export const DataProvider = ({ children }) => {
 
     // ─── AKTİF ARAÇ FİLTRELEME (SIFIR FIRESTORE OKUMASI / 0 READ COST) ───
     useEffect(() => {
-        setTrips(allCompanyTrips.filter(d => !activeTruckId || d.truckId === activeTruckId));
-        setFuelRecords(allCompanyFuelRecords.filter(d => !activeTruckId || d.truckId === activeTruckId));
-        setMaintenanceRecords(allCompanyMaintenance.filter(d => !activeTruckId || d.truckId === activeTruckId));
-        setPaymentRecords(allCompanyPayments.filter(d => !activeTruckId || d.truckId === activeTruckId || !d.truckId || d.category === 'SGK & Vergi' || d.subCategory === 'sgk'));
-        setPenalties(allCompanyPenalties.filter(d => !activeTruckId || d.truckId === activeTruckId));
-        setMaintenanceFolders(allCompanyFolders.filter(d => !activeTruckId || d.truckId === activeTruckId));
-        setPayouts(allCompanyPayouts.filter(d => !activeTruckId || d.truckId === activeTruckId));
-        setShoppingItems(allCompanyShopping.filter(d => !activeTruckId || d.truckId === activeTruckId));
+        setTrips(allCompanyTrips.filter(d => !d.deleted && (!activeTruckId || d.truckId === activeTruckId)));
+        setFuelRecords(allCompanyFuelRecords.filter(d => !d.deleted && (!activeTruckId || d.truckId === activeTruckId)));
+        setMaintenanceRecords(allCompanyMaintenance.filter(d => !d.deleted && (!activeTruckId || d.truckId === activeTruckId)));
+        setPaymentRecords(allCompanyPayments.filter(d => !d.deleted && (!activeTruckId || d.truckId === activeTruckId || !d.truckId || d.category === 'SGK & Vergi' || d.subCategory === 'sgk')));
+        setPenalties(allCompanyPenalties.filter(d => !d.deleted && (!activeTruckId || d.truckId === activeTruckId)));
+        setMaintenanceFolders(allCompanyFolders.filter(d => !d.deleted && (!activeTruckId || d.truckId === activeTruckId)));
+        setPayouts(allCompanyPayouts.filter(d => !d.deleted && (!activeTruckId || d.truckId === activeTruckId)));
+        setShoppingItems(allCompanyShopping.filter(d => !d.deleted && (!activeTruckId || d.truckId === activeTruckId)));
     }, [activeTruckId, allCompanyTrips, allCompanyFuelRecords, allCompanyMaintenance, allCompanyPayments, allCompanyPenalties, allCompanyFolders, allCompanyPayouts, allCompanyShopping]);
 
     // ─── AKTİF ARAÇ DÖKÜMANLARI (YALNIZCA 2 TEKİL BELGE DİNLENİR: DOCS & DRAFT) ───
@@ -938,7 +942,7 @@ export const DataProvider = ({ children }) => {
         const trip = trips.find(t => t.id === id);
         if (trip) {
             await updateDoc(doc(db, 'trips', id), { deleted: true });
-            addLog('SEFER_SİL', `${trip.from} → ${trip.to} | ${trip.date}`, { table: 'Trips', id });
+            addLog('SEFER_SİL', `${trip.from} → ${trip.to} | ${trip.date}`, { table: 'trips', id, record: trip });
         }
     };
 
@@ -953,7 +957,7 @@ export const DataProvider = ({ children }) => {
             if (updates.tonnage !== undefined && updates.tonnage !== trip.tonnage) parts.push(`Tonaj: ${trip.tonnage}t → ${updates.tonnage}t`);
             detail = `${trip.from || ''} → ${trip.to || ''} seferi: ${parts.length > 0 ? parts.join(' | ') : 'Düzenlendi'}`;
         }
-        addLog('SEFER_DUZENLE', detail, { table: 'Trips', id, before: trip ? { from: trip.from, to: trip.to, price: trip.price, tonnage: trip.tonnage } : null, after: updates });
+        addLog('SEFER_DUZENLE', detail, { table: 'trips', id, before: trip ? { from: trip.from, to: trip.to, price: trip.price, tonnage: trip.tonnage, date: trip.date } : null, after: updates });
     };
 
     const addFuel = async (record) => {
@@ -971,7 +975,7 @@ export const DataProvider = ({ children }) => {
         const rec = fuelRecords.find(r => r.id === id);
         if (rec) {
             await updateDoc(doc(db, 'fuel', id), { deleted: true });
-            addLog('MAZOT_SİL', `${rec.station} | ${rec.date}`, { table: 'Fuel', id });
+            addLog('MAZOT_SİL', `${rec.station} | ${rec.date}`, { table: 'fuel', id, record: rec });
         }
     };
 
@@ -986,7 +990,7 @@ export const DataProvider = ({ children }) => {
             if (updates.station && updates.station !== rec.station) parts.push(`İstasyon: ${updates.station}`);
             detail = `${rec.station || 'İstasyon'}: ${parts.length > 0 ? parts.join(' | ') : 'Düzenlendi'}`;
         }
-        addLog('MAZOT_DUZENLE', detail, { table: 'Fuel', id, before: rec ? { station: rec.station, liters: rec.liters, price: rec.price } : null, after: updates });
+        addLog('MAZOT_DUZENLE', detail, { table: 'fuel', id, before: rec ? { station: rec.station, liters: rec.liters, price: rec.price, date: rec.date } : null, after: updates });
     };
 
     const addMaintenance = async (record) => {
@@ -1004,7 +1008,7 @@ export const DataProvider = ({ children }) => {
         const rec = maintenanceRecords.find(r => r.id === id);
         if (rec) {
             await updateDoc(doc(db, 'maintenance', id), { deleted: true });
-            addLog('BAKIM_SİL', `${rec.type} | ${rec.date}`, { table: 'Maintenance', id });
+            addLog('BAKIM_SİL', `${rec.type} | ${rec.date}`, { table: 'maintenance', id, record: rec });
         }
     };
 
@@ -1015,7 +1019,7 @@ export const DataProvider = ({ children }) => {
         if (rec && updatedFields.cost !== undefined && updatedFields.cost !== rec.cost) {
             detail = `${rec.type || 'Bakım'}: ${Number(rec.cost).toLocaleString('tr-TR')} ₺ → ${Number(updatedFields.cost).toLocaleString('tr-TR')} ₺`;
         }
-        addLog('BAKIM_GUNCELLE', detail, { table: 'Maintenance', id, before: rec ? { type: rec.type, cost: rec.cost, description: rec.description } : null, after: updatedFields });
+        addLog('BAKIM_GUNCELLE', detail, { table: 'maintenance', id, before: rec ? { type: rec.type, cost: rec.cost, description: rec.description, date: rec.date } : null, after: updatedFields });
     };
 
     const addPayment = async (record) => {
@@ -1033,7 +1037,7 @@ export const DataProvider = ({ children }) => {
         const rec = paymentRecords.find(r => r.id === id);
         if (rec) {
             await updateDoc(doc(db, 'payments', id), { deleted: true });
-            addLog('ODEME_SIL', `${rec.type} | ₺${rec.amount} | ${rec.date}`, { table: 'Payments', id });
+            addLog('ODEME_SIL', `${rec.type} | ₺${rec.amount} | ${rec.date}`, { table: 'payments', id, record: rec });
         }
     };
 
@@ -1044,7 +1048,7 @@ export const DataProvider = ({ children }) => {
         if (rec && updatedFields.amount !== undefined && updatedFields.amount !== rec.amount) {
             detail = `${rec.type || 'Ödeme'}: ${Number(rec.amount).toLocaleString('tr-TR')} ₺ → ${Number(updatedFields.amount).toLocaleString('tr-TR')} ₺ (${updatedFields.description || rec.description || ''})`;
         }
-        addLog('ODEME_GUNCELLE', detail, { table: 'Payments', id, before: rec ? { type: rec.type, amount: rec.amount, description: rec.description } : null, after: updatedFields });
+        addLog('ODEME_GUNCELLE', detail, { table: 'payments', id, before: rec ? { type: rec.type, amount: rec.amount, description: rec.description, date: rec.date } : null, after: updatedFields });
     };
 
     const updateVehicleInfo = async (newInfo) => {
@@ -1108,8 +1112,9 @@ export const DataProvider = ({ children }) => {
 
     const deleteSparePart = async (id, partName) => {
         try {
-            await deleteDoc(doc(db, 'spare_parts', id));
-            addLog('STOK_SIL', `${partName} stoktan silindi`);
+            const part = spareParts.find(p => p.id === id);
+            await updateDoc(doc(db, 'spare_parts', id), { deleted: true });
+            addLog('STOK_SIL', `${partName || part?.name || 'Parça'} stoktan silindi`, { table: 'spare_parts', id, record: part });
         } catch { /* empty */ }
     };
 
@@ -1119,13 +1124,17 @@ export const DataProvider = ({ children }) => {
     };
 
     const deleteMechanic = async (id, name) => {
-        await deleteDoc(doc(db, 'mechanics', id));
-        addLog('TAMIRCI_SIL', name || 'Tamirci');
+        try {
+            const mech = mechanics.find(m => m.id === id);
+            await updateDoc(doc(db, 'mechanics', id), { deleted: true });
+            addLog('TAMIRCI_SIL', name || mech?.name || 'Tamirci', { table: 'mechanics', id, record: mech });
+        } catch { /* empty */ }
     };
 
     const updateMechanic = async (id, updatedFields) => {
+        const mech = mechanics.find(m => m.id === id);
         await updateDoc(doc(db, 'mechanics', id), updatedFields);
-        addLog('TAMIRCI_GUNCELLE', updatedFields.name || updatedFields.shopName || 'Tamirci');
+        addLog('TAMIRCI_GUNCELLE', updatedFields.name || updatedFields.shopName || 'Tamirci', { table: 'mechanics', id, before: mech, after: updatedFields });
     };
 
     const addMaintenanceFolder = async (folder) => {
@@ -1138,8 +1147,11 @@ export const DataProvider = ({ children }) => {
     };
 
     const deleteMaintenanceFolder = async (id, folderName) => {
-        await deleteDoc(doc(db, 'maintenance_folders', id));
-        addLog('KLASOR_SİL', `${folderName} klasörü silindi`);
+        try {
+            const folder = (maintenanceFolders || []).find(f => f.id === id);
+            await updateDoc(doc(db, 'maintenance_folders', id), { deleted: true });
+            addLog('KLASOR_SİL', `${folderName || folder?.name || 'Klasör'} klasörü silindi`, { table: 'maintenance_folders', id, record: folder });
+        } catch { /* empty */ }
     };
 
     const getCompanyRoutesDocId = () => `${activeCompanyId}_routes`;
@@ -1424,15 +1436,15 @@ export const DataProvider = ({ children }) => {
     const deletePenalty = async (id) => {
         const p = penalties.find(r => r.id === id);
         if (p) {
-            await deleteDoc(doc(db, 'penalties', id));
-            addLog('CEZA_SİL', `${p.type} | ₺${p.amount}`);
+            await updateDoc(doc(db, 'penalties', id), { deleted: true });
+            addLog('CEZA_SİL', `${p.type} | ₺${p.amount}`, { table: 'penalties', id, record: p });
         }
     };
 
     const togglePenaltyPaid = async (id, currentStatus) => {
         await updateDoc(doc(db, 'penalties', id), { paid: !currentStatus });
         addLog('CEZA_DURUM', `Ceza durumu güncellendi (Ödendi: ${!currentStatus})`);
-    }
+    };
 
     // Invoices CRUD
     const addInvoice = async (invoice) => {
@@ -1450,8 +1462,9 @@ export const DataProvider = ({ children }) => {
     };
 
     const updateInvoice = async (id, updatedFields) => {
+        const inv = invoices.find(i => i.id === id);
         await updateDoc(doc(db, 'invoices', id), updatedFields);
-        addLog('FATURA_GUNCELLE', `Fatura ID: ${id} güncellendi.`);
+        addLog('FATURA_GUNCELLE', `Fatura ID: ${id} güncellendi.`, { table: 'invoices', id, before: inv, after: updatedFields });
     };
 
     const deleteInvoice = async (id) => {
@@ -1470,8 +1483,8 @@ export const DataProvider = ({ children }) => {
                 console.error("Seferler geri alınırken hata:", err);
             }
         }
-        await deleteDoc(doc(db, 'invoices', id));
-        addLog('FATURA_SIL', `Fatura silindi`, { table: 'Invoices', id });
+        await updateDoc(doc(db, 'invoices', id), { deleted: true });
+        addLog('FATURA_SIL', `Fatura silindi`, { table: 'invoices', id, record: invToDelete });
     };
 
     // Payouts CRUD
@@ -1481,13 +1494,15 @@ export const DataProvider = ({ children }) => {
     };
 
     const updatePayout = async (id, updatedFields) => {
+        const p = payouts.find(x => x.id === id);
         await updateDoc(doc(db, 'payouts', id), updatedFields);
-        addLog('ODEME_PIRIM_GUNCELLE', `Prim hakediş kaydı güncellendi.`);
+        addLog('ODEME_PIRIM_GUNCELLE', `Prim hakediş kaydı güncellendi.`, { table: 'payouts', id, before: p, after: updatedFields });
     };
 
     const deletePayout = async (id) => {
-        await deleteDoc(doc(db, 'payouts', id));
-        addLog('ODEME_PIRIM_SIL', `Prim hakediş kaydı silindi`, { table: 'Payouts', id });
+        const p = payouts.find(x => x.id === id);
+        await updateDoc(doc(db, 'payouts', id), { deleted: true });
+        addLog('ODEME_PIRIM_SIL', `Prim hakediş kaydı silindi`, { table: 'payouts', id, record: p });
     };
 
     // Premiums CRUD
@@ -1509,11 +1524,59 @@ export const DataProvider = ({ children }) => {
         } catch { /* empty */ }
     };
 
-    const restoreData = async (table, id) => {
-        const collMap = { 'Trips': 'trips', 'Fuel': 'fuel', 'Maintenance': 'maintenance', 'Payments': 'payments' };
-        if (collMap[table]) {
-            await updateDoc(doc(db, collMap[table], id), { deleted: false });
-            addLog('GERI_YUKLE', `${table} tablosundan bir veri geri yüklendi`);
+    const TABLE_COLLECTION_MAP = {
+        'trips': 'trips', 'Trips': 'trips',
+        'fuel': 'fuel', 'Fuel': 'fuel',
+        'maintenance': 'maintenance', 'Maintenance': 'maintenance',
+        'payments': 'payments', 'Payments': 'payments',
+        'invoices': 'invoices', 'Invoices': 'invoices',
+        'penalties': 'penalties', 'Penalties': 'penalties',
+        'spare_parts': 'spare_parts', 'SpareParts': 'spare_parts',
+        'mechanics': 'mechanics', 'Mechanics': 'mechanics',
+        'maintenance_folders': 'maintenance_folders', 'MaintenanceFolders': 'maintenance_folders',
+        'loans': 'loans', 'Loans': 'loans',
+        'open_debts': 'open_debts', 'OpenDebts': 'open_debts',
+        'payouts': 'payouts', 'Payouts': 'payouts',
+        'shopping_list': 'shopping_list'
+    };
+
+    // Evrensel Geri Yükleme (Silinmiş Kaydı Kurtar)
+    const restoreData = async (table, id, backupRecord = null) => {
+        const collName = TABLE_COLLECTION_MAP[table] || (table ? table.toLowerCase() : null);
+        if (!collName || !id) return false;
+        try {
+            const docRef = doc(db, collName, id);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                await updateDoc(docRef, { deleted: false, restoredAt: new Date().toISOString() });
+            } else if (backupRecord && typeof backupRecord === 'object') {
+                await setDoc(docRef, { ...backupRecord, deleted: false, restoredAt: new Date().toISOString() });
+            } else {
+                throw new Error("Geri yüklenecek kayıt bulunamadı.");
+            }
+            addLog('GERI_YUKLE', `${table} tablosundan veri geri yüklendi`, { table: collName, id });
+            return true;
+        } catch (err) {
+            console.error("Geri yükleme hatası:", err);
+            return false;
+        }
+    };
+
+    // Evrensel Düzenleme Geri Alma (Önceki Haline Döndür)
+    const rollbackEdit = async (table, id, beforeData) => {
+        if (!beforeData || typeof beforeData !== 'object') {
+            throw new Error("Geri döndürülecek önceki veri bulunamadı.");
+        }
+        const collName = TABLE_COLLECTION_MAP[table] || (table ? table.toLowerCase() : null);
+        if (!collName || !id) return false;
+        try {
+            const docRef = doc(db, collName, id);
+            await updateDoc(docRef, { ...beforeData, updatedAt: new Date().toISOString() });
+            addLog('GERI_ALINDI', `${table} tablosundaki düzenleme önceki haline döndürüldü`, { table: collName, id, restoredValues: beforeData });
+            return true;
+        } catch (err) {
+            console.error("Düzenleme geri alma hatası:", err);
+            return false;
         }
     };
 
@@ -1707,12 +1770,14 @@ export const DataProvider = ({ children }) => {
             setPersonnelList(prev => [newRecord, ...(prev || []).filter(p => p.id !== newRecord.id)]);
         }
 
+        addLog('PERSONEL_EKLE', `${newRecord.name || newRecord.fullName || 'Yeni Personel'} eklendi`, { table: 'personnel', id: newRecord.id });
         return newRecord;
     }, [activeCompanyId, personnelList]);
 
     const updatePersonnel = useCallback(async (id, data) => {
         const targetCompanyId = activeCompanyId || (typeof window !== 'undefined' && localStorage.getItem('tir_current_company')) || 'inaner_logistics';
         const cleanData = JSON.parse(JSON.stringify(data));
+        const prevPerson = (personnelList || []).find(p => p.id === id);
 
         // 1. Try update collection
         try {
@@ -1743,11 +1808,13 @@ export const DataProvider = ({ children }) => {
             setPersonnelList(prev => (prev || []).map(p => p.id === id ? { ...p, ...cleanData } : p));
         }
 
+        addLog('PERSONEL_GUNCELLE', `${cleanData.name || prevPerson?.name || 'Personel'} güncellendi`, { table: 'personnel', id, before: prevPerson, after: cleanData });
         return { success: true };
     }, [activeCompanyId, personnelList]);
 
     const deletePersonnel = useCallback(async (id) => {
         const targetCompanyId = activeCompanyId || (typeof window !== 'undefined' && localStorage.getItem('tir_current_company')) || 'inaner_logistics';
+        const prevPerson = (personnelList || []).find(p => p.id === id);
 
         // 1. Try delete from collection
         try {
@@ -1775,6 +1842,7 @@ export const DataProvider = ({ children }) => {
             setPersonnelList(prev => (prev || []).filter(p => p.id !== id));
         }
 
+        addLog('PERSONEL_SIL', `${prevPerson?.name || 'Personel'} kaydı silindi`, { table: 'personnel', id, record: prevPerson });
         return { success: true };
     }, [activeCompanyId, personnelList]);
 
@@ -1825,7 +1893,7 @@ export const DataProvider = ({ children }) => {
             maintenanceFolders, addMaintenanceFolder, updateMaintenanceFolder, deleteMaintenanceFolder,
             routes, addRoute, deleteRoute, updateRoutePrice,
             savedTrackingRoutes, addSavedTrackingRoute, deleteSavedTrackingRoute, updateSavedTrackingRoute,
-            adminLog, addLog, clearLog, restoreData,
+            adminLog, addLog, clearLog, restoreData, rollbackEdit,
             currentSession, loginSession, logoutSession, callAdminApi,
             pendingUsers, approvedUsers, registerUser, approveUser, rejectUser, editUser, refreshUsers, addApprovedUser, deleteUser,
             drivers, allDrivers, updateDrivers,

@@ -15,6 +15,8 @@
 const liveFleet = new Map();
 const lastD1LiveWrite = new Map();     // deviceId -> { time: ms, lat, lon, isMoving, geofenceId }
 const lastRoutePointWrite = new Map(); // deviceId -> { time: ms, lat, lon, heading, speed }
+const d1TrailCache = new Map();        // deviceId -> { time: ms, tripStartTime: ms, trail: [] }
+let cachedGeofences = { time: 0, list: [] };
 const debugLogs = [];
 
 function logEvent(type, data) {
@@ -205,6 +207,7 @@ export default {
         if (!env.DB) {
           return new Response(JSON.stringify({ error: 'D1 not bound' }), { status: 500, headers: CORS_HEADERS });
         }
+        cachedGeofences = { time: 0, list: [] };
         const incomingGeos = Array.isArray(data.geofences) ? data.geofences : [];
         for (const g of incomingGeos) {
           if (!g.id || !g.name) continue;
@@ -282,25 +285,39 @@ export default {
                 const tripStartTime = row.active_trip_start_time || (nowMs - 2 * 3600 * 1000);
 
                 let recentTrail = [];
-                try {
-                  const { results: trailRows } = await env.DB.prepare(`
-                    SELECT lat, lon, speed, altitude, timestamp, point_time
-                    FROM route_points
-                    WHERE device_id = ? AND point_time >= ?
-                    ORDER BY point_time ASC
-                    LIMIT 2000
-                  `).bind(dId, tripStartTime).all();
+                const cachedTrail = d1TrailCache.get(dId);
+                if (
+                  cachedTrail &&
+                  cachedTrail.tripStartTime === tripStartTime &&
+                  (nowMs - cachedTrail.time) < 45 * 1000
+                ) {
+                  recentTrail = cachedTrail.trail;
+                } else {
+                  try {
+                    const { results: trailRows } = await env.DB.prepare(`
+                      SELECT lat, lon, speed, altitude, timestamp, point_time
+                      FROM route_points
+                      WHERE device_id = ? AND point_time >= ?
+                      ORDER BY point_time ASC
+                      LIMIT 2000
+                    `).bind(dId, tripStartTime).all();
 
-                  if (trailRows && trailRows.length > 0) {
-                    recentTrail = trailRows.map(p => ({
-                      lat: p.lat,
-                      lon: p.lon,
-                      speed: p.speed,
-                      altitude: p.altitude,
-                      timestamp: p.timestamp
-                    }));
-                  }
-                } catch (_) {}
+                    if (trailRows && trailRows.length > 0) {
+                      recentTrail = trailRows.map(p => ({
+                        lat: p.lat,
+                        lon: p.lon,
+                        speed: p.speed,
+                        altitude: p.altitude,
+                        timestamp: p.timestamp
+                      }));
+                    }
+                    d1TrailCache.set(dId, {
+                      time: nowMs,
+                      tripStartTime,
+                      trail: recentTrail
+                    });
+                  } catch (_) {}
+                }
 
                 const isOnline = (nowMs - new Date(row.updated_at).getTime()) < 30 * 60 * 1000;
 
@@ -417,6 +434,7 @@ export default {
         liveFleet.delete(delId);
         lastD1LiveWrite.delete(delId);
         lastRoutePointWrite.delete(delId);
+        d1TrailCache.delete(delId);
         return new Response(JSON.stringify({ success: true, deleted: delId }), {
           status: 200,
           headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
@@ -527,7 +545,14 @@ export default {
           }
 
           // 6.2 Geofence (Özel Bölge) Kontrolü
-          const { results: allGeos } = await env.DB.prepare('SELECT * FROM geofences').all();
+          let allGeos = [];
+          if (cachedGeofences.list.length > 0 && (Date.now() - cachedGeofences.time) < 120 * 1000) {
+            allGeos = cachedGeofences.list;
+          } else {
+            const { results } = await env.DB.prepare('SELECT * FROM geofences').all();
+            allGeos = results || [];
+            cachedGeofences = { time: Date.now(), list: allGeos };
+          }
           let currentGeofence = null;
           if (allGeos && allGeos.length > 0) {
             const ptObj = { lat: rawLat, lon: rawLon };
@@ -563,6 +588,7 @@ export default {
                 notifyDiscord(`🚀 [YENİ SEFER] **${deviceId}** özel bölgeden çıkış yaptı. Yeni sefer başlatıldı.`);
                 // Bellekteki eski rota izini temizle
                 if (prevMem) prevMem.recentTrail = [];
+                d1TrailCache.delete(deviceId);
               }
               activeGeofenceId = null;
               geofenceEntryTime = null;
@@ -650,8 +676,14 @@ export default {
 
           let shouldRecordPoint = false;
           if (!isCurrentlyMoving) {
-            // Dururken (Hız < 3 km/s): Yalnızca 3 dakikada bir veya 50 metre oynarsa tek nokta kaydet
-            shouldRecordPoint = ptTimeDiffSec >= 180 || ptDistKm >= 0.05;
+            // Dururken (Hız < 3 km/s):
+            // Sadece durma anını işaretlemek için ilk duruş noktasını kaydet (sefer bitişi).
+            // Araç park halinde kaldığı sürece (ptDistKm < 50m) diske mükerrer 0 km/h noktası yazma!
+            if (lastPt.speed >= 3 || lastPt.time === 0) {
+              shouldRecordPoint = true;
+            } else if (ptDistKm >= 0.05) {
+              shouldRecordPoint = true;
+            }
           } else {
             // Seyir halindeyken:
             // 1. Viraj / Kavşak: Açı sapması >= 15° ve en az 2 saniye geçmişse

@@ -5,82 +5,7 @@ import { db, auth, googleProvider } from '../services/firebaseConfig';
 import { collection, query, where, getDocs, addDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
 import { sendDiscordAlert } from '../services/discordWebhook';
-
-const getAdvancedMeta = async () => {
-    let ip = 'Bilinmiyor';
-    let location = 'Bilinmiyor';
-    let ipTz = null;
-    let ipOrg = '';
-
-    try {
-        const ipRes = await fetch('https://ipapi.co/json/');
-        const ipData = await ipRes.json();
-        ip = ipData.ip || 'Bilinmiyor';
-        if (ipData.timezone) ipTz = ipData.timezone;
-        if (ipData.org) ipOrg = ipData.org;
-        if (ipData.city) location = `${ipData.city}, ${ipData.country_name} (${ipData.org})`;
-    } catch {
-        try {
-            const ipInfoRes = await fetch('https://ipinfo.io/json');
-            const ipInfoData = await ipInfoRes.json();
-            ip = ipInfoData.ip || 'Bilinmiyor';
-            if (ipInfoData.timezone) ipTz = ipInfoData.timezone;
-            if (ipInfoData.org) ipOrg = ipInfoData.org;
-            if (ipInfoData.city) location = `${ipInfoData.city}, ${ipInfoData.country} (${ipInfoData.org})`;
-        } catch { }
-    }
-
-    const rawDevice = navigator.userAgent;
-    let deviceStr = 'Bilinmeyen Cihaz';
-    if (rawDevice.includes('Windows')) deviceStr = 'Windows';
-    else if (rawDevice.includes('Mac')) deviceStr = 'MacOS';
-    else if (rawDevice.includes('Android')) deviceStr = 'Android';
-    else if (rawDevice.includes('iPhone') || rawDevice.includes('iPad')) deviceStr = 'iOS';
-    else if (rawDevice.includes('Linux')) deviceStr = 'Linux';
-    
-    let browserStr = 'Tarayıcı';
-    if (rawDevice.includes('Chrome') && !rawDevice.includes('Edg') && !rawDevice.includes('OPR')) browserStr = 'Chrome';
-    else if (rawDevice.includes('Safari') && !rawDevice.includes('Chrome')) browserStr = 'Safari';
-    else if (rawDevice.includes('Firefox')) browserStr = 'Firefox';
-    else if (rawDevice.includes('Edg')) browserStr = 'Edge';
-    else if (rawDevice.includes('OPR') || rawDevice.includes('Opera')) browserStr = 'Opera';
-
-    const device = `${deviceStr} - ${browserStr}`;
-    const screen = typeof window !== 'undefined' ? `${window.screen.width}x${window.screen.height} (${window.screen.colorDepth}-bit)` : 'Bilinmiyor';
-    const cores = navigator.hardwareConcurrency ? `${navigator.hardwareConcurrency} Çekirdek` : 'Bilinmiyor';
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Bilinmiyor';
-    const lang = navigator.language || 'Bilinmiyor';
-    const isKnownDevice = localStorage.getItem('tir_known_device') === 'true';
-
-    // 1. VPN/Proxy Algılama
-    let vpnRisk = false;
-    if (ipTz && tz !== 'Bilinmiyor' && ipTz !== tz) {
-        vpnRisk = true; // IP konumu ile cihaz saat dilimi uyuşmuyor!
-    }
-    const orgL = ipOrg.toLowerCase();
-    if (orgL.includes('vpn') || orgL.includes('proxy') || orgL.includes('datacenter') || orgL.includes('digitalocean') || orgL.includes('amazon') || orgL.includes('aws') || orgL.includes('cloud') || orgL.includes('server')) {
-        vpnRisk = true;
-    }
-
-    // 2. Gizli Sekme (Incognito) Algılama Heuristic
-    let incognitoRisk = false;
-    try {
-        if (navigator.storage && navigator.storage.estimate) {
-            const { quota } = await navigator.storage.estimate();
-            // Gizli sekmeler belleği genellikle katı bir şekilde kısıtlar (Örn: ~100MB - 120MB arası). 
-            if (quota < 200000000) { 
-                incognitoRisk = true;
-            }
-        }
-    } catch {}
-
-    // Apple cihazlarında localStorage kullanımları zaten Safari Strict yapısından ötürü gizli sekme gibi davrandığından incognito'yu flagliyoruz
-    if (!isKnownDevice && deviceStr === 'iOS' && browserStr === 'Safari') {
-        incognitoRisk = true;
-    }
-
-    return { ip, location, device, rawDevice, screen, cores, tz, lang, isKnownDevice, vpnRisk, incognitoRisk };
-};
+import { getDeviceFingerprint } from '../utils/visitorTracker';
 
 const Login = () => {
     const { loginSession } = useContext(DataContext);
@@ -97,39 +22,72 @@ const Login = () => {
     const [googleLoading, setGoogleLoading] = useState(false);
     const [showVideo, setShowVideo] = useState(false);
 
-    // Ana Sayfa Ziyaret Sayacı
+    // Ana Sayfa Ziyaret Sayacı ve Canlı Misafir Presence
     useEffect(() => {
+        let presenceInterval = null;
+        let visitorPresenceId = null;
+
         const logVisitor = async () => {
+            const advancedMeta = await getDeviceFingerprint();
+            visitorPresenceId = 'guest_' + advancedMeta.fingerprintId;
+
+            // Canlı Presence Kaydı (Misafir Radarı)
+            try {
+                await setDoc(doc(db, 'presence', visitorPresenceId), {
+                    username: 'Misafir',
+                    role: 'misafir',
+                    ip: advancedMeta.ip,
+                    location: advancedMeta.location,
+                    device: advancedMeta.device,
+                    deviceType: advancedMeta.deviceType,
+                    fingerprintId: advancedMeta.fingerprintId,
+                    vpnRisk: advancedMeta.vpnRisk,
+                    incognitoRisk: advancedMeta.incognitoRisk,
+                    lastActive: new Date().toISOString(),
+                    sessionStart: new Date().toISOString()
+                });
+
+                presenceInterval = setInterval(() => {
+                    setDoc(doc(db, 'presence', visitorPresenceId), {
+                        lastActive: new Date().toISOString()
+                    }, { merge: true }).catch(() => {});
+                }, 60000);
+            } catch { /* Presence error */ }
+
             if (sessionStorage.getItem('tir_visited')) return;
             sessionStorage.setItem('tir_visited', 'true');
-            
-            const advancedMeta = await getAdvancedMeta();
             
             try {
                 await addDoc(collection(db, 'admin_logs'), {
                     timestamp: new Date().toISOString(),
                     action: 'ZIYARETCI_GIRIS',
-                    detail: 'Siteye giriş yaptı (Ana Ekran)',
+                    detail: `Siteye giriş yaptı (${advancedMeta.deviceType} · ${advancedMeta.city || advancedMeta.location})`,
                     user: 'Misafir',
                     meta: advancedMeta,
-                    companyId: 'inaner_logistics' // Log directly to super admin scope
+                    companyId: 'inaner_logistics'
                 });
-                // G6: Ziyaretçi bildirimi
+
                 sendDiscordAlert({
                     type: 'info',
-                    title: '👁️ Yeni Ziyaretçi',
-                    description: 'Birisi login sayfasını ziyaret etti.',
+                    title: 'Yeni Ziyaretçi Girişi',
+                    description: 'Giriş sayfası yeni bir ziyaretçi tarafından görüntülendi.',
                     fields: [
-                        { name: '📍 IP / Konum', value: advancedMeta.ip + ' — ' + advancedMeta.location, inline: false },
-                        { name: '💻 Cihaz', value: advancedMeta.device, inline: true },
-                        { name: '🕵️ VPN', value: advancedMeta.vpnRisk ? '⚠️ Şüpheli' : '✅ Temiz', inline: true },
-                        { name: '🕶️ Gizli Sekme', value: advancedMeta.incognitoRisk ? '⚠️ Evet' : '✅ Hayır', inline: true },
-                        { name: '📱 Bilinmeyen Cihaz', value: advancedMeta.isKnownDevice ? '✅ Tanıdık' : '⚠️ YENİ CİHAZ', inline: true },
+                        { name: 'IP ve Konum', value: `${advancedMeta.ip} — ${advancedMeta.location}`, inline: false },
+                        { name: 'Cihaz & OS', value: advancedMeta.device, inline: true },
+                        { name: 'Donanım Kimliği', value: advancedMeta.fingerprintId, inline: true },
+                        { name: 'VPN Durumu', value: advancedMeta.vpnRisk ? 'Riskli / Şüpheli' : 'Normal', inline: true },
+                        { name: 'Gizli Sekme', value: advancedMeta.incognitoRisk ? 'Algılandı' : 'Normal', inline: true },
+                        { name: 'Cihaz Tanıma', value: advancedMeta.isKnownDevice ? 'Tanınan Cihaz' : 'Yeni Bilinmeyen Donanım', inline: true },
                     ]
                 });
-            } catch { } // Error logging visitor
+            } catch { }
         };
+
         logVisitor();
+
+        return () => {
+            if (presenceInterval) clearInterval(presenceInterval);
+        };
     }, []);
 
     const handleLogin = async (e) => {
@@ -137,7 +95,7 @@ const Login = () => {
         setError('');
         setLoading(true);
 
-        const advancedMeta = await getAdvancedMeta();
+        const advancedMeta = await getDeviceFingerprint();
         const { ip, location, device, rawDevice } = advancedMeta;
         const uname = username.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
         const email = `${uname}@inaner.com`;
@@ -249,7 +207,7 @@ const Login = () => {
             const user = result.user;
             const uid = user.uid;
 
-            const advancedMeta = await getAdvancedMeta();
+            const advancedMeta = await getDeviceFingerprint();
 
             // Kullanıcı approved_users'da var mı?
             const userDocRef = doc(db, 'approved_users', uid);

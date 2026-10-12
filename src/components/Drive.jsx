@@ -5,7 +5,8 @@ import {
     FileArchive, Film, Code, Download, Trash2, Eye, Pencil, Search,
     RefreshCw, CheckCircle2, AlertCircle, X, Upload, UploadCloud,
     ChevronRight, ChevronLeft, ChevronDown, ChevronUp, LayoutGrid, List,
-    Settings, HardDrive, Check, Clock, Menu, ArrowRight, ExternalLink
+    Settings, HardDrive, Check, Clock, Menu, ArrowRight, ExternalLink,
+    Wifi, Cloud
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DataContext } from '../context/DataContext';
@@ -542,20 +543,62 @@ function Drive({ onOpenMenu, isMobile }) {
                         <span className="text-sm font-bold text-white tracking-tight">
                             İnaner Drive
                         </span>
+                        {stats && (
+                            <div className="sm:hidden flex items-center ml-1">
+                                {stats.isLocalNetwork ? (
+                                    <span 
+                                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-semibold"
+                                        title="Yerel Ağ (1 Gbps)"
+                                    >
+                                        <Wifi size={10} />
+                                        <span>Yerel</span>
+                                    </span>
+                                ) : (
+                                    <span 
+                                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[9px] font-semibold"
+                                        title="Bulut Köprüsü"
+                                    >
+                                        <Cloud size={10} />
+                                        <span>Bulut</span>
+                                    </span>
+                                )}
+                            </div>
+                        )}
                     </div>
 
-                    {/* Apple Tarzı Ultra-İnce Disk Hafızası Göstergesi */}
+                    {/* Apple Tarzı Ultra-İnce Disk Hafızası Göstergesi & Bağlantı Rozeti */}
                     {stats && (
-                        <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-white/[0.06] text-xs text-zinc-400">
-                            <div className="w-16 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                                <div
-                                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
-                                    style={{ width: `${Math.min(100, Math.max(2, parseFloat(stats.usagePercent) || 0))}%` }}
-                                />
+                        <div className="hidden sm:flex items-center gap-2.5 pl-3 border-l border-white/[0.06] text-xs text-zinc-400">
+                            <div className="flex items-center gap-2">
+                                <div className="w-16 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
+                                        style={{ width: `${Math.min(100, Math.max(2, parseFloat(stats.usagePercent) || 0))}%` }}
+                                    />
+                                </div>
+                                <span className="text-[11px] font-medium text-zinc-300">
+                                    {stats.usedGB} GB <span className="text-zinc-500">/</span> {stats.totalGB} GB
+                                </span>
                             </div>
-                            <span className="text-[11px] font-medium text-zinc-300">
-                                {stats.usedGB} GB <span className="text-zinc-500">/</span> {stats.totalGB} GB
-                            </span>
+
+                            {/* Akıllı Bağlantı Modu Rozeti */}
+                            {stats.isLocalNetwork ? (
+                                <div 
+                                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-semibold"
+                                    title={`Yerel Ağ Doğrudan Erişim: ${stats.drivePath || 'SMB (1 Gbps)'}`}
+                                >
+                                    <Wifi size={11} className="shrink-0" />
+                                    <span>Yerel Ağ (1 Gbps)</span>
+                                </div>
+                            ) : (
+                                <div 
+                                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-semibold"
+                                    title="İnternet Üzerinden Güvenli Keenetic Bulut Köprüsü"
+                                >
+                                    <Cloud size={11} className="shrink-0" />
+                                    <span>Bulut Köprüsü</span>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line 
 import { Polyline, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { Calendar, ChevronLeft, ChevronRight, ChevronDown, Play, Pause, X, Smartphone, BookmarkPlus, Scissors, Edit2, Check, Loader2, Clock } from 'lucide-react';
-import { calcStats, getInterpolatedPointLinear, haversineKm, groupIntoSessions, filterSessionPoints, getPointTime } from '../../utils/mapUtils';
+import { calcStats, getInterpolatedPointLinear, haversineKm, groupIntoSessions, filterSessionPoints, getPointTime, isMeaningfulTrip } from '../../utils/mapUtils';
 import { DataContext } from '../../context/DataContext';
 import { db } from '../../services/firebaseConfig';
 import { collection, query, where, orderBy, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
@@ -168,15 +168,8 @@ function MobileRouteHistoryCard({
   const todayStr = new Date().toISOString().slice(0, 10);
   const isTodayDate = historyDate === todayStr;
 
-  // Filter valid sessions (bugün için canlı akışı yakalamak üzere esnek eşik)
-  const validSessions = (sessions || []).filter(s => {
-    if (!s || s.length < 2) return false;
-    const { km, durationMin } = calcStats(s);
-    if (isTodayDate) {
-      return parseFloat(km) >= 0.2 || parseInt(durationMin) >= 2 || s.length >= 5;
-    }
-    return parseFloat(km) >= 2 || parseInt(durationMin) >= 3;
-  });
+  // Sadece gerçek, hareket edilmiş seferleri filtrele (0 km park veya rölanti kayıtlarını eler)
+  const validSessions = (sessions || []).filter(isMeaningfulTrip);
 
   const currentStats = selectedSession ? calcStats(selectedSession) : null;
   const currentSpeed = interpolatedData ? Math.round((interpolatedData.speed || 0) * 1.852) : 0;
@@ -817,7 +810,9 @@ export default function RouteHistory({
             if (cached.exists() && cached.data().sessionsJson) {
               if (historyFetchRef.current === fetchId) {
                 try {
-                  setSessionsByDriver({ [selectedDriver]: JSON.parse(cached.data().sessionsJson) });
+                  const parsed = JSON.parse(cached.data().sessionsJson);
+                  const cleanSessions = Array.isArray(parsed) ? parsed.filter(isMeaningfulTrip) : [];
+                  setSessionsByDriver({ [selectedDriver]: cleanSessions });
                 } catch (e) {
                   console.error('Cache parse error:', e);
                   setSessionsByDriver({ [selectedDriver]: [] });
@@ -944,6 +939,9 @@ export default function RouteHistory({
           
           // Silinmiş mi kontrol et
           if (manualDeletes?.includes(session[0].timestamp)) return false;
+
+          // Hareketsiz sahte seferleri (0 km park sürelerini) kesin olarak ele
+          if (!isMeaningfulTrip(session)) return false;
 
           // Seferin başlangıç veya herhangi bir noktası seçili gün ile eşleşiyorsa göster
           const sessionStartDate = getTurkeyDateStr(session[0].timestamp);
@@ -1555,14 +1553,7 @@ export default function RouteHistory({
               {(() => {
                 const todayStr = new Date().toISOString().slice(0, 10);
                 const isTodayDate = historyDate === todayStr;
-                const validSessions = (sessionsByDriver[selectedDriver] || []).filter(session => {
-                  if (!session || session.length < 2) return false;
-                  const { km, durationMin } = calcStats(session);
-                  if (isTodayDate) {
-                    return parseFloat(km) >= 0.2 || parseInt(durationMin) >= 2 || session.length >= 5;
-                  }
-                  return parseFloat(km) >= 2 || parseInt(durationMin) >= 3;
-                });
+                const validSessions = (sessionsByDriver[selectedDriver] || []).filter(isMeaningfulTrip);
 
                 if (validSessions.length === 0) {
                   return (

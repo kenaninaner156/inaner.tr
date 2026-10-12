@@ -5,10 +5,11 @@ import { sendDiscordAlert } from '../services/discordWebhook';
 import { 
     Shield, Trash2, CheckCircle2, AlertTriangle, Users, X, RotateCcw, 
     Search, Calendar, MapPin, MonitorSmartphone, Download, ChevronDown, 
-    ChevronUp, Copy, Check, Activity, Wallet, Globe, Layers
+    ChevronUp, Activity, Wallet, Globe, Undo2, Eye, Cpu, Clock, Filter,
+    Check, ArrowRight
 } from 'lucide-react';
 
-const ACTION_LABELS = {
+const ACTION_CONFIG = {
     // Finans & Yakıt
     MAZOT_ISKONTO_GUNCELLEME: { label: 'Mazot İskontosu Güncellendi', color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20' },
     MAZOT_EKLE: { label: 'Mazot Fişi Eklendi', color: 'text-sky-400', bg: 'bg-sky-500/10 border-sky-500/20' },
@@ -23,6 +24,8 @@ const ACTION_LABELS = {
     CEZA_EKLE: { label: 'Trafik Cezası Eklendi', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
     CEZA_SİL: { label: 'Ceza Silindi', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
     CEZA_DURUM: { label: 'Ceza Durumu Değişti', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
+    KREDI_SIL: { label: 'Banka Kredisi Silindi', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
+    BORC_SIL: { label: 'Vadesiz Borç Silindi', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
 
     // Sefer & Operasyon
     SEFER_EKLE: { label: 'Sefer Eklendi', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
@@ -48,87 +51,104 @@ const ACTION_LABELS = {
     KLASOR_EKLE: { label: 'Evrak Klasörü Oluşturuldu', color: 'text-slate-300', bg: 'bg-slate-500/10 border-slate-500/20' },
     KLASOR_SİL: { label: 'Evrak Klasörü Silindi', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
 
-    // Sistem & Güvenlik
+    // Personel & Prim
+    PERSONEL_EKLE: { label: 'Personel Eklendi', color: 'text-teal-400', bg: 'bg-teal-500/10 border-teal-500/20' },
+    PERSONEL_GUNCELLE: { label: 'Personel Güncellendi', color: 'text-teal-400', bg: 'bg-teal-500/10 border-teal-500/20' },
+    PERSONEL_SIL: { label: 'Personel Silindi', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
+    ODEME_PIRIM_ONAY: { label: 'Prim Onaylandı', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+    ODEME_PIRIM_GUNCELLE: { label: 'Prim Güncellendi', color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
+    ODEME_PIRIM_SIL: { label: 'Prim Silindi', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
+
+    // Güvenlik & Ziyaretçi
     KULLANICI_GIRIS: { label: 'Oturum Açıldı', color: 'text-sky-400', bg: 'bg-sky-500/10 border-sky-500/20' },
     KULLANICI_CIKIS: { label: 'Çıkış Yapıldı', color: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/20' },
     HATALI_GIRIS: { label: 'Hatalı Giriş', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
-    ZIYARETCI_GIRIS: { label: 'Ziyaretçi Girişi', color: 'text-fuchsia-400', bg: 'bg-fuchsia-500/10 border-fuchsia-500/20' },
+    ZIYARETCI_GIRIS: { label: 'Ziyaretçi Girişi', color: 'text-violet-400', bg: 'bg-violet-500/10 border-violet-500/20' },
     KULLANICI_ONAYLA: { label: 'Kullanıcı Onaylandı', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
     KULLANICI_RED: { label: 'Kullanıcı Reddedildi', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
     KULLANICI_EKLE: { label: 'Kullanıcı Eklendi', color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
     KULLANICI_DUZENLE: { label: 'Kullanıcı Düzenlendi', color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
     KULLANICI_SIL: { label: 'Kullanıcı Silindi', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
-    ARAC_GUNCELLE: { label: 'Araç Bilgisi Güncellendi', color: 'text-slate-300', bg: 'bg-slate-500/10 border-slate-500/20' },
-    NOT_GUNCELLE: { label: 'Operasyon Notu Güncellendi', color: 'text-yellow-400', bg: 'bg-yellow-500/10 border-yellow-500/20' },
-    BELGE_GUNCELLE: { label: 'Belgeler Güncellendi', color: 'text-slate-300', bg: 'bg-slate-500/10 border-slate-500/20' },
-    BELGE_SIL: { label: 'Belge Silindi', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' }
+
+    // Geri Alma
+    GERI_YUKLE: { label: 'Veri Geri Yüklendi', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+    GERI_ALINDI: { label: 'Düzenleme Geri Döndürüldü', color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20' },
+    LOG_TEMIZLE: { label: 'Loglar Temizlendi', color: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/20' }
 };
 
 const CATEGORIES = [
-    { key: 'TUMU', label: 'Tümü' },
+    { key: 'TUMU', label: 'Tüm Kayıtlar' },
     { key: 'FINANS', label: 'Finans & Yakıt' },
-    { key: 'OPERASYON', label: 'Sefer & Lojistik' },
-    { key: 'BAKIM', label: 'Bakım & Atölye' },
+    { key: 'OPERASYON', label: 'Sefer & Rota' },
+    { key: 'BAKIM', label: 'Bakım & Stok' },
+    { key: 'PERSONEL', label: 'Personel & Prim' },
+    { key: 'BORC', label: 'Borç & Kasa' },
     { key: 'GUVENLIK', label: 'Güvenlik & Giriş' },
-    { key: 'SILINMIS', label: 'Geri Alınabilirler' }
+    { key: 'GERI_ALINABILIR', label: 'Kurtarılabilir İşlemler' }
 ];
 
 const AdminLog = () => {
-    const { adminLog, onlineUsers, restoreData, clearLog } = useContext(DataContext);
+    const { adminLog, onlineUsers, restoreData, rollbackEdit, clearLog } = useContext(DataContext);
 
     const [filter, setFilter] = useState('TUMU');
     const [searchTerm, setSearchTerm] = useState('');
     const [dateFilter, setDateFilter] = useState('');
     const [userFilter, setUserFilter] = useState('ALL');
 
-    // Açılır satır (Accordion) durumu
+    // Açılır satır (Accordion)
     const [expandedId, setExpandedId] = useState(null);
-    const [copiedMetaId, setCopiedMetaId] = useState(null);
+    const [restoringIds, setRestoringIds] = useState({});
 
-    // Temizleme Modalı
+    // Güvenli Temizleme Modalı
     const [isClearModalOpen, setIsClearModalOpen] = useState(false);
     const [clearPassword, setClearPassword] = useState('');
     const [clearError, setClearError] = useState(false);
 
-    // Online Kullanıcı Modalı
-    const [selectedOnlineUser, setSelectedOnlineUser] = useState(null);
+    // Canlı Radar Modalı (Online Kullanıcı / Misafir İnceleme)
+    const [selectedRadarUser, setSelectedRadarUser] = useState(null);
 
-    // Benzersiz kullanıcı listesini çıkar
+    // Benzersiz kullanıcı listesi
     const uniqueUsers = useMemo(() => {
         const set = new Set();
         adminLog.forEach(l => { if (l.user) set.add(l.user); });
         return Array.from(set).sort();
     }, [adminLog]);
 
-    // Filtreleme mantığı
+    // Geri Alınabilirlik Durumu Kontrolü
+    const canRestore = (entry) => {
+        const action = entry.action || '';
+        return (action.includes('SİL') || action.includes('SIL')) && entry.meta?.table && entry.meta?.id;
+    };
+
+    const canRollback = (entry) => {
+        return !!(entry.meta?.before && entry.meta?.table && entry.meta?.id);
+    };
+
+    // Filtreleme Mantığı
     const filteredLog = useMemo(() => {
         return adminLog.filter(entry => {
             const action = entry.action || '';
 
-            // Kategori filtreleri
             if (filter === 'FINANS') {
-                const isFinans = action.includes('MAZOT') || action.includes('ODEME') || action.includes('FATURA') || action.includes('CEZA') || action.includes('ISKONTO');
-                if (!isFinans) return false;
+                if (!action.includes('MAZOT') && !action.includes('ODEME') && !action.includes('FATURA') && !action.includes('CEZA') && !action.includes('ISKONTO')) return false;
             } else if (filter === 'OPERASYON') {
-                const isOperasyon = action.includes('SEFER') || action.includes('ROTA');
-                if (!isOperasyon) return false;
+                if (!action.includes('SEFER') && !action.includes('ROTA')) return false;
             } else if (filter === 'BAKIM') {
-                const isBakim = action.includes('BAKIM') || action.includes('TAMIRCI') || action.includes('STOK') || action.includes('KLASOR');
-                if (!isBakim) return false;
+                if (!action.includes('BAKIM') && !action.includes('TAMIRCI') && !action.includes('STOK') && !action.includes('KLASOR')) return false;
+            } else if (filter === 'PERSONEL') {
+                if (!action.includes('PERSONEL') && !action.includes('PIRIM')) return false;
+            } else if (filter === 'BORC') {
+                if (!action.includes('KREDI') && !action.includes('BORC')) return false;
             } else if (filter === 'GUVENLIK') {
-                const isGuvenlik = action.includes('GIRIS') || action.includes('CIKIS') || action.includes('KULLANICI') || action.includes('HATALI') || action.includes('ZIYARETCI');
-                if (!isGuvenlik) return false;
-            } else if (filter === 'SILINMIS') {
-                const isSilinmis = action.includes('SİL') || action.includes('SIL');
-                if (!isSilinmis) return false;
+                if (!action.includes('GIRIS') && !action.includes('CIKIS') && !action.includes('HATALI') && !action.includes('ZIYARETCI') && !action.includes('KULLANICI')) return false;
+            } else if (filter === 'GERI_ALINABILIR') {
+                if (!canRestore(entry) && !canRollback(entry)) return false;
             }
 
-            // Kullanıcı filtresi
             if (userFilter !== 'ALL' && entry.user !== userFilter) {
                 return false;
             }
 
-            // Metin arama
             if (searchTerm) {
                 const term = searchTerm.toLowerCase();
                 const metaString = entry.meta ? JSON.stringify(entry.meta).toLowerCase() : '';
@@ -136,7 +156,6 @@ const AdminLog = () => {
                 if (!fullText.includes(term)) return false;
             }
 
-            // Tarih filtresi
             if (dateFilter) {
                 try {
                     const entryDate = new Date(entry.timestamp).toISOString().split('T')[0];
@@ -150,55 +169,44 @@ const AdminLog = () => {
         });
     }, [adminLog, filter, userFilter, searchTerm, dateFilter]);
 
-    // Üst Özet Kartları (KPI İstatistikleri)
-    const stats = useMemo(() => {
-        let finansCount = 0;
-        let guvenlikCount = 0;
-        let silinmisCount = 0;
-
-        filteredLog.forEach(entry => {
-            const action = entry.action || '';
-            if (action.includes('MAZOT') || action.includes('ODEME') || action.includes('FATURA') || action.includes('CEZA') || action.includes('ISKONTO')) {
-                finansCount++;
-            }
-            if (action.includes('GIRIS') || action.includes('CIKIS') || action.includes('KULLANICI') || action.includes('HATALI')) {
-                guvenlikCount++;
-            }
-            if ((action.includes('SİL') || action.includes('SIL')) && entry.meta?.table && entry.meta?.id) {
-                silinmisCount++;
-            }
-        });
-
-        return {
-            total: filteredLog.length,
-            finans: finansCount,
-            guvenlik: guvenlikCount,
-            silinmis: silinmisCount
-        };
-    }, [filteredLog]);
-
-    // JSON veya Meta Bilgisini Kopyalama
-    const handleCopyMeta = (id, metaData) => {
+    // Geri Yükleme Eylemi
+    const handleRestoreItem = async (e, entry) => {
+        e.stopPropagation();
+        if (!entry.meta?.table || !entry.meta?.id) return;
+        setRestoringIds(prev => ({ ...prev, [entry.id]: true }));
         try {
-            navigator.clipboard.writeText(JSON.stringify(metaData, null, 2));
-            setCopiedMetaId(id);
-            setTimeout(() => setCopiedMetaId(null), 2000);
-        } catch {
-            /* empty */
+            await restoreData(entry.meta.table, entry.meta.id, entry.meta.record);
+        } finally {
+            setRestoringIds(prev => ({ ...prev, [entry.id]: false }));
         }
     };
 
-    // CSV Olarak Dışa Aktarma (UTF-8 BOM ile Excel uyumlu)
+    // Düzenlemeyi Eski Haline Döndürme Eylemi
+    const handleRollbackItem = async (e, entry) => {
+        e.stopPropagation();
+        if (!entry.meta?.table || !entry.meta?.id || !entry.meta?.before) return;
+        setRestoringIds(prev => ({ ...prev, [entry.id]: true }));
+        try {
+            if (rollbackEdit) {
+                await rollbackEdit(entry.meta.table, entry.meta.id, entry.meta.before);
+            }
+        } finally {
+            setRestoringIds(prev => ({ ...prev, [entry.id]: false }));
+        }
+    };
+
+    // Excel Uyumlu CSV Dışa Aktarma
     const handleExportCSV = () => {
         if (filteredLog.length === 0) return;
 
-        const headers = ['Zaman', 'Eylem Kodu', 'Eylem Tanimi', 'Kullanici', 'Detay', 'Tablo', 'Kayit ID', 'Meta Detayi'];
+        const headers = ['Zaman', 'Eylem Kodu', 'Eylem Tanimi', 'Kullanici', 'Detay', 'Koleksiyon', 'Kayit ID', 'Kurtarilabilir'];
         const csvRows = [headers.join(';')];
 
         filteredLog.forEach(row => {
             const dateStr = new Date(row.timestamp).toLocaleString('tr-TR');
-            const metaDef = ACTION_LABELS[row.action] || { label: row.action };
-            const metaObj = row.meta ? JSON.stringify(row.meta).replace(/"/g, '""') : '';
+            const metaDef = ACTION_CONFIG[row.action] || { label: row.action };
+            const isReversible = (canRestore(row) || canRollback(row)) ? 'Evet' : 'Hayir';
+
             const values = [
                 `"${dateStr}"`,
                 `"${row.action || ''}"`,
@@ -207,7 +215,7 @@ const AdminLog = () => {
                 `"${(row.detail || '').replace(/"/g, '""')}"`,
                 `"${row.meta?.table || ''}"`,
                 `"${row.meta?.id || ''}"`,
-                `"${metaObj}"`
+                `"${isReversible}"`
             ];
             csvRows.push(values.join(';'));
         });
@@ -241,39 +249,102 @@ const AdminLog = () => {
         }
     };
 
+    // Değişiklik farklarını insan diline çeviren yardımcı
+    const renderHumanDiff = (before, after) => {
+        if (!before || !after) return null;
+        const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+
+        return (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div className="bg-[#0c1017] border border-rose-500/20 rounded-xl p-3">
+                    <span className="text-[10px] text-rose-400 font-bold uppercase tracking-wider block mb-2">
+                        Önceki Durum
+                    </span>
+                    <div className="space-y-1">
+                        {keys.map(k => {
+                            const val = before[k];
+                            if (val === undefined || typeof val === 'object') return null;
+                            return (
+                                <div key={k} className="flex justify-between items-center py-0.5 border-b border-white/[0.04]">
+                                    <span className="text-slate-400 capitalize">{k}:</span>
+                                    <span className="font-semibold text-slate-200">{String(val)}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                <div className="bg-[#0c1017] border border-emerald-500/20 rounded-xl p-3">
+                    <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block mb-2">
+                        Güncellenen Durum
+                    </span>
+                    <div className="space-y-1">
+                        {keys.map(k => {
+                            const val = after[k];
+                            if (val === undefined || typeof val === 'object') return null;
+                            return (
+                                <div key={k} className="flex justify-between items-center py-0.5 border-b border-white/[0.04]">
+                                    <span className="text-slate-400 capitalize">{k}:</span>
+                                    <span className="font-semibold text-emerald-400">{String(val)}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     return (
-        <div className="space-y-4 animate-in fade-in duration-300">
-            {/* Canlı Aktif Kullanıcılar Şeridi */}
+        <div className="space-y-3.5 animate-in fade-in duration-300">
+            {/* CANLI RADAR VE AKTİF KULLANICILAR ŞERİDİ */}
             {onlineUsers.length > 0 && (
-                <div className="bg-[#07090e] border border-white/[0.06] p-3 rounded-2xl space-y-2">
+                <div className="bg-[#0d1117] border border-white/[0.08] p-3 rounded-2xl space-y-2">
                     <div className="flex items-center justify-between text-xs text-slate-400">
-                        <span className="font-semibold flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                            Canlı Aktif Kullanıcılar ({onlineUsers.length})
+                        <span className="font-bold flex items-center gap-2 text-white">
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                            </span>
+                            Canlı Radar ve Çevrimiçi Varlık ({onlineUsers.length})
                         </span>
                         <span className="text-[10px] font-mono text-slate-500">Detay için kullanıcıya tıklayın</span>
                     </div>
-                    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none no-scrollbar">
+
+                    <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none no-scrollbar">
                         {onlineUsers.map(u => {
-                            const isPC = u.device?.toLowerCase().includes('windows') || u.device?.toLowerCase().includes('macintosh');
+                            const isGuest = u.role === 'misafir' || u.username === 'Misafir';
+                            const isPC = u.device?.toLowerCase().includes('windows') || u.device?.toLowerCase().includes('mac');
+                            const hasVpnRisk = !!u.vpnRisk;
+
                             return (
                                 <div 
                                     key={u.id} 
-                                    onClick={() => setSelectedOnlineUser(u)} 
-                                    className="flex-shrink-0 flex items-center gap-2 bg-[#0c1017] hover:bg-slate-800/80 border border-emerald-500/20 hover:border-emerald-500/40 rounded-xl px-3 py-1.5 cursor-pointer transition-all shadow-sm"
+                                    onClick={() => setSelectedRadarUser(u)} 
+                                    className={`flex-shrink-0 flex items-center gap-2 bg-[#07090e] hover:bg-slate-800/80 border rounded-xl px-2.5 py-1.5 cursor-pointer transition-all ${
+                                        hasVpnRisk ? 'border-amber-500/30' : isGuest ? 'border-violet-500/30' : 'border-emerald-500/20'
+                                    }`}
                                 >
                                     <div className="relative">
-                                        <div className="w-7 h-7 rounded-lg bg-slate-800/90 flex items-center justify-center border border-white/10 text-slate-300">
-                                            <Users size={13} />
+                                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center border text-[10px] font-bold ${
+                                            isGuest 
+                                                ? 'bg-violet-500/10 border-violet-500/20 text-violet-400' 
+                                                : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                                        }`}>
+                                            {isGuest ? <Eye size={12} /> : <Users size={12} />}
                                         </div>
-                                        <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full border border-[#0c1017]" />
+                                        <div className={`absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full ${
+                                            hasVpnRisk ? 'bg-amber-400' : 'bg-emerald-500'
+                                        }`} />
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-1">
-                                            <p className="text-xs font-bold text-white capitalize">{u.username}</p>
-                                            <span className="text-[9px] text-slate-400 font-medium">({isPC ? 'PC' : 'Mobil'})</span>
+                                            <p className="text-[11px] font-bold text-white capitalize">{u.username}</p>
+                                            <span className="text-[9px] text-slate-400 font-mono">
+                                                ({u.deviceType || (isPC ? 'PC' : 'Mobil')})
+                                            </span>
                                         </div>
-                                        <p className="text-[9px] text-emerald-400 font-mono">{u.ip || '0.0.0.0'}</p>
+                                        <p className="text-[9px] text-sky-400 font-mono leading-none">{u.ip || '0.0.0.0'}</p>
                                     </div>
                                 </div>
                             );
@@ -282,61 +353,18 @@ const AdminLog = () => {
                 </div>
             )}
 
-            {/* ÜST ÖZET KARTLARI (KPI METRİKLERİ) */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
-                <div className="bg-[#0c1017] border border-white/[0.06] rounded-xl p-3 sm:p-3.5 flex items-center justify-between">
-                    <div>
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Toplam İşlem</p>
-                        <p className="text-lg sm:text-xl font-black text-white font-mono mt-0.5">{stats.total}</p>
-                    </div>
-                    <div className="w-9 h-9 rounded-lg bg-slate-800/80 border border-white/[0.08] flex items-center justify-center text-slate-300">
-                        <Activity size={16} />
-                    </div>
-                </div>
-
-                <div className="bg-[#0c1017] border border-white/[0.06] rounded-xl p-3 sm:p-3.5 flex items-center justify-between">
-                    <div>
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Finans & Yakıt</p>
-                        <p className="text-lg sm:text-xl font-black text-cyan-400 font-mono mt-0.5">{stats.finans}</p>
-                    </div>
-                    <div className="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
-                        <Wallet size={16} />
-                    </div>
-                </div>
-
-                <div className="bg-[#0c1017] border border-white/[0.06] rounded-xl p-3 sm:p-3.5 flex items-center justify-between">
-                    <div>
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Güvenlik & Giriş</p>
-                        <p className="text-lg sm:text-xl font-black text-sky-400 font-mono mt-0.5">{stats.guvenlik}</p>
-                    </div>
-                    <div className="w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
-                        <Shield size={16} />
-                    </div>
-                </div>
-
-                <div className="bg-[#0c1017] border border-white/[0.06] rounded-xl p-3 sm:p-3.5 flex items-center justify-between">
-                    <div>
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Kurtarılabilir Silmeler</p>
-                        <p className="text-lg sm:text-xl font-black text-amber-400 font-mono mt-0.5">{stats.silinmis}</p>
-                    </div>
-                    <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                        <RotateCcw size={16} />
-                    </div>
-                </div>
-            </div>
-
-            {/* FİLTRE VE ARAMA ARAÇ ÇUBUĞU */}
-            <div className="bg-[#0c1017] border border-white/[0.06] p-3 rounded-2xl space-y-3">
-                {/* Kategori Sekmeleri */}
-                <div className="flex flex-wrap gap-1 bg-[#07090e] border border-white/[0.06] p-1 rounded-xl">
+            {/* SİTENİN GENEL MİMARİSİYLE UYUMLU FİLTRE VE ARAÇ ÇUBUĞU */}
+            <div className="bg-[#0d1117] border border-white/[0.08] p-3 rounded-2xl space-y-2.5">
+                {/* Kapsül Kategori Butonları */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none no-scrollbar">
                     {CATEGORIES.map(cat => (
                         <button 
                             key={cat.key} 
                             onClick={() => setFilter(cat.key)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                                 filter === cat.key 
                                     ? 'bg-slate-800 text-white shadow-sm border border-slate-700' 
-                                    : 'text-slate-400 hover:text-slate-200'
+                                    : 'text-slate-400 hover:text-white hover:bg-white/5'
                             }`}
                         >
                             {cat.label}
@@ -345,14 +373,14 @@ const AdminLog = () => {
                 </div>
 
                 {/* Filtre Kontrolleri */}
-                <div className="flex flex-wrap items-center justify-between gap-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-white/[0.04]">
                     <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
                         {/* Arama Input */}
                         <div className="relative flex-1 sm:max-w-xs min-w-[160px]">
                             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
                             <input 
                                 type="text" 
-                                placeholder="Log veya meta veri ara..." 
+                                placeholder="Log kaydı ara..." 
                                 value={searchTerm} 
                                 onChange={(e) => setSearchTerm(e.target.value)} 
                                 className="w-full h-8 bg-[#07090e] border border-white/[0.08] text-white text-xs rounded-xl pl-8 pr-2 outline-none focus:border-slate-500 transition-colors" 
@@ -364,14 +392,13 @@ const AdminLog = () => {
                             )}
                         </div>
 
-                        {/* Tarih Filtresi */}
+                        {/* Tarih Seçici */}
                         <div className="relative">
-                            <Calendar size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
                             <input 
                                 type="date" 
                                 value={dateFilter} 
                                 onChange={(e) => setDateFilter(e.target.value)} 
-                                className="h-8 bg-[#07090e] border border-white/[0.08] text-slate-300 text-xs rounded-xl pl-8 pr-2 outline-none focus:border-slate-500 transition-colors cursor-pointer" 
+                                className="h-8 bg-[#07090e] border border-white/[0.08] text-slate-300 text-xs rounded-xl px-2.5 outline-none focus:border-slate-500 transition-colors cursor-pointer" 
                                 style={{ colorScheme: 'dark' }}
                             />
                             {dateFilter && (
@@ -396,14 +423,14 @@ const AdminLog = () => {
                         </div>
                     </div>
 
-                    {/* Dışa Aktarma ve Temizleme Butonları */}
+                    {/* Dışa Aktar ve Temizle Butonları */}
                     <div className="flex items-center gap-2">
                         <button
                             onClick={handleExportCSV}
-                            title="Filtrelenen kayıtları CSV olarak indir"
-                            className="h-8 px-3 rounded-xl bg-slate-800/90 text-slate-200 hover:bg-slate-700 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                            title="CSV olarak indir"
+                            className="h-8 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0"
                         >
-                            <Download size={13} />
+                            <Download size={13} className="text-sky-400" />
                             <span className="hidden sm:inline">Dışa Aktar (CSV)</span>
                             <span className="sm:hidden">CSV</span>
                         </button>
@@ -419,8 +446,8 @@ const AdminLog = () => {
                 </div>
             </div>
 
-            {/* LOG KAYITLARI LİSTESİ */}
-            <div className="bg-[#07090e] border border-white/[0.06] rounded-2xl overflow-hidden shadow-xl">
+            {/* LOG KAYITLARI LİSTESİ (SİTENİN TABLO MİMARİSİNE UYGUN) */}
+            <div className="bg-[#07090e] border border-white/[0.08] rounded-2xl overflow-hidden shadow-xl">
                 {filteredLog.length === 0 ? (
                     <div className="p-12 text-center">
                         <CheckCircle2 size={32} className="mx-auto mb-2 text-slate-600" />
@@ -429,28 +456,24 @@ const AdminLog = () => {
                 ) : (
                     <div className="divide-y divide-white/[0.04]">
                         {filteredLog.map(entry => {
-                            const meta = ACTION_LABELS[entry.action] || { label: entry.action, color: 'text-slate-300', bg: 'bg-white/5 border-white/10' };
+                            const metaDef = ACTION_CONFIG[entry.action] || { label: entry.action, color: 'text-slate-300', bg: 'bg-white/5 border-white/10' };
                             const date = new Date(entry.timestamp);
                             const hasMeta = !!entry.meta && Object.keys(entry.meta).length > 0;
                             const isExpanded = expandedId === entry.id;
-
-                            let rowBgClass = 'hover:bg-white/[0.02]';
-                            if (entry.action === 'HATALI_GIRIS') {
-                                rowBgClass = 'bg-rose-500/[0.06] hover:bg-rose-500/[0.09]';
-                            } else if (entry.action === 'ZIYARETCI_GIRIS') {
-                                rowBgClass = entry.meta?.isKnownDevice ? 'bg-sky-500/[0.03]' : 'bg-fuchsia-500/[0.04]';
-                            }
+                            const isReversible = canRestore(entry);
+                            const isRollbackable = canRollback(entry);
+                            const isBusy = !!restoringIds[entry.id];
 
                             return (
                                 <div key={entry.id} className="transition-colors">
                                     {/* Ana Satır */}
                                     <div 
                                         onClick={() => hasMeta && setExpandedId(isExpanded ? null : entry.id)}
-                                        className={`flex items-start justify-between gap-3 p-3 sm:p-3.5 ${rowBgClass} ${hasMeta ? 'cursor-pointer' : ''}`}
+                                        className={`flex items-start justify-between gap-3 p-3 sm:p-3.5 hover:bg-white/[0.02] ${hasMeta ? 'cursor-pointer' : ''}`}
                                     >
                                         <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                                            <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border whitespace-nowrap mt-0.5 flex-shrink-0 ${meta.bg} ${meta.color}`}>
-                                                {meta.label}
+                                            <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border whitespace-nowrap mt-0.5 flex-shrink-0 ${metaDef.bg} ${metaDef.color}`}>
+                                                {metaDef.label}
                                             </span>
 
                                             <div className="flex-1 min-w-0">
@@ -461,7 +484,6 @@ const AdminLog = () => {
                                                 <div className="flex flex-wrap items-center gap-2 mt-1.5">
                                                     <span className="text-[11px] font-bold text-slate-400">@{entry.user}</span>
 
-                                                    {/* Hızlı Cihaz/Konum Etiketleri */}
                                                     {entry.meta?.ip && (
                                                         <span className="bg-[#0c1017] border border-white/[0.08] px-1.5 py-0.5 rounded text-[10px] text-sky-400 font-mono flex items-center gap-1">
                                                             <Globe size={10} /> {entry.meta.ip}
@@ -474,18 +496,12 @@ const AdminLog = () => {
                                                         </span>
                                                     )}
 
-                                                    {(entry.action === 'HATALI_GIRIS' || entry.action === 'ZIYARETCI_GIRIS') && (
-                                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold flex items-center gap-1 ${
-                                                            entry.meta?.isKnownDevice 
-                                                                ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' 
-                                                                : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                                                        }`}>
-                                                            {entry.meta?.isKnownDevice ? <CheckCircle2 size={10} /> : <AlertTriangle size={10} />}
-                                                            {entry.meta?.isKnownDevice ? 'Tanınan Cihaz' : 'Bilinmeyen Cihaz'}
+                                                    {entry.meta?.vpnRisk && (
+                                                        <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded text-[9px] font-bold flex items-center gap-1">
+                                                            <AlertTriangle size={10} /> VPN / Şüpheli Ağ
                                                         </span>
                                                     )}
 
-                                                    {/* Meta Detay Göstergesi */}
                                                     {hasMeta && (
                                                         <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-0.5 hover:text-slate-300">
                                                             <span>Detay</span>
@@ -496,133 +512,71 @@ const AdminLog = () => {
                                             </div>
                                         </div>
 
-                                        {/* Sağ Taraf: Zaman ve Geri Yükle */}
+                                        {/* Sağ Taraf: Zaman ve Geri Al / Geri Yükle */}
                                         <div className="text-right flex-shrink-0 flex flex-col items-end gap-1.5">
                                             <span className="text-[10px] font-mono text-slate-400">
                                                 {date.toLocaleDateString('tr-TR')} {date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                                             </span>
 
-                                            {(entry.action.includes('SİL') || entry.action.includes('SIL')) && entry.meta?.table && entry.meta?.id && (
+                                            {/* Tek Dokunuşla Geri Yükle */}
+                                            {isReversible && (
                                                 <button 
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        restoreData(entry.meta.table, entry.meta.id);
-                                                    }}
-                                                    className="flex items-center gap-1 text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-2 py-0.5 rounded-lg transition-colors cursor-pointer shadow-sm"
+                                                    disabled={isBusy}
+                                                    onClick={(e) => handleRestoreItem(e, entry)}
+                                                    className="flex items-center gap-1 text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-2 py-0.5 rounded-lg transition-colors cursor-pointer shadow-sm disabled:opacity-50"
                                                 >
-                                                    <RotateCcw size={10} /> Geri Yükle
+                                                    <RotateCcw size={10} />
+                                                    <span>{isBusy ? 'Kurtarılıyor...' : 'Geri Yükle'}</span>
+                                                </button>
+                                            )}
+
+                                            {/* Tek Dokunuşla Eski Haline Döndür */}
+                                            {isRollbackable && (
+                                                <button 
+                                                    disabled={isBusy}
+                                                    onClick={(e) => handleRollbackItem(e, entry)}
+                                                    className="flex items-center gap-1 text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 px-2 py-0.5 rounded-lg transition-colors cursor-pointer shadow-sm disabled:opacity-50"
+                                                >
+                                                    <Undo2 size={10} />
+                                                    <span>{isBusy ? 'Döndürülüyor...' : 'Eski Haline Döndür'}</span>
                                                 </button>
                                             )}
                                         </div>
                                     </div>
 
-                                    {/* AÇILIR OBSIDIAN DETAY ÇEKMECESİ (ACCORDION) */}
+                                    {/* AÇILIR TEMİZ DETAY ÇEKMECESİ (KESİNLİKLE JSON YOK) */}
                                     {isExpanded && hasMeta && (
-                                        <div className="border-t border-white/[0.04] bg-[#05070a]/95 p-3.5 sm:p-4 space-y-3">
-                                            <div className="flex items-center justify-between text-xs text-slate-400">
-                                                <span className="font-bold flex items-center gap-1.5 text-white">
-                                                    <Layers size={13} className="text-cyan-400" />
-                                                    İşlem Meta Verileri ve Denetim Ayrıntısı
-                                                </span>
-                                                <button
-                                                    onClick={() => handleCopyMeta(entry.id, entry.meta)}
-                                                    className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-white bg-slate-800/60 border border-white/[0.06] px-2 py-0.5 rounded-md transition cursor-pointer"
-                                                >
-                                                    {copiedMetaId === entry.id ? (
-                                                        <>
-                                                            <Check size={11} className="text-emerald-400" />
-                                                            <span className="text-emerald-400">Kopyalandı</span>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Copy size={11} />
-                                                            <span>JSON Kopyala</span>
-                                                        </>
+                                        <div className="border-t border-white/[0.04] bg-[#0c1017]/90 p-3 sm:p-4 space-y-2.5">
+                                            {/* Karşılaştırmalı Diff (Eski vs Yeni) */}
+                                            {entry.meta.before && entry.meta.after ? (
+                                                renderHumanDiff(entry.meta.before, entry.meta.after)
+                                            ) : (
+                                                /* Bilgi Rozetleri */
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                                                    {entry.meta.table && (
+                                                        <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
+                                                            <span className="text-[10px] text-slate-500 uppercase block font-semibold">Koleksiyon</span>
+                                                            <span className="text-sky-400 font-mono">{entry.meta.table}</span>
+                                                        </div>
                                                     )}
-                                                </button>
-                                            </div>
-
-                                            {/* Zengin Finansal / Operasyonel Kartlar */}
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
-                                                {entry.meta.invoiceNo && (
-                                                    <div className="bg-[#0c1017] border border-white/[0.06] p-2 rounded-lg">
-                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Fatura No</span>
-                                                        <span className="text-white font-mono font-bold">{entry.meta.invoiceNo}</span>
-                                                    </div>
-                                                )}
-
-                                                {entry.meta.period && (
-                                                    <div className="bg-[#0c1017] border border-white/[0.06] p-2 rounded-lg">
-                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Dönem</span>
-                                                        <span className="text-slate-200 font-semibold">{entry.meta.period}</span>
-                                                    </div>
-                                                )}
-
-                                                {entry.meta.totalOldPrice !== undefined && (
-                                                    <div className="bg-[#0c1017] border border-white/[0.06] p-2 rounded-lg">
-                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Eski Tutar</span>
-                                                        <span className="text-slate-300 font-mono font-bold">{Number(entry.meta.totalOldPrice).toLocaleString('tr-TR')} ₺</span>
-                                                    </div>
-                                                )}
-
-                                                {entry.meta.totalNewPrice !== undefined && (
-                                                    <div className="bg-[#0c1017] border border-white/[0.06] p-2 rounded-lg">
-                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Yeni Tutar</span>
-                                                        <span className="text-emerald-400 font-mono font-bold">{Number(entry.meta.totalNewPrice).toLocaleString('tr-TR')} ₺</span>
-                                                    </div>
-                                                )}
-
-                                                {entry.meta.totalDiscount !== undefined && (
-                                                    <div className="bg-[#0c1017] border border-cyan-500/20 bg-cyan-500/[0.03] p-2 rounded-lg">
-                                                        <span className="text-[10px] text-cyan-400 uppercase block font-semibold">Sağlanan İskonto</span>
-                                                        <span className="text-cyan-300 font-mono font-bold">-{Number(entry.meta.totalDiscount).toLocaleString('tr-TR')} ₺</span>
-                                                    </div>
-                                                )}
-
-                                                {entry.meta.recordCount !== undefined && (
-                                                    <div className="bg-[#0c1017] border border-white/[0.06] p-2 rounded-lg">
-                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Etkilenen Fiş</span>
-                                                        <span className="text-white font-mono font-bold">{entry.meta.recordCount} Adet</span>
-                                                    </div>
-                                                )}
-
-                                                {entry.meta.table && (
-                                                    <div className="bg-[#0c1017] border border-white/[0.06] p-2 rounded-lg">
-                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Koleksiyon</span>
-                                                        <span className="text-sky-400 font-mono">{entry.meta.table}</span>
-                                                    </div>
-                                                )}
-
-                                                {entry.meta.id && (
-                                                    <div className="bg-[#0c1017] border border-white/[0.06] p-2 rounded-lg">
-                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Belge Kimliği (ID)</span>
-                                                        <span className="text-slate-300 font-mono text-[11px] truncate block" title={entry.meta.id}>
-                                                            {entry.meta.id}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Diff Görünümü (Before & After Karşılaştırması) */}
-                                            {entry.meta.before && entry.meta.after && (
-                                                <div className="bg-[#0c1017] border border-white/[0.06] rounded-xl p-3 space-y-2">
-                                                    <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
-                                                        Değişim Farkı (Önceki ➔ Sonraki)
-                                                    </span>
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                                        <div className="bg-[#07090e] border border-white/[0.06] p-2.5 rounded-lg">
-                                                            <span className="text-[10px] text-rose-400 font-bold uppercase block mb-1">Önceki Değerler</span>
-                                                            <pre className="text-[11px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap">
-                                                                {JSON.stringify(entry.meta.before, null, 2)}
-                                                            </pre>
+                                                    {entry.meta.id && (
+                                                        <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
+                                                            <span className="text-[10px] text-slate-500 uppercase block font-semibold">Belge Kimliği</span>
+                                                            <span className="text-slate-300 font-mono text-[11px] truncate block" title={entry.meta.id}>{entry.meta.id}</span>
                                                         </div>
-                                                        <div className="bg-[#07090e] border border-white/[0.06] p-2.5 rounded-lg">
-                                                            <span className="text-[10px] text-emerald-400 font-bold uppercase block mb-1">Güncel Değerler</span>
-                                                            <pre className="text-[11px] font-mono text-slate-300 overflow-x-auto whitespace-pre-wrap">
-                                                                {JSON.stringify(entry.meta.after, null, 2)}
-                                                            </pre>
+                                                    )}
+                                                    {entry.meta.device && (
+                                                        <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
+                                                            <span className="text-[10px] text-slate-500 uppercase block font-semibold">Cihaz Bilgisi</span>
+                                                            <span className="text-slate-200 truncate block">{entry.meta.device}</span>
                                                         </div>
-                                                    </div>
+                                                    )}
+                                                    {entry.meta.location && (
+                                                        <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
+                                                            <span className="text-[10px] text-slate-500 uppercase block font-semibold">Bağlantı Konumu</span>
+                                                            <span className="text-amber-400 truncate block">{entry.meta.location}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -633,6 +587,81 @@ const AdminLog = () => {
                     </div>
                 )}
             </div>
+
+            {/* RADAR KULLANICI / MİSAFİR DETAY MODALI */}
+            {selectedRadarUser && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+                    <div className="bg-[#07090e] border border-white/10 rounded-2xl w-full max-w-md p-5 sm:p-6 relative shadow-2xl animate-in zoom-in-95 duration-200">
+                        <button 
+                            onClick={() => setSelectedRadarUser(null)} 
+                            className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer"
+                        >
+                            <X size={18} />
+                        </button>
+                        
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="relative">
+                                <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center border border-emerald-500/40 text-emerald-400">
+                                    <MonitorSmartphone size={20} />
+                                </div>
+                                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-[#07090e]" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-white capitalize">{selectedRadarUser.username}</h3>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                    <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] px-2 py-0.5 rounded-full font-bold">ÇEVRİMİÇİ</span>
+                                    <span className="bg-slate-800 text-slate-300 border border-slate-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">{selectedRadarUser.role || 'Şoför'}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2 bg-[#0c1017] p-3.5 rounded-xl border border-white/[0.06] text-xs">
+                            <div className="flex justify-between items-center py-1.5 border-b border-white/[0.04]">
+                                <span className="text-slate-400 flex items-center gap-1.5"><Globe size={13} className="text-sky-400"/> IP Adresi</span>
+                                <span className="font-mono font-bold text-sky-400">{selectedRadarUser.ip || '0.0.0.0'}</span>
+                            </div>
+
+                            <div className="flex justify-between items-center py-1.5 border-b border-white/[0.04]">
+                                <span className="text-slate-400 flex items-center gap-1.5"><MapPin size={13} className="text-amber-400"/> Konum</span>
+                                <span className="font-semibold text-amber-400">{selectedRadarUser.location || 'Bilinmiyor'}</span>
+                            </div>
+
+                            <div className="flex justify-between items-center py-1.5 border-b border-white/[0.04]">
+                                <span className="text-slate-400 flex items-center gap-1.5"><MonitorSmartphone size={13}/> Cihaz Tipi</span>
+                                <span className="font-semibold text-white">{selectedRadarUser.device || 'Bilinmiyor'}</span>
+                            </div>
+
+                            {selectedRadarUser.fingerprintId && (
+                                <div className="flex justify-between items-center py-1.5 border-b border-white/[0.04]">
+                                    <span className="text-slate-400 flex items-center gap-1.5"><Cpu size={13} className="text-violet-400"/> Donanım Kimliği</span>
+                                    <span className="font-mono text-violet-400 font-bold">{selectedRadarUser.fingerprintId}</span>
+                                </div>
+                            )}
+
+                            <div className="flex justify-between items-center py-1.5 border-b border-white/[0.04]">
+                                <span className="text-slate-400 flex items-center gap-1.5"><Shield size={13}/> VPN / Proxy Durumu</span>
+                                <span className={`font-bold ${selectedRadarUser.vpnRisk ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                    {selectedRadarUser.vpnRisk ? 'Şüpheli / VPN' : 'Temiz'}
+                                </span>
+                            </div>
+
+                            <div className="flex justify-between items-center py-1.5">
+                                <span className="text-slate-400 flex items-center gap-1.5"><Clock size={13}/> Son Sinyal (Heartbeat)</span>
+                                <span className="font-mono text-slate-300">
+                                    {selectedRadarUser.lastActive ? new Date(selectedRadarUser.lastActive).toLocaleTimeString('tr-TR') : 'Bilinmiyor'}
+                                </span>
+                            </div>
+                        </div>
+
+                        <button 
+                            onClick={() => setSelectedRadarUser(null)} 
+                            className="mt-4 w-full h-9 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition border border-slate-700 cursor-pointer"
+                        >
+                            Kapat
+                        </button>
+                    </div>
+                </div>, document.body
+            )}
 
             {/* LOG TEMİZLEME GÜVENLİK MODALI */}
             {isClearModalOpen && (
@@ -672,64 +701,6 @@ const AdminLog = () => {
                         </form>
                     </div>
                 </div>
-            )}
-
-            {/* AKTİF KULLANICI DETAY MODALI */}
-            {selectedOnlineUser && typeof document !== 'undefined' && createPortal(
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-                    <div className="bg-[#07090e] border border-white/10 rounded-2xl w-full max-w-md p-5 sm:p-6 relative shadow-2xl animate-in zoom-in-95 duration-200">
-                        <button 
-                            onClick={() => setSelectedOnlineUser(null)} 
-                            className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer"
-                        >
-                            <X size={18} />
-                        </button>
-                        
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="relative">
-                                <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center border border-emerald-500/40 text-emerald-400">
-                                    <Users size={20} />
-                                </div>
-                                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-[#07090e]" />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-white capitalize">{selectedOnlineUser.username}</h3>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                    <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] px-2 py-0.5 rounded-full font-bold">AKTIF</span>
-                                    <span className="bg-slate-800 text-slate-300 border border-slate-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">{selectedOnlineUser.role || 'Şoför'}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="space-y-2 bg-[#0c1017] p-3.5 rounded-xl border border-white/[0.06] text-xs">
-                            <div className="flex justify-between items-center py-1.5 border-b border-white/[0.04]">
-                                <span className="text-slate-400 flex items-center gap-1.5"><MonitorSmartphone size={13}/> Cihaz Tipi</span>
-                                <span className="font-semibold text-white">{selectedOnlineUser.device || 'Bilinmiyor'}</span>
-                            </div>
-                            <div className="flex justify-between items-center py-1.5 border-b border-white/[0.04]">
-                                <span className="text-slate-400 flex items-center gap-1.5"><MapPin size={13} className="text-amber-400"/> Konum</span>
-                                <span className="font-semibold text-amber-400">{selectedOnlineUser.location || 'Bilinmiyor'}</span>
-                            </div>
-                            <div className="flex justify-between items-center py-1.5 border-b border-white/[0.04]">
-                                <span className="text-slate-400 flex items-center gap-1.5"><Globe size={13} className="text-sky-400"/> IP Adresi</span>
-                                <span className="font-mono font-bold text-sky-400">{selectedOnlineUser.ip || '0.0.0.0'}</span>
-                            </div>
-                            <div className="flex justify-between items-center py-1.5 border-b border-white/[0.04]">
-                                <span className="text-slate-400">Son Sinyal (Heartbeat)</span>
-                                <span className="font-mono text-slate-300">
-                                    {selectedOnlineUser.lastActive ? new Date(selectedOnlineUser.lastActive).toLocaleTimeString('tr-TR') : 'Bilinmiyor'}
-                                </span>
-                            </div>
-                        </div>
-
-                        <button 
-                            onClick={() => setSelectedOnlineUser(null)} 
-                            className="mt-4 w-full h-9 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition border border-slate-700 cursor-pointer"
-                        >
-                            Kapat
-                        </button>
-                    </div>
-                </div>, document.body
             )}
         </div>
     );

@@ -326,6 +326,22 @@ export function calcStats(session) {
 }
 
 /**
+ * Bir rota oturumunun gerçek bir sefer (hareketli yolculuk) olup olmadığını doğrular.
+ * GPS parazitlerini, duran araçları ve 0 km'lik park kayıtlarını eler.
+ */
+export function isMeaningfulTrip(session) {
+  if (!session || !Array.isArray(session) || session.length < 2) return false;
+  const stats = calcStats(session);
+  const km = parseFloat(stats.km) || 0;
+  const topSpeed = parseFloat(stats.topSpeedKmh) || 0;
+
+  // Gerçek sefer kabul kriteri:
+  // 1. En az 0.3 km (300 metre) net yer değiştirme VEYA
+  // 2. En az 0.15 km mesafe VE gerçek araç seyir hızı (>= 15 km/h)
+  return km >= 0.3 || (km >= 0.15 && topSpeed >= 15);
+}
+
+/**
  * Life360 Tarzı Oynatma için İnterpolasyon (Araya değer bulma).
  * Belirli bir yüzdedeki (%0 - %100 arası) konumu hesaplar.
  */

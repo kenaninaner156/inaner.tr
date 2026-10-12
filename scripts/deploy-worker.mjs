@@ -1,6 +1,18 @@
 import https from 'https';
 import fs from 'fs';
 
+if (fs.existsSync('.env')) {
+  const envContent = fs.readFileSync('.env', 'utf8');
+  for (const line of envContent.split('\n')) {
+    const parts = line.split('=');
+    if (parts.length >= 2) {
+      const k = parts[0].trim();
+      const v = parts.slice(1).join('=').trim().replace(/^["']|["']$/g, '');
+      if (k && !process.env[k]) process.env[k] = v;
+    }
+  }
+}
+
 const KEY = process.env.CLOUDFLARE_API_KEY || '';
 const EMAIL = process.env.CLOUDFLARE_EMAIL || '';
 const ACCOUNT_ID = 'a45c0624edbc5fd01d465883f6cf291a';
