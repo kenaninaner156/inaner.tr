@@ -128,14 +128,26 @@ function Drive({ onOpenMenu, isMobile }) {
     const [isWindowDragging, setIsWindowDragging] = useState(false);
     const [dragOverFolder, setDragOverFolder] = useState(null);
 
-    // Bağlantı Modu: Yerel Ağ vs Bulut Köprüsü
-    const [forceLocal, setForceLocal] = useState(() => {
+    // Bağlantı Modu: Manuel tercih ('local' | 'cloud') veya null (otomatik IP tespiti)
+    const [userModeOverride, setUserModeOverride] = useState(() => {
         try {
-            return localStorage.getItem('drive_force_local') === '1';
+            const saved = localStorage.getItem('drive_user_mode');
+            if (saved === 'local' || saved === 'cloud') return saved;
+            return null;
         } catch (_) {
-            return false;
+            return null;
         }
     });
+
+    const isCurrentlyLocal = userModeOverride
+        ? (userModeOverride === 'local')
+        : Boolean(stats?.isLocalNetwork);
+
+    const getModeQuery = (mode = userModeOverride) => {
+        if (mode === 'cloud') return '&mode=cloud&local=0';
+        if (mode === 'local') return '&mode=local&local=1';
+        return '';
+    };
 
     // Yükleme Kuyruğu (Google Drive Style Floating Widget)
     const [uploadQueue, setUploadQueue] = useState([]);
@@ -143,11 +155,11 @@ function Drive({ onOpenMenu, isMobile }) {
     const fileInputRef = useRef(null);
 
     // 1. Veri Listeleme
-    const fetchFolderContents = async (pathStr = '', isLocalOverride = forceLocal) => {
+    const fetchFolderContents = async (pathStr = '', modeOverride = userModeOverride) => {
         setLoading(true);
         try {
-            const localQuery = isLocalOverride ? '&local=1' : '';
-            const res = await fetch(`/api/drive?action=list&path=${encodeURIComponent(pathStr)}${localQuery}`);
+            const modeQuery = getModeQuery(modeOverride);
+            const res = await fetch(`/api/drive?action=list&path=${encodeURIComponent(pathStr)}${modeQuery}`);
             if (res.ok) {
                 const data = await res.json();
                 if (data.success) {
@@ -165,10 +177,10 @@ function Drive({ onOpenMenu, isMobile }) {
     };
 
     // 2. Disk İstatistikleri
-    const fetchStats = async (isLocalOverride = forceLocal) => {
+    const fetchStats = async (modeOverride = userModeOverride) => {
         try {
-            const localQuery = isLocalOverride ? '&local=1' : '';
-            const res = await fetch(`/api/drive?action=stats${localQuery}`);
+            const modeQuery = getModeQuery(modeOverride);
+            const res = await fetch(`/api/drive?action=stats${modeQuery}`);
             if (res.ok) {
                 const data = await res.json();
                 if (data.success) setStats(data);
@@ -180,13 +192,13 @@ function Drive({ onOpenMenu, isMobile }) {
 
     // Bağlantı Modunu Manuel Değiştir (Yerel Ağ <-> Bulut Köprüsü)
     const toggleConnectionMode = () => {
-        const next = !(stats?.isLocalNetwork || forceLocal);
-        setForceLocal(next);
+        const nextMode = isCurrentlyLocal ? 'cloud' : 'local';
+        setUserModeOverride(nextMode);
         try {
-            localStorage.setItem('drive_force_local', next ? '1' : '0');
+            localStorage.setItem('drive_user_mode', nextMode);
         } catch (_) {}
-        fetchStats(next);
-        fetchFolderContents(currentPath, next);
+        fetchStats(nextMode);
+        fetchFolderContents(currentPath, nextMode);
     };
 
     // 3. Yedekleme Manifest Durumu
@@ -583,7 +595,7 @@ function Drive({ onOpenMenu, isMobile }) {
                             </div>
 
                             {/* Akıllı Bağlantı Modu Rozeti (Tıklanabilir Toggle) */}
-                            {(stats.isLocalNetwork || forceLocal) ? (
+                            {isCurrentlyLocal ? (
                                 <button 
                                     type="button"
                                     onClick={toggleConnectionMode}
@@ -729,7 +741,7 @@ function Drive({ onOpenMenu, isMobile }) {
                 </div>
 
                 {/* Sağ: İnteraktif Bağlantı Rozeti (Tek Tıkla Geçiş) */}
-                {(stats?.isLocalNetwork || forceLocal) ? (
+                {isCurrentlyLocal ? (
                     <button 
                         type="button"
                         onClick={toggleConnectionMode}

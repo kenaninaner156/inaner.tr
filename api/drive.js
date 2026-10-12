@@ -61,7 +61,17 @@ const HOME_NETWORK_IPS = new Set([
 ].filter(Boolean));
 
 function isClientOnHomeNetwork(req) {
-    if (req?.query?.local === '1' || req?.headers?.['x-is-local'] === '1') return true;
+    // 1. Kullanıcı açıkça bulut köprüsünü seçtiyse (mode=cloud veya local=0) yerel ağ tespitini kapat
+    if (req?.query?.mode === 'cloud' || req?.query?.mode === 'webdav' || req?.query?.local === '0') {
+        return false;
+    }
+
+    // 2. Kullanıcı açıkça yerel ağı seçtiyse (mode=local veya local=1) yerel ağ modunu aç
+    if (req?.query?.mode === 'local' || req?.query?.local === '1' || req?.headers?.['x-is-local'] === '1') {
+        return true;
+    }
+
+    // 3. Otomatik Tespit: İstemci IP'si bilinen ev Wi-Fi ağı IP'si ise true
     const allHeaders = [
         req?.headers?.['cf-connecting-ip'],
         req?.headers?.['true-client-ip'],
@@ -78,7 +88,7 @@ function isClientOnHomeNetwork(req) {
 
 // Ortam ve Bağlantı Denetimi: Yerel Gigabit Ağ (SMB) mı yoksa WebDAV Bulut Köprüsü mü?
 async function resolveDriveContext(req) {
-    if (req?.query?.mode === 'webdav' || req?.query?.webdav === '1') {
+    if (req?.query?.mode === 'webdav' || req?.query?.webdav === '1' || req?.query?.mode === 'cloud' || req?.query?.local === '0') {
         return { useWebDAV: true, driveRoot: null, connectionMode: 'cloud' };
     }
     if (process.env.FORCE_WEBDAV === 'true' || process.env.VERCEL) {
