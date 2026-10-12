@@ -111,8 +111,12 @@ async function resolveDriveContext(req) {
 
 // Güvenli yerel sürücü kök dizini (Lokal mod için senkron geri dönüş)
 function getLocalDriveRoot() {
-    if (networkDetectionCache.driveRoot && fs.existsSync(networkDetectionCache.driveRoot)) {
-        return networkDetectionCache.driveRoot;
+    if (networkDetectionCache.driveRoot) {
+        try {
+            if (fs.existsSync(networkDetectionCache.driveRoot)) {
+                return networkDetectionCache.driveRoot;
+            }
+        } catch (_) {}
     }
     const candidateDrives = [
         '\\\\192.168.1.1\\INANER_DRIVE\\Drive',
@@ -130,8 +134,13 @@ function getLocalDriveRoot() {
             }
         } catch (_) {}
     }
-    const fallback = path.resolve(process.cwd(), 'drive_storage');
-    if (!fs.existsSync(fallback)) fs.mkdirSync(fallback, { recursive: true });
+    // Sunucusuz veya salt-okunur ortamlarda (Vercel) asla EROFS hatası vermez
+    const fallback = process.platform === 'win32'
+        ? path.resolve(process.cwd(), 'drive_storage')
+        : '/tmp/drive_storage';
+    try {
+        if (!fs.existsSync(fallback)) fs.mkdirSync(fallback, { recursive: true });
+    } catch (_) {}
     return fallback;
 }
 
@@ -190,10 +199,18 @@ async function webdavFetch(subPath, options = {}) {
         'Authorization': getAuthHeader(),
         ...(options.headers || {})
     };
-    return await fetch(url, {
-        ...options,
-        headers
-    });
+    const controller = new AbortController();
+    const timeoutMs = options.timeoutMs || 8000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, {
+            ...options,
+            headers,
+            signal: options.signal || controller.signal
+        });
+    } finally {
+        clearTimeout(timeoutId);
+    }
 }
 
 // WebDAV XML Parser (PROPFIND yanıtlarını ayrıştırır)
@@ -251,10 +268,9 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    const { useWebDAV, driveRoot: dynamicDriveRoot, connectionMode } = await resolveDriveContext(req);
-    const driveRoot = dynamicDriveRoot || getLocalDriveRoot();
-
     try {
+        const { useWebDAV, driveRoot: dynamicDriveRoot, connectionMode } = await resolveDriveContext(req);
+        const driveRoot = useWebDAV ? null : (dynamicDriveRoot || getLocalDriveRoot());
         const action = req.query?.action || req.body?.action || 'list';
 
         // ══════════════════════════════════════════════════════
