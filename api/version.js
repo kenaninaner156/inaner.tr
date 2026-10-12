@@ -6,6 +6,7 @@ export default function handler(req, res) {
   
   return res.status(200).json({
     version: process.env.VERCEL_GIT_COMMIT_SHA || '2.0.4',
-    buildTime: process.env.VERCEL_GIT_COMMIT_DATE || new Date().toISOString()
+    buildTime: process.env.VERCEL_GIT_COMMIT_DATE || new Date().toISOString(),
+    clientIp: (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress
   });
 }

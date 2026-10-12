@@ -128,16 +128,26 @@ function Drive({ onOpenMenu, isMobile }) {
     const [isWindowDragging, setIsWindowDragging] = useState(false);
     const [dragOverFolder, setDragOverFolder] = useState(null);
 
+    // Bağlantı Modu: Yerel Ağ vs Bulut Köprüsü
+    const [forceLocal, setForceLocal] = useState(() => {
+        try {
+            return localStorage.getItem('drive_force_local') === '1';
+        } catch (_) {
+            return false;
+        }
+    });
+
     // Yükleme Kuyruğu (Google Drive Style Floating Widget)
     const [uploadQueue, setUploadQueue] = useState([]);
     const [uploadQueueCollapsed, setUploadQueueCollapsed] = useState(false);
     const fileInputRef = useRef(null);
 
     // 1. Veri Listeleme
-    const fetchFolderContents = async (pathStr = '') => {
+    const fetchFolderContents = async (pathStr = '', isLocalOverride = forceLocal) => {
         setLoading(true);
         try {
-            const res = await fetch(`/api/drive?action=list&path=${encodeURIComponent(pathStr)}`);
+            const localQuery = isLocalOverride ? '&local=1' : '';
+            const res = await fetch(`/api/drive?action=list&path=${encodeURIComponent(pathStr)}${localQuery}`);
             if (res.ok) {
                 const data = await res.json();
                 if (data.success) {
@@ -155,9 +165,10 @@ function Drive({ onOpenMenu, isMobile }) {
     };
 
     // 2. Disk İstatistikleri
-    const fetchStats = async () => {
+    const fetchStats = async (isLocalOverride = forceLocal) => {
         try {
-            const res = await fetch('/api/drive?action=stats');
+            const localQuery = isLocalOverride ? '&local=1' : '';
+            const res = await fetch(`/api/drive?action=stats${localQuery}`);
             if (res.ok) {
                 const data = await res.json();
                 if (data.success) setStats(data);
@@ -165,6 +176,17 @@ function Drive({ onOpenMenu, isMobile }) {
         } catch (err) {
             console.error('Disk istatistikleri alınamadı:', err);
         }
+    };
+
+    // Bağlantı Modunu Manuel Değiştir (Yerel Ağ <-> Bulut Köprüsü)
+    const toggleConnectionMode = () => {
+        const next = !(stats?.isLocalNetwork || forceLocal);
+        setForceLocal(next);
+        try {
+            localStorage.setItem('drive_force_local', next ? '1' : '0');
+        } catch (_) {}
+        fetchStats(next);
+        fetchFolderContents(currentPath, next);
     };
 
     // 3. Yedekleme Manifest Durumu
@@ -545,22 +567,26 @@ function Drive({ onOpenMenu, isMobile }) {
                         </span>
                         {stats && (
                             <div className="sm:hidden flex items-center ml-1">
-                                {stats.isLocalNetwork ? (
-                                    <span 
-                                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-semibold"
-                                        title="Yerel Ağ (1 Gbps)"
+                                {(stats.isLocalNetwork || forceLocal) ? (
+                                    <button 
+                                        type="button"
+                                        onClick={toggleConnectionMode}
+                                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-semibold cursor-pointer active:scale-95 transition-all"
+                                        title="Yerel Ağ (1 Gbps) - Modu değiştirmek için dokunun"
                                     >
                                         <Wifi size={10} />
                                         <span>Yerel</span>
-                                    </span>
+                                    </button>
                                 ) : (
-                                    <span 
-                                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[9px] font-semibold"
-                                        title="Bulut Köprüsü"
+                                    <button 
+                                        type="button"
+                                        onClick={toggleConnectionMode}
+                                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[9px] font-semibold cursor-pointer active:scale-95 transition-all"
+                                        title="Bulut Köprüsü - Modu değiştirmek için dokunun"
                                     >
                                         <Cloud size={10} />
                                         <span>Bulut</span>
-                                    </span>
+                                    </button>
                                 )}
                             </div>
                         )}
@@ -581,23 +607,27 @@ function Drive({ onOpenMenu, isMobile }) {
                                 </span>
                             </div>
 
-                            {/* Akıllı Bağlantı Modu Rozeti */}
-                            {stats.isLocalNetwork ? (
-                                <div 
-                                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-semibold"
-                                    title={`Yerel Ağ Doğrudan Erişim: ${stats.drivePath || 'SMB (1 Gbps)'}`}
+                            {/* Akıllı Bağlantı Modu Rozeti (Tıklanabilir Toggle) */}
+                            {(stats.isLocalNetwork || forceLocal) ? (
+                                <button 
+                                    type="button"
+                                    onClick={toggleConnectionMode}
+                                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-semibold cursor-pointer hover:bg-emerald-500/20 active:scale-95 transition-all"
+                                    title={`Yerel Ağ Doğrudan Erişim: ${stats.drivePath || 'Wi-Fi (1 Gbps)'} (Değiştirmek için tıklayın)`}
                                 >
                                     <Wifi size={11} className="shrink-0" />
                                     <span>Yerel Ağ (1 Gbps)</span>
-                                </div>
+                                </button>
                             ) : (
-                                <div 
-                                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-semibold"
-                                    title="İnternet Üzerinden Güvenli Keenetic Bulut Köprüsü"
+                                <button 
+                                    type="button"
+                                    onClick={toggleConnectionMode}
+                                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-semibold cursor-pointer hover:bg-sky-500/20 active:scale-95 transition-all"
+                                    title="İnternet Üzerinden Güvenli Keenetic Bulut Köprüsü (Yerel moda geçmek için tıklayın)"
                                 >
                                     <Cloud size={11} className="shrink-0" />
                                     <span>Bulut Köprüsü</span>
-                                </div>
+                                </button>
                             )}
                         </div>
                     )}

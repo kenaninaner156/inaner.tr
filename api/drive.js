@@ -54,6 +54,20 @@ function testTcpPort(host = '192.168.1.1', port = 445, timeoutMs = 300) {
     });
 }
 
+// Bilinen Ev Ağı IP'leri ve İstemci Tespiti (Ev Wi-Fi ağından gelen istekleri otomatik tanır)
+const HOME_NETWORK_IPS = new Set([
+    '31.223.74.254',
+    process.env.HOME_PUBLIC_IP
+].filter(Boolean));
+
+function isClientOnHomeNetwork(req) {
+    const rawIp = req?.headers?.['x-forwarded-for'] || req?.headers?.['x-real-ip'] || req?.socket?.remoteAddress || '';
+    const clientIp = String(rawIp).split(',')[0].trim();
+    if (HOME_NETWORK_IPS.has(clientIp)) return true;
+    if (req?.query?.local === '1' || req?.headers?.['x-is-local'] === '1') return true;
+    return false;
+}
+
 // Ortam ve Bağlantı Denetimi: Yerel Gigabit Ağ (SMB) mı yoksa WebDAV Bulut Köprüsü mü?
 async function resolveDriveContext(req) {
     if (req?.query?.mode === 'webdav' || req?.query?.webdav === '1') {
@@ -300,9 +314,10 @@ export default async function handler(req, res) {
                 usedSpaceBytes = Math.floor(2.21 * 1024 * 1024 * 1024);
                 const freeSpaceBytes = Math.max(0, totalSpaceBytes - usedSpaceBytes);
 
+                const isHomeClient = isClientOnHomeNetwork(req);
                 return res.status(200).json({
                     success: true,
-                    drivePath: 'Keenetic Bulut (inaner.keenetic.pro)',
+                    drivePath: isHomeClient ? 'Keenetic Yerel Ağ (Wi-Fi 1 Gbps)' : 'Keenetic Bulut (inaner.keenetic.pro)',
                     totalBytes: totalSpaceBytes,
                     usedBytes: usedSpaceBytes,
                     freeBytes: freeSpaceBytes,
@@ -312,9 +327,9 @@ export default async function handler(req, res) {
                     usedGB: (usedSpaceBytes / (1024 ** 3)).toFixed(2),
                     freeGB: (freeSpaceBytes / (1024 ** 3)).toFixed(1),
                     usagePercent: ((usedSpaceBytes / totalSpaceBytes) * 100).toFixed(1),
-                    isWebDav: true,
-                    connectionMode: 'cloud',
-                    isLocalNetwork: false
+                    isWebDav: !isHomeClient,
+                    connectionMode: isHomeClient ? 'local' : 'cloud',
+                    isLocalNetwork: isHomeClient
                 });
             } else {
                 const scanDir = (dir) => {
@@ -461,15 +476,16 @@ export default async function handler(req, res) {
                     breadcrumbs.push({ name: part, path: accumulatedPath });
                 }
 
+                const isHomeClient = isClientOnHomeNetwork(req);
                 return res.status(200).json({
                     success: true,
                     currentPath: relPath,
                     folders,
                     files,
                     breadcrumbs,
-                    isWebDav: true,
-                    connectionMode: 'cloud',
-                    isLocalNetwork: false
+                    isWebDav: !isHomeClient,
+                    connectionMode: isHomeClient ? 'local' : 'cloud',
+                    isLocalNetwork: isHomeClient
                 });
 
             } else {
