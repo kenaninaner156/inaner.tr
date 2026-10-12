@@ -565,31 +565,6 @@ function Drive({ onOpenMenu, isMobile }) {
                         <span className="text-sm font-bold text-white tracking-tight">
                             İnaner Drive
                         </span>
-                        {stats && (
-                            <div className="sm:hidden flex items-center ml-1">
-                                {(stats.isLocalNetwork || forceLocal) ? (
-                                    <button 
-                                        type="button"
-                                        onClick={toggleConnectionMode}
-                                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-semibold cursor-pointer active:scale-95 transition-all"
-                                        title="Yerel Ağ (1 Gbps) - Modu değiştirmek için dokunun"
-                                    >
-                                        <Wifi size={10} />
-                                        <span>Yerel</span>
-                                    </button>
-                                ) : (
-                                    <button 
-                                        type="button"
-                                        onClick={toggleConnectionMode}
-                                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[9px] font-semibold cursor-pointer active:scale-95 transition-all"
-                                        title="Bulut Köprüsü - Modu değiştirmek için dokunun"
-                                    >
-                                        <Cloud size={10} />
-                                        <span>Bulut</span>
-                                    </button>
-                                )}
-                            </div>
-                        )}
                     </div>
 
                     {/* Apple Tarzı Ultra-İnce Disk Hafızası Göstergesi & Bağlantı Rozeti */}
@@ -737,6 +712,45 @@ function Drive({ onOpenMenu, isMobile }) {
                     />
                 </div>
             </header>
+
+            {/* Mobil İnteraktif Bağlantı & Hafıza Şeridi (Yalnızca mobilde - layoutu bozmadan, tek tıkla geçiş) */}
+            <div className="sm:hidden shrink-0 bg-[#080b12] border-b border-white/[0.05] px-4 py-2 flex items-center justify-between text-xs">
+                {/* Sol: Disk Hafızası Göstergesi */}
+                <div className="flex items-center gap-2">
+                    <div className="w-14 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(100, Math.max(2, parseFloat(stats?.usagePercent) || 0))}%` }}
+                        />
+                    </div>
+                    <span className="text-[11px] font-medium text-zinc-400">
+                        {stats ? `${stats.usedGB} GB` : '—'} <span className="text-zinc-600">/</span> {stats ? `${stats.totalGB} GB` : '—'}
+                    </span>
+                </div>
+
+                {/* Sağ: İnteraktif Bağlantı Rozeti (Tek Tıkla Geçiş) */}
+                {(stats?.isLocalNetwork || forceLocal) ? (
+                    <button 
+                        type="button"
+                        onClick={toggleConnectionMode}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-[11px] font-semibold cursor-pointer active:scale-95 transition-all shadow-sm"
+                        title={`Yerel Ağ Doğrudan Erişim: ${stats?.drivePath || 'Wi-Fi (1 Gbps)'} (Değiştirmek için dokunun)`}
+                    >
+                        <Wifi size={12} className="shrink-0" />
+                        <span>Yerel Ağ (1 Gbps)</span>
+                    </button>
+                ) : (
+                    <button 
+                        type="button"
+                        onClick={toggleConnectionMode}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-500/10 border border-sky-500/25 text-sky-400 text-[11px] font-semibold cursor-pointer active:scale-95 transition-all shadow-sm"
+                        title="İnternet Üzerinden Güvenli Keenetic Bulut Köprüsü (Yerel moda geçmek için dokunun)"
+                    >
+                        <Cloud size={12} className="shrink-0" />
+                        <span>Bulut Köprüsü</span>
+                    </button>
+                )}
+            </div>
 
             {/* ── 2. ANA SAHNE: E-ARŞİV BENZERİ AYARLAR MASASI VEYA DOSYA GEZGİNİ ── */}
             <div className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
