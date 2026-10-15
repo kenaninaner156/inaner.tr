@@ -775,4 +775,30 @@ button, a, input, select, textarea {
   }
 }
 
+/* ═══════════════════════════════════════════════════════
+   APPLE-GRADE FINANS GRAFİK ANİMASYONLARI
+   ═══════════════════════════════════════════════════════ */
 
+@keyframes appleTooltipPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.95) translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.apple-tooltip-animate {
+  animation: appleTooltipPop 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+/* Recharts Finans Grafiği: Yatay çizgilerin başlangıç ve bitişlerindeki açılı kesimi mikro-curve ile pürüzsüzleştirme */
+.recharts-area-curve,
+.recharts-line-curve,
+path.recharts-curve {
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}

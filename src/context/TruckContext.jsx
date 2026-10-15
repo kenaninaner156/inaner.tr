@@ -1,5 +1,4 @@
-/* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
+import React, { createContext, useState, useEffect, useContext, useMemo, useRef } from 'react';
 import { db } from '../services/firebaseConfig';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { CompanyContext } from './CompanyContext';
@@ -14,6 +13,7 @@ export const TruckProvider = ({ children }) => {
     const [activeTruckId, setActiveTruckIdState] = useState(() => {
         return localStorage.getItem('tir_active_truck_id') || 'truck_06ftn692';
     });
+    const lastSwitchTimeRef = useRef(0);
 
     const setActiveTruckId = (id) => {
         setActiveTruckIdState(id);
@@ -70,10 +70,29 @@ export const TruckProvider = ({ children }) => {
 
     const activeTruckData = useMemo(() => trucks.find(t => t.id === activeTruckId) || null, [trucks, activeTruckId]);
 
+    const switchNextTruck = () => {
+        const now = Date.now();
+        if (now - lastSwitchTimeRef.current < 450) {
+            return null;
+        }
+        lastSwitchTimeRef.current = now;
 
+        if (!trucks || trucks.length <= 1) return null;
+        const currentIndex = trucks.findIndex(t => t.id === activeTruckId);
+        const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % trucks.length;
+        const nextTruck = trucks[nextIndex];
+        if (nextTruck) {
+            setActiveTruckId(nextTruck.id);
+            if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                try { navigator.vibrate(35); } catch { /* ignore */ }
+            }
+            return nextTruck;
+        }
+        return null;
+    };
 
     return (
-        <TruckContext.Provider value={{ activeTruckId, setActiveTruckId, trucks, activeTruckData }}>
+        <TruckContext.Provider value={{ activeTruckId, setActiveTruckId, trucks, activeTruckData, switchNextTruck }}>
             {children}
         </TruckContext.Provider>
     );

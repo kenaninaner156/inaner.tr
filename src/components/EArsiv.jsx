@@ -16,7 +16,8 @@ import {
     XAxis,
     YAxis,
     Tooltip,
-    CartesianGrid
+    CartesianGrid,
+    getNiceTickValues
 } from 'recharts';
 
 import CustomDatePicker from './CustomDatePicker';
@@ -98,7 +99,7 @@ const formatInvoicePeriod = (startDateStr, endDateStr) => {
 const EArsiv = ({ onOpenMenu, isMobile }) => {
     const { invoices, addLog, routeHistory, saveRouteHistory, fuelRecords, allCompanyFuelRecords } = useContext(DataContext);
     const { activeCompanyId } = useCompany();
-    const { trucks, activeTruckData } = useTruck();
+    const { trucks } = useTruck();
 
     // Memoized trucks map for O(1) plate lookup
     const trucksMap = useMemo(() => {
@@ -1175,7 +1176,37 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         const monthsShort = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
         const monthsFull = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 
-        return monthsShort.map((mShort, mIndex) => {
+        const now = new Date();
+        const realYear = now.getFullYear();
+        const realMonth = now.getMonth();
+
+        const parseDayFromDateStr = (dateStr, targetYear, targetMonthIndex) => {
+            if (!dateStr) return null;
+            try {
+                if (typeof dateStr === 'string' && dateStr.includes('.')) {
+                    const parts = dateStr.split('.');
+                    if (parts.length === 3) {
+                        const day = parseInt(parts[0], 10);
+                        const month = parseInt(parts[1], 10) - 1;
+                        const year = parseInt(parts[2], 10);
+                        if (year === targetYear && month === targetMonthIndex && !isNaN(day)) {
+                            return day;
+                        }
+                    }
+                }
+                const d = new Date(dateStr);
+                if (!isNaN(d.getTime())) {
+                    if (d.getFullYear() === targetYear && d.getMonth() === targetMonthIndex) {
+                        return d.getDate();
+                    }
+                }
+            } catch {
+                return null;
+            }
+            return null;
+        };
+
+        const rawList = monthsShort.map((mShort, mIndex) => {
             // 1. Bu aya ait faturaları bul (Konsolide - Tüm şirket faturaları)
             const monthInvoices = (activeInvoices || []).filter(inv => {
                 const dStr = inv.startDate || inv.periodStart || inv.date || '';
@@ -1198,16 +1229,40 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             }, 0);
 
             // 2. Bu aya ait akaryakıt fişlerini bul (Konsolide - Tüm filo araçlarının mazot gideri)
-            const monthFuel = (companyFuelList || [])
+            const monthFuelRecords = (companyFuelList || [])
                 .filter(f => {
                     if (f.deleted) return false;
                     if (!f.date) return false;
                     const d = new Date(f.date);
                     return d.getFullYear() === currentYear && d.getMonth() === mIndex;
-                })
+                });
+
+            const monthFuel = monthFuelRecords
                 .reduce((sum, f) => sum + (Number(f.price) || Number(f.totalAmount) || 0), 0);
 
+            // Bu aya girilen en son veri gününü tespit et (seferler, faturalar, akaryakıt fişleri)
+            let maxDay = 0;
+            monthInvoices.forEach(inv => {
+                [inv.endDate, inv.periodEnd, inv.startDate, inv.periodStart, inv.date].forEach(ds => {
+                    const day = parseDayFromDateStr(ds, currentYear, mIndex);
+                    if (day) maxDay = Math.max(maxDay, day);
+                });
+                (inv.trips || []).forEach(t => {
+                    const day = parseDayFromDateStr(t.date, currentYear, mIndex);
+                    if (day) maxDay = Math.max(maxDay, day);
+                });
+            });
+
+            monthFuelRecords.forEach(f => {
+                const day = parseDayFromDateStr(f.date, currentYear, mIndex);
+                if (day) maxDay = Math.max(maxDay, day);
+            });
+
+            // Ayın toplam gün sayısı (Örn: 28, 29, 30, 31)
+            const daysInMonth = new Date(currentYear, mIndex + 1, 0).getDate();
+
             return {
+                mIndex,
                 name: mShort,
                 fullName: monthsFull[mIndex],
                 income: Math.round(monthIncome),
@@ -1215,63 +1270,197 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                 net: Math.round(monthIncome - monthFuel),
                 invoiceCount: monthInvoices.length,
                 tripsCount: monthTripsCount,
-                totalTons: monthTotalTons.toFixed(1)
+                totalTons: monthTotalTons.toFixed(1),
+                maxDay,
+                daysInMonth
             };
         }).filter(m => m.income > 0 || m.fuel > 0);
+
+        // Yalnızca son tamamlanmamış ve en az 10 günlük veri girilmiş ayı tespit et
+        const lastMonth = rawList.length > 0 ? rawList[rawList.length - 1] : null;
+        let eligibleMonthIndex = -1;
+
+        if (lastMonth) {
+            const isPastMonth = currentYear < realYear || (currentYear === realYear && lastMonth.mIndex < realMonth);
+            const activeDay = lastMonth.maxDay > 0 
+                ? lastMonth.maxDay 
+                : (currentYear === realYear && lastMonth.mIndex === realMonth ? now.getDate() : 0);
+
+            if (!isPastMonth && activeDay < lastMonth.daysInMonth && activeDay >= 10) {
+                eligibleMonthIndex = lastMonth.mIndex;
+            }
+        }
+
+        return rawList.map(m => {
+            const hasProjection = m.mIndex === eligibleMonthIndex;
+            const activeDay = m.maxDay > 0 
+                ? m.maxDay 
+                : (currentYear === realYear && m.mIndex === realMonth ? now.getDate() : 0);
+
+            const projectedNet = hasProjection && activeDay > 0
+                ? Math.round((m.net / activeDay) * m.daysInMonth)
+                : null;
+
+            return {
+                ...m,
+                hasProjection,
+                projectedNet,
+                daysEntered: activeDay,
+                daysInMonth: m.daysInMonth
+            };
+        });
     }, [activeInvoices, currentYear, routeHistory, companyFuelList]);
 
-    // FINANCIA / Tasks Overview tarzı lüks siyah cam tooltip (Sadece Turuncu, Siyah, Gri, Beyaz - Ultra Kompakt)
-    const CustomChartTooltip = ({ active, payload }) => {
+    // Recharts YAxis domain([0, 'auto']) ile tam eşleşen tavan değer (curveY hesabı için)
+    const chartNiceMax = useMemo(() => {
+        if (!chartData || chartData.length === 0) return 100000;
+        const maxVal = Math.max(...chartData.map(d => Math.max(d.income || 0, d.fuel || 0, 0)), 1);
+        const niceTicks = getNiceTickValues([0, maxVal], 5);
+        return (niceTicks && niceTicks.length > 0) ? niceTicks[niceTicks.length - 1] : maxVal;
+    }, [chartData]);
+
+    // FINANCIA / Tasks Overview tarzı lüks siyah cam tooltip
+    const CustomChartTooltip = ({ active, payload, activeIndex, coordinate }) => {
         if (!active || !payload || !payload.length) return null;
         const data = payload[0]?.payload;
         const income = data?.income || 0;
         const fuel = data?.fuel || 0;
         const net = income - fuel;
-        const profitMargin = income > 0 ? ((net / income) * 100).toFixed(1) : '0';
+        const profitMargin = income > 0 ? ((net / income) * 100).toFixed(1) : null;
+        const hasProjection = Boolean(data?.hasProjection);
+        const projectedNet = data?.projectedNet;
+
+        // En soldaki ay kontrolü: Sadece en soldaki ayda sağa açılsın, diğer tüm aylarda sola açılsın
+        const isFirstMonth = activeIndex === 0 || (chartData.length > 0 && data?.name === chartData[0]?.name);
+        const posX = coordinate?.x;
+        let horizontalTransform = 'translateX(16px)';
+        if (!isFirstMonth) {
+            if (posX != null && posX < 205) {
+                horizontalTransform = `translateX(-${Math.max(16, posX - 8)}px)`;
+            } else {
+                horizontalTransform = 'translateX(calc(-100% - 16px))';
+            }
+        }
 
         return (
-            <div className="bg-[#0a0d16]/95 backdrop-blur-2xl border border-white/[0.12] px-3.5 py-2.5 rounded-xl shadow-[0_15px_35px_rgba(0,0,0,0.9)] text-left pointer-events-none min-w-[148px] animate-in zoom-in-95 duration-150">
-                {/* Gelir & Mazot Değerleri */}
+            <div 
+                className="w-[195px] bg-[#0a0d16]/95 backdrop-blur-2xl border border-white/[0.12] px-3.5 py-2.5 rounded-xl shadow-[0_18px_40px_rgba(0,0,0,0.9)] text-left pointer-events-none select-none transition-transform duration-180 ease-out"
+                style={{ transform: horizontalTransform }}
+            >
+                {/* 1. Kısım: Gelir & Mazot Değerleri */}
                 <div className="space-y-1 text-[11px]">
-                    <div className="flex items-center justify-between gap-3">
-                        <span className="text-orange-400 font-semibold flex items-center gap-1.5">
+                    <div className="flex items-center justify-between gap-3 whitespace-nowrap">
+                        <span className="text-orange-400 font-semibold flex items-center gap-1.5 shrink-0">
                             <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shadow-[0_0_6px_rgba(249,115,22,0.8)]" />
                             Gelir:
                         </span>
-                        <span className="font-mono font-bold text-white">
-                            {income.toLocaleString('tr-TR')} ₺
+                        <span className="font-mono font-bold text-white tabular-nums shrink-0">
+                            {income > 0 ? `${income.toLocaleString('tr-TR')} ₺` : '0 ₺'}
                         </span>
                     </div>
 
-                    <div className="flex items-center justify-between gap-3">
-                        <span className="text-slate-300 font-medium flex items-center gap-1.5">
+                    <div className="flex items-center justify-between gap-3 whitespace-nowrap">
+                        <span className="text-slate-300 font-medium flex items-center gap-1.5 shrink-0">
                             <span className="w-1.5 h-1.5 rounded-full bg-slate-300 shadow-[0_0_6px_rgba(226,232,240,0.6)]" />
                             Mazot:
                         </span>
-                        <span className="font-mono font-semibold text-slate-200">
-                            {fuel.toLocaleString('tr-TR')} ₺
+                        <span className="font-mono font-semibold text-slate-200 tabular-nums shrink-0">
+                            {fuel > 0 ? `${fuel.toLocaleString('tr-TR')} ₺` : '0 ₺'}
                         </span>
                     </div>
                 </div>
 
-                {/* Net Kalan & Kâr Payı */}
-                {income > 0 && (
-                    <div className="pt-1.5 mt-1.5 border-t border-white/[0.08] space-y-0.5 text-[10.5px]">
-                        <div className="flex items-center justify-between">
-                            <span className="text-slate-400 font-medium">Net Kalan:</span>
-                            <span className="font-mono font-bold text-white">
-                                {net.toLocaleString('tr-TR')} ₺
-                            </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-slate-400 font-medium">Kâr Payı:</span>
-                            <span className="font-mono font-bold text-orange-400">
-                                %{profitMargin}
-                            </span>
-                        </div>
+                {/* 2. Kısım: Net Kalan, Aylık Beklenti (yalnızca son ayda tek satır) & Kâr Payı */}
+                <div className="pt-1.5 mt-1.5 border-t border-white/[0.08] space-y-1 text-[10.5px]">
+                    <div className="flex items-center justify-between gap-3 whitespace-nowrap">
+                        <span className="text-slate-400 font-medium shrink-0">Net Kalan:</span>
+                        <span className="font-mono font-bold text-white tabular-nums shrink-0">
+                            {(income > 0 || fuel > 0) ? `${net.toLocaleString('tr-TR')} ₺` : '0 ₺'}
+                        </span>
                     </div>
-                )}
+
+                    {/* Aylık Beklenti: SADECE son tamamlanmamış ayda tek satır olarak gösterilir */}
+                    {hasProjection && projectedNet !== null && (
+                        <div className="flex items-center justify-between gap-3 whitespace-nowrap">
+                            <span className="text-slate-400 font-medium shrink-0" title={`${data?.daysEntered}/${data?.daysInMonth} gün baz alındı`}>
+                                Aylık Beklenti:
+                            </span>
+                            <span className="font-mono font-medium text-slate-300 tabular-nums shrink-0">
+                                {projectedNet.toLocaleString('tr-TR')} ₺
+                            </span>
+                        </div>
+                    )}
+
+                    <div className="flex items-center justify-between gap-3 whitespace-nowrap">
+                        <span className="text-slate-400 font-medium shrink-0">Kâr Payı:</span>
+                        <span className="font-mono font-bold text-orange-400 tabular-nums shrink-0">
+                            {profitMargin !== null ? `%${profitMargin}` : '—'}
+                        </span>
+                    </div>
+                </div>
             </div>
+        );
+    };
+
+    // Apple-grade Obsidian İğne İmleç (Aylar arasında tabela ile birebir aynı hızda pürüzsüz kayan kesikli neon çizgi)
+    const CustomNeedleCursor = (props) => {
+        const { points, payload } = props;
+        if (!points || points.length < 2) return null;
+
+        const posX = points[0].x;
+        const yTop = points[0].y;
+        const yBaseline = points[1].y;
+
+        if (posX === undefined || isNaN(posX)) return null;
+
+        // Aktif ayın verisi
+        const activeItem = (payload && payload.length) ? payload[0]?.payload : null;
+        const activeIncome = Number(activeItem?.income ?? activeItem?.net ?? 0);
+
+        // Üst çizgide (turuncu eğride) sonlanması için curveY hesabı:
+        const plotHeight = Math.max(1, yBaseline - yTop);
+        const ratio = (chartNiceMax > 0 && activeIncome > 0) ? Math.min(1, Math.max(0, activeIncome / chartNiceMax)) : 0;
+        const curveY = ratio > 0 ? (yBaseline - (plotHeight * ratio)) : yBaseline;
+
+        return (
+            <g className="pointer-events-none">
+                <g
+                    className="animate-in fade-in duration-150"
+                    style={{
+                        transform: `translateX(${posX}px)`,
+                        transition: 'transform 180ms cubic-bezier(0.16, 1, 0.3, 1)',
+                    }}
+                >
+                    {/* 1. Yumuşak Neon Aura (Derinlik ve zarif lüks ışıma, 3px kesikli, %8 şeffaflık) */}
+                    <line
+                        x1={0}
+                        y1={curveY}
+                        x2={0}
+                        y2={yBaseline}
+                        stroke="#fb923c"
+                        strokeWidth={3}
+                        strokeDasharray="3 3"
+                        strokeOpacity={0.08}
+                        style={{
+                            transition: 'y1 180ms cubic-bezier(0.16, 1, 0.3, 1)',
+                        }}
+                    />
+                    {/* 2. Kesikli ve Soluk Lazer Çizgi (1px, 3 3 kesikli, %40 şeffaflık - Hafif soluk ton) */}
+                    <line
+                        x1={0}
+                        y1={curveY}
+                        x2={0}
+                        y2={yBaseline}
+                        stroke="#fb923c"
+                        strokeWidth={1}
+                        strokeDasharray="3 3"
+                        strokeOpacity={0.40}
+                        style={{
+                            transition: 'y1 180ms cubic-bezier(0.16, 1, 0.3, 1)',
+                        }}
+                    />
+                </g>
+            </g>
         );
     };
 
@@ -1339,7 +1528,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                         paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))'
                     }}
                 >
-                    {/* Sol: Hamburger + Başlık + TR Plaka */}
+                    {/* Sol: Hamburger + Başlık */}
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         {isMobile && onOpenMenu && (
                             <button 
@@ -1353,12 +1542,6 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                         <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white whitespace-nowrap">
                             E-Arşiv Fatura
                         </h2>
-                        {activeTruckData?.plate && (
-                            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs font-mono font-bold text-slate-200 shadow-sm whitespace-nowrap shrink-0">
-                                <span className="text-[9px] font-black text-orange-400 tracking-tighter">TR</span>
-                                <span className="tracking-wide text-white">{activeTruckData.plate}</span>
-                            </span>
-                        )}
                     </div>
 
                     {/* Sağ: GİB Canlı Durum, GİB Portal & Bağlantı Ayarları */}
@@ -1473,8 +1656,11 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                             Henüz dönem hakediş verisi bulunamadı.
                                         </div>
                                     ) : (
-                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
-                                            <ComposedChart data={chartData} margin={{ top: 15, right: 15, left: -20, bottom: 0 }}>
+                                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                                            <ComposedChart 
+                                                data={chartData} 
+                                                margin={{ top: 15, right: 20, left: -20, bottom: 0 }}
+                                            >
                                                 <defs>
                                                     {/* Dikey İğne / Barkod Dokusu (Fotoğraftaki Dikey Eşitleyici Çizgileri) */}
                                                     <pattern id="verticalNeedlesOrange" width="4" height="1000" patternUnits="userSpaceOnUse">
@@ -1491,6 +1677,7 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                                         <stop offset="65%" stopColor="#f97316" stopOpacity="0.10" />
                                                         <stop offset="100%" stopColor="#f97316" stopOpacity="0.0" />
                                                     </linearGradient>
+
                                                 </defs>
 
                                                 {/* İnce Şeffaf Yatay Kılavuz Çizgileri */}
@@ -1498,12 +1685,13 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                                 
                                                 <XAxis 
                                                     dataKey="name" 
-                                                    stroke="#94a3b8" 
-                                                    fontSize={11} 
+                                                    stroke="#64748b" 
+                                                    fontSize={10} 
                                                     tickLine={false} 
                                                     axisLine={false} 
-                                                    dy={6}
-                                                    padding={{ left: 30, right: 30 }}
+                                                    interval={0}
+                                                    height={20}
+                                                    dy={4}
                                                 />
                                                 <YAxis 
                                                     stroke="#64748b" 
@@ -1516,9 +1704,19 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                                 />
                                                 <Tooltip 
                                                     content={<CustomChartTooltip />} 
-                                                    cursor={{ stroke: 'rgba(249, 115, 22, 0.7)', strokeWidth: 1.5, strokeDasharray: '3 3' }} 
-                                                    isAnimationActive={false}
-                                                    wrapperStyle={{ outline: 'none', pointerEvents: 'none' }}
+                                                    cursor={<CustomNeedleCursor />} 
+                                                    position={{ y: 8 }}
+                                                    offset={0}
+                                                    allowEscapeViewBox={{ x: true, y: false }}
+                                                    isAnimationActive={true}
+                                                    animationDuration={180}
+                                                    animationEasing="cubic-bezier(0.16, 1, 0.3, 1)"
+                                                    wrapperStyle={{ 
+                                                        outline: 'none', 
+                                                        pointerEvents: 'none', 
+                                                        zIndex: 50,
+                                                        transition: 'transform 180ms cubic-bezier(0.16, 1, 0.3, 1)'
+                                                    }}
                                                 />
                                                 
                                                 {/* 1. Dalga: Ana Hakediş & Dikey İğne Dokulu Neon Turuncu Çizgi (Fotoğraftaki Kalın Dalga) */}
@@ -1529,19 +1727,58 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                                                     strokeWidth={3.2} 
                                                     fill="url(#verticalNeedlesOrange)" 
                                                     dot={false} 
-                                                    activeDot={{ r: 5, fill: '#fb923c', stroke: '#07090e', strokeWidth: 2 }} 
+                                                    activeDot={(dotProps) => {
+                                                        if (dotProps.cx == null || dotProps.cy == null) return null;
+                                                        return (
+                                                            <circle
+                                                                cx={0}
+                                                                cy={0}
+                                                                r={5}
+                                                                fill="#fb923c"
+                                                                stroke="#07090e"
+                                                                strokeWidth={2}
+                                                                className="pointer-events-none"
+                                                                style={{
+                                                                    transform: `translate(${dotProps.cx}px, ${dotProps.cy}px)`,
+                                                                    transition: 'transform 180ms cubic-bezier(0.16, 1, 0.3, 1)',
+                                                                }}
+                                                            />
+                                                        );
+                                                    }}
                                                     isAnimationActive={false}
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
                                                 />
 
-                                                {/* 2. Dalga: Mazot Gideri Düz ve Parlak Çizgi */}
+                                                {/* 2. Dalga: Mazot Gideri Düz ve Parlak Beyaz Çizgi (Dikey lazer çubuğunun üstünden geçer) */}
                                                 <Line 
                                                     type="monotone" 
                                                     dataKey="fuel" 
                                                     stroke="#e2e8f0" 
                                                     strokeWidth={2.2} 
                                                     dot={false} 
-                                                    activeDot={{ r: 4, fill: '#e2e8f0', stroke: '#07090e', strokeWidth: 2 }} 
+                                                    activeDot={(dotProps) => {
+                                                        if (dotProps.cx == null || dotProps.cy == null) return null;
+                                                        return (
+                                                            <circle
+                                                                cx={0}
+                                                                cy={0}
+                                                                r={4.5}
+                                                                fill="#f8fafc"
+                                                                stroke="#07090e"
+                                                                strokeWidth={2}
+                                                                className="pointer-events-none"
+                                                                style={{
+                                                                    transform: `translate(${dotProps.cx}px, ${dotProps.cy}px)`,
+                                                                    transition: 'transform 180ms cubic-bezier(0.16, 1, 0.3, 1)',
+                                                                }}
+                                                            />
+                                                        );
+                                                    }}
                                                     isAnimationActive={false}
+                                                    zIndex={1500}
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
                                                 />
                                             </ComposedChart>
                                         </ResponsiveContainer>

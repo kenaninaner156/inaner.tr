@@ -1,13 +1,32 @@
-﻿import React, { useState, useContext, useRef, useEffect } from 'react';
+import React, { useState, useContext, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Droplet, Plus, MapPin, X, Trash2, Paperclip, FileText, Download, Pencil, StickyNote, ChevronDown, Calendar, Activity, Wallet, TrendingUp, Gauge, Fuel as FuelIcon, Menu, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
+import { useTruck } from '../context/TruckContext';
 import FileUpload from './FileUpload';
 import CustomDatePicker from './CustomDatePicker';
 import { sendDiscordAlert } from '../services/discordWebhook';
 
 const Fuel = ({ onOpenMenu, isMobile }) => {
     const { fuelRecords, addFuel, deleteFuel, editFuel, allCompanyStations } = useContext(DataContext);
+    const { activeTruckData, switchNextTruck, trucks } = useTruck();
+    const lastTitleTapRef = useRef(0);
+
+    const handleTitleClick = (e) => {
+        const now = Date.now();
+        if (lastTitleTapRef.current && (now - lastTitleTapRef.current) < 380) {
+            e.preventDefault();
+            switchNextTruck?.();
+            lastTitleTapRef.current = 0;
+            return;
+        }
+        lastTitleTapRef.current = now;
+    };
+
+    const handleTitleDoubleClick = (e) => {
+        e.preventDefault();
+        switchNextTruck?.();
+    };
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const successTimeoutRef = useRef(null);
@@ -433,9 +452,24 @@ return (
                     </button>
                 )}
                 
-                <h2 className="text-base sm:text-xl font-bold tracking-tight text-white whitespace-nowrap shrink-0">
-                    Mazot Fişleri
-                </h2>
+                <div 
+                    onClick={handleTitleClick}
+                    onDoubleClick={handleTitleDoubleClick}
+                    className="flex flex-col justify-center min-w-0 shrink-0 select-none cursor-pointer group py-0.5"
+                    title={trucks?.length > 1 ? "Çift tıklayarak aracı değiştirin" : undefined}
+                >
+                    <h2 className="text-base sm:text-xl font-bold tracking-tight text-white whitespace-nowrap leading-none group-hover:text-slate-100 transition-colors">
+                        Mazot Fişleri
+                    </h2>
+                    {activeTruckData?.plate && (
+                        <span 
+                            key={activeTruckData.plate}
+                            className="text-[10px] sm:text-[11px] font-mono font-medium text-slate-400/75 group-hover:text-cyan-400 tracking-wider uppercase leading-none mt-1 transition-colors animate-in fade-in duration-200"
+                        >
+                            {activeTruckData.plate}
+                        </span>
+                    )}
+                </div>
                 
                 {/* Zarif Zaman Seçici Kapsülü (Responsive genişlik) */}
                 <div className="relative min-w-0 shrink" ref={dropdownRef}>

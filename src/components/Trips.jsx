@@ -1,4 +1,4 @@
-﻿import React, { useState, useContext, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useContext, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Search, MapPin, X, ChevronDown, Check, Trash2, Paperclip, FileText, Pencil, StickyNote, Truck, Menu, Calendar, Scale, Activity, Wallet, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
@@ -11,7 +11,24 @@ import { parseTonnageInTons } from '../utils/tonnageUtils';
 
 const Trips = ({ onOpenMenu, isMobile }) => {
     const { trips, addTrip, deleteTrip, editTrip, routes, addRoute, updateRoute, deleteRoute, premiums, allDrivers, allCompanyTrips } = useContext(DataContext);
-    const { activeTruckId } = useTruck();
+    const { activeTruckId, activeTruckData, switchNextTruck, trucks } = useTruck();
+    const lastTitleTapRef = useRef(0);
+
+    const handleTitleClick = (e) => {
+        const now = Date.now();
+        if (lastTitleTapRef.current && (now - lastTitleTapRef.current) < 380) {
+            e.preventDefault();
+            switchNextTruck?.();
+            lastTitleTapRef.current = 0;
+            return;
+        }
+        lastTitleTapRef.current = now;
+    };
+
+    const handleTitleDoubleClick = (e) => {
+        e.preventDefault();
+        switchNextTruck?.();
+    };
     const { companyData } = useCompany();
     const [editingTrip, setEditingTrip] = useState(null);
     const [editForm, setEditForm] = useState({});
@@ -115,15 +132,15 @@ const Trips = ({ onOpenMenu, isMobile }) => {
         return sorted[0]?.driverName || '';
     }, [trips]);
 
-    // Araç değiştiğinde veya boşken aktif aracın son şoförünü hazırla
+    // Araç değiştiğinde veya boşken aktif aracın son şoförünü hazırla (Yalnızca modal açıkken)
     useEffect(() => {
-        if (latestTruckDriver) {
+        if (isModalOpen && latestTruckDriver) {
             setFormData(prev => ({
                 ...prev,
                 driverName: prev.driverName || latestTruckDriver
             }));
         }
-    }, [activeTruckId, latestTruckDriver]);
+    }, [activeTruckId, latestTruckDriver, isModalOpen]);
 
     // Akıllı Sıralama: En çok kullanılan rotaları belirle (Aktif aracın ve şirketin sefer sıklığı)
     const sortedRoutes = React.useMemo(() => {
@@ -159,12 +176,12 @@ const Trips = ({ onOpenMenu, isMobile }) => {
         return (sortedRoutes && sortedRoutes.length > 0) ? sortedRoutes[0] : (routes && routes.length > 0 ? routes[0] : null);
     }, [sortedRoutes, routes]);
 
-    // Rotalar ilk yüklendiğinde ve rota henüz seçilmediğinde en çok kullanılan rotayı seç
+    // Rotalar ilk yüklendiğinde ve rota henüz seçilmediğinde en çok kullanılan rotayı seç (Yalnızca modal açıkken)
     useEffect(() => {
-        if (useSavedRoute && !selectedRouteId && defaultRoute) {
+        if (isModalOpen && useSavedRoute && !selectedRouteId && defaultRoute) {
             setSelectedRouteId(String(defaultRoute.id));
         }
-    }, [defaultRoute, useSavedRoute, selectedRouteId]);
+    }, [defaultRoute, useSavedRoute, selectedRouteId, isModalOpen]);
 
     // Yeni Sefer Modalını açarken en çok kullanılan rotayı ve aktif araç şoförünü hazırla
     const openAddModal = () => {
@@ -195,9 +212,9 @@ const Trips = ({ onOpenMenu, isMobile }) => {
         return [...activeList, ...otherList].sort((a, b) => new Date(b.date) - new Date(a.date));
     }, [trips, allCompanyTrips, activeTruckId]);
 
-    // Kayıtlı rota seçildiğinde formu doldur (Yeni Ekle)
+    // Kayıtlı rota seçildiğinde formu doldur (Yeni Ekle - Yalnızca modal açıkken)
     useEffect(() => {
-        if (useSavedRoute && selectedRouteId) {
+        if (isModalOpen && useSavedRoute && selectedRouteId) {
             const route = routes.find(r => r.id === parseInt(selectedRouteId));
             if (route) {
                 const matchedTrip = companySortedTrips.find(t => 
@@ -221,11 +238,11 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                 });
             }
         }
-    }, [selectedRouteId, useSavedRoute, routes, companySortedTrips, latestTruckDriver]);
+    }, [selectedRouteId, useSavedRoute, routes, companySortedTrips, latestTruckDriver, isModalOpen]);
 
-    // Kayıtlı rota seçildiğinde formu doldur (Düzenle)
+    // Kayıtlı rota seçildiğinde formu doldur (Düzenle - Yalnızca düzenleme açıkken)
     useEffect(() => {
-        if (editUseSavedRoute && editSelectedRouteId) {
+        if (editingTrip && editUseSavedRoute && editSelectedRouteId) {
             const route = routes.find(r => r.id === parseInt(editSelectedRouteId));
             if (route) {
                 const matchedTrip = companySortedTrips.find(t => 
@@ -253,11 +270,11 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                 });
             }
         }
-    }, [editSelectedRouteId, editUseSavedRoute, routes, companySortedTrips, companyData?.personnelEnabled]);
+    }, [editSelectedRouteId, editUseSavedRoute, routes, companySortedTrips, companyData?.personnelEnabled, editingTrip]);
 
-    // Manuel rota yazıldığında son girilen şoför, prim ve km'yi bul (Yeni Ekle)
+    // Manuel rota yazıldığında son girilen şoför, prim ve km'yi bul (Yeni Ekle - Yalnızca modal açıkken)
     useEffect(() => {
-        if (!useSavedRoute && formData.from && formData.to) {
+        if (isModalOpen && !useSavedRoute && formData.from && formData.to) {
             const matchedTrip = companySortedTrips.find(t => 
                 (t.from || '').trim().toLowerCase() === formData.from.trim().toLowerCase() && 
                 (t.to || '').trim().toLowerCase() === formData.to.trim().toLowerCase()
@@ -282,11 +299,11 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                 });
             }
         }
-    }, [formData.from, formData.to, useSavedRoute, companyData?.personnelEnabled, companySortedTrips]);
+    }, [formData.from, formData.to, useSavedRoute, companyData?.personnelEnabled, companySortedTrips, isModalOpen]);
 
-    // Manuel rota yazıldığında son girilen şoför, prim ve km'yi bul (Düzenleme)
+    // Manuel rota yazıldığında son girilen şoför, prim ve km'yi bul (Düzenleme - Yalnızca düzenleme açıkken)
     useEffect(() => {
-        if (!editUseSavedRoute && editForm.from && editForm.to) {
+        if (editingTrip && !editUseSavedRoute && editForm.from && editForm.to) {
             const matchedTrip = companySortedTrips.find(t => 
                 (t.from || '').trim().toLowerCase() === editForm.from.trim().toLowerCase() && 
                 (t.to || '').trim().toLowerCase() === editForm.to.trim().toLowerCase()
@@ -311,16 +328,16 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                 });
             }
         }
-    }, [editForm.from, editForm.to, editUseSavedRoute, companyData?.personnelEnabled, companySortedTrips]);
+    }, [editForm.from, editForm.to, editUseSavedRoute, companyData?.personnelEnabled, companySortedTrips, editingTrip]);
 
     // Formlardaki veri değiştiğinde başarılı kayıt (Kaydedildi) buton durumlarını sıfırla
     useEffect(() => {
-        setSaveRouteSuccess(false);
-    }, [formData.from, formData.to, formData.km]);
+        if (isModalOpen) setSaveRouteSuccess(false);
+    }, [formData.from, formData.to, formData.km, isModalOpen]);
 
     useEffect(() => {
-        setEditSaveRouteSuccess(false);
-    }, [editForm.from, editForm.to, editForm.km]);
+        if (editingTrip) setEditSaveRouteSuccess(false);
+    }, [editForm.from, editForm.to, editForm.km, editingTrip]);
 
     // Modallar açıkken arkaplan scroll'unu engelle
     useEffect(() => {
@@ -593,6 +610,38 @@ const Trips = ({ onOpenMenu, isMobile }) => {
         };
     }, [filteredTrips]);
 
+    // ─── TWITTER TARZI KADEMELİ YÜKLEME (SONSUZ KAYDIRMA / 40'AR 40'AR) ───
+    const [visibleCount, setVisibleCount] = useState(40);
+    const loadMoreRef = useRef(null);
+
+    // Filtreler veya aktif araç değiştiğinde görünür sayıyı 40'a sıfırla
+    useEffect(() => {
+        setVisibleCount(40);
+    }, [timeFilter, searchTerm, activeTruckId]);
+
+    const displayedTrips = useMemo(() => {
+        return (filteredTrips || []).slice(0, visibleCount);
+    }, [filteredTrips, visibleCount]);
+
+    // Ekranın altına 250px kala otomatik olarak sonraki 40 seferi içeri aktar
+    useEffect(() => {
+        const el = loadMoreRef.current;
+        if (!el) return;
+
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) {
+                setVisibleCount(prev => Math.min(prev + 40, (filteredTrips || []).length));
+            }
+        }, {
+            root: null,
+            rootMargin: '250px',
+            threshold: 0.05
+        });
+
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [filteredTrips, visibleCount]);
+
     return (
         <div className="space-y-4 animate-in fade-in duration-500 relative pb-ios-nav">
 
@@ -615,9 +664,24 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                         </button>
                     )}
                     
-                    <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white whitespace-nowrap">
-                        Seferler
-                    </h2>
+                    <div 
+                        onClick={handleTitleClick}
+                        onDoubleClick={handleTitleDoubleClick}
+                        className="flex flex-col justify-center min-w-0 select-none cursor-pointer group py-0.5"
+                        title={trucks?.length > 1 ? "Çift tıklayarak aracı değiştirin" : undefined}
+                    >
+                        <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white whitespace-nowrap leading-none group-hover:text-slate-100 transition-colors">
+                            Seferler
+                        </h2>
+                        {activeTruckData?.plate && (
+                            <span 
+                                key={activeTruckData.plate}
+                                className="text-[10px] sm:text-[11px] font-mono font-medium text-slate-400/75 group-hover:text-sky-400 tracking-wider uppercase leading-none mt-1 transition-colors animate-in fade-in duration-200"
+                            >
+                                {activeTruckData.plate}
+                            </span>
+                        )}
+                    </div>
 
                     {/* Ay / Zaman Filtresi Dropdown */}
                     <div className="relative" ref={dropdownRef}>
@@ -741,8 +805,8 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/[0.04]">
-                            {filteredTrips.length > 0 ? (
-                                filteredTrips.map((trip) => (
+                            {displayedTrips.length > 0 ? (
+                                displayedTrips.map((trip) => (
                                     <tr key={trip.id} className="hover:bg-white/[0.02] transition-colors group">
                                         <td className="p-3 pl-4 whitespace-nowrap">
                                             <div className="text-white text-sm font-semibold">{new Date(trip.date).toLocaleDateString('tr-TR')}</div>
@@ -825,8 +889,8 @@ const Trips = ({ onOpenMenu, isMobile }) => {
 
                     {/* Mobil Kart Görünümü */}
                     <div className="md:hidden flex flex-col gap-2.5 p-3">
-                        {filteredTrips.length > 0 ? (
-                            filteredTrips.map((trip) => (
+                        {displayedTrips.length > 0 ? (
+                            displayedTrips.map((trip) => (
                                 <div key={trip.id} className="bg-[#0b0e14]/90 border border-white/[0.08] hover:border-sky-500/30 rounded-xl p-3.5 shadow-md relative transition-all">
                                     {/* Üst Satır: Tarih | Durum | Ekler & Düzenle */}
                                     <div className="flex items-center justify-between mb-2">
@@ -905,6 +969,17 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                     </div>
                 </div>
             </div>
+
+            {/* ─── KADEMELİ YÜKLEME / TWITTER TARZI TETİKLEYİCİ ─── */}
+            {displayedTrips.length < filteredTrips.length && (
+                <div 
+                    ref={loadMoreRef} 
+                    className="py-4 flex items-center justify-center gap-2 text-xs text-slate-500 font-medium select-none"
+                >
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
+                    <span>Daha fazla sefer yükleniyor ({displayedTrips.length} / {filteredTrips.length})</span>
+                </div>
+            )}
 
             {/* ─── DÜZENLE MODAL ─── */}
             {editingTrip && createPortal(

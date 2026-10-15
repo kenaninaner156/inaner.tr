@@ -1,4 +1,4 @@
-﻿import React, { useContext, useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useContext, useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -845,9 +845,6 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                         <h3 className="font-bold text-sm sm:text-base text-white tracking-tight truncate">
                             Aylık Operasyon Hacmi
                         </h3>
-                        <span className="text-[10px] text-slate-500 hidden sm:inline">
-                            (Genişletilmiş Görünüm)
-                        </span>
                     </div>
 
                     {/* Sağ Kontroller: Seçim Barı (Genel / Harf Kodları) + Ay Seçici */}
