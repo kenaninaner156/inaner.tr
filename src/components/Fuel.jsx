@@ -370,7 +370,7 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
     const handleAdd = (e) => {
         e.preventDefault();
 
-        const guardCfg = getGuardedUserConfig(currentSession?.username);
+        const guardCfg = getGuardedUserConfig(currentSession);
         if (guardCfg && !isGuardOnCooldown(guardCfg.userKey)) {
             const plateOk = isPlateMatchingUser(activeTruckData?.plate, guardCfg);
             if (!plateOk) {

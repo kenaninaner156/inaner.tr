@@ -52,9 +52,18 @@ export const TruckProvider = ({ children }) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
             setTrucks(data);
 
+            const pendingTag = localStorage.getItem('tir_pending_user_truck_tag');
             const savedId = localStorage.getItem('tir_active_truck_id');
-            // Eğer kayıtlı tır bu şirkette mevcutsa koru, değilse listenin ilk tırına geç
             if (data.length > 0) {
+                if (pendingTag) {
+                    const matched = data.find(t => (t.plate || '').toUpperCase().includes(pendingTag))
+                        || data.find(t => (t.id || '').toLowerCase().includes(pendingTag.toLowerCase()));
+                    if (matched) {
+                        setActiveTruckId(matched.id);
+                        localStorage.removeItem('tir_pending_user_truck_tag');
+                        return;
+                    }
+                }
                 if (savedId && data.some(t => t.id === savedId)) {
                     setActiveTruckIdState(savedId);
                 } else if (!data.some(t => t.id === activeTruckId)) {

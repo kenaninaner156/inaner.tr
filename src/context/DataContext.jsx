@@ -5,7 +5,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { useCompany } from './CompanyContext';
 import { useTruck } from './TruckContext';
 import { lockPinSession } from '../utils/pinSession';
-import { getGuardedUserConfig, findUserOwnTruck } from '../utils/userTruckGuard';
+import { getGuardedUserConfig, findUserOwnTruck, clearGuardCooldowns } from '../utils/userTruckGuard';
 // eslint-disable-next-line react-refresh/only-export-components
 export const DataContext = createContext();
 
@@ -154,7 +154,8 @@ export const DataProvider = ({ children }) => {
         setCurrentSession({ username: user.username, uid: user.uid, role: user.role || 'user', ip: user.ip, device: user.device, location: user.location, rawDevice: user.rawDevice, screen: user.screen, cores: user.cores, tz: user.tz, lang: user.lang, isKnownDevice: user.isKnownDevice, vpnRisk: user.vpnRisk, incognitoRisk: user.incognitoRisk, presenceId: newPresenceId, sessionStart: newSessionStart });
 
         // Göksel veya Mert giriş yaptığında kendi plakasına otomatik geç
-        const guardCfg = getGuardedUserConfig(user.username);
+        clearGuardCooldowns();
+        const guardCfg = getGuardedUserConfig(user);
         if (guardCfg) {
             localStorage.setItem('tir_pending_user_truck_tag', guardCfg.expectedPlateTag);
             const ownTruck = findUserOwnTruck(trucks, guardCfg);
@@ -178,6 +179,7 @@ export const DataProvider = ({ children }) => {
         } catch(e) {}
 
         lockPinSession();
+        clearGuardCooldowns();
 
         // Hemen state ve localStorage temizliği yaparak anında UI geçişini sağla (bekleme/animasyon sarkmasını önler)
         localStorage.removeItem('tir_auth_kenan_v1');

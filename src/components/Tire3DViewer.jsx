@@ -1030,12 +1030,12 @@ function SteelTruss({ length, position, rotation }) {
   );
 }
 
-// Cam Giriş Cephesi (4. Duvar - Z = 7.5)
+// Cam Giriş Cephesi (4. Duvar - Z = 16.5)
 function GlassEntranceFacade() {
   const mullionsX = [-16, -12, -8, -4, 0, 4, 8, 12, 16];
   
   return (
-    <group position={[0, 0, 7.5]}>
+    <group position={[0, 0, 16.5]}>
       {/* Şeffaf Cam Levhalar (Sol ve Sağ) */}
       <mesh position={[-9, 2.8, 0]} castShadow receiveShadow>
         <boxGeometry args={[14, 5.6, 0.04]} />
@@ -1396,9 +1396,10 @@ function createRackHeaderCanvas(filledTiresCount, rimsCount) {
 }
 
 // 3D Yedek Lastik Bileşeni (Raftaki Her Bir Slot)
-function SpareTire3D({ slotObj, tireData, isSelected, onSelectTire }) {
+function SpareTire3D({ slotObj, tireData, isSelected, isRackFocused, onSelectTire }) {
   const groupRef = useRef();
   const [hovered, setHovered] = useState(false);
+  const activeHover = hovered && isRackFocused;
 
   const hasTire = Boolean(tireData && (tireData.brand || tireData.size || tireData.notes || tireData.installedKm));
   const statusColors = { İyi: '#10b981', Orta: '#f59e0b', Kritik: '#ef4444' };
@@ -1407,14 +1408,14 @@ function SpareTire3D({ slotObj, tireData, isSelected, onSelectTire }) {
 
   useFrame(() => {
     if (!groupRef.current) return;
-    const targetScale = (isSelected || hovered) ? 1.06 : 1.0;
+    const targetScale = (isSelected || activeHover) ? 1.06 : 1.0;
     groupRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.18);
   });
 
   return (
     <group position={slotObj.localPos}>
       {/* Ön Kiriş Üzerindeki Durum LED'i (Dolu slotlarda veya seçili/üzerine gelinen slotta görünür) */}
-      {(hasTire || isSelected || hovered) && (
+      {(hasTire || isSelected || activeHover) && (
         <mesh position={[0, -0.25, 0.21]}>
           <boxGeometry args={[0.16, 0.022, 0.015]} />
           <meshBasicMaterial
@@ -1491,17 +1492,17 @@ function SpareTire3D({ slotObj, tireData, isSelected, onSelectTire }) {
             {/* 5. Yanak Üzeri Durum / Seçim Çemberi */}
             {[-0.108, 0.108].map((yPos, idx) => (
               <mesh key={`ring-${idx}`} position={[0, yPos, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                <torusGeometry args={[0.225, isSelected || hovered ? 0.012 : 0.006, 10, 36]} />
+                <torusGeometry args={[0.225, isSelected || activeHover ? 0.012 : 0.006, 10, 36]} />
                 <meshBasicMaterial
                   color={isSelected ? '#d946ef' : accentColor}
                   transparent
-                  opacity={isSelected || hovered ? 0.95 : 0.65}
+                  opacity={isSelected || activeHover ? 0.95 : 0.65}
                 />
               </mesh>
             ))}
 
             {/* 6. Seçildiğinde / Hover Olduğunda Dış Vurgu Zarfı */}
-            {(isSelected || hovered) && (
+            {(isSelected || activeHover) && (
               <mesh>
                 <cylinderGeometry args={[0.322, 0.322, 0.215, 32]} />
                 <meshStandardMaterial
@@ -1515,16 +1516,16 @@ function SpareTire3D({ slotObj, tireData, isSelected, onSelectTire }) {
             )}
           </>
         ) : (
-          /* Boş Raf Slotu: Boşken iskelet görünmez, sadece mouse üzerine gelince beyaz veya seçilince parlak önizleme yanar */
+          /* Boş Raf Slotu: Boşken iskelet görünmez, sadece depoya yakınken mouse üzerine gelince beyaz veya seçilince parlak önizleme yanar */
           <mesh>
             <cylinderGeometry args={[0.295, 0.295, 0.185, 32]} />
             <meshStandardMaterial
               color={isSelected ? '#d946ef' : '#f8fafc'}
               emissive={isSelected ? '#d946ef' : '#f8fafc'}
-              emissiveIntensity={isSelected ? 0.85 : (hovered ? 0.65 : 0)}
+              emissiveIntensity={isSelected ? 0.85 : (activeHover ? 0.65 : 0)}
               transparent
               depthWrite={false}
-              opacity={isSelected ? 0.42 : (hovered ? 0.30 : 0)}
+              opacity={isSelected ? 0.42 : (activeHover ? 0.30 : 0)}
             />
           </mesh>
         )}
@@ -1625,9 +1626,11 @@ function ShowroomTireRack({
   isSwapMode,
   isRackFocused,
   onSelectTire,
-  onSelectRims
+  onSelectRims,
+  onFocusRack
 }) {
   const [rimHovered, setRimHovered] = useState(false);
+  const activeRimHover = rimHovered && isRackFocused;
 
   const filledTiresCount = useMemo(() => {
     if (!spareTiresData) return 0;
@@ -1664,7 +1667,27 @@ function ShowroomTireRack({
   const shelfLevelsY = [0.08, 0.76, 1.64];
 
   return (
-    <group position={[9.2, 0, -6.85]}>
+    <group
+      position={[9.2, 0, -6.85]}
+      onClick={(e) => {
+        if (!isRackFocused && onFocusRack) {
+          e.stopPropagation();
+          onFocusRack();
+        }
+      }}
+      onPointerOver={(e) => {
+        if (!isRackFocused) {
+          e.stopPropagation();
+          document.body.style.cursor = 'pointer';
+        }
+      }}
+      onPointerOut={(e) => {
+        if (!isRackFocused) {
+          e.stopPropagation();
+          document.body.style.cursor = 'auto';
+        }
+      }}
+    >
       {/* 1. DİKEY ÇELİK TAŞIYICI KOLONLAR (Ön ve Arka) */}
       {uprightsX.map((ux, idx) => {
         const frontColHeight = (idx === 1 || idx === 2) ? 2.34 : rackHeight;
@@ -1746,13 +1769,13 @@ function ShowroomTireRack({
         <mesh receiveShadow>
           <boxGeometry args={[rackWidth - 0.12, 0.03, rackDepth - 0.16]} />
           <meshStandardMaterial
-            color={selectedTireId === 'RIMS' || rimHovered ? '#1e293b' : '#18181b'}
+            color={selectedTireId === 'RIMS' || activeRimHover ? '#1e293b' : '#18181b'}
             metalness={0.75}
             roughness={0.35}
           />
         </mesh>
         {/* Jant Bölümü Seçim Çerçevesi */}
-        {(selectedTireId === 'RIMS' || rimHovered) && (
+        {(selectedTireId === 'RIMS' || activeRimHover) && (
           <mesh position={[0, 0.02, 0]}>
             <boxGeometry args={[rackWidth - 0.08, 0.01, rackDepth - 0.12]} />
             <meshBasicMaterial color="#38bdf8" transparent opacity={0.35} />
@@ -1798,7 +1821,7 @@ function ShowroomTireRack({
           key={`rim-${idx}`}
           position={pos}
           isSelected={selectedTireId === 'RIMS'}
-          hovered={rimHovered}
+          hovered={activeRimHover}
           onSelectRims={onSelectRims}
           onHoverChange={setRimHovered}
         />
@@ -1807,20 +1830,119 @@ function ShowroomTireRack({
   );
 }
 
-// Kamera Odak Geçiş Kontrolcüsü (Araç <-> Yedek Raf Arasında Yumuşak Geçiş)
-function CameraFocusController({ controlsRef, cameraTransitionRef }) {
-  useFrame((state) => {
-    const trans = cameraTransitionRef.current;
-    if (!trans || !trans.active || !controlsRef.current) return;
+// Ekran en-boy oranına (Mobil Dikey / Yatay / iPad / Masaüstü) göre tam sığdıran kamera pozisyonunu hesaplar
+function getResponsiveCameraPreset(viewMode, aspect) {
+  const safeAspect = Math.max(0.35, aspect || 1.0);
+  const fov = safeAspect < 0.7 ? 56 : (safeAspect < 1.1 ? 52 : 48);
+  const tanHalfFov = Math.tan((fov * Math.PI) / 360);
 
-    state.camera.position.lerp(trans.desiredPos, 0.09);
-    controlsRef.current.target.lerp(trans.desiredTarget, 0.11);
+  if (viewMode === 'rack') {
+    // 3 katlı raf genişliği 4.46m, yüksekliği 2.68m -> kenar ve üst bar payıyla 5.45m x 3.85m alan
+    const reqWidth = 5.45;
+    const reqHeight = 3.85;
+    const distForHeight = reqHeight / (2 * tanHalfFov);
+    const distForWidth = reqWidth / (2 * safeAspect * tanHalfFov);
+    const dist = Math.max(5.2, distForHeight, distForWidth);
+
+    return {
+      pos: new THREE.Vector3(9.2, 1.02, -6.85 + dist),
+      target: new THREE.Vector3(9.2, 0.94, -6.85),
+      fov
+    };
+  }
+
+  // 'truck' görünümü: Tır uzunluğu ~5.6m (X: -2.75 .. +2.85, merkez X = 0.05), ön yan yüzey Z = 0.65
+  const reqWidth = 6.55;
+  const reqHeight = 3.85;
+  const distForHeight = reqHeight / (2 * tanHalfFov);
+  const distForWidth = reqWidth / (2 * safeAspect * tanHalfFov);
+  const distFromTruckSide = Math.max(5.55, distForHeight, distForWidth);
+  const camZ = 0.65 + distFromTruckSide;
+
+  return {
+    pos: new THREE.Vector3(0.05, 1.45, camZ),
+    target: new THREE.Vector3(0.05, 0.48, 0),
+    fov
+  };
+}
+
+// Kamera Odak Geçiş Kontrolcüsü (Araç <-> Depo Arasında Sinematik ve Mobil/iPad Duyarlı Geçiş)
+function CameraFocusController({ controlsRef, cameraTransitionRef, cameraView }) {
+  const initializedDefaultRef = useRef(false);
+  const lastAspectRef = useRef(null);
+
+  useFrame((state, delta) => {
+    if (!controlsRef.current) return;
+
+    const aspect = state.size.width / Math.max(1, state.size.height);
+    const preset = getResponsiveCameraPreset(cameraView, aspect);
+
+    // Ekran açısı değiştiğinde veya ilk açılışta FOV değerini adapte et
+    if (Math.abs(state.camera.fov - preset.fov) > 0.15) {
+      state.camera.fov = THREE.MathUtils.lerp(state.camera.fov, preset.fov, 0.18);
+      state.camera.updateProjectionMatrix();
+    }
+
+    // İlk açılışta varsayılan araç kamera açısını (ekran boyutuna uygun) ayarla
+    if (!initializedDefaultRef.current) {
+      state.camera.position.copy(preset.pos);
+      state.camera.fov = preset.fov;
+      state.camera.updateProjectionMatrix();
+      controlsRef.current.target.copy(preset.target);
+      controlsRef.current.update();
+      initializedDefaultRef.current = true;
+      lastAspectRef.current = aspect;
+    } else if (lastAspectRef.current !== null && Math.abs(lastAspectRef.current - aspect) > 0.04) {
+      // Cihaz döndürüldüğünde veya ekran boyutu değiştiğinde kamerayı yeni orana yumuşakça hizala
+      lastAspectRef.current = aspect;
+      cameraTransitionRef.current = {
+        active: true,
+        initialized: false,
+        progress: 0,
+        duration: 0.65,
+        viewMode: cameraView
+      };
+    }
+
+    const trans = cameraTransitionRef.current;
+    if (!trans || !trans.active) return;
+
+    const activePreset = getResponsiveCameraPreset(trans.viewMode || cameraView, aspect);
+    const desiredPos = activePreset.pos;
+    const desiredTarget = activePreset.target;
+
+    if (!trans.initialized) {
+      trans.startPos = state.camera.position.clone();
+      trans.startTarget = controlsRef.current.target.clone();
+      trans.progress = 0;
+      trans.duration = trans.duration || 1.35;
+      trans.initialized = true;
+    }
+
+    const step = Math.min(delta, 0.05) / trans.duration;
+    trans.progress = Math.min(1, trans.progress + step);
+
+    // Quintic Smootherstep (Başlangıç ve bitişte sıfır ivmeli sinematik yumuşatma)
+    const p = trans.progress;
+    const ease = p * p * p * (p * (p * 6 - 15) + 10);
+
+    state.camera.position.lerpVectors(trans.startPos, desiredPos, ease);
+    controlsRef.current.target.lerpVectors(trans.startTarget, desiredTarget, ease);
+
+    // Yatay geçişlerde hafif sinematik kamera yaylanması (dolly arc)
+    const travelDist = trans.startPos.distanceTo(desiredPos);
+    if (travelDist > 2.0) {
+      const arc = Math.sin(p * Math.PI);
+      state.camera.position.y += arc * 0.22;
+      state.camera.position.z = Math.min(15.5, state.camera.position.z + arc * 0.55);
+    }
+
     controlsRef.current.update();
 
-    if (
-      state.camera.position.distanceTo(trans.desiredPos) < 0.06 &&
-      controlsRef.current.target.distanceTo(trans.desiredTarget) < 0.04
-    ) {
+    if (p >= 1) {
+      state.camera.position.copy(desiredPos);
+      controlsRef.current.target.copy(desiredTarget);
+      controlsRef.current.update();
       trans.active = false;
     }
   });
@@ -1835,7 +1957,8 @@ function ShowroomEnvironment({
   isSwapMode,
   isRackFocused,
   onSelectTire,
-  onSelectRims
+  onSelectRims,
+  onFocusRack
 }) {
   return (
     <group position={[0, -0.5, 0]}>
@@ -1867,11 +1990,11 @@ function ShowroomEnvironment({
       {/* Arka Duvar (Z = -7.5) */}
       <ConcreteWall width={32} height={5.6} position={[0, 2.2, -7.5]} />
       {/* Sol Yan Duvar (X = 15) */}
-      <ConcreteWall width={15} height={5.6} position={[15, 2.2, 0]} rotation={[0, -Math.PI / 2, 0]} />
+      <ConcreteWall width={24} height={5.6} position={[15, 2.2, 4.5]} rotation={[0, -Math.PI / 2, 0]} />
       {/* Sağ Yan Duvar (X = -15) */}
-      <ConcreteWall width={15} height={5.6} position={[-15, 2.2, 0]} rotation={[0, Math.PI / 2, 0]} />
+      <ConcreteWall width={24} height={5.6} position={[-15, 2.2, 4.5]} rotation={[0, Math.PI / 2, 0]} />
 
-      {/* ÖN CAM CEPHE VE GİRİŞ (4. DUVAR - Z = 7.5) */}
+      {/* ÖN CAM CEPHE VE GİRİŞ (4. DUVAR - Z = 16.5) */}
       <GlassEntranceFacade />
 
       {/* SOL TARAFTA OFİSLER (X = 14.8) */}
@@ -1892,6 +2015,7 @@ function ShowroomEnvironment({
         isRackFocused={isRackFocused}
         onSelectTire={onSelectTire}
         onSelectRims={onSelectRims}
+        onFocusRack={onFocusRack}
       />
 
       {/* DUVAR SÜSLEMELERİ & IŞIKLI EMBLAMLAR (Z = -7.4) */}
@@ -1901,8 +2025,8 @@ function ShowroomEnvironment({
 
       {/* TAVAN YAPISI VE ÇELİK KİRİŞLER (Y = 4.2) */}
       {/* Tavan Plakası */}
-      <mesh position={[0, 4.3, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[32, 16]} />
+      <mesh position={[0, 4.3, 4.5]} rotation={[Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[32, 26]} />
         <meshStandardMaterial color="#57534e" roughness={0.8} />
       </mesh>
 
@@ -1973,16 +2097,20 @@ export default function Tire3DViewer({ currentKm, onClose }) {
   const [cameraView, setCameraView] = useState('truck');
   const cameraTransitionRef = useRef({
     active: false,
-    desiredPos: new THREE.Vector3(5, 3, 6),
-    desiredTarget: new THREE.Vector3(0, 0, 0)
+    initialized: false,
+    progress: 0,
+    duration: 1.35,
+    viewMode: 'truck'
   });
 
   const focusOnRack = () => {
     setCameraView('rack');
     cameraTransitionRef.current = {
       active: true,
-      desiredPos: new THREE.Vector3(9.2, 0.95, -1.6),
-      desiredTarget: new THREE.Vector3(9.2, 0.85, -6.85)
+      initialized: false,
+      progress: 0,
+      duration: 1.35,
+      viewMode: 'rack'
     };
   };
 
@@ -1990,8 +2118,10 @@ export default function Tire3DViewer({ currentKm, onClose }) {
     setCameraView('truck');
     cameraTransitionRef.current = {
       active: true,
-      desiredPos: new THREE.Vector3(5, 3, 6),
-      desiredTarget: new THREE.Vector3(0, 0, 0)
+      initialized: false,
+      progress: 0,
+      duration: 1.35,
+      viewMode: 'truck'
     };
   };
 
@@ -2542,6 +2672,26 @@ export default function Tire3DViewer({ currentKm, onClose }) {
 
   // Swap / Rotasyon yerleştirme tıklaması tetikleme (Araç <-> Araç, Araç <-> Ortak Raf, Raf <-> Raf)
   const handleTireClick = async (tireId) => {
+    const clickedTire = ALL_TIRE_POSITIONS.find(t => t.id === tireId);
+
+    // Eğer kamera uzaktaysa (Araç görünümündeyken) depodaki rafa tıklanırsa lastik seçmek yerine önce depoya yaklaşsın
+    if (clickedTire?.isRack && cameraView !== 'rack') {
+      focusOnRack();
+      if (!isSwapMode) {
+        setSelectedTireId(null);
+      }
+      return;
+    }
+
+    // Eğer kamera depodaysa ve uzaktaki araca tıklanırsa önce araca yaklaşsın
+    if (clickedTire && !clickedTire.isRack && cameraView === 'rack') {
+      focusOnTruck();
+      if (!isSwapMode) {
+        setSelectedTireId(null);
+      }
+      return;
+    }
+
     if (isSwapMode) {
       if (tireId === swapSourceId) {
         setIsSwapMode(false);
@@ -2686,15 +2836,9 @@ export default function Tire3DViewer({ currentKm, onClose }) {
         setSwapSourceId(null);
       }
     } else {
-      const clickedTire = ALL_TIRE_POSITIONS.find(t => t.id === tireId);
       if (clickedTire?.isRack) {
-        if (cameraView !== 'rack') focusOnRack();
         setSelectedTireId(tireId);
         return;
-      }
-
-      if (cameraView === 'rack') {
-        focusOnTruck();
       }
 
       // Çift tekerlek döngüsü: aynı aks/taraftaki _out ve _in arasında geçiş
@@ -2720,9 +2864,15 @@ export default function Tire3DViewer({ currentKm, onClose }) {
   };
 
   const handleSelectRims = () => {
+    if (cameraView !== 'rack') {
+      focusOnRack();
+      if (!isSwapMode) {
+        setSelectedTireId(null);
+      }
+      return;
+    }
     setIsSwapMode(false);
     setSwapSourceId(null);
-    if (cameraView !== 'rack') focusOnRack();
     setSelectedTireId('RIMS');
   };
 
@@ -2750,30 +2900,37 @@ export default function Tire3DViewer({ currentKm, onClose }) {
 
 
 
+  const isPanelOpen = Boolean(selectedTireId && (selectedTireObj || selectedTireId === 'RIMS'));
+
   return (
-    <div className="relative w-full h-full min-h-screen lg:h-screen bg-[#070709] overflow-hidden flex flex-col lg:block font-sans select-none text-[var(--text-primary)]">
+    <div className="relative w-full h-full bg-[#070709] overflow-hidden font-sans select-none text-[var(--text-primary)]">
       
-      {/* Floating Header */}
-      <div className="w-full min-h-16 py-2 bg-[#0c0c0f]/60 backdrop-blur-md border-b border-slate-800/40 px-4 sm:px-6 flex flex-wrap justify-between items-center gap-2 z-20 flex-shrink-0 lg:absolute lg:top-0 lg:left-0 lg:right-0">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-400 rounded-xl shadow-lg">
-            <Disc size={18} className="animate-pulse" />
+      {/* Floating Header (Mobil, iPad ve Masaüstünde Tek Satır Kompakt Obsidian Bar) */}
+      <div className="absolute top-0 left-0 right-0 h-14 sm:h-16 bg-[#0a0d14]/80 backdrop-blur-xl border-b border-white/[0.06] px-3 sm:px-6 flex justify-between items-center gap-2 z-20">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="p-1.5 sm:p-2 bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-400 rounded-xl shadow-lg shrink-0">
+            <Disc size={16} className="animate-pulse sm:w-[18px] sm:h-[18px]" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-white tracking-wide">Lastik Yönetimi & 3D Teşhis</h2>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <h2 className="text-xs sm:text-sm font-bold text-white tracking-wide truncate">
+                <span className="sm:hidden">Lastik & 3D</span>
+                <span className="hidden sm:inline">Lastik Yönetimi & 3D Teşhis</span>
+              </h2>
               {activeTruckData?.plate && (
-                <span className="bg-slate-800 text-[10px] text-slate-300 font-extrabold px-2 py-0.5 rounded border border-slate-700/60 uppercase">
+                <span className="bg-slate-800/90 text-[10px] text-slate-200 font-extrabold px-1.5 sm:px-2 py-0.5 rounded border border-slate-700/60 uppercase shrink-0">
                   {activeTruckData.plate}
                 </span>
               )}
             </div>
-            <p className="text-[10px] text-slate-400 hidden sm:block">Aracın 12 lastikli dijital ikiz simülasyonu ve ortak yedek lastik/jant istasyonu</p>
+            <p className="text-[10px] text-slate-400 hidden md:block truncate">
+              Aracın 12 lastikli dijital ikiz simülasyonu ve ortak yedek lastik/jant istasyonu
+            </p>
           </div>
         </div>
 
-        {/* Sahne Odak Geçiş Butonları (Araç <-> Yedek Lastik Rafı <-> Yedek Jantlar) */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Sahne Odak Geçiş Butonları (Araç <-> Depo) */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button
             type="button"
             onClick={() => {
@@ -2782,14 +2939,14 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                 setSelectedTireId(null);
               }
             }}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
-              cameraView === 'truck' && selectedTireId !== 'RIMS' && !selectedTireId?.startsWith('SPARE_')
+            className={`h-9 px-3 sm:px-3.5 rounded-xl text-[11px] font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+              cameraView === 'truck'
                 ? 'bg-fuchsia-500/15 border-fuchsia-500/40 text-fuchsia-300 shadow-sm'
                 : 'bg-slate-900/70 hover:bg-slate-800/90 border-slate-800 text-slate-300 hover:text-white'
             }`}
           >
             <Truck size={13} />
-            <span>Araç (12)</span>
+            <span>Araç</span>
           </button>
 
           <button
@@ -2798,34 +2955,21 @@ export default function Tire3DViewer({ currentKm, onClose }) {
               focusOnRack();
               setSelectedTireId(null);
             }}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
-              selectedTireId?.startsWith('SPARE_') || (cameraView === 'rack' && selectedTireId !== 'RIMS')
+            className={`h-9 px-3 sm:px-3.5 rounded-xl text-[11px] font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+              cameraView === 'rack'
                 ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-sm'
                 : 'bg-slate-900/70 hover:bg-slate-800/90 border-slate-800 text-slate-300 hover:text-white'
             }`}
           >
             <Layers size={13} />
-            <span>Yedek Rafı ({filledSpareTiresCount}/20)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSelectRims}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
-              selectedTireId === 'RIMS'
-                ? 'bg-sky-500/15 border-sky-500/40 text-sky-300 shadow-sm'
-                : 'bg-slate-900/70 hover:bg-slate-800/90 border-slate-800 text-slate-300 hover:text-white'
-            }`}
-          >
-            <Disc size={13} />
-            <span>Jantlar ({spareRimsData?.count || 0})</span>
+            <span>Depo</span>
           </button>
 
           {onClose && (
             <button 
               type="button"
               onClick={onClose} 
-              className="p-2 bg-slate-900/60 hover:bg-slate-850 border border-slate-800 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer flex items-center justify-center ml-1"
+              className="w-9 h-9 bg-slate-900/60 hover:bg-slate-850 border border-slate-800 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer flex items-center justify-center ml-0.5"
             >
               <X size={16} />
             </button>
@@ -2833,11 +2977,11 @@ export default function Tire3DViewer({ currentKm, onClose }) {
         </div>
       </div>
 
-      {/* 3D Canvas Background Container */}
-      <div className={`h-[45vh] lg:h-full lg:absolute lg:inset-0 lg:z-0 bg-[#09090b] transition-transform duration-500 ease-in-out w-full lg:w-[calc(100%+360px)] ${
-        selectedTireId && (selectedTireObj || selectedTireId === 'RIMS')
-          ? 'lg:-translate-x-[360px]' 
-          : 'lg:-translate-x-[180px]'
+      {/* 3D Canvas Background Container (Tam Ekran: Mobilde çekmece açılınca yukarı, iPad/Masaüstünde sola kayar) */}
+      <div className={`absolute inset-0 z-0 bg-[#09090b] transition-transform duration-500 ease-in-out w-full h-full md:w-[calc(100%+320px)] lg:w-[calc(100%+360px)] ${
+        isPanelOpen
+          ? '-translate-y-[18dvh] md:translate-y-0 md:-translate-x-[320px] lg:-translate-x-[360px]' 
+          : 'translate-y-0 md:-translate-x-[160px] lg:-translate-x-[180px]'
       }`}>
         {hasError ? (
           <ErrorFallbackUI 
@@ -2865,10 +3009,10 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                   toneMapping: THREE.ACESFilmicToneMapping, 
                   toneMappingExposure: 1.25 
                 }}
-                camera={{ position: [5, 3, 6], fov: 48 }}
+                camera={{ position: [0.2, 1.45, 6.2], fov: 48 }}
               >
                 <color attach="background" args={["#09090b"]} />
-                <fog attach="fog" args={["#09090b", 14, 34]} />
+                <fog attach="fog" args={["#09090b", 18, 42]} />
                 <ambientLight intensity={0.4} color="#e0f2fe" />
                 <directionalLight 
                   position={[10, 6, 8]} 
@@ -2900,9 +3044,13 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                     spareRimsData={spareRimsData}
                     selectedTireId={selectedTireId}
                     isSwapMode={isSwapMode}
-                    isRackFocused={cameraView === 'rack' || Boolean(selectedTireObj?.isRack) || selectedTireId === 'RIMS'}
+                    isRackFocused={cameraView === 'rack'}
                     onSelectTire={handleTireClick}
                     onSelectRims={handleSelectRims}
+                    onFocusRack={() => {
+                      focusOnRack();
+                      if (!isSwapMode) setSelectedTireId(null);
+                    }}
                   />
                   <Environment preset="warehouse" />
                 </Suspense>
@@ -2910,6 +3058,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                 <CameraFocusController
                   controlsRef={controlsRef}
                   cameraTransitionRef={cameraTransitionRef}
+                  cameraView={cameraView}
                 />
 
                 <ContactShadows 
@@ -2932,7 +3081,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                   enableDamping 
                   dampingFactor={0.05}
                   minDistance={2.2} 
-                  maxDistance={12.0} 
+                  maxDistance={18.0} 
                   minPolarAngle={Math.PI / 3.8}
                   maxPolarAngle={Math.PI / 2.02}
                   autoRotate={isRotating}
@@ -2951,15 +3100,16 @@ export default function Tire3DViewer({ currentKm, onClose }) {
 
       {/* 3D Kalibrasyon/İnce Ayar Paneli (Sadece araç üzerindeki tekerlekler seçiliyken görünür) */}
       {isCalibrationMode && !hasError && selectedTireId && selectedTireObj && !selectedTireObj.isRack && (
-        <div className="absolute top-20 left-4 z-20 pointer-events-auto">
+        <div className="absolute top-16 sm:top-20 left-3 sm:left-4 z-20 pointer-events-auto">
           {!showTuning ? (
             <button
               onClick={() => setShowTuning(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/90 border border-slate-700/80 text-slate-300 hover:text-white rounded-xl text-xs font-semibold backdrop-blur-md transition-all shadow-lg hover:bg-slate-800"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-900/90 border border-slate-700/80 text-slate-300 hover:text-white rounded-xl text-[11px] sm:text-xs font-semibold backdrop-blur-md transition-all shadow-lg hover:bg-slate-800"
               type="button"
             >
               <Sliders size={13} className="text-fuchsia-400" />
-              <span>3D İnce Ayar (Kalibrasyon)</span>
+              <span className="hidden sm:inline">3D İnce Ayar (Kalibrasyon)</span>
+              <span className="sm:hidden">Kalibrasyon</span>
             </button>
           ) : (
             <div className="w-64 bg-slate-900/95 border border-slate-850 p-4 rounded-2xl shadow-2xl backdrop-blur-md text-slate-200">
@@ -3172,9 +3322,9 @@ export default function Tire3DViewer({ currentKm, onClose }) {
 
       {/* Swap Modu Uyarı Bannerı */}
       {isSwapMode && (
-        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-30 bg-indigo-600/95 border border-indigo-400/60 text-white font-bold text-xs py-2.5 px-4 sm:px-5 rounded-2xl shadow-[0_4px_25px_rgba(99,102,241,0.5)] flex flex-wrap items-center gap-2.5 backdrop-blur-md max-w-[92vw]">
+        <div className="absolute top-16 sm:top-20 left-1/2 transform -translate-x-1/2 z-30 bg-indigo-600/95 border border-indigo-400/60 text-white font-bold text-[11px] sm:text-xs py-2 sm:py-2.5 px-3.5 sm:px-5 rounded-2xl shadow-[0_4px_25px_rgba(99,102,241,0.5)] flex flex-wrap items-center justify-center gap-2 backdrop-blur-md w-[92vw] sm:w-auto max-w-[94vw]">
           <ArrowLeftRight size={14} className="animate-pulse text-indigo-200 shrink-0" />
-          <span>Swap Modu: Yer değiştireceğiniz hedef lastiği (Araç veya Yedek Raf) seçin</span>
+          <span>Swap Modu: Hedef konumu seçin</span>
           <button
             type="button"
             onClick={() => {
@@ -3187,7 +3337,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
             className="text-[10px] bg-white/15 hover:bg-white/25 px-2.5 py-1 rounded-lg border border-white/25 transition cursor-pointer flex items-center gap-1"
           >
             {cameraView === 'rack' ? <Truck size={11} /> : <Layers size={11} />}
-            <span>{cameraView === 'rack' ? 'Araçtan Seç' : 'Yedek Rafından Seç'}</span>
+            <span>{cameraView === 'rack' ? 'Araçtan Seç' : 'Depodan Seç'}</span>
           </button>
           <button 
             type="button"
@@ -3202,19 +3352,12 @@ export default function Tire3DViewer({ currentKm, onClose }) {
         </div>
       )}
 
-      {/* Sağ Panel - Yedek Jant Envanteri (Zemin Kat - Yatay Jantlar) */}
+      {/* Sağ / Alt Panel - Yedek Jant Envanteri (Mobilde Bottom Sheet, iPad ve Masaüstünde Yan Çekmece) */}
       {selectedTireId === 'RIMS' && (
-        <div className="w-full lg:w-[390px] lg:absolute lg:top-20 lg:right-6 lg:z-10 bg-[#0a0d14]/90 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-5 shadow-[0_4px_30px_rgba(0,0,0,0.85)] flex flex-col gap-4 max-h-[calc(100vh-110px)] overflow-y-auto">
-          <div className="flex justify-between items-start border-b border-white/[0.06] pb-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="bg-sky-500/15 text-sky-400 border border-sky-500/30 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Zemin Kat (1. Raf)
-                </span>
-                <span className="text-[10px] text-slate-400 font-semibold">Şirket Ortak Envanteri</span>
-              </div>
-              <h3 className="text-sm font-bold text-white mt-1">Yedek Jant Yönetimi (Yatay Dizilim)</h3>
-            </div>
+        <div className="fixed md:absolute bottom-0 md:bottom-auto inset-x-0 md:inset-x-auto md:top-20 md:right-4 lg:right-6 z-30 md:z-10 w-full md:w-[340px] lg:w-[390px] bg-[#0a0d14]/95 md:bg-[#0a0d14]/90 backdrop-blur-2xl border-t md:border border-white/[0.10] md:border-white/[0.08] rounded-t-3xl md:rounded-2xl p-4 sm:p-5 pb-6 md:pb-5 shadow-[0_-12px_40px_rgba(0,0,0,0.9)] md:shadow-[0_4px_30px_rgba(0,0,0,0.85)] flex flex-col gap-3.5 max-h-[56dvh] md:max-h-[calc(100dvh-100px)] overflow-y-auto overscroll-contain">
+          <div className="w-10 h-1 bg-white/15 rounded-full mx-auto -mt-1 mb-0.5 md:hidden shrink-0" />
+          <div className="flex justify-between items-center border-b border-white/[0.06] pb-3">
+            <h3 className="text-sm font-bold text-white">Yedek Jant</h3>
             <button
               type="button"
               onClick={() => setSelectedTireId(null)}
@@ -3284,42 +3427,45 @@ export default function Tire3DViewer({ currentKm, onClose }) {
         </div>
       )}
 
-      {/* Sağ Panel - Lastik Teşhis Formu / Detayları (Araç ve 20 Slotlu Yedek Raf) */}
+      {/* Sağ / Alt Panel - Lastik Teşhis Formu / Detayları (Mobilde Bottom Sheet, iPad ve Masaüstünde Yan Çekmece) */}
       {selectedTireId && selectedTireObj && (
-        <div className="w-full lg:w-[390px] lg:absolute lg:top-20 lg:right-6 lg:z-10 bg-[#0a0d14]/90 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-5 shadow-[0_4px_30px_rgba(0,0,0,0.85)] flex flex-col max-h-[calc(100vh-110px)] overflow-y-auto">
+        <div className="fixed md:absolute bottom-0 md:bottom-auto inset-x-0 md:inset-x-auto md:top-20 md:right-4 lg:right-6 z-30 md:z-10 w-full md:w-[340px] lg:w-[390px] bg-[#0a0d14]/95 md:bg-[#0a0d14]/90 backdrop-blur-2xl border-t md:border border-white/[0.10] md:border-white/[0.08] rounded-t-3xl md:rounded-2xl p-4 sm:p-5 pb-6 md:pb-5 shadow-[0_-12px_40px_rgba(0,0,0,0.9)] md:shadow-[0_4px_30px_rgba(0,0,0,0.85)] flex flex-col max-h-[58dvh] md:max-h-[calc(100dvh-100px)] overflow-y-auto overscroll-contain">
+          <div className="w-10 h-1 bg-white/15 rounded-full mx-auto -mt-1 mb-2.5 md:hidden shrink-0" />
           
           {/* INFO MODE */}
           {panelMode === 'info' && (
             <div className="flex flex-col gap-4">
               {/* Başlık Grubu */}
-              <div className="flex justify-between items-start border-b border-slate-800 pb-3">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                 <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`${isRackSlot ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' : 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20'} border text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider`}>
-                      {selectedTireObj.group}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-semibold">{selectedTireId} Konumu</span>
-                    {/* Çift tekerlek göstergesi */}
-                    {(selectedTireObj.type === 'dual-out' || selectedTireObj.type === 'dual-in') && (() => {
-                      const pairedType = selectedTireObj.type === 'dual-out' ? 'dual-in' : 'dual-out';
-                      const pairedTire = TIRE_POSITIONS.find(
-                        t => t.axle === selectedTireObj.axle && t.side === selectedTireObj.side && t.type === pairedType
-                      );
-                      return pairedTire ? (
-                        <button
-                          type="button"
-                          onClick={() => setSelectedTireId(pairedTire.id)}
-                          className="flex items-center gap-1 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/25 text-indigo-400 hover:text-indigo-300 text-[9px] font-bold px-2 py-0.5 rounded-full transition cursor-pointer"
-                          title={`${pairedTire.label} lastiğine geç`}
-                        >
-                          <span>{selectedTireObj.type === 'dual-out' ? 'Dış' : 'İç'}</span>
-                          <ArrowLeftRight size={9} />
-                          <span>{pairedTire.type === 'dual-out' ? 'Dış' : 'İç'}</span>
-                        </button>
-                      ) : null;
-                    })()}
-                  </div>
-                  <h3 className="text-sm font-bold text-white mt-1">{selectedTireObj.label}</h3>
+                  {!isRackSlot && (
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20 border text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        {selectedTireObj.group}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-semibold">{selectedTireId} Konumu</span>
+                      {/* Çift tekerlek göstergesi */}
+                      {(selectedTireObj.type === 'dual-out' || selectedTireObj.type === 'dual-in') && (() => {
+                        const pairedType = selectedTireObj.type === 'dual-out' ? 'dual-in' : 'dual-out';
+                        const pairedTire = TIRE_POSITIONS.find(
+                          t => t.axle === selectedTireObj.axle && t.side === selectedTireObj.side && t.type === pairedType
+                        );
+                        return pairedTire ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedTireId(pairedTire.id)}
+                            className="flex items-center gap-1 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/25 text-indigo-400 hover:text-indigo-300 text-[9px] font-bold px-2 py-0.5 rounded-full transition cursor-pointer"
+                            title={`${pairedTire.label} lastiğine geç`}
+                          >
+                            <span>{selectedTireObj.type === 'dual-out' ? 'Dış' : 'İç'}</span>
+                            <ArrowLeftRight size={9} />
+                            <span>{pairedTire.type === 'dual-out' ? 'Dış' : 'İç'}</span>
+                          </button>
+                        ) : null;
+                      })()}
+                    </div>
+                  )}
+                  <h3 className="text-sm font-bold text-white">{isRackSlot ? 'Yedek Lastik' : selectedTireObj.label}</h3>
                 </div>
                 
                 <button
@@ -3484,9 +3630,9 @@ export default function Tire3DViewer({ currentKm, onClose }) {
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                 <div>
                   <span className="text-[10px] text-fuchsia-400 font-bold uppercase tracking-wider block">
-                    {isRackSlot ? 'Yedek Raf Slotu Düzenleme' : 'Bilgi Güncelleme'}
+                    Bilgi Güncelleme
                   </span>
-                  <h3 className="text-sm font-bold text-white">{selectedTireObj.label}</h3>
+                  <h3 className="text-sm font-bold text-white">{isRackSlot ? 'Yedek Lastik' : selectedTireObj.label}</h3>
                 </div>
                 <button
                   type="button"
@@ -3680,9 +3826,9 @@ export default function Tire3DViewer({ currentKm, onClose }) {
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                 <div>
                   <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block">
-                    {isRackSlot ? 'Slota Yeni Yedek Lastik Koyma' : 'Yeni Lastik Takma'}
+                    Yeni Lastik Kaydı
                   </span>
-                  <h3 className="text-sm font-bold text-white">{selectedTireObj.label}</h3>
+                  <h3 className="text-sm font-bold text-white">{isRackSlot ? 'Yedek Lastik' : selectedTireObj.label}</h3>
                 </div>
                 <button
                   type="button"
@@ -3836,7 +3982,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                   >
                     <ArrowLeft size={13} />
                   </button>
-                  <h3 className="text-xs font-bold text-white">Lastik Geçmişi ({selectedTireObj.label})</h3>
+                  <h3 className="text-xs font-bold text-white">Lastik Geçmişi ({isRackSlot ? 'Yedek Lastik' : selectedTireObj.label})</h3>
                 </div>
                 <button
                   type="button"

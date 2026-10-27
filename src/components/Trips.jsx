@@ -544,7 +544,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
     const handleManualAdd = (e) => {
         e.preventDefault();
 
-        const guardCfg = getGuardedUserConfig(currentSession?.username);
+        const guardCfg = getGuardedUserConfig(currentSession);
         if (guardCfg && !isGuardOnCooldown(guardCfg.userKey)) {
             const plateOk = isPlateMatchingUser(activeTruckData?.plate, guardCfg);
             const driverOk = !companyData?.personnelEnabled || isDriverMatchingUser(formData.driverName, guardCfg);

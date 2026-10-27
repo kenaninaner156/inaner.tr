@@ -2,12 +2,35 @@
 // Onay verildiğinde 2 saat boyunca (cooldown) tekrar uyarı gösterilmez.
 
 const COOLDOWN_DURATION_MS = 2 * 60 * 60 * 1000; // 2 Saat
+const COOLDOWN_PREFIX = 'tir_truck_guard_v3_';
 
-export const getGuardedUserConfig = (username) => {
-    if (!username || typeof username !== 'string') return null;
-    const norm = username.trim().toLocaleLowerCase('tr-TR');
+export const getGuardedUserConfig = (sessionOrUsername) => {
+    let rawUsername = '';
+    let rawUid = '';
 
-    if (norm === 'göksel' || norm === 'goksel' || norm === 'goksel@inaner.com') {
+    if (typeof sessionOrUsername === 'string') {
+        rawUsername = sessionOrUsername;
+    } else if (sessionOrUsername && typeof sessionOrUsername === 'object') {
+        rawUsername = sessionOrUsername.username || '';
+        rawUid = sessionOrUsername.uid || '';
+    }
+
+    if (typeof window !== 'undefined') {
+        if (!rawUsername) rawUsername = localStorage.getItem('tir_current_user') || '';
+        if (!rawUid) rawUid = localStorage.getItem('tir_current_uid') || '';
+    }
+
+    const norm = (rawUsername || '').trim().toLocaleLowerCase('tr-TR');
+
+    if (
+        rawUid === 'G0P5H6Jc99VCHmoaovm3hEvOe7h2' ||
+        norm === 'göksel' ||
+        norm === 'goksel' ||
+        norm === 'gksel' ||
+        norm.includes('göksel') ||
+        norm.includes('goksel') ||
+        norm.includes('gksel')
+    ) {
         return {
             userKey: 'goksel',
             honorific: 'Göksel Bey',
@@ -20,13 +43,17 @@ export const getGuardedUserConfig = (username) => {
         };
     }
 
-    if (norm === 'mert' || norm === 'mert@inaner.com') {
+    if (
+        rawUid === 'eNNEc7hoURWPUitBwWTj38XHKro1' ||
+        norm === 'mert' ||
+        norm.includes('mert')
+    ) {
         return {
             userKey: 'mert',
             honorific: 'Mert Bey',
             expectedPlateTag: 'CVA',
             expectedDefaultPlate: '06 CVA609',
-            expectedDefaultTruckId: 'truck_06cva609',
+            expectedDefaultTruckId: 'lrKVbFEF5rKQcWPAbC0l',
             expectedDriverTag: 'mert',
             expectedDriverAltTag: 'mert',
             expectedDriverFullName: 'Mert Can İnaner'
@@ -38,7 +65,7 @@ export const getGuardedUserConfig = (username) => {
 
 export const isGuardOnCooldown = (userKey) => {
     if (!userKey || typeof window === 'undefined') return false;
-    const raw = localStorage.getItem(`tir_truck_guard_cooldown_${userKey}`);
+    const raw = localStorage.getItem(`${COOLDOWN_PREFIX}${userKey}`);
     if (!raw) return false;
     const expiresAt = Number(raw);
     if (isNaN(expiresAt)) return false;
@@ -48,13 +75,22 @@ export const isGuardOnCooldown = (userKey) => {
 export const setGuardCooldown = (userKey) => {
     if (!userKey || typeof window === 'undefined') return;
     const expiresAt = Date.now() + COOLDOWN_DURATION_MS;
-    localStorage.setItem(`tir_truck_guard_cooldown_${userKey}`, String(expiresAt));
+    localStorage.setItem(`${COOLDOWN_PREFIX}${userKey}`, String(expiresAt));
+};
+
+export const clearGuardCooldowns = () => {
+    if (typeof window === 'undefined') return;
+    ['goksel', 'mert'].forEach(k => {
+        localStorage.removeItem(`tir_truck_guard_cooldown_${k}`);
+        localStorage.removeItem(`${COOLDOWN_PREFIX}${k}`);
+    });
 };
 
 export const findUserOwnTruck = (trucks, config) => {
     if (!config || !Array.isArray(trucks) || trucks.length === 0) return null;
     return (
         trucks.find(t => (t.plate || '').toUpperCase().includes(config.expectedPlateTag)) ||
+        trucks.find(t => t.id === config.expectedDefaultTruckId) ||
         trucks.find(t => (t.id || '').toLowerCase().includes(config.expectedPlateTag.toLowerCase())) ||
         null
     );

@@ -97,7 +97,11 @@ const Login = () => {
 
         const advancedMeta = await getDeviceFingerprint();
         const { ip, location, device, rawDevice } = advancedMeta;
-        const uname = username.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+        const rawInput = username.toLocaleLowerCase('tr-TR').trim();
+        let uname = rawInput.replace(/[^a-z0-9]/g, '');
+        if (rawInput === 'goksel' || rawInput === 'göksel' || uname === 'goksel') {
+            uname = 'gksel';
+        }
         const email = `${uname}@inaner.com`;
 
         try {
@@ -155,7 +159,8 @@ const Login = () => {
                 });
             }
 
-            await loginSession({ uid, username: uname, role: userRole, companyId: companyId, ip, device, location, rawDevice, ...advancedMeta });
+            const canonicalUsername = (userDocSnap.exists() && userDocSnap.data().username) ? userDocSnap.data().username : uname;
+            await loginSession({ uid, username: canonicalUsername, role: userRole, companyId: companyId, ip, device, location, rawDevice, ...advancedMeta });
             window.location.href = '/';
             return;
 
