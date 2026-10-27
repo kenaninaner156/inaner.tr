@@ -578,7 +578,6 @@ export const DataProvider = ({ children }) => {
                         const cleanMeta = { ...raw.meta };
                         delete cleanMeta.table;
                         delete cleanMeta.id;
-                        updateDoc(doc(db, 'admin_logs', docSnap.id), { action: 'FATURA_KORUMA_ENGELI', meta: cleanMeta }).catch(() => {});
                         return { ...raw, action: 'FATURA_KORUMA_ENGELI', meta: cleanMeta, id: docSnap.id };
                     }
                     return { ...raw, id: docSnap.id };
@@ -889,17 +888,38 @@ export const DataProvider = ({ children }) => {
         };
     }, [currentSession?.username, activeCompanyId]);
 
-    // ─── AKTİF ARAÇ FİLTRELEME (SIFIR FIRESTORE OKUMASI / 0 READ COST) ───
+    // ─── AKTİF ARAÇ FİLTRELEME (İZOLE VE HIZLI GÜNCELLEME) ───
     useEffect(() => {
         setTrips(allCompanyTrips.filter(d => !d.deleted && (!activeTruckId || d.truckId === activeTruckId)));
+    }, [activeTruckId, allCompanyTrips]);
+
+    useEffect(() => {
         setFuelRecords(allCompanyFuelRecords.filter(d => !d.deleted && (!activeTruckId || d.truckId === activeTruckId)));
+    }, [activeTruckId, allCompanyFuelRecords]);
+
+    useEffect(() => {
         setMaintenanceRecords(allCompanyMaintenance.filter(d => !d.deleted && (!activeTruckId || d.truckId === activeTruckId)));
+    }, [activeTruckId, allCompanyMaintenance]);
+
+    useEffect(() => {
         setPaymentRecords(allCompanyPayments.filter(d => !d.deleted && (!activeTruckId || d.truckId === activeTruckId || !d.truckId || d.category === 'SGK & Vergi' || d.subCategory === 'sgk')));
+    }, [activeTruckId, allCompanyPayments]);
+
+    useEffect(() => {
         setPenalties(allCompanyPenalties.filter(d => !d.deleted && (!activeTruckId || d.truckId === activeTruckId)));
+    }, [activeTruckId, allCompanyPenalties]);
+
+    useEffect(() => {
         setMaintenanceFolders(allCompanyFolders.filter(d => !d.deleted && (!activeTruckId || d.truckId === activeTruckId)));
+    }, [activeTruckId, allCompanyFolders]);
+
+    useEffect(() => {
         setPayouts(allCompanyPayouts.filter(d => !d.deleted && (!activeTruckId || d.truckId === activeTruckId)));
+    }, [activeTruckId, allCompanyPayouts]);
+
+    useEffect(() => {
         setShoppingItems(allCompanyShopping.filter(d => !d.deleted && (!activeTruckId || d.truckId === activeTruckId)));
-    }, [activeTruckId, allCompanyTrips, allCompanyFuelRecords, allCompanyMaintenance, allCompanyPayments, allCompanyPenalties, allCompanyFolders, allCompanyPayouts, allCompanyShopping]);
+    }, [activeTruckId, allCompanyShopping]);
 
     // ─── AKTİF ARAÇ DÖKÜMANLARI (YALNIZCA 2 TEKİL BELGE DİNLENİR: DOCS & DRAFT) ───
     useEffect(() => {

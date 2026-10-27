@@ -1,4 +1,4 @@
-import React, { useContext, useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useContext, useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -308,15 +308,16 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     const monthTripCount = useMemo(() => monthTrips.length, [monthTrips]);
 
     const lastHistDay = useMemo(() => {
-        const todayDate = now.getDate();
-        const todayMonth = now.getMonth();
-        const todayYear = now.getFullYear();
+        const d = new Date();
+        const todayDate = d.getDate();
+        const todayMonth = d.getMonth();
+        const todayYear = d.getFullYear();
         const isCurrentMonth = selectedMonth === todayMonth && selectedYear === todayYear;
         if (isCurrentMonth) {
             return todayDate;
         }
         return new Date(selectedYear, selectedMonth + 1, 0).getDate();
-    }, [selectedMonth, selectedYear, now]);
+    }, [selectedMonth, selectedYear]);
  
     const handleSaveModalNote = async (e) => {
         if (e) e.preventDefault();
@@ -431,6 +432,9 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     const goToNext = () => { setIsAllTime(false); if (selectedMonth === 11) { setSelectedMonth(0); setSelectedYear(y => y + 1); } else setSelectedMonth(m => m + 1); };
 
     // --- Grafik verisi (Mekanik Yenilikler) ---
+    const prevChartDataRef = useRef(null);
+    const prevChartDataKeyRef = useRef('');
+
     const { chartData, activeDays, periodTrips, periodTonnage, prevDailyTrips } = useMemo(() => {
         if (isAllTime) {
             const monthMap = {};
@@ -447,10 +451,28 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
             effectiveFuel.forEach(f => f.date && add(f.date, 0, 0, f.liters || 0));
 
             const sorted = Object.entries(monthMap).sort(([a], [b]) => a.localeCompare(b));
-            const data = sorted.map(([key, val]) => {
+            let data = sorted.map(([key, val]) => {
                 const [yr, mo] = key.split('-').map(Number);
                 return { name: `${MONTHS_SHORT[mo]} ${yr}`, 'Sefer Sayısı': val.trips, 'Taşınan Tonaj': val.tonnage, 'Yakıt (Lt)': val.fuel, 'Yakıt Zemin': val.fuel > 0 ? 0 : null };
             });
+
+            const dataKey = `allTime-${dashboardScope}-${data.length}`;
+            if (prevChartDataRef.current && prevChartDataKeyRef.current === dataKey && prevChartDataRef.current.length === data.length) {
+                let isSame = true;
+                for (let i = 0; i < data.length; i++) {
+                    if (data[i]['Sefer Sayısı'] !== prevChartDataRef.current[i]['Sefer Sayısı'] ||
+                        data[i]['Taşınan Tonaj'] !== prevChartDataRef.current[i]['Taşınan Tonaj'] ||
+                        data[i]['Yakıt (Lt)'] !== prevChartDataRef.current[i]['Yakıt (Lt)']) {
+                        isSame = false;
+                        break;
+                    }
+                }
+                if (isSame) data = prevChartDataRef.current;
+            }
+            if (data !== prevChartDataRef.current) {
+                prevChartDataKeyRef.current = dataKey;
+                prevChartDataRef.current = data;
+            }
             const totalAD = Object.values(monthMap).reduce((s, v) => s + v.days.size, 0);
             return { chartData: data, activeDays: totalAD, periodTrips: data.reduce((s, d) => s + d['Sefer Sayısı'], 0), periodTonnage: data.reduce((s, d) => s + d['Taşınan Tonaj'], 0), prevDailyTrips: null };
         }
@@ -476,7 +498,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
         const periodTotalTrips = monthTrips.length;
         const periodTotalTonnage = monthTrips.reduce((s, t) => s + parseTonnageInTons(t.tonnage), 0);
  
-        const data = Array.from({ length: lastHistDay }, (_, i) => {
+        let data = Array.from({ length: lastHistDay }, (_, i) => {
             const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`;
             return {
                 name: String(i + 1),
@@ -488,6 +510,28 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                 note: dailyNotes?.[dateStr] || ''
             };
         });
+
+        // Veri içeriği değişmediyse referansı koru (Recharts dalgalanma/kayma animasyonunun takılmasını önler)
+        const dataKey = `${selectedYear}-${selectedMonth}-${dashboardScope}-${lastHistDay}`;
+        if (prevChartDataRef.current && prevChartDataKeyRef.current === dataKey && prevChartDataRef.current.length === data.length) {
+            let isSame = true;
+            for (let i = 0; i < data.length; i++) {
+                if (data[i]['Sefer Sayısı'] !== prevChartDataRef.current[i]['Sefer Sayısı'] ||
+                    data[i]['Taşınan Tonaj'] !== prevChartDataRef.current[i]['Taşınan Tonaj'] ||
+                    data[i]['Yakıt (Lt)'] !== prevChartDataRef.current[i]['Yakıt (Lt)'] ||
+                    data[i].note !== prevChartDataRef.current[i].note) {
+                    isSame = false;
+                    break;
+                }
+            }
+            if (isSame) {
+                data = prevChartDataRef.current;
+            }
+        }
+        if (data !== prevChartDataRef.current) {
+            prevChartDataKeyRef.current = dataKey;
+            prevChartDataRef.current = data;
+        }
  
         const pMo = selectedMonth === 0 ? 11 : selectedMonth - 1;
         const pYr = selectedMonth === 0 ? selectedYear - 1 : selectedYear;
@@ -518,6 +562,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
 
     const currentDailyTrips = activeDays > 0 ? periodTrips / activeDays : 0;
     const currentDailyTonnage = activeDays > 0 ? periodTonnage / activeDays : 0;
+    const avgTonnagePerTrip = periodTrips > 0 ? periodTonnage / periodTrips : 0;
     const perfDelta = (prevDailyTrips !== null && prevDailyTrips !== 0) ? ((currentDailyTrips - prevDailyTrips) / prevDailyTrips) * 100 : null;
     const PerfIcon = perfDelta === null ? Minus : perfDelta >= 0 ? TrendingUp : TrendingDown;
     const perfColor = perfDelta === null ? '#64748b' : perfDelta >= 0 ? '#10b981' : '#ef4444';
@@ -556,7 +601,10 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                     {/* Metrik Özet Rozetleri */}
                     <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-300 shrink-0">
                         <span className="bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700">
-                            Aktif: <strong className="text-white">{activeDays}</strong> Gün
+                            Günlük: <strong className="text-white">{currentDailyTrips.toFixed(1)}</strong> Sefer
+                        </span>
+                        <span className="hidden sm:inline-block bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700">
+                            Sefer Başı: <strong className="text-white">{avgTonnagePerTrip.toFixed(1)}</strong> Ton
                         </span>
                         <span className="bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700">
                             Ort: <strong className="text-white">{currentDailyTonnage.toFixed(1)}</strong> Ton
@@ -591,7 +639,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                             <p className="font-medium text-xs">Bu dönemde kayıtlı veri bulunamadı.</p>
                         </div>
                     ) : (
-                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={180}>
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={150}>
                             <ComposedChart
                                 data={chartData}
                                 margin={{ top: 10, right: 15, left: -25, bottom: 20 }}
@@ -1020,21 +1068,46 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
 
                 {/* Verimlilik Metrikleri */}
                 {!isAllTime && activeDays > 0 && (
-                    <div className="pt-2 border-t border-white/[0.06] grid grid-cols-3 gap-2 shrink-0">
-                        <div className="flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04] text-center">
-                            <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Aktif Gün</span>
-                            <span className="text-xs sm:text-sm font-bold text-white mt-0.5">{activeDays} <span className="text-[10px] text-slate-400 font-normal">gün</span></span>
-                        </div>
-                        <div className="flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04] text-center">
-                            <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Günlük Ort.</span>
-                            <span className="text-xs sm:text-sm font-bold text-white mt-0.5">
-                                {currentDailyTonnage.toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                                <span className="text-[10px] text-slate-400 font-normal"> Ton</span>
+                    <div className="pt-2 border-t border-white/[0.06] grid grid-cols-4 gap-1.5 sm:gap-2 shrink-0">
+                        {/* 1. Günlük Ortalama Sefer (Aktif Gün yerine) */}
+                        <div className="flex flex-col items-center justify-center p-1 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04] text-center min-w-0">
+                            <span className="text-[7.5px] min-[390px]:text-[8.5px] sm:text-[9px] text-slate-400 font-semibold uppercase tracking-tight sm:tracking-wider truncate w-full" title="Günlük Ort. Sefer">
+                                Günlük Ort. Sefer
+                            </span>
+                            <span className="text-xs sm:text-sm font-bold text-white mt-0.5 whitespace-nowrap">
+                                {currentDailyTrips.toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                                <span className="text-[9px] sm:text-[10px] text-slate-400 font-normal"> sefer</span>
                             </span>
                         </div>
-                        <div className="flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04] text-center">
-                            <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Geçen Aya</span>
-                            <span className={`text-xs sm:text-sm font-bold mt-0.5 ${perfDelta === null ? 'text-slate-400' : perfDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+
+                        {/* 2. Sefer Başı Ortalama Tonaj (Yeni Kart) */}
+                        <div className="flex flex-col items-center justify-center p-1 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04] text-center min-w-0">
+                            <span className="text-[7.5px] min-[390px]:text-[8.5px] sm:text-[9px] text-slate-400 font-semibold uppercase tracking-tight sm:tracking-wider truncate w-full" title="Sefer Başı Ort.">
+                                Sefer Başı Ort.
+                            </span>
+                            <span className="text-xs sm:text-sm font-bold text-white mt-0.5 whitespace-nowrap">
+                                {avgTonnagePerTrip.toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                                <span className="text-[9px] sm:text-[10px] text-slate-400 font-normal"> ton</span>
+                            </span>
+                        </div>
+
+                        {/* 3. Günlük Ortalama Tonaj */}
+                        <div className="flex flex-col items-center justify-center p-1 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04] text-center min-w-0">
+                            <span className="text-[7.5px] min-[390px]:text-[8.5px] sm:text-[9px] text-slate-400 font-semibold uppercase tracking-tight sm:tracking-wider truncate w-full" title="Günlük Ort.">
+                                Günlük Ort.
+                            </span>
+                            <span className="text-xs sm:text-sm font-bold text-white mt-0.5 whitespace-nowrap">
+                                {currentDailyTonnage.toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                                <span className="text-[9px] sm:text-[10px] text-slate-400 font-normal"> ton</span>
+                            </span>
+                        </div>
+
+                        {/* 4. Geçen Aya Kıyaslama */}
+                        <div className="flex flex-col items-center justify-center p-1 sm:p-2 rounded-xl bg-[#0d1117] border border-white/[0.04] text-center min-w-0">
+                            <span className="text-[7.5px] min-[390px]:text-[8.5px] sm:text-[9px] text-slate-400 font-semibold uppercase tracking-tight sm:tracking-wider truncate w-full" title="Geçen Aya">
+                                Geçen Aya
+                            </span>
+                            <span className={`text-xs sm:text-sm font-bold mt-0.5 whitespace-nowrap ${perfDelta === null ? 'text-slate-400' : perfDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                 {perfDelta === null ? 'Veri Yok' : `${perfDelta >= 0 ? '+' : ''}%${Math.abs(perfDelta).toFixed(1)}`}
                             </span>
                         </div>
@@ -1227,4 +1300,4 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
     );
 };
 
-export default Dashboard;
+export default React.memo(Dashboard);
