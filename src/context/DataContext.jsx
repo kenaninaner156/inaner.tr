@@ -1744,6 +1744,46 @@ export const DataProvider = ({ children }) => {
         } catch { /* empty */ }
     };
 
+    // Kullanıcıya Özel Profil Fotoğrafı Güncelleme
+    const updateUserProfileImage = async (imageUrl) => {
+        const cleanUrl = imageUrl || null;
+        const usernameLower = (currentSession?.username || '').toLowerCase().trim();
+        const uid = currentSession?.uid || auth.currentUser?.uid || null;
+
+        if (typeof window !== 'undefined' && usernameLower) {
+            if (cleanUrl) {
+                localStorage.setItem(`tir_user_avatar_${usernameLower}`, cleanUrl);
+            } else {
+                localStorage.removeItem(`tir_user_avatar_${usernameLower}`);
+            }
+        }
+
+        setCurrentSession(prev => prev ? { ...prev, photoURL: cleanUrl } : prev);
+
+        const matchedUser = (approvedUsers || []).find(u =>
+            (uid && u.id === uid) ||
+            (usernameLower && (u.username || '').toLowerCase().trim() === usernameLower)
+        );
+        const targetDocId = matchedUser?.id || (uid && uid !== 'offline_super_admin' ? uid : null);
+
+        if (targetDocId) {
+            setApprovedUsers(prev => (prev || []).map(u =>
+                u.id === targetDocId ? { ...u, photoURL: cleanUrl, avatarUrl: cleanUrl, imageUrl: cleanUrl } : u
+            ));
+            try {
+                await setDoc(doc(db, 'approved_users', targetDocId), {
+                    photoURL: cleanUrl,
+                    avatarUrl: cleanUrl,
+                    imageUrl: cleanUrl,
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+                addLog('PROFIL_RESIM_GUNCELLE', `${currentSession?.username || 'Kullanıcı'} profil fotoğrafını güncelledi`);
+            } catch (err) {
+                console.warn('Kullanıcı profil resmi güncellenirken hata:', err);
+            }
+        }
+    };
+
     // Shopping List CRUD
     const addShoppingItem = async (item) => {
         const order = shoppingItems.length > 0 ? Math.max(...shoppingItems.map(i => i.order || 0)) + 1 : 0;
@@ -2068,7 +2108,7 @@ export const DataProvider = ({ children }) => {
             routeHistory, saveRouteHistory,
             onlineUsers,
             shoppingItems, addShoppingItem, updateShoppingItem, deleteShoppingItem, updateShoppingItemsOrder,
-            updateTruckImage,
+            updateTruckImage, updateUserProfileImage,
             isDataLoading, dataError,
             geofences, addGeofence, updateGeofence, deleteGeofence,
             dailyNotes, updateDailyNote,

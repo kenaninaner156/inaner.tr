@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useContext } from 'react';
-import { Settings as SettingsIcon, Database, Save, Server, ShieldCheck, Camera, UploadCloud, Truck, Loader2, Globe, Key, AlertCircle, Link2, Unlink, CheckCircle2, Menu } from 'lucide-react';
+import React, { useState, useEffect, useRef, useContext, useMemo } from 'react';
+import { Settings as SettingsIcon, Database, Save, Server, ShieldCheck, Camera, UploadCloud, Truck, User, Loader2, Globe, Key, AlertCircle, Link2, Unlink, CheckCircle2, Menu } from 'lucide-react';
 import WipeData from './WipeData';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
@@ -7,9 +7,29 @@ import { auth, googleProvider } from '../services/firebaseConfig';
 import { linkWithPopup, unlink } from 'firebase/auth';
 
 const Settings = ({ onOpenMenu, isMobile } = {}) => {
-    const { updateTruckImage, currentSession, approvedUsers, editUser, addLog } = useContext(DataContext);
+    const { updateUserProfileImage, currentSession, approvedUsers, editUser, addLog } = useContext(DataContext);
     const { activeTruckId, activeTruckData } = useTruck();
-    const [profilePic, setProfilePic] = useState(activeTruckData?.imageUrl || null);
+    const currentUserAvatar = useMemo(() => {
+        const usernameLower = (currentSession?.username || '').toLowerCase().trim();
+        const uid = currentSession?.uid || null;
+        if (approvedUsers && Array.isArray(approvedUsers)) {
+            const foundUser = approvedUsers.find(u =>
+                (uid && u.id === uid) ||
+                (usernameLower && (u.username || '').toLowerCase().trim() === usernameLower)
+            );
+            if (foundUser) {
+                const url = foundUser.photoURL || foundUser.avatarUrl || foundUser.imageUrl || null;
+                if (url) return url;
+            }
+        }
+        if (currentSession?.photoURL) return currentSession.photoURL;
+        if (typeof window !== 'undefined' && usernameLower) {
+            return localStorage.getItem(`tir_user_avatar_${usernameLower}`) || null;
+        }
+        return null;
+    }, [currentSession?.uid, currentSession?.username, currentSession?.photoURL, approvedUsers]);
+
+    const [profilePic, setProfilePic] = useState(currentUserAvatar);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadError, setUploadError] = useState('');
     const fileInputRef = useRef(null);
@@ -44,8 +64,8 @@ const Settings = ({ onOpenMenu, isMobile } = {}) => {
     };
 
     useEffect(() => {
-        setProfilePic(activeTruckData?.imageUrl || null);
-    }, [activeTruckData?.imageUrl]);
+        setProfilePic(currentUserAvatar || null);
+    }, [currentUserAvatar]);
 
     // URL hook kaldırıldı
 
@@ -90,7 +110,7 @@ const Settings = ({ onOpenMenu, isMobile } = {}) => {
             if (data.success) {
                 const url = data.data.url;
                 setProfilePic(url);
-                await updateTruckImage(activeTruckId, url);
+                await updateUserProfileImage(url);
             } else {
                 setUploadError(`Yükleme başarısız: ${data?.error?.message || JSON.stringify(data)}`);
             }
@@ -223,7 +243,7 @@ const Settings = ({ onOpenMenu, isMobile } = {}) => {
                             />
                         ) : (
                             <div className="w-full h-full bg-zinc-500 flex items-center justify-center">
-                                <Truck size={48} className="text-[var(--text-primary)] opacity-90" />
+                                <User size={48} className="text-[var(--text-primary)] opacity-90" />
                             </div>
                         )}
                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer"
@@ -264,7 +284,7 @@ const Settings = ({ onOpenMenu, isMobile } = {}) => {
                             <button
                                 onClick={async () => {
                                     setProfilePic(null);
-                                    await updateTruckImage(activeTruckId, null);
+                                    await updateUserProfileImage(null);
                                 }}
                                 className="ml-3 text-red-400 hover:text-red-300 px-4 py-2 text-sm transition-colors"
                             >

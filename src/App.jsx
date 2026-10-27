@@ -165,7 +165,23 @@ function App() {
   // Kullanıcı Profil Fotoğrafı (Google Hesabı, Ayarlar Araç Resmi, Personel Avatarı veya Kullanıcı Profili)
   const matchedPersonAvatar = useMemo(() => {
     if (!currentUser?.username) return null;
-    const lower = currentUser.username.toLowerCase().trim();
+    const lower = (currentUser?.username || '').toLowerCase().trim();
+    const uid = currentUser?.uid || null;
+    if (approvedUsers && typeof approvedUsers === 'object') {
+      const usersList = Array.isArray(approvedUsers) ? approvedUsers : Object.values(approvedUsers);
+      const foundUser = usersList.find(u =>
+        (uid && u.id === uid) ||
+        (lower && u.username?.toLowerCase().trim() === lower)
+      );
+      if (foundUser?.photoURL || foundUser?.avatarUrl || foundUser?.imageUrl) {
+        return foundUser.photoURL || foundUser.avatarUrl || foundUser.imageUrl;
+      }
+    }
+    if (currentUser?.photoURL) return currentUser.photoURL;
+    if (typeof window !== 'undefined' && lower) {
+      const cached = localStorage.getItem(`tir_user_avatar_${lower}`);
+      if (cached) return cached;
+    }
     if (personnel?.length) {
       const foundPerson = personnel.find(p => 
         p.name?.toLowerCase().trim() === lower || 
@@ -182,16 +198,20 @@ function App() {
       }
     }
     return null;
-  }, [currentUser?.username, personnel, approvedUsers]);
+  }, [currentUser?.uid, currentUser?.username, currentUser?.photoURL, personnel, approvedUsers]);
 
   // Profil Fotoğrafı (Öncelik: Ayarlar'daki Profil Resmi: activeTruckData?.imageUrl veya araç resmi)
   const truckProfilePic = activeTruckData?.imageUrl || trucks?.find(t => t?.imageUrl)?.imageUrl || null;
   const [photoError, setPhotoError] = useState(false);
 
+  useEffect(() => {
+    setPhotoError(false);
+  }, [matchedPersonAvatar]);
+
   const userPhoto = useMemo(() => {
     if (photoError) return null;
-    return truckProfilePic || matchedPersonAvatar || null;
-  }, [photoError, truckProfilePic, matchedPersonAvatar]);
+    return matchedPersonAvatar || null;
+  }, [photoError, matchedPersonAvatar]);
 
 
 
