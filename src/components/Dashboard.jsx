@@ -612,7 +612,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                         {perfDelta !== null && (
                             <span className={`px-2 py-0.5 rounded-md border flex items-center gap-1 ${perfDelta >= 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
                                 {perfDelta >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-                                <span>%{Math.abs(perfDelta).toFixed(1)}</span>
+                                <span>{perfDelta >= 0 ? '+' : '-'}%{Math.abs(perfDelta).toFixed(1)}</span>
                             </span>
                         )}
                     </div>
@@ -1108,7 +1108,7 @@ const Dashboard = ({ onOpenMenu, onNavigate, isMobile } = {}) => {
                                 Geçen Aya
                             </span>
                             <span className={`text-xs sm:text-sm font-bold mt-0.5 whitespace-nowrap ${perfDelta === null ? 'text-slate-400' : perfDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                {perfDelta === null ? 'Veri Yok' : `${perfDelta >= 0 ? '+' : ''}%${Math.abs(perfDelta).toFixed(1)}`}
+                                {perfDelta === null ? 'Veri Yok' : `${perfDelta >= 0 ? '+' : '-'}%${Math.abs(perfDelta).toFixed(1)}`}
                             </span>
                         </div>
                     </div>
