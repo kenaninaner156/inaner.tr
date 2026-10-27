@@ -2,6 +2,33 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Check, Search, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
+const SELECT_THEME_STYLES = {
+    amber: {
+        focusBorder: 'focus:border-amber-500/70',
+        openBorder: 'border-amber-500/70 shadow-[0_0_12px_rgba(249,115,22,0.15)]',
+        chevronOpen: 'rotate-180 text-amber-400',
+        searchFocus: 'focus:border-orange-500/70',
+        optionSelected: 'bg-orange-500/15 text-orange-400 font-bold border border-orange-500/25 shadow-sm',
+        checkIcon: 'text-orange-400'
+    },
+    sky: {
+        focusBorder: 'focus:border-sky-500/70',
+        openBorder: 'border-sky-500/70 shadow-[0_0_12px_rgba(14,165,233,0.15)]',
+        chevronOpen: 'rotate-180 text-sky-400',
+        searchFocus: 'focus:border-sky-500/70',
+        optionSelected: 'bg-sky-500/15 text-sky-400 font-bold border border-sky-500/25 shadow-sm',
+        checkIcon: 'text-sky-400'
+    },
+    cyan: {
+        focusBorder: 'focus:border-cyan-500/70',
+        openBorder: 'border-cyan-500/70 shadow-[0_0_12px_rgba(6,182,212,0.15)]',
+        chevronOpen: 'rotate-180 text-cyan-400',
+        searchFocus: 'focus:border-cyan-500/70',
+        optionSelected: 'bg-cyan-500/15 text-cyan-400 font-bold border border-cyan-500/25 shadow-sm',
+        checkIcon: 'text-cyan-400'
+    }
+};
+
 const CustomSelect = ({ 
     value, 
     onChange, 
@@ -13,8 +40,10 @@ const CustomSelect = ({
     searchable = false,
     minMenuWidth = null,
     align = 'auto', // 'auto', 'left', 'right'
-    disabled = false
+    disabled = false,
+    theme = 'amber'
 }) => {
+    const st = SELECT_THEME_STYLES[theme] || SELECT_THEME_STYLES.amber;
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [coords, setCoords] = useState({ top: 0, left: undefined, right: undefined, width: 0, dropUp: false });
@@ -133,8 +162,8 @@ const CustomSelect = ({
                 type="button"
                 disabled={disabled}
                 onClick={handleToggle}
-                className={`w-full bg-[#0d1117] border border-white/[0.08] hover:border-white/[0.16] focus:border-amber-500/70 text-white rounded-xl px-3 py-1.5 text-xs font-semibold flex items-center justify-between gap-2 transition outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                    isOpen ? 'border-amber-500/70 shadow-[0_0_12px_rgba(249,115,22,0.15)]' : ''
+                className={`w-full bg-[#0d1117] border border-white/[0.08] hover:border-white/[0.16] ${st.focusBorder} text-white rounded-xl px-3 py-1.5 text-xs font-semibold flex items-center justify-between gap-2 transition outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isOpen ? st.openBorder : ''
                 } ${buttonClassName}`}
             >
                 <div className="flex items-center gap-2 min-w-0 flex-1 text-left">
@@ -147,7 +176,7 @@ const CustomSelect = ({
                 </div>
                 <ChevronDown 
                     size={13} 
-                    className={`text-slate-400 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180 text-amber-400' : ''}`} 
+                    className={`text-slate-400 shrink-0 transition-transform duration-200 ${isOpen ? st.chevronOpen : ''}`} 
                 />
             </button>
 
@@ -178,7 +207,7 @@ const CustomSelect = ({
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     placeholder="Filtrele..."
-                                    className="w-full bg-[#0d1117] border border-white/[0.08] text-white rounded-lg pl-7 pr-7 py-1 text-xs outline-none focus:border-orange-500/70 placeholder:text-slate-500"
+                                    className={`w-full bg-[#0d1117] border border-white/[0.08] text-white rounded-lg pl-7 pr-7 py-1 text-xs outline-none ${st.searchFocus} placeholder:text-slate-500`}
                                 />
                                 {searchTerm && (
                                     <button
@@ -212,7 +241,7 @@ const CustomSelect = ({
                                         }}
                                         className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-all flex items-center justify-between gap-3 cursor-pointer ${
                                             isSelected
-                                                ? 'bg-orange-500/15 text-orange-400 font-bold border border-orange-500/25 shadow-sm'
+                                                ? st.optionSelected
                                                 : 'text-slate-300 hover:text-white hover:bg-white/[0.05]'
                                         }`}
                                     >
@@ -223,7 +252,7 @@ const CustomSelect = ({
                                             )}
                                         </div>
                                         {isSelected && (
-                                            <Check size={13} className="text-orange-400 shrink-0" />
+                                            <Check size={13} className={`${st.checkIcon} shrink-0`} />
                                         )}
                                     </button>
                                 );

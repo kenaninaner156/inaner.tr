@@ -2,7 +2,38 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
-const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', className, showToday = true, showSteppers = true }) => {
+const THEME_STYLES = {
+    amber: {
+        triggerBtn: 'hover:bg-amber-500/15 text-slate-400 hover:text-amber-400',
+        popupBorder: 'border-white/10',
+        navBtn: 'bg-white/[0.04] hover:bg-amber-500/20 text-slate-400 hover:text-amber-400 border-white/[0.06]',
+        headerInput: 'hover:border-amber-500/50 focus:border-amber-500/50',
+        selectedDay: 'bg-amber-500 text-black font-bold shadow-lg shadow-amber-500/30',
+        todayDay: 'bg-amber-500/15 text-amber-400 font-bold border border-amber-500/30',
+        todayBtn: 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20'
+    },
+    sky: {
+        triggerBtn: 'hover:bg-sky-500/15 text-slate-400 hover:text-sky-400',
+        popupBorder: 'border-sky-500/30',
+        navBtn: 'bg-white/[0.04] hover:bg-sky-500/20 text-slate-400 hover:text-sky-400 border-white/[0.06]',
+        headerInput: 'hover:border-sky-500/50 focus:border-sky-500/50',
+        selectedDay: 'bg-gradient-to-br from-sky-500 to-blue-600 text-white font-bold shadow-lg shadow-sky-500/30',
+        todayDay: 'bg-sky-500/15 text-sky-400 font-bold border border-sky-500/30',
+        todayBtn: 'text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 border border-sky-500/25'
+    },
+    cyan: {
+        triggerBtn: 'hover:bg-cyan-500/15 text-slate-400 hover:text-cyan-400',
+        popupBorder: 'border-cyan-500/30',
+        navBtn: 'bg-white/[0.04] hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-400 border-white/[0.06]',
+        headerInput: 'hover:border-cyan-500/50 focus:border-cyan-500/50',
+        selectedDay: 'bg-gradient-to-br from-cyan-500 to-teal-500 text-white font-bold shadow-lg shadow-cyan-500/30',
+        todayDay: 'bg-cyan-500/15 text-cyan-400 font-bold border border-cyan-500/30',
+        todayBtn: 'text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 border border-cyan-500/25'
+    }
+};
+
+const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', className, showToday = true, showSteppers = true, theme = 'amber' }) => {
+    const t = THEME_STYLES[theme] || THEME_STYLES.amber;
     const [isOpen, setIsOpen] = useState(false);
     const [currentMonth, setCurrentMonth] = useState(() => value ? new Date(value) : new Date());
     
@@ -245,7 +276,7 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                 <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); toggleOpen(); }}
-                    className="shrink-0 h-full w-8.5 hover:bg-amber-500/15 text-slate-400 hover:text-amber-400 transition-colors border-l border-white/[0.08] flex items-center justify-center cursor-pointer"
+                    className={`shrink-0 h-full w-8.5 ${t.triggerBtn} transition-colors border-l border-white/[0.08] flex items-center justify-center cursor-pointer`}
                 >
                     <Calendar size={14} />
                 </button>
@@ -257,19 +288,19 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                     onClick={() => setIsOpen(false)}
                 >
                     <div 
-                        className="bg-[#07090e] border border-white/10 rounded-3xl shadow-2xl shadow-black/95 p-5 w-full max-w-sm animate-in zoom-in-95 duration-150"
+                        className={`bg-[#07090e] border ${t.popupBorder} rounded-3xl shadow-2xl shadow-black/95 p-5 w-full max-w-sm animate-in zoom-in-95 duration-150`}
                         onClick={e => e.stopPropagation()}
                     >
                         {/* Başlık & Ay/Yıl Seçimi */}
                         <div className="flex justify-between items-center mb-4">
-                            <button type="button" onClick={handlePrevMonth} className="p-2 bg-white/[0.04] hover:bg-amber-500/20 text-slate-400 hover:text-amber-400 rounded-xl transition-colors cursor-pointer border border-white/[0.06]">
+                            <button type="button" onClick={handlePrevMonth} className={`p-2 ${t.navBtn} rounded-xl transition-colors cursor-pointer border`}>
                                 <ChevronLeft size={16} />
                             </button>
                             <div className="font-bold text-white flex items-center gap-1.5">
                                 <select 
                                     value={currentMonth.getMonth()} 
                                     onChange={handleMonthSelect}
-                                    className="bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2.5 py-1 text-xs outline-none cursor-pointer hover:border-amber-500/50 transition-colors font-medium"
+                                    className={`bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2.5 py-1 text-xs outline-none cursor-pointer ${t.headerInput} transition-colors font-medium`}
                                 >
                                     {monthNames.map((m, i) => <option key={m} value={i} className="bg-[#07090e] text-white">{m}</option>)}
                                 </select>
@@ -277,10 +308,10 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                                     type="number" 
                                     value={currentMonth.getFullYear()} 
                                     onChange={handleYearInputForCalendar}
-                                    className="w-16 bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2 py-1 text-xs outline-none hover:border-amber-500/50 transition-colors text-center font-mono font-bold"
+                                    className={`w-16 bg-[#0d1117] border border-white/[0.08] text-white rounded-lg px-2 py-1 text-xs outline-none ${t.headerInput} transition-colors text-center font-mono font-bold`}
                                 />
                             </div>
-                            <button type="button" onClick={handleNextMonth} className="p-2 bg-white/[0.04] hover:bg-amber-500/20 text-slate-400 hover:text-amber-400 rounded-xl transition-colors cursor-pointer border border-white/[0.06]">
+                            <button type="button" onClick={handleNextMonth} className={`p-2 ${t.navBtn} rounded-xl transition-colors cursor-pointer border`}>
                                 <ChevronRight size={16} />
                             </button>
                         </div>
@@ -316,8 +347,8 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                                                 type="button"
                                                 onClick={() => handleSelectDate(d)}
                                                 className={`w-full h-full flex items-center justify-center rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                                                    isSelected ? 'bg-amber-500 text-black font-bold shadow-lg shadow-amber-500/30' : 
-                                                    isToday ? 'bg-amber-500/15 text-amber-400 font-bold border border-amber-500/30' : 
+                                                    isSelected ? t.selectedDay : 
+                                                    isToday ? t.todayDay : 
                                                     'text-slate-300 hover:bg-white/[0.06] hover:text-white'
                                                 }`}
                                             >
@@ -353,7 +384,7 @@ const CustomDatePicker = ({ value, onChange, placeholder = 'Tarih Seçin', class
                                             onChange(`${y}-${m}-${d}`);
                                             setIsOpen(false);
                                         }}
-                                        className="text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors cursor-pointer px-2.5 py-1 rounded-lg hover:bg-amber-500/10 border border-amber-500/20"
+                                        className={`text-xs font-bold ${t.todayBtn} transition-colors cursor-pointer px-2.5 py-1 rounded-lg`}
                                     >
                                         Bugün
                                     </button>

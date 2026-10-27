@@ -1,7 +1,7 @@
 ---
+trigger: always_on
 description: Kurumsal UI/UX Standartları, Tasarım Dili ve Dil Kuralları
-globs: ["src/**/*.{js,jsx,ts,tsx,css}"]
-always_on: true
+globs: "src/**/*.{js,jsx,ts,tsx,css}"
 ---
 
 # Kurumsal UI/UX ve Tasarım Kuralları

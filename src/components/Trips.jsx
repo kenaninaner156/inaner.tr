@@ -1,6 +1,6 @@
 import React, { useState, useContext, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Search, MapPin, X, ChevronDown, Check, Trash2, Paperclip, FileText, Pencil, StickyNote, Truck, Menu, Calendar, Scale, Activity, Wallet, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, MapPin, X, ChevronDown, Check, Trash2, Paperclip, FileText, Pencil, StickyNote, Truck, Menu, Calendar, Scale, Activity, Wallet, ArrowRight, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import FileUpload from './FileUpload';
 import CustomSelect from './CustomSelect';
@@ -8,10 +8,11 @@ import CustomDatePicker from './CustomDatePicker';
 import { useCompany } from '../context/CompanyContext';
 import { useTruck } from '../context/TruckContext';
 import { parseTonnageInTons } from '../utils/tonnageUtils';
+import { getGuardedUserConfig, isGuardOnCooldown, setGuardCooldown, findUserOwnTruck, isPlateMatchingUser, isDriverMatchingUser } from '../utils/userTruckGuard';
 
 const Trips = ({ onOpenMenu, isMobile }) => {
-    const { trips, addTrip, deleteTrip, editTrip, routes, addRoute, updateRoute, deleteRoute, premiums, allDrivers, allCompanyTrips } = useContext(DataContext);
-    const { activeTruckId, activeTruckData, switchNextTruck, trucks } = useTruck();
+    const { trips, addTrip, deleteTrip, editTrip, routes, addRoute, updateRoute, deleteRoute, premiums, allDrivers, allCompanyTrips, currentSession } = useContext(DataContext);
+    const { activeTruckId, setActiveTruckId, activeTruckData, switchNextTruck, trucks } = useTruck();
     const lastTitleTapRef = useRef(0);
 
     const handleTitleClick = (e) => {
@@ -132,12 +133,15 @@ const Trips = ({ onOpenMenu, isMobile }) => {
         return sorted[0]?.driverName || '';
     }, [trips]);
 
+    const prevTruckIdForDriverRef = useRef(activeTruckId);
     // Araç değiştiğinde veya boşken aktif aracın son şoförünü hazırla (Yalnızca modal açıkken)
     useEffect(() => {
+        const truckChanged = prevTruckIdForDriverRef.current !== activeTruckId;
+        prevTruckIdForDriverRef.current = activeTruckId;
         if (isModalOpen && latestTruckDriver) {
             setFormData(prev => ({
                 ...prev,
-                driverName: prev.driverName || latestTruckDriver
+                driverName: truckChanged ? latestTruckDriver : (prev.driverName || latestTruckDriver)
             }));
         }
     }, [activeTruckId, latestTruckDriver, isModalOpen]);
@@ -425,9 +429,9 @@ const Trips = ({ onOpenMenu, isMobile }) => {
         setEditSaveNewRoute(false);
     };
 
-    const handleManualAdd = (e) => {
-        e.preventDefault();
+    const [duplicateTripConfirm, setDuplicateTripConfirm] = useState(null);
 
+    const executeAddTrip = () => {
         const kmValue = parseInt(formData.km) || 0;
 
         // Yeni rotayı kaydetme isteği varsa
@@ -480,6 +484,88 @@ const Trips = ({ onOpenMenu, isMobile }) => {
             files: []
             // date, driverName, premiumId, premiumAmount korunur
         }));
+        setDuplicateTripConfirm(null);
+    };
+
+    const [truckGuardConfirm, setTruckGuardConfirm] = useState(null);
+
+    const proceedWithTripDuplicateCheck = () => {
+        const targetTonnage = parseFloat(formData.tonnage);
+        const normFrom = (formData.from || '').trim().toLowerCase();
+        const normTo = (formData.to || '').trim().toLowerCase();
+
+        const existingDuplicates = (trips || []).filter(t =>
+            t.date === formData.date &&
+            (t.from || '').trim().toLowerCase() === normFrom &&
+            (t.to || '').trim().toLowerCase() === normTo &&
+            Math.abs((Number(t.tonnage) || 0) - (targetTonnage || 0)) < 0.01
+        );
+
+        if (existingDuplicates.length > 0) {
+            setDuplicateTripConfirm({
+                count: existingDuplicates.length,
+                date: formData.date,
+                from: formData.from,
+                to: formData.to,
+                tonnage: targetTonnage,
+                driverName: formData.driverName
+            });
+            return;
+        }
+
+        executeAddTrip();
+    };
+
+    const handleConfirmCrossTruckTrip = () => {
+        if (truckGuardConfirm?.config?.userKey) {
+            setGuardCooldown(truckGuardConfirm.config.userKey);
+        }
+        setTruckGuardConfirm(null);
+        proceedWithTripDuplicateCheck();
+    };
+
+    const handleSwitchToOwnTruckInTrip = () => {
+        if (!truckGuardConfirm) return;
+        const { ownTruck, ownDriverName, config } = truckGuardConfirm;
+        const targetTruckId = ownTruck?.id || config?.expectedDefaultTruckId;
+        if (targetTruckId) {
+            prevTruckIdForDriverRef.current = targetTruckId;
+            setActiveTruckId(targetTruckId);
+        }
+        const matchedDriver = (allDrivers || []).find(d => isDriverMatchingUser(d.name, config));
+        const targetDriverName = matchedDriver?.name || ownDriverName;
+        setFormData(prev => ({
+            ...prev,
+            driverName: targetDriverName
+        }));
+        setTruckGuardConfirm(null);
+    };
+
+    const handleManualAdd = (e) => {
+        e.preventDefault();
+
+        const guardCfg = getGuardedUserConfig(currentSession?.username);
+        if (guardCfg && !isGuardOnCooldown(guardCfg.userKey)) {
+            const plateOk = isPlateMatchingUser(activeTruckData?.plate, guardCfg);
+            const driverOk = !companyData?.personnelEnabled || isDriverMatchingUser(formData.driverName, guardCfg);
+
+            if (!plateOk || !driverOk) {
+                const ownTruck = findUserOwnTruck(trucks, guardCfg);
+                setTruckGuardConfirm({
+                    config: guardCfg,
+                    ownTruck,
+                    ownPlate: ownTruck?.plate || guardCfg.expectedDefaultPlate,
+                    ownDriverName: guardCfg.expectedDriverFullName,
+                    currentPlate: activeTruckData?.plate || 'Diğer Araç',
+                    currentDriverName: formData.driverName || 'Seçilmedi',
+                    plateMismatch: !plateOk,
+                    driverMismatch: !driverOk
+                });
+                return;
+            }
+        }
+
+        proceedWithTripDuplicateCheck();
     };
 
     const handleSaveRouteOnly = async () => {
@@ -986,14 +1072,24 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md">
                     <div className="glass-panel w-full max-w-lg p-4 sm:p-6 relative animate-in zoom-in-95 duration-200 max-h-[92dvh] overflow-hidden flex flex-col border-sky-500/30">
                         <button onClick={() => setEditingTrip(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer z-20"><X size={20} /></button>
-                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-5 flex items-center gap-2 flex-shrink-0">
-                            <Pencil size={18} className="text-sky-400" /> Seferi Düzenle
-                        </h3>
+                        <div className="flex flex-col justify-center mb-4 sm:mb-5 flex-shrink-0 select-none w-fit">
+                            <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 leading-none">
+                                <Pencil size={18} className="text-sky-400 shrink-0" /> Seferi Düzenle
+                            </h3>
+                            {activeTruckData?.plate && (
+                                <span
+                                    key={activeTruckData.plate}
+                                    className="text-[10px] sm:text-[11px] font-mono font-medium text-slate-400/75 tracking-wider uppercase leading-none mt-1.5 ml-[26px] transition-colors animate-in fade-in duration-200"
+                                >
+                                    {activeTruckData.plate}
+                                </span>
+                            )}
+                        </div>
                         <div className="space-y-4 flex-1 overflow-y-auto pr-1 sm:pr-2 custom-scrollbar pb-3">
                             {/* Tarih */}
                             <div className="animate-in fade-in slide-in-from-top-2 duration-300">
                                 <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">Tarih</label>
-                                <CustomDatePicker 
+                                <CustomDatePicker theme="sky" 
                                     value={editForm.date}
                                     onChange={(val) => setEditForm({ ...editForm, date: val })}
                                     className="glass-input text-left px-3 py-2 text-sm"
@@ -1163,7 +1259,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wider">Şoför</label>
-                                        <CustomSelect
+                                        <CustomSelect theme="sky"
                                             value={editForm.driverName}
                                             onChange={val => setEditForm({ ...editForm, driverName: val })}
                                             placeholder="Şoför Seçin..."
@@ -1175,7 +1271,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wider">Prim Şablonu</label>
-                                        <CustomSelect
+                                        <CustomSelect theme="sky"
                                             value={editForm.premiumId}
                                             onChange={val => handlePremiumChange(val, 'edit')}
                                             placeholder="Prim Yok"
@@ -1259,9 +1355,24 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                             <X size={20} />
                         </button>
 
-                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-5 flex items-center flex-shrink-0">
-                            <MapPin className="mr-2 text-sky-400" /> Yeni Sefer / Rota
-                        </h3>
+                        <div
+                            onClick={handleTitleClick}
+                            onDoubleClick={handleTitleDoubleClick}
+                            className="flex flex-col justify-center mb-4 sm:mb-5 flex-shrink-0 select-none cursor-pointer group w-fit"
+                            title={trucks?.length > 1 ? "Çift tıklayarak aracı değiştirin" : undefined}
+                        >
+                            <h3 className="text-lg sm:text-xl font-bold text-white flex items-center leading-none group-hover:text-slate-100 transition-colors">
+                                <MapPin className="mr-2 text-sky-400 shrink-0" /> Yeni Sefer / Rota
+                            </h3>
+                            {activeTruckData?.plate && (
+                                <span
+                                    key={activeTruckData.plate}
+                                    className="text-[10px] sm:text-[11px] font-mono font-medium text-slate-400/75 group-hover:text-sky-400 tracking-wider uppercase leading-none mt-1.5 ml-8 transition-colors animate-in fade-in duration-200"
+                                >
+                                    {activeTruckData.plate}
+                                </span>
+                            )}
+                        </div>
 
                         {saveSuccess && (
                             <div className="flex items-center gap-2 p-2.5 mb-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold animate-in fade-in slide-in-from-top-2 duration-200">
@@ -1275,7 +1386,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                             {/* Tarih */}
                             <div className="animate-in fade-in slide-in-from-top-2 duration-300">
                                 <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">Tarih</label>
-                                <CustomDatePicker 
+                                <CustomDatePicker theme="sky" 
                                     value={formData.date}
                                     onChange={(val) => setFormData({ ...formData, date: val })}
                                     className="glass-input text-left text-sm"
@@ -1454,7 +1565,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wider">Şoför</label>
-                                        <CustomSelect
+                                        <CustomSelect theme="sky"
                                             value={formData.driverName}
                                             onChange={val => setFormData({ ...formData, driverName: val })}
                                             placeholder="Şoför Seçin..."
@@ -1466,7 +1577,7 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wider">Prim Şablonu</label>
-                                        <CustomSelect
+                                        <CustomSelect theme="sky"
                                             value={formData.premiumId}
                                             onChange={val => handlePremiumChange(val, 'add')}
                                             placeholder="Prim Yok"
@@ -1607,6 +1718,159 @@ const Trips = ({ onOpenMenu, isMobile }) => {
                         >
                             Kapat
                         </button>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* ─── KULLANICI / ARAÇ UYUŞMAZLIĞI UYARI MODALI (GÖKSEL & MERT) ─── */}
+            {truckGuardConfirm && createPortal(
+                <div
+                    className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200"
+                    onClick={() => setTruckGuardConfirm(null)}
+                >
+                    <div
+                        className="glass-panel border-sky-500/30 rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.9)] w-full max-w-md p-6 relative overflow-hidden animate-in zoom-in-95 duration-200"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <button
+                            type="button"
+                            onClick={() => setTruckGuardConfirm(null)}
+                            className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                        >
+                            <X size={18} />
+                        </button>
+                        <div className="flex items-start gap-4 mb-5 pr-6">
+                            <div className="w-11 h-11 rounded-xl bg-sky-500/10 border border-sky-500/25 flex items-center justify-center shrink-0 text-sky-400 shadow-[0_0_15px_rgba(14,165,233,0.15)]">
+                                <AlertTriangle size={20} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h3 className="text-base font-bold text-white tracking-tight">
+                                    {truckGuardConfirm.plateMismatch ? "Farklı Plakaya Sefer Girişi" : "Farklı Şoför Seçimi Uyarısı"}
+                                </h3>
+                                <p className="text-xs text-slate-300 leading-relaxed mt-1">
+                                    {truckGuardConfirm.plateMismatch ? (
+                                        <>
+                                            <strong className="font-semibold text-sky-400">{truckGuardConfirm.config.honorific}</strong>, tanımlı aracınız <strong className="font-semibold text-white">{truckGuardConfirm.ownPlate}</strong> iken şu anda <strong className="font-semibold text-sky-400">{truckGuardConfirm.currentPlate}</strong> plakalı araca sefer giriyorsunuz. Devam etmek istediğinize emin misiniz?
+                                        </>
+                                    ) : (
+                                        <>
+                                            <strong className="font-semibold text-sky-400">{truckGuardConfirm.config.honorific}</strong>, tanımlı şoförünüz <strong className="font-semibold text-white">{truckGuardConfirm.ownDriverName}</strong> iken bu seferde şoför olarak <strong className="font-semibold text-sky-400">{truckGuardConfirm.currentDriverName}</strong> seçili. Devam etmek istediğinize emin misiniz?
+                                        </>
+                                    )}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="bg-sky-500/5 border border-sky-500/20 rounded-xl p-3.5 mb-5 space-y-2 text-xs relative overflow-hidden">
+                            <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-sky-500/40 to-transparent"></div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-400">Aktif Araç Plakası</span>
+                                <span className="font-mono font-bold text-sky-400">{truckGuardConfirm.currentPlate}</span>
+                            </div>
+                            {companyData?.personnelEnabled && (
+                                <div className="flex items-center justify-between">
+                                    <span className="text-slate-400">Seçili Şoför</span>
+                                    <span className="font-semibold text-white">{truckGuardConfirm.currentDriverName}</span>
+                                </div>
+                            )}
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-400">Güzergah</span>
+                                <span className="font-bold text-slate-200 flex items-center gap-1.5">
+                                    <span>{formData.from}</span>
+                                    <ArrowRight size={12} className="text-sky-400 shrink-0" />
+                                    <span>{formData.to}</span>
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-400">Tonaj</span>
+                                <span className="font-mono font-bold text-sky-400">{formData.tonnage} Ton</span>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-2.5">
+                            <button
+                                type="button"
+                                onClick={handleSwitchToOwnTruckInTrip}
+                                className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs text-sky-300 hover:text-white bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 transition-all cursor-pointer"
+                            >
+                                {truckGuardConfirm.plateMismatch
+                                    ? `${truckGuardConfirm.ownPlate} Aracına Geç`
+                                    : `Şoförü ${truckGuardConfirm.ownDriverName} Yap`}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmCrossTruckTrip}
+                                className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-sky-600 to-blue-500 hover:from-sky-500 hover:to-blue-400 border border-sky-400/40 transition-all shadow-lg shadow-sky-500/25 hover:shadow-sky-500/40 cursor-pointer"
+                            >
+                                Evet, Yine de Kaydet
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* ─── MÜKERRER SEFER UYARI MODALI ─── */}
+            {duplicateTripConfirm && createPortal(
+                <div
+                    className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200"
+                    onClick={() => setDuplicateTripConfirm(null)}
+                >
+                    <div
+                        className="glass-panel border-sky-500/30 rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.9)] w-full max-w-md p-6 relative overflow-hidden animate-in zoom-in-95 duration-200"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-start gap-4 mb-5">
+                            <div className="w-11 h-11 rounded-xl bg-sky-500/10 border border-sky-500/25 flex items-center justify-center shrink-0 text-sky-400 shadow-[0_0_15px_rgba(14,165,233,0.15)]">
+                                <AlertTriangle size={20} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h3 className="text-base font-bold text-white tracking-tight">Benzer Sefer Kaydı Mevcut</h3>
+                                <p className="text-xs text-slate-300 leading-relaxed mt-1">
+                                    <strong className="font-semibold text-sky-400">{duplicateTripConfirm.date ? duplicateTripConfirm.date.split('-').reverse().join('.') : ''}</strong> tarihinde aynı güzergah ve tonajda kayıtlı {duplicateTripConfirm.count > 1 ? `${duplicateTripConfirm.count} adet ` : ''}sefer bulundu. Yine de eklemek istediğinize emin misiniz?
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="bg-sky-500/5 border border-sky-500/20 rounded-xl p-3.5 mb-5 space-y-2 text-xs relative overflow-hidden">
+                            <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-sky-500/40 to-transparent"></div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-400">Güzergah</span>
+                                <span className="font-bold text-white flex items-center gap-1.5">
+                                    <span>{duplicateTripConfirm.from}</span>
+                                    <ArrowRight size={12} className="text-sky-400 shrink-0" />
+                                    <span>{duplicateTripConfirm.to}</span>
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-400">Tonaj</span>
+                                <span className="font-mono font-bold text-sky-400">{duplicateTripConfirm.tonnage} Ton</span>
+                            </div>
+                            {duplicateTripConfirm.driverName && (
+                                <div className="flex items-center justify-between">
+                                    <span className="text-slate-400">Şoför</span>
+                                    <span className="font-semibold text-slate-200">{duplicateTripConfirm.driverName}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setDuplicateTripConfirm(null)}
+                                className="flex-1 py-2.5 rounded-xl font-semibold text-xs text-slate-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-all cursor-pointer"
+                            >
+                                Hayır, Vazgeç
+                            </button>
+                            <button
+                                type="button"
+                                onClick={executeAddTrip}
+                                className="flex-1 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-sky-600 to-blue-500 hover:from-sky-500 hover:to-blue-400 border border-sky-400/40 transition-all shadow-lg shadow-sky-500/25 hover:shadow-sky-500/40 cursor-pointer"
+                            >
+                                Evet, Yine de Kaydet
+                            </button>
+                        </div>
                     </div>
                 </div>,
                 document.body

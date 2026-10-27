@@ -362,6 +362,20 @@ body.ios-pwa,
   background: unset !important;
 }
 
+:root {
+  --map-pointer-cursor: url('/middle-finger.cur'), url('/middle-finger.png') 9 0, pointer;
+}
+
+[data-map-module] .custom-vehicle-marker-div,
+[data-map-module] .custom-vehicle-marker-div *,
+[data-map-module] .custom-playback-marker-div,
+[data-map-module] .custom-playback-marker-div *,
+[data-map-module] .leaflet-interactive,
+[data-map-module] .cursor-pointer,
+[data-map-module] button:not(:disabled) {
+  cursor: var(--map-pointer-cursor) !important;
+}
+
 /* A4 Responsive Scaling Variables */
 :root {
   --a4-scale: 0.49;

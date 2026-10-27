@@ -329,6 +329,19 @@ export default function MapLayout({ onReady, onOpenMenu, isMobile }) {
     localStorage.setItem('map_show_weather', showWeather);
   }, [showWeather]);
 
+  // Sistem işaretçi imleci ile birebir aynı fiziksel piksel boyutunu korumak için DPI ölçeklemesi
+  useEffect(() => {
+    const syncCursorDpi = () => {
+      const dpr = window.devicePixelRatio || 1;
+      const hotX = Math.round(9 / dpr);
+      const cursorValue = `-webkit-image-set(url('/middle-finger.cur') ${dpr}x), -webkit-image-set(url('/middle-finger.png') ${dpr}x) ${hotX} 0, url('/middle-finger.cur'), url('/middle-finger.png') 9 0, pointer`;
+      document.documentElement.style.setProperty('--map-pointer-cursor', cursorValue);
+    };
+    syncCursorDpi();
+    window.addEventListener('resize', syncCursorDpi);
+    return () => window.removeEventListener('resize', syncCursorDpi);
+  }, []);
+
   // Geofence listesini Cloudflare D1 veritabanına otomatik senkronize et
   useEffect(() => {
     if (Array.isArray(geofences) && geofences.length > 0) {

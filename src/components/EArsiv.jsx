@@ -193,9 +193,41 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         setTimeout(() => setToast(null), duration);
     };
 
-    const showConfirm = (message) => new Promise((resolve) => {
-        setConfirmDialog({ message, onConfirm: resolve });
+    const showConfirm = (messageOrOptions) => new Promise((resolve) => {
+        if (typeof messageOrOptions === 'object' && messageOrOptions !== null) {
+            setConfirmDialog({ ...messageOrOptions, onConfirm: resolve });
+        } else {
+            setConfirmDialog({ message: String(messageOrOptions || ''), onConfirm: resolve });
+        }
     });
+
+    const buildInvoiceLogMeta = (inv, extra = {}) => {
+        if (!inv) return { table: 'invoices', ...extra };
+        const periodObj = formatInvoicePeriod(inv.startDate, inv.endDate);
+        const tripCount = Array.isArray(inv.trips) ? inv.trips.length : 0;
+        const totalTon = ((inv.trips && inv.trips.length > 0)
+            ? inv.trips.reduce((acc, t) => acc + parseTonnageInTons(t.tonnage), 0)
+            : (inv.totalTonnage || 0)).toFixed(2);
+        const directAmount = Number(inv.grandTotal ?? inv.totalAmount ?? inv.totalPayable ?? inv.amount ?? 0);
+        const amountFmt = directAmount > 0
+            ? `₺${directAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            : '—';
+        const platesArr = Array.isArray(inv.plates) && inv.plates.length > 0
+            ? inv.plates
+            : Array.from(new Set((inv.trips || []).map(t => t.truckPlate || trucksMap.get(t.truckId)?.plate).filter(Boolean)));
+        return {
+            table: 'invoices',
+            id: inv.id,
+            docId: inv.docId || inv.id,
+            period: `${periodObj.primary} (${inv.startDate || '-'} – ${inv.endDate || '-'})`,
+            tripCount,
+            totalTonnage: `${totalTon} Ton`,
+            grandTotal: amountFmt,
+            plates: platesArr.length > 0 ? platesArr.join(', ') : 'Belirtilmedi',
+            gibStatus: inv.gibStatus || 'Taslak Bekliyor',
+            ...extra
+        };
+    };
 
     // Lock body scroll when any overlay is open
     useEffect(() => {
@@ -288,7 +320,20 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             await setDoc(docRef, { gibClients: updatedClients }, { merge: true });
             setGibClients(updatedClients);
             showToast('success', `"${title}" müşteri havuzuna kaydedildi.`);
-            if (addLog) addLog(`Müşteri havuzuna kaydedildi: ${title} (${vkn})`, 'success');
+            if (addLog) {
+                addLog(
+                    'GIB_MUSTERI_KAYDET',
+                    `E-Arşiv müşteri havuzuna kaydedildi: ${title} | VKN/TCKN: ${vkn} | Vergi Dairesi: ${taxOffice || '—'} | ${city || '—'}/${district || '—'}`,
+                    {
+                        table: 'company_data',
+                        id: docId,
+                        buyerTitle: title,
+                        buyerVkn: vkn,
+                        taxOffice: taxOffice || '—',
+                        cityDistrict: `${city || '—'} / ${district || '—'}`
+                    }
+                );
+            }
         } catch (err) {
             console.error("Müşteri kaydedilirken hata:", err);
             showToast('error', 'Müşteri kaydedilemedi: ' + err.message);
@@ -301,13 +346,26 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         if (!vknToDelete) return;
         try {
             const updated = { ...(gibClients || {}) };
-            const title = updated[vknToDelete]?.title || vknToDelete;
+            const removedClient = updated[vknToDelete];
+            const title = removedClient?.title || vknToDelete;
             delete updated[vknToDelete];
 
             const docRef = doc(db, 'company_data', docId);
             await setDoc(docRef, { gibClients: updated }, { merge: true });
             setGibClients(updated);
             showToast('success', `"${title}" havuzdan silindi.`);
+            if (addLog) {
+                addLog(
+                    'GIB_MUSTERI_SIL',
+                    `E-Arşiv müşteri havuzundan silindi: ${title} (VKN/TCKN: ${vknToDelete})`,
+                    {
+                        table: 'company_data',
+                        id: docId,
+                        buyerTitle: title,
+                        buyerVkn: vknToDelete
+                    }
+                );
+            }
         } catch (err) {
             console.error("Müşteri silinirken hata:", err);
             showToast('error', 'Müşteri silinemedi: ' + err.message);
@@ -358,7 +416,21 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                 defaultBuyerDistrict: defaultBuyerDistrict.trim()
             }, { merge: true });
 
-            addLog('GIB_AYARLARINI_GUNCELLE', `GİB e-Arşiv entegrasyon ayarları ve tercihleri güncellendi.`);
+            if (addLog) {
+                addLog(
+                    'GIB_AYARLARINI_GUNCELLE',
+                    `GİB E-Arşiv entegrasyon ayarları güncellendi | Mod: ${gibTestMode ? 'Test' : 'Canlı (Resmi)'} | Fatura Tipi: ${defaultInvoiceType} | KDV: %${defaultVatRate} | Varsayılan Alıcı: ${defaultBuyerTitle.trim() || '—'}`,
+                    {
+                        table: 'company_data',
+                        id: docId,
+                        gibUsername: gibUsername.trim() || '—',
+                        mode: gibTestMode ? 'Test Modu' : 'Canlı Mod',
+                        defaultInvoiceType,
+                        defaultVatRate: `%${defaultVatRate}`,
+                        defaultBuyer: defaultBuyerTitle.trim() ? `${defaultBuyerTitle.trim()} (${defaultBuyerVkn.trim()})` : '—'
+                    }
+                );
+            }
             setSettingsStatus({ type: 'success', message: 'GİB e-Arşiv ayarları ve tercihleri başarıyla kaydedildi.' });
         } catch (err) {
             console.error("GİB ayarları kaydedilemedi:", err);
@@ -517,7 +589,34 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
     };
 
     const handleResetGibStatus = async (inv) => {
-        const confirmed = await showConfirm("Bu faturanın GİB taslak durumunu sıfırlamak istediğinize emin misiniz?\n\nTaslağı GİB'den sildiyseniz veya faturayı baştan göndermek istiyorsanız bunu kullanabilirsiniz.");
+        const isSigned = inv.gibStatus === 'Signed' || inv.gibStatus === 'Approved' || inv.signed === true;
+        const period = formatInvoicePeriod(inv.startDate, inv.endDate);
+        const tripCount = inv.trips?.length || 0;
+        const totalTon = ((inv.trips && inv.trips.length > 0)
+            ? inv.trips.reduce((acc, t) => acc + parseTonnageInTons(t.tonnage), 0)
+            : (inv.totalTonnage || 0)).toFixed(2);
+        const est = getInvoiceEstimate(inv);
+        const amountStr = est?.amount
+            ? `₺${est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            : '—';
+
+        const confirmed = await showConfirm(
+            isSigned
+                ? {
+                    title: 'Resmi Onaylı Fatura Durumunu Kaldır',
+                    message: `${period.primary} (${inv.docId || inv.id}) dönemine ait BU FATURA RESMİ ONAYLI durumdadır (${tripCount} Sefer • ${totalTon} Ton • ${amountStr}).\n\nResmi onaylı faturanın E-Arşiv onay durumunu kaldırmak / sıfırlamak istediğinize emin misiniz?\n\nOnay kaldırıldığında fatura "Taslak Bekliyor" durumuna dönecek ve Fatura Durumu ekranından silinebilir hale gelecektir.`,
+                    confirmText: 'Evet, Resmi Onayı Kaldır',
+                    cancelText: 'Vazgeç',
+                    variant: 'danger'
+                }
+                : {
+                    title: 'GİB Taslak Durumunu Sıfırla',
+                    message: `${period.primary} (${inv.docId || inv.id}) dönemine ait faturanın GİB taslak durumunu sıfırlamak istediğinize emin misiniz?\n\nTaslağı GİB'den sildiyseniz veya faturayı baştan göndermek istiyorsanız onaylayabilirsiniz.`,
+                    confirmText: 'Evet, Taslağı Sıfırla',
+                    cancelText: 'Vazgeç',
+                    variant: 'warning'
+                }
+        );
         if (!confirmed) {
             return;
         }
@@ -529,8 +628,26 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                 gibStatusDate: deleteField(),
                 gibTestMode: deleteField()
             });
-            showToast('success', 'GİB taslak durumu başarıyla sıfırlandı.');
-            if (addLog) addLog("GİB taslak durumu sıfırlandı: " + (inv.docId || inv.id), "info");
+            showToast('success', isSigned ? 'Resmi onay durumu kaldırıldı ve fatura taslak bekliyor durumuna alındı.' : 'GİB taslak durumu başarıyla sıfırlandı.');
+            if (addLog) {
+                addLog(
+                    isSigned ? 'GIB_ONAY_KALDIR' : 'GIB_DURUM_SIFIRLA',
+                    isSigned
+                        ? `${inv.docId || inv.id} (${period.primary}) Resmi Onaylı faturasının E-Arşiv onay durumu kaldırıldı | ${tripCount} Sefer • ${totalTon} Ton • Tutar: ${amountStr}`
+                        : `${inv.docId || inv.id} (${period.primary}) faturasının GİB taslak durumu sıfırlandı | ${tripCount} Sefer • ${totalTon} Ton • Tutar: ${amountStr}`,
+                    buildInvoiceLogMeta(inv, {
+                        grandTotal: amountStr,
+                        before: {
+                            gibStatus: isSigned ? 'Resmi Onaylı (Signed)' : 'GİB Taslak (Draft)',
+                            gibUuid: inv.gibUuid || '—'
+                        },
+                        after: {
+                            gibStatus: 'Taslak Bekliyor',
+                            gibUuid: 'Sıfırlandı'
+                        }
+                    })
+                );
+            }
         } catch (err) {
             console.error("Fatura durumu sıfırlanırken hata:", err);
             showToast('error', 'Durum sıfırlanırken hata oluştu: ' + err.message);
@@ -538,13 +655,28 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
     };
 
     const handleMarkAsSigned = async (inv) => {
-        const confirmed = await showConfirm(`Bu faturayı (${inv.docId || inv.id}) sistemde "GİB'de İmzalandı" olarak işaretlemek istediğinize emin misiniz?`);
+        const period = formatInvoicePeriod(inv.startDate, inv.endDate);
+        const tripCount = inv.trips?.length || 0;
+        const totalTon = ((inv.trips && inv.trips.length > 0)
+            ? inv.trips.reduce((acc, t) => acc + parseTonnageInTons(t.tonnage), 0)
+            : (inv.totalTonnage || 0)).toFixed(2);
+        const est = getInvoiceEstimate(inv);
+        const amountStr = est?.amount
+            ? `₺${est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            : '—';
+
+        const confirmed = await showConfirm({
+            title: 'Faturayı Resmi Onaylı Olarak İşaretle',
+            message: `${period.primary} (${inv.docId || inv.id}) dönemine ait faturayı sistemde "Resmi Onaylı" olarak işaretlemek istediğinize emin misiniz?\n\nResmi onaylı faturalar Fatura Durumu ekranından silinemez.`,
+            confirmText: 'Evet, Resmi Onaylı İşaretle',
+            cancelText: 'Vazgeç',
+            variant: 'warning'
+        });
         if (!confirmed) {
             return;
         }
         try {
             const invoiceRef = doc(db, 'invoices', inv.id);
-            const est = getInvoiceEstimate(inv);
             const updatePayload = {
                 gibStatus: 'Signed',
                 gibStatusDate: new Date().toISOString()
@@ -553,8 +685,18 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                 updatePayload.grandTotal = est.amount;
             }
             await updateDoc(invoiceRef, updatePayload);
-            showToast('success', 'Fatura durumu "GİB\'de İmzalandı" olarak güncellendi.');
-            if (addLog) addLog("Fatura manuel olarak GİB'de İmzalandı işaretlendi: " + (inv.docId || inv.id), "success");
+            showToast('success', 'Fatura durumu "Resmi Onaylı" olarak güncellendi.');
+            if (addLog) {
+                addLog(
+                    'GIB_MANUEL_IMZALANDI',
+                    `${inv.docId || inv.id} (${period.primary}) faturası manuel olarak 'Resmi Onaylı' işaretlendi | ${tripCount} Sefer • ${totalTon} Ton • Tutar: ${amountStr}`,
+                    buildInvoiceLogMeta(inv, {
+                        grandTotal: amountStr,
+                        before: { gibStatus: inv.gibStatus || 'Taslak Bekliyor' },
+                        after: { gibStatus: 'Signed (Resmi Onaylı)', grandTotal: amountStr }
+                    })
+                );
+            }
         } catch (err) {
             console.error("Fatura imzalandı işaretlenirken hata:", err);
             showToast('error', 'Durum güncellenirken hata oluştu: ' + err.message);
@@ -589,11 +731,23 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             }
 
             setForceLogoutStatus({ type: 'success', message: 'GİB sunucularındaki oturumunuz başarıyla kapatıldı! Artık sisteme giriş yapabilirsiniz.' });
-            if (addLog) addLog("GİB Aktif oturumu zorla sonlandırıldı.", "success");
+            if (addLog) {
+                addLog(
+                    'GIB_OTURUM_KAPAT',
+                    `GİB E-Arşiv sunucularındaki aktif oturum sonlandırıldı | Kullanıcı Kodu: ${gibUsername}`,
+                    { table: 'company_data', id: docId, gibUsername }
+                );
+            }
         } catch (err) {
             console.error("GİB Oturum kapatma hatası:", err);
             setForceLogoutStatus({ type: 'error', message: err.message });
-            if (addLog) addLog("GİB Oturumu kapatılamadı: " + err.message, "error");
+            if (addLog) {
+                addLog(
+                    'GIB_OTURUM_KAPAT',
+                    `GİB E-Arşiv oturumu kapatılırken hata oluştu: ${err.message} | Kullanıcı Kodu: ${gibUsername}`,
+                    { table: 'company_data', id: docId, gibUsername, error: err.message }
+                );
+            }
         } finally {
             setIsForceLoggingOut(false);
         }
@@ -621,10 +775,22 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             }
             
             if (data.success && data.smsResult) {
+                const phoneStr = data.smsResult.phone || data.smsResult.phoneNumber || '';
                 setSmsOid(data.smsResult.oid || '');
-                setSmsPhone(data.smsResult.phone || data.smsResult.phoneNumber || ''); 
+                setSmsPhone(phoneStr); 
                 setSmsCode('');
                 setSmsModalOpen(true);
+
+                if (addLog) {
+                    const period = formatInvoicePeriod(invoice.startDate, invoice.endDate);
+                    const est = getInvoiceEstimate(invoice);
+                    const amountStr = est?.amount ? `₺${est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
+                    addLog(
+                        'GIB_SMS_GONDERILDI',
+                        `${invoice.docId || invoice.id} (${period.primary}) faturasını imzalamak için GİB SMS doğrulama kodu gönderildi | Telefon: ${phoneStr || 'Kayıtlı Numara'} • Tutar: ${amountStr}`,
+                        buildInvoiceLogMeta(invoice, { grandTotal: amountStr, smsPhone: phoneStr || 'Kayıtlı Numara', smsOid: data.smsResult.oid || '—' })
+                    );
+                }
             }
         } catch (err) {
             showToast('error', err.message);
@@ -670,6 +836,14 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             // Onaylanan faturanın hakediş tutarını kalıcı olarak kaydet
             if (smsTargetInvoice) {
                 const est = getInvoiceEstimate(smsTargetInvoice);
+                const finalAmount = est?.amount || smsTargetInvoice.grandTotal || 0;
+                const amountStr = finalAmount > 0 ? `₺${Number(finalAmount).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
+                const period = formatInvoicePeriod(smsTargetInvoice.startDate, smsTargetInvoice.endDate);
+                const tripCount = smsTargetInvoice.trips?.length || 0;
+                const totalTon = ((smsTargetInvoice.trips && smsTargetInvoice.trips.length > 0)
+                    ? smsTargetInvoice.trips.reduce((acc, t) => acc + parseTonnageInTons(t.tonnage), 0)
+                    : (smsTargetInvoice.totalTonnage || 0)).toFixed(2);
+
                 if ((!smsTargetInvoice.grandTotal || Number(smsTargetInvoice.grandTotal) <= 0) && est?.amount) {
                     try {
                         const invoiceRef = doc(db, 'invoices', smsTargetInvoice.id);
@@ -677,6 +851,18 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                     } catch (saveErr) {
                         console.warn("Fatura tutarı güncellenirken hata:", saveErr);
                     }
+                }
+
+                if (addLog) {
+                    addLog(
+                        'GIB_FATURA_IMZALANDI',
+                        `${smsTargetInvoice.docId || smsTargetInvoice.id} (${period.primary}) faturası GİB SMS doğrulaması ile Resmi Onaylı olarak imzalandı | ${tripCount} Sefer • ${totalTon} Ton • Tutar: ${amountStr}`,
+                        buildInvoiceLogMeta(smsTargetInvoice, {
+                            grandTotal: amountStr,
+                            before: { gibStatus: 'Draft (GİB Taslak)' },
+                            after: { gibStatus: 'Signed (Resmi Onaylı)', grandTotal: amountStr }
+                        })
+                    );
                 }
             }
 
@@ -690,6 +876,10 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
     };
 
     const handleDownloadPdf = async (invoice) => {
+        const period = formatInvoicePeriod(invoice.startDate, invoice.endDate);
+        const est = getInvoiceEstimate(invoice);
+        const amountStr = est?.amount ? `₺${est.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
+
         // 1. Faturada kayıtlı resmi PDF veya belge varsa GİB'e hiç gitmeden doğrudan aç
         const existingFile = invoice.files?.find(f => 
             f.name?.toLowerCase().endsWith('.pdf') || 
@@ -701,6 +891,13 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
         if (existingFile) {
             handleViewManualPdf(existingFile);
             showToast('info', 'Fatura sistemdeki resmi ekten açıldı.');
+            if (addLog) {
+                addLog(
+                    'GIB_PDF_INDIR',
+                    `${invoice.docId || invoice.id} (${period.primary}) Resmi E-Arşiv faturası görüntülendi/indirildi (${existingFile.name || 'Ekli Belge'}) | Tutar: ${amountStr}`,
+                    buildInvoiceLogMeta(invoice, { grandTotal: amountStr, fileName: existingFile.name || 'Ekli Belge', source: 'Sistem Arşivi' })
+                );
+            }
             return;
         }
 
@@ -729,11 +926,11 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             }
             
             const htmlText = await res.text();
+            const docNumber = invoice.invoiceNo || invoice.docId || 'GIB';
             
             // Faturaya ek olarak kalıcı kaydet
             try {
                 const base64Data = 'data:text/html;charset=utf-8;base64,' + btoa(unescape(encodeURIComponent(htmlText)));
-                const docNumber = invoice.invoiceNo || invoice.docId || 'GIB';
                 const officialFile = {
                     id: Date.now(),
                     name: `${docNumber}_e-Arsiv.html`,
@@ -764,6 +961,13 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
             setTimeout(() => window.URL.revokeObjectURL(url), 10000);
             
             showToast('success', 'Fatura GİB portalından çekildi ve faturaya kalıcı olarak eklendi.');
+            if (addLog) {
+                addLog(
+                    'GIB_PDF_INDIR',
+                    `${invoice.docId || invoice.id} (${period.primary}) Resmi E-Arşiv faturası GİB portalından çekildi ve arşive kaydedildi (${docNumber}_e-Arsiv.html) | Tutar: ${amountStr}`,
+                    buildInvoiceLogMeta(invoice, { grandTotal: amountStr, fileName: `${docNumber}_e-Arsiv.html`, source: 'GİB Portal' })
+                );
+            }
         } catch (err) {
             showToast('error', err.message);
         } finally {
@@ -802,6 +1006,26 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
 
     const handleSaveManualFiles = async () => {
         if (!pdfModalInvoice) return;
+
+        const prevFiles = pdfModalInvoice.files || [];
+        const nextFiles = modalFiles || [];
+        const isSigned = pdfModalInvoice.gibStatus === 'Signed' || pdfModalInvoice.gibStatus === 'Approved' || pdfModalInvoice.signed === true;
+        const period = formatInvoicePeriod(pdfModalInvoice.startDate, pdfModalInvoice.endDate);
+        const removedFiles = prevFiles.filter(pf => !nextFiles.some(nf => (nf.id && nf.id === pf.id) || nf.name === pf.name));
+
+        // Resmi onaylı faturadan ekli belge siliniyorsa emin misiniz diye sor
+        if (isSigned && removedFiles.length > 0) {
+            const removedNames = removedFiles.map(f => f.name || 'Belge').join(', ');
+            const confirmed = await showConfirm({
+                title: 'Resmi Onaylı Fatura Belgesini Sil',
+                message: `${period.primary} (${pdfModalInvoice.docId || pdfModalInvoice.id}) dönemine ait BU FATURA RESMİ ONAYLI durumdadır.\n\n"${removedNames}" belgesini bu resmi onaylı faturadan silmek istediğinize emin misiniz?`,
+                confirmText: 'Evet, Belgeyi Sil',
+                cancelText: 'Vazgeç',
+                variant: 'danger'
+            });
+            if (!confirmed) return;
+        }
+
         setIsSavingPdf(true);
         try {
             const invoiceRef = doc(db, 'invoices', pdfModalInvoice.id);
@@ -810,7 +1034,27 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                 note: modalNote
             });
             showToast('success', 'Fatura belgeleri başarıyla güncellendi.');
-            if (addLog) addLog(`E-Arşiv belgesi güncellendi: ${pdfModalInvoice.docId || pdfModalInvoice.id}`, 'info');
+            if (addLog) {
+                const prevNames = prevFiles.map(f => f.name || 'Belge').join(', ') || 'Yok';
+                const nextNames = nextFiles.map(f => f.name || 'Belge').join(', ') || 'Yok';
+                const actionCode = removedFiles.length > 0 ? 'GIB_BELGE_SIL' : 'GIB_BELGE_GUNCELLE';
+                addLog(
+                    actionCode,
+                    `${pdfModalInvoice.docId || pdfModalInvoice.id} (${period.primary}) E-Arşiv fatura ekleri/notu güncellendi | Belgeler: ${prevFiles.length} → ${nextFiles.length} (${nextNames}) | Not: ${modalNote ? modalNote.slice(0, 60) : '—'}`,
+                    buildInvoiceLogMeta(pdfModalInvoice, {
+                        before: {
+                            filesCount: prevFiles.length,
+                            fileNames: prevNames,
+                            note: pdfModalInvoice.note || '—'
+                        },
+                        after: {
+                            filesCount: nextFiles.length,
+                            fileNames: nextNames,
+                            note: modalNote || '—'
+                        }
+                    })
+                );
+            }
             setPdfModalInvoice(null);
         } catch (err) {
             console.error('Belge kaydedilirken hata:', err);
@@ -985,7 +1229,30 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
                 console.error("Güzergah hafızası kaydedilirken hata:", e);
             }
 
-            addLog('GIB_FATURA_GONDERILDI', `${selectedInvoice.docId || selectedInvoice.id} faturası GİB portalına taslak olarak başarıyla aktarıldı.`);
+            if (addLog) {
+                const period = formatInvoicePeriod(selectedInvoice.startDate, selectedInvoice.endDate);
+                const tripCount = selectedInvoice.trips?.length || 0;
+                const totalTon = routeLines.reduce((acc, r) => acc + (Number(r.quantity) || 0), 0).toFixed(2);
+                const baseFmt = `₺${totals.base.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                const payableFmt = `₺${totals.payment.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                addLog(
+                    'GIB_FATURA_GONDERILDI',
+                    `${selectedInvoice.docId || selectedInvoice.id} (${period.primary}) faturası GİB E-Arşiv portalına taslak olarak aktarıldı | Alıcı: ${buyerTitle.trim()} (${buyerVkn.trim()}) | ${tripCount} Sefer • ${totalTon} Ton • Matrah: ${baseFmt} • Ödenecek: ${payableFmt}`,
+                    buildInvoiceLogMeta(selectedInvoice, {
+                        grandTotal: payableFmt,
+                        netAmount: baseFmt,
+                        vatAmount: `₺${totals.vat.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                        withholdingAmount: `₺${totals.vatOfTax.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                        buyerTitle: buyerTitle.trim(),
+                        buyerVkn: buyerVkn.trim(),
+                        invoiceType,
+                        invoiceDate,
+                        mode: gibTestMode ? 'Test Modu' : 'Canlı Mod',
+                        before: { gibStatus: selectedInvoice.gibStatus || 'Taslak Bekliyor' },
+                        after: { gibStatus: 'Draft (GİB Taslak)', grandTotal: payableFmt, buyerTitle: buyerTitle.trim() }
+                    })
+                );
+            }
             showToast('success', 'Fatura başarıyla GİB e-Arşiv portalında Taslak olarak oluşturuldu! Portalda imzalamayı unutmayın.');
         } catch (err) {
             console.error("GİB gönderim hatası:", err);
@@ -1490,35 +1757,63 @@ const EArsiv = ({ onOpenMenu, isMobile }) => {
     const toastPortal = toastEl ? createPortal(toastEl, document.body) : null;
 
     const confirmEl = confirmDialog ? (
-        <div className="fixed inset-0 z-[99998] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="glass-panel w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95 duration-200 border border-orange-500/20">
+        <div
+            className="fixed inset-0 z-[99998] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200"
+            onClick={() => { confirmDialog.onConfirm(false); setConfirmDialog(null); }}
+        >
+            <motion.div
+                initial={{ opacity: 0, scale: 0.92, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 28 }}
+                onClick={(e) => e.stopPropagation()}
+                className={`bg-[#0a0d14] w-full max-w-md p-6 rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.9)] border relative overflow-hidden ${
+                    confirmDialog.variant === 'danger' ? 'border-rose-500/30' : 'border-orange-500/25'
+                }`}
+            >
                 <div className="flex items-start gap-4 mb-6">
-                    <div className="p-2.5 rounded-xl bg-orange-500/10 border border-orange-500/20 shrink-0">
-                        <AlertTriangle className="text-orange-400" size={20} />
+                    <div className={`p-2.5 rounded-xl border shrink-0 ${
+                        confirmDialog.variant === 'danger'
+                            ? 'bg-rose-500/10 border-rose-500/25 text-rose-400'
+                            : 'bg-orange-500/10 border-orange-500/25 text-orange-400'
+                    }`}>
+                        <AlertTriangle size={20} />
                     </div>
-                    <div>
-                        <p className="text-sm font-semibold text-[var(--text-primary)] mb-1">Onay Gerekiyor</p>
-                        <p className="text-sm text-[var(--text-secondary)] leading-relaxed whitespace-pre-line">{confirmDialog.message}</p>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-base font-bold text-white tracking-tight mb-1.5">
+                            {confirmDialog.title || 'Onay Gerekiyor'}
+                        </p>
+                        <p className="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line">
+                            {confirmDialog.message}
+                        </p>
                     </div>
                 </div>
                 <div className="flex gap-3 justify-end">
                     <button
+                        type="button"
                         onClick={() => { confirmDialog.onConfirm(false); setConfirmDialog(null); }}
-                        className="px-5 py-2 text-sm font-semibold rounded-lg bg-[var(--bg-panel-hover)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition cursor-pointer"
-                    >İptal</button>
+                        className="px-4 py-2.5 text-xs sm:text-sm font-semibold rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-300 hover:text-white transition cursor-pointer"
+                    >
+                        {confirmDialog.cancelText || 'İptal'}
+                    </button>
                     <button
+                        type="button"
                         onClick={() => { confirmDialog.onConfirm(true); setConfirmDialog(null); }}
-                        className="px-5 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white transition shadow-lg shadow-orange-500/25 cursor-pointer"
-                    >Onayla</button>
+                        className={`px-5 py-2.5 text-xs sm:text-sm font-bold rounded-xl text-white transition shadow-lg cursor-pointer ${
+                            confirmDialog.variant === 'danger'
+                                ? 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 shadow-rose-950/50'
+                                : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 shadow-orange-500/25'
+                        }`}
+                    >
+                        {confirmDialog.confirmText || 'Onayla'}
+                    </button>
                 </div>
-            </div>
+            </motion.div>
         </div>
     ) : null;
     const confirmPortal = confirmEl ? createPortal(confirmEl, document.body) : null;
 
     return (
         <>
-            {confirmPortal}
             <div className="flex flex-col h-full w-full gap-3 sm:gap-4 overflow-hidden animate-in fade-in duration-500 pb-2">
 
                 {/* ─── ENTEGRE TEK SATIR HEADER BAR ─── */}

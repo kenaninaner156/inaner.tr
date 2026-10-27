@@ -52,7 +52,7 @@ const createVehicleIcon = (isOnline, isMapped, speedKmh = 0, isFollowed = false)
         align-items: center;
         justify-content: center;
         overflow: hidden;
-        cursor: pointer;
+        cursor: var(--map-pointer-cursor, url('/middle-finger.cur'), pointer);
         box-sizing: border-box;
       ">
         <img 

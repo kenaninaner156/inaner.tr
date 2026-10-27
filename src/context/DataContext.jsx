@@ -5,12 +5,27 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { useCompany } from './CompanyContext';
 import { useTruck } from './TruckContext';
 import { lockPinSession } from '../utils/pinSession';
+import { getGuardedUserConfig, findUserOwnTruck } from '../utils/userTruckGuard';
 // eslint-disable-next-line react-refresh/only-export-components
 export const DataContext = createContext();
 
 export const DataProvider = ({ children }) => {
     const { activeCompanyId } = useCompany();
-    const { activeTruckId, trucks } = useTruck();
+    const { activeTruckId, setActiveTruckId, trucks } = useTruck();
+
+    // Göksel veya Mert giriş yaptığında kendi aracını otomatik seç
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const pendingTag = localStorage.getItem('tir_pending_user_truck_tag');
+        if (pendingTag && Array.isArray(trucks) && trucks.length > 0) {
+            const matched = trucks.find(t => (t.plate || '').toUpperCase().includes(pendingTag))
+                || trucks.find(t => (t.id || '').toLowerCase().includes(pendingTag.toLowerCase()));
+            if (matched) {
+                setActiveTruckId(matched.id);
+                localStorage.removeItem('tir_pending_user_truck_tag');
+            }
+        }
+    }, [trucks, setActiveTruckId]);
 
     const [trips, setTrips] = useState([]);
     const [allCompanyTrips, setAllCompanyTrips] = useState([]);
@@ -138,6 +153,19 @@ export const DataProvider = ({ children }) => {
         localStorage.setItem('tir_session_start', newSessionStart);
         setCurrentSession({ username: user.username, uid: user.uid, role: user.role || 'user', ip: user.ip, device: user.device, location: user.location, rawDevice: user.rawDevice, screen: user.screen, cores: user.cores, tz: user.tz, lang: user.lang, isKnownDevice: user.isKnownDevice, vpnRisk: user.vpnRisk, incognitoRisk: user.incognitoRisk, presenceId: newPresenceId, sessionStart: newSessionStart });
 
+        // Göksel veya Mert giriş yaptığında kendi plakasına otomatik geç
+        const guardCfg = getGuardedUserConfig(user.username);
+        if (guardCfg) {
+            localStorage.setItem('tir_pending_user_truck_tag', guardCfg.expectedPlateTag);
+            const ownTruck = findUserOwnTruck(trucks, guardCfg);
+            if (ownTruck) {
+                setActiveTruckId(ownTruck.id);
+                localStorage.removeItem('tir_pending_user_truck_tag');
+            } else if (guardCfg.expectedDefaultTruckId) {
+                setActiveTruckId(guardCfg.expectedDefaultTruckId);
+            }
+        }
+
         const userKey = user.username === 'kenan' ? 'admin' : user.username;
         await addLog('KULLANICI_GIRIS', `${userKey} sisteme giriş yaptı`, { ip: user.ip || 'Bilinmiyor', device: user.device || 'Bilinmiyor', location: user.location || 'Bilinmiyor', rawDevice: user.rawDevice || 'Bilinmiyor' }, userKey);
     };
@@ -244,7 +272,13 @@ export const DataProvider = ({ children }) => {
 
             // 7. Invoices (Şirket İzolasyonu)
             const compInvoices = (offDb.invoices || []).filter(d => (!activeCompanyId || d.companyId === activeCompanyId) && !d.deleted);
-            setInvoices(compInvoices.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+            setInvoices(compInvoices.sort((a, b) => {
+                const endDiff = new Date(b.endDate || 0) - new Date(a.endDate || 0);
+                if (endDiff !== 0) return endDiff;
+                const startDiff = new Date(b.startDate || 0) - new Date(a.startDate || 0);
+                if (startDiff !== 0) return startDiff;
+                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+            }));
 
             // 8. Payouts (Şirket İzolasyonu + Aktif Araç Filtresi)
             const compPayouts = (offDb.payouts || []).filter(d => (!activeCompanyId || d.companyId === activeCompanyId) && !d.deleted);
@@ -517,7 +551,13 @@ export const DataProvider = ({ children }) => {
         // 6. Maintenance Folders config
         unsubs.push(onSnapshot(query(collection(db, 'maintenance_folders'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                .sort((a, b) => {
+                    const endDiff = new Date(b.endDate || 0) - new Date(a.endDate || 0);
+                    if (endDiff !== 0) return endDiff;
+                    const startDiff = new Date(b.startDate || 0) - new Date(a.startDate || 0);
+                    if (startDiff !== 0) return startDiff;
+                    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+                });
             setAllCompanyFolders(data);
             saveCacheDebounced({ folders: data });
         }, handleSnapError('maintenance_folders')));
@@ -530,8 +570,17 @@ export const DataProvider = ({ children }) => {
                 orderBy('timestamp', 'desc'),
                 limit(100)
             ), (snapshot) => {
-                const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                const data = snapshot.docs.map(docSnap => {
+                    const raw = docSnap.data();
+                    if (raw.action === 'FATURA_SIL_ENGELLENDI' && raw.meta?.table) {
+                        const cleanMeta = { ...raw.meta };
+                        delete cleanMeta.table;
+                        delete cleanMeta.id;
+                        updateDoc(doc(db, 'admin_logs', docSnap.id), { action: 'FATURA_KORUMA_ENGELI', meta: cleanMeta }).catch(() => {});
+                        return { ...raw, action: 'FATURA_KORUMA_ENGELI', meta: cleanMeta, id: docSnap.id };
+                    }
+                    return { ...raw, id: docSnap.id };
+                }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                 setAdminLog(data);
             }));
         } else {
@@ -542,14 +591,26 @@ export const DataProvider = ({ children }) => {
         unsubs.push(onSnapshot(query(collection(db, 'invoices'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
                 .filter(d => !d.deleted)
-                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                .sort((a, b) => {
+                    const endDiff = new Date(b.endDate || 0) - new Date(a.endDate || 0);
+                    if (endDiff !== 0) return endDiff;
+                    const startDiff = new Date(b.startDate || 0) - new Date(a.startDate || 0);
+                    if (startDiff !== 0) return startDiff;
+                    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+                });
             setInvoices(data);
         }));
 
         // 8.5 Payouts config
         unsubs.push(onSnapshot(query(collection(db, 'payouts'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
-                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                .sort((a, b) => {
+                    const endDiff = new Date(b.endDate || 0) - new Date(a.endDate || 0);
+                    if (endDiff !== 0) return endDiff;
+                    const startDiff = new Date(b.startDate || 0) - new Date(a.startDate || 0);
+                    if (startDiff !== 0) return startDiff;
+                    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+                });
             setAllCompanyPayouts(data);
         }));
 
@@ -563,14 +624,26 @@ export const DataProvider = ({ children }) => {
         }
 
         unsubs.push(onSnapshot(query(collection(db, 'approved_users'), where('companyId', '==', activeCompanyId)), (snapshot) => {
-            setApprovedUsers(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+            const list = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            setApprovedUsers(list);
+            const myDoc = list.find(u => (currentSession?.uid && u.id === currentSession.uid) || (currentSession?.username && u.username?.toLowerCase() === currentSession.username.toLowerCase()));
+            if (myDoc && myDoc.role && myDoc.role !== currentSession?.role) {
+                localStorage.setItem('tir_current_role', myDoc.role);
+                setCurrentSession(prev => prev ? { ...prev, role: myDoc.role } : prev);
+            }
         }));
 
         // 10. Spare Parts config
         unsubs.push(onSnapshot(query(collection(db, 'spare_parts'), where('companyId', '==', activeCompanyId)), (snapshot) => {
             const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }))
                 .filter(d => !d.deleted)
-                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                .sort((a, b) => {
+                    const endDiff = new Date(b.endDate || 0) - new Date(a.endDate || 0);
+                    if (endDiff !== 0) return endDiff;
+                    const startDiff = new Date(b.startDate || 0) - new Date(a.startDate || 0);
+                    if (startDiff !== 0) return startDiff;
+                    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+                });
             setSpareParts(data);
         }));
 
@@ -1448,7 +1521,7 @@ export const DataProvider = ({ children }) => {
 
     // Invoices CRUD
     const addInvoice = async (invoice) => {
-        await addDoc(collection(db, 'invoices'), {
+        const payload = {
             ...invoice,
             companyId: activeCompanyId,
             truckId: invoice.isConsolidated ? null : (invoice.truckId || activeTruckId),
@@ -1457,18 +1530,80 @@ export const DataProvider = ({ children }) => {
             plates: invoice.plates || [],
             deleted: false,
             createdAt: new Date().toISOString()
-        });
-        addLog('FATURA_OLUSTUR', `${invoice.startDate} - ${invoice.endDate} periyodu için Fatura oluşturuldu.`);
+        };
+        const docRef = await addDoc(collection(db, 'invoices'), payload);
+        const tripCount = Array.isArray(invoice.trips) ? invoice.trips.length : 0;
+        const tonnageVal = Number(invoice.totalTonnage || 0).toFixed(2);
+        const totalVal = Number(invoice.grandTotal || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const platesStr = Array.isArray(invoice.plates) && invoice.plates.length > 0 ? invoice.plates.join(', ') : 'Belirtilmedi';
+        const periodStr = `${invoice.startDate || '-'} – ${invoice.endDate || '-'}`;
+        addLog(
+            'FATURA_OLUSTUR',
+            `${invoice.docId || 'Fatura'} (${periodStr}) kesildi ve onaylandı | ${tripCount} Sefer • ${tonnageVal} Ton • Tutar: ₺${totalVal} • Araç: ${platesStr}`,
+            {
+                table: 'invoices',
+                id: docRef.id,
+                docId: invoice.docId || docRef.id,
+                period: periodStr,
+                tripCount,
+                totalTonnage: `${tonnageVal} Ton`,
+                grandTotal: `₺${totalVal}`,
+                plates: platesStr,
+                isConsolidated: payload.isConsolidated ? 'Konsolide' : 'Tek Araç'
+            }
+        );
+        return docRef.id;
     };
 
     const updateInvoice = async (id, updatedFields) => {
         const inv = invoices.find(i => i.id === id);
         await updateDoc(doc(db, 'invoices', id), updatedFields);
-        addLog('FATURA_GUNCELLE', `Fatura ID: ${id} güncellendi.`, { table: 'invoices', id, before: inv, after: updatedFields });
+        const periodStr = inv ? `${inv.startDate || '-'} – ${inv.endDate || '-'}` : '-';
+        const docCode = inv?.docId || id;
+        const changedKeys = Object.keys(updatedFields || {}).join(', ');
+        addLog(
+            'FATURA_GUNCELLE',
+            `${docCode} (${periodStr}) faturası güncellendi | Değişen alanlar: ${changedKeys}`,
+            {
+                table: 'invoices',
+                id,
+                docId: docCode,
+                period: periodStr,
+                before: inv ? {
+                    docId: inv.docId || id,
+                    period: periodStr,
+                    grandTotal: inv.grandTotal ?? 0,
+                    gibStatus: inv.gibStatus || 'Taslak Bekliyor',
+                    note: inv.note || ''
+                } : null,
+                after: updatedFields
+            }
+        );
     };
 
     const deleteInvoice = async (id) => {
         const invToDelete = invoices.find(inv => inv.id === id);
+        const isOfficial = invToDelete && (invToDelete.gibStatus === 'Signed' || invToDelete.gibStatus === 'Approved' || invToDelete.signed === true);
+        if (isOfficial) {
+            const periodStr = `${invToDelete.startDate || '-'} – ${invToDelete.endDate || '-'}`;
+            const tripCount = Array.isArray(invToDelete.trips) ? invToDelete.trips.length : 0;
+            const tonnageVal = Number(invToDelete.totalTonnage || 0).toFixed(2);
+            const totalVal = Number(invToDelete.grandTotal || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            addLog(
+                'FATURA_KORUMA_ENGELI',
+                `${invToDelete.docId || id} (${periodStr}) Resmi Onaylı faturasını silme girişimi engellendi | ${tripCount} Sefer • ${tonnageVal} Ton • Tutar: ₺${totalVal}`,
+                {
+                    docId: invToDelete.docId || id,
+                    period: periodStr,
+                    tripCount,
+                    totalTonnage: `${tonnageVal} Ton`,
+                    grandTotal: `₺${totalVal}`,
+                    gibStatus: 'Resmi Onaylı'
+                }
+            );
+            throw new Error('Bu fatura E-Arşiv üzerinde Resmi Onaylı olduğu için silinemez.');
+        }
+
         if (invToDelete && Array.isArray(invToDelete.trips) && invToDelete.trips.length > 0) {
             try {
                 const batch = writeBatch(db);
@@ -1484,7 +1619,26 @@ export const DataProvider = ({ children }) => {
             }
         }
         await updateDoc(doc(db, 'invoices', id), { deleted: true });
-        addLog('FATURA_SIL', `Fatura silindi`, { table: 'invoices', id, record: invToDelete });
+        const periodStr = invToDelete ? `${invToDelete.startDate || '-'} – ${invToDelete.endDate || '-'}` : '-';
+        const tripCount = Array.isArray(invToDelete?.trips) ? invToDelete.trips.length : 0;
+        const tonnageVal = Number(invToDelete?.totalTonnage || 0).toFixed(2);
+        const totalVal = Number(invToDelete?.grandTotal || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const platesStr = Array.isArray(invToDelete?.plates) && invToDelete.plates.length > 0 ? invToDelete.plates.join(', ') : 'Belirtilmedi';
+        addLog(
+            'FATURA_SIL',
+            `${invToDelete?.docId || id} (${periodStr}) faturası silindi ve ${tripCount} sefer 'Fatura Bekliyor' durumuna geri alındı | ${tonnageVal} Ton • Tutar: ₺${totalVal} • Araç: ${platesStr}`,
+            {
+                table: 'invoices',
+                id,
+                docId: invToDelete?.docId || id,
+                period: periodStr,
+                tripCount,
+                totalTonnage: `${tonnageVal} Ton`,
+                grandTotal: `₺${totalVal}`,
+                plates: platesStr,
+                record: invToDelete
+            }
+        );
     };
 
     // Payouts CRUD

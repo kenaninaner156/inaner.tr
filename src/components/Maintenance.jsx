@@ -1,4 +1,4 @@
-﻿import React, { useState, useContext, useEffect } from 'react';
+﻿import React, { useState, useContext, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Wrench, Plus, Calendar, X, MapPin, Truck, Trash2, Pencil, Check, User, Users, FileText, StickyNote, AlertCircle, ChevronDown, Download, Eye, Paperclip, FolderOpen, FolderPlus, Map, Phone, Package, ShoppingCart, Link, GripVertical, ExternalLink, Settings as SettingsIcon, AlertTriangle, CheckCircle, Disc, Menu } from 'lucide-react';
 import { motion, Reorder, AnimatePresence } from 'framer-motion';
@@ -24,7 +24,24 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
         maintenanceTypes, updateMaintenanceTypes
     } = useContext(DataContext);
 
-    const { activeTruckId, activeTruckData } = useTruck();
+    const { activeTruckId, activeTruckData, switchNextTruck, trucks } = useTruck();
+    const lastTitleTapRef = useRef(0);
+
+    const handleTitleClick = (e) => {
+        const now = Date.now();
+        if (lastTitleTapRef.current && (now - lastTitleTapRef.current) < 380) {
+            e.preventDefault();
+            switchNextTruck?.();
+            lastTitleTapRef.current = 0;
+            return;
+        }
+        lastTitleTapRef.current = now;
+    };
+
+    const handleTitleDoubleClick = (e) => {
+        e.preventDefault();
+        switchNextTruck?.();
+    };
 
     const [activeTab, setActiveTab] = useState('records'); // 'records', 'info', 'shopping', 'stock', 'mechanics', 'photos'
     const [viewFiles, setViewFiles] = useState(null);
@@ -443,9 +460,24 @@ const Maintenance = ({ onOpenMenu, isMobile } = {}) => {
                         </button>
                     )}
                     
-                    <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white whitespace-nowrap">
-                        Araç Bakım
-                    </h2>
+                    <div 
+                        onClick={handleTitleClick}
+                        onDoubleClick={handleTitleDoubleClick}
+                        className="flex flex-col justify-center min-w-0 shrink-0 select-none cursor-pointer group py-0.5"
+                        title={trucks?.length > 1 ? "Çift tıklayarak aracı değiştirin" : undefined}
+                    >
+                        <h2 className="text-base sm:text-xl font-bold tracking-tight text-white whitespace-nowrap leading-none group-hover:text-slate-100 transition-colors">
+                            Araç Bakım
+                        </h2>
+                        {activeTruckData?.plate && (
+                            <span 
+                                key={activeTruckData.plate}
+                                className="text-[10px] sm:text-[11px] font-mono font-medium text-slate-400/75 group-hover:text-cyan-400 tracking-wider uppercase leading-none mt-1 transition-colors animate-in fade-in duration-200"
+                            >
+                                {activeTruckData.plate}
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 {/* Sağ Grup: Sabit & Titremesiz Dinamik Aksiyon Butonu */}

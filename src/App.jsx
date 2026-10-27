@@ -556,7 +556,7 @@ function App() {
 
     if (userRole === 'super_admin') return true;
 
-    if (userRole === 'company_admin') return true;
+    if (userRole === 'company_admin' || userRole === 'admin') return true;
 
     // Default 'şoför' -> Sadece operasyonel sekmeleri görür
     return !['map', 'personel', 'earsiv', 'company_debts', 'invoices', 'payments', 'drive'].includes(item.id);
@@ -943,7 +943,7 @@ function App() {
               {activeTab === 'settings' && <SettingsPage onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
               {activeTab === 'company_admin' && <CompanyAdmin onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
               {activeTab === 'super_admin' && <SuperAdmin onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
-              {activeTab === 'map' && userRole === 'super_admin' && <MapPage onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
+              {activeTab === 'map' && ['super_admin', 'company_admin', 'admin'].includes(userRole) && <MapPage onOpenMenu={handleOpenMenu} isMobile={isMobile} />}
             </div>
           </div>
         </div>

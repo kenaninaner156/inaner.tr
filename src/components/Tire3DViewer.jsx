@@ -3,9 +3,10 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Html, useGLTF, Environment, ContactShadows, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { db } from '../services/firebaseConfig';
-import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { useTruck } from '../context/TruckContext';
-import { Disc, Calendar, AlertTriangle, CheckCircle, Save, RotateCcw, Info, Sparkles, HelpCircle, Activity, Sliders, X, History, ArrowLeftRight, Pencil, ArrowLeft } from 'lucide-react';
+import { useCompany } from '../context/CompanyContext';
+import { Disc, Calendar, AlertTriangle, CheckCircle, Save, RotateCcw, Info, Sparkles, HelpCircle, Activity, Sliders, X, History, ArrowLeftRight, Pencil, ArrowLeft, Layers, Plus, Minus, Trash2, Truck } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 
 // Error Boundary Bileşeni
@@ -90,6 +91,30 @@ const TIRE_POSITIONS = [
   { id: 'TL3', label: 'Dorse Sol 3', group: 'Dorse', side: 'left', axle: 5, type: 'single', pos3D: [2.5, -0.15, 0.55] },
   { id: 'TR3', label: 'Dorse Sağ 3', group: 'Dorse', side: 'right', axle: 5, type: 'single', pos3D: [2.5, -0.15, -0.55] }
 ];
+
+// Şirket Ortak Yedek Lastik Rafı — 2 Kat x 10 Slot = 20 Yedek Lastik Konumu
+const RACK_TIRE_POSITIONS = Array.from({ length: 20 }, (_, idx) => {
+  const slotNum = idx + 1;
+  const isUpperShelf = idx < 10;
+  const colIndex = idx % 10;
+  const localX = Number(((colIndex - 4.5) * 0.42).toFixed(3));
+  const localY = isUpperShelf ? 1.92 : 1.04;
+  return {
+    id: `SPARE_${slotNum}`,
+    slotNumber: slotNum,
+    shortLabel: `#${String(slotNum).padStart(2, '0')}`,
+    label: `Yedek Lastik #${slotNum} (${isUpperShelf ? 'Üst Raf' : 'Orta Raf'})`,
+    group: isUpperShelf ? 'Yedek Raf (Üst Kat)' : 'Yedek Raf (Orta Kat)',
+    shelf: isUpperShelf ? 1 : 2,
+    colIndex,
+    isRack: true,
+    type: 'spare',
+    localPos: [localX, localY, 0.04],
+    pos3D: [Number((9.2 + localX).toFixed(2)), Number((localY - 0.5).toFixed(2)), -6.81]
+  };
+});
+
+const ALL_TIRE_POSITIONS = [...TIRE_POSITIONS, ...RACK_TIRE_POSITIONS];
 
 const DEFAULT_CALIBRATION = {
   radius: 0.28,
@@ -1260,8 +1285,558 @@ function ShowroomLogoSign() {
   );
 }
 
+// Prosedürel Ağır Vasıta Lastik Sırt Deseni (GPU CanvasTexture)
+let sharedTreadTexture = null;
+function getSharedTreadTexture() {
+  if (sharedTreadTexture) return sharedTreadTexture;
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // Ana kauçuk tabanı
+  ctx.fillStyle = '#18181b';
+  ctx.fillRect(0, 0, 512, 256);
+
+  // Çevresel ana su tahliye kanalları (4 derin kanal)
+  const groovesY = [46, 102, 154, 210];
+  ctx.fillStyle = '#050507';
+  groovesY.forEach((gy) => {
+    ctx.fillRect(0, gy - 6, 512, 12);
+  });
+
+  // Sırt blokları ve çapraz kılcal kanallar (Heavy-Duty Lug Pattern)
+  for (let x = 0; x < 512; x += 32) {
+    ctx.fillStyle = '#27272a';
+    // Omuz blokları
+    ctx.fillRect(x + 4, 6, 22, 32);
+    ctx.fillRect(x + 4, 218, 22, 32);
+    // Orta sırt blokları
+    ctx.fillRect(x + 6, 54, 20, 40);
+    ctx.fillRect(x + 12, 110, 20, 36);
+    ctx.fillRect(x + 6, 162, 20, 40);
+
+    // Çapraz oluk gölgeleri
+    ctx.fillStyle = '#09090b';
+    ctx.fillRect(x, 0, 4, 40);
+    ctx.fillRect(x, 216, 4, 40);
+    ctx.fillRect(x + 2, 52, 4, 44);
+    ctx.fillRect(x + 8, 108, 4, 40);
+    ctx.fillRect(x + 2, 160, 4, 44);
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.repeat.set(4, 1);
+  tex.needsUpdate = true;
+  sharedTreadTexture = tex;
+  return tex;
+}
+
+// Raf Üst Alınlık Tabelası (GPU CanvasTexture)
+function createRackHeaderCanvas(filledTiresCount, rimsCount) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 2048;
+  canvas.height = 192;
+  const ctx = canvas.getContext('2d');
+
+  // Metalik koyu zemin
+  ctx.fillStyle = '#090b10';
+  ctx.fillRect(0, 0, 2048, 192);
+
+  // Üst ve alt kehribar/endüstriyel şerit
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillRect(0, 0, 2048, 8);
+  ctx.fillRect(0, 184, 2048, 8);
+
+  // Sol vurgu bloğu
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillRect(36, 36, 14, 120);
+
+  // Başlık
+  ctx.font = 'bold 54px Montserrat, Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('YEDEK LASTİK & JANT İSTASYONU', 76, 98);
+
+  ctx.font = 'bold 26px Montserrat, Arial, sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('ŞİRKET ORTAK FİLO ENVANTERİ  //  20 LASTİK SLOTU & YATAY JANT DEPOSU', 76, 144);
+
+  // Sağ durum rozetleri
+  // 1. Yedek Lastik Sayacı
+  ctx.fillStyle = '#111827';
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(1320, 34, 330, 124);
+  ctx.fillRect(1320, 34, 330, 124);
+
+  ctx.font = 'bold 22px Arial, sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('YEDEK LASTİK', 1350, 74);
+  ctx.font = 'bold 46px monospace';
+  ctx.fillStyle = '#10b981';
+  ctx.fillText(`${filledTiresCount} / 20`, 1350, 134);
+
+  // 2. Jant Sayacı
+  ctx.fillStyle = '#111827';
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(1680, 34, 330, 124);
+  ctx.fillRect(1680, 34, 330, 124);
+
+  ctx.font = 'bold 22px Arial, sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('YEDEK JANT', 1710, 74);
+  ctx.font = 'bold 46px monospace';
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText(`${rimsCount} ADET`, 1710, 134);
+
+  return canvas;
+}
+
+// 3D Yedek Lastik Bileşeni (Raftaki Her Bir Slot)
+function SpareTire3D({ slotObj, tireData, isSelected, onSelectTire }) {
+  const groupRef = useRef();
+  const [hovered, setHovered] = useState(false);
+
+  const hasTire = Boolean(tireData && (tireData.brand || tireData.size || tireData.notes || tireData.installedKm));
+  const statusColors = { İyi: '#10b981', Orta: '#f59e0b', Kritik: '#ef4444' };
+  const status = tireData?.status || 'İyi';
+  const accentColor = hasTire ? (statusColors[status] || '#10b981') : '#64748b';
+
+  useFrame(() => {
+    if (!groupRef.current) return;
+    const targetScale = (isSelected || hovered) ? 1.06 : 1.0;
+    groupRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.18);
+  });
+
+  return (
+    <group position={slotObj.localPos}>
+      {/* Ön Kiriş Üzerindeki Durum LED'i (Dolu slotlarda veya seçili/üzerine gelinen slotta görünür) */}
+      {(hasTire || isSelected || hovered) && (
+        <mesh position={[0, -0.25, 0.21]}>
+          <boxGeometry args={[0.16, 0.022, 0.015]} />
+          <meshBasicMaterial
+            color={isSelected ? '#d946ef' : (hasTire ? accentColor : '#f8fafc')}
+          />
+        </mesh>
+      )}
+
+      {/* Tıklanabilir Lastik Grubu (18 derece showroom açısıyla dikey duruş) */}
+      <group
+        ref={groupRef}
+        rotation={[0, -0.32, Math.PI / 2]}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelectTire(slotObj.id);
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          setHovered(true);
+          document.body.style.cursor = 'pointer';
+        }}
+        onPointerOut={(e) => {
+          e.stopPropagation();
+          setHovered(false);
+          document.body.style.cursor = 'auto';
+        }}
+      >
+        {hasTire ? (
+          <>
+            {/* 1. Ana Lastik Sırt Gövdesi (Tam Opak Kapalı Kauçuk Silindir) */}
+            <mesh castShadow receiveShadow>
+              <cylinderGeometry args={[0.298, 0.298, 0.19, 40]} />
+              <meshStandardMaterial
+                color="#141417"
+                roughness={0.82}
+                metalness={0.08}
+              />
+            </mesh>
+
+            {/* 1b. 3D Kabartmalı Lastik Sırt Blokları ve Su Kanalları (Yere Temas Eden Yüzey) */}
+            {[-0.072, -0.036, 0, 0.036, 0.072].map((ribY, rIdx) => (
+              <mesh key={`rib-${rIdx}`} position={[0, ribY, 0]} castShadow receiveShadow>
+                <cylinderGeometry args={[0.312, 0.312, 0.024, 40]} />
+                <meshStandardMaterial
+                  color="#1e1e24"
+                  roughness={0.74}
+                  metalness={0.10}
+                />
+              </mesh>
+            ))}
+
+            {/* 2. Sol ve Sağ Bombeli Yanaklar (Sidewall Torus) */}
+            {[-0.072, 0.072].map((yPos, idx) => (
+              <mesh key={idx} position={[0, yPos, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[1, 1, 0.48]} castShadow receiveShadow>
+                <torusGeometry args={[0.235, 0.076, 18, 40]} />
+                <meshStandardMaterial color="#141417" roughness={0.62} metalness={0.12} />
+              </mesh>
+            ))}
+
+            {/* 3. İç Topuk Çemberi (Bead Ring) */}
+            {[-0.098, 0.098].map((yPos, idx) => (
+              <mesh key={`bead-${idx}`} position={[0, yPos, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                <torusGeometry args={[0.165, 0.018, 12, 32]} />
+                <meshStandardMaterial color="#27272a" roughness={0.4} metalness={0.5} />
+              </mesh>
+            ))}
+
+            {/* 4. İç Karkas Karanlık Merkez */}
+            <mesh>
+              <cylinderGeometry args={[0.17, 0.17, 0.196, 32]} />
+              <meshStandardMaterial color="#09090b" roughness={0.95} />
+            </mesh>
+
+            {/* 5. Yanak Üzeri Durum / Seçim Çemberi */}
+            {[-0.108, 0.108].map((yPos, idx) => (
+              <mesh key={`ring-${idx}`} position={[0, yPos, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                <torusGeometry args={[0.225, isSelected || hovered ? 0.012 : 0.006, 10, 36]} />
+                <meshBasicMaterial
+                  color={isSelected ? '#d946ef' : accentColor}
+                  transparent
+                  opacity={isSelected || hovered ? 0.95 : 0.65}
+                />
+              </mesh>
+            ))}
+
+            {/* 6. Seçildiğinde / Hover Olduğunda Dış Vurgu Zarfı */}
+            {(isSelected || hovered) && (
+              <mesh>
+                <cylinderGeometry args={[0.322, 0.322, 0.215, 32]} />
+                <meshStandardMaterial
+                  color={isSelected ? '#d946ef' : accentColor}
+                  emissive={isSelected ? '#d946ef' : accentColor}
+                  emissiveIntensity={isSelected ? 0.9 : 0.45}
+                  transparent
+                  opacity={isSelected ? 0.35 : 0.18}
+                />
+              </mesh>
+            )}
+          </>
+        ) : (
+          /* Boş Raf Slotu: Boşken iskelet görünmez, sadece mouse üzerine gelince beyaz veya seçilince parlak önizleme yanar */
+          <mesh>
+            <cylinderGeometry args={[0.295, 0.295, 0.185, 32]} />
+            <meshStandardMaterial
+              color={isSelected ? '#d946ef' : '#f8fafc'}
+              emissive={isSelected ? '#d946ef' : '#f8fafc'}
+              emissiveIntensity={isSelected ? 0.85 : (hovered ? 0.65 : 0)}
+              transparent
+              depthWrite={false}
+              opacity={isSelected ? 0.42 : (hovered ? 0.30 : 0)}
+            />
+          </mesh>
+        )}
+      </group>
+    </group>
+  );
+}
+
+// 3D Ağır Vasıta Çelik/Krom Jant Bileşeni (En Alt Katta Yatay Dizilim)
+function SpareRim3D({ position, isSelected, hovered, onSelectRims, onHoverChange }) {
+  // 10 Bijon deliği açıları
+  const lugAngles = useMemo(() => Array.from({ length: 10 }, (_, i) => (i * Math.PI * 2) / 10), []);
+
+  return (
+    <group
+      position={position}
+      rotation={[0.10, 0, 0]}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelectRims();
+      }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        onHoverChange(true);
+        document.body.style.cursor = 'pointer';
+      }}
+      onPointerOut={(e) => {
+        e.stopPropagation();
+        onHoverChange(false);
+        document.body.style.cursor = 'auto';
+      }}
+    >
+      {/* 1. Dış Çelik/Alüminyum Jant Gövdesi (Yatay Silindir) */}
+      <mesh castShadow receiveShadow>
+        <cylinderGeometry args={[0.18, 0.18, 0.15, 32, 1, true]} />
+        <meshStandardMaterial
+          color={isSelected ? '#e0f2fe' : '#d4d4d8'}
+          metalness={0.92}
+          roughness={0.14}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
+      {/* 2. Üst ve Alt Jant Flanş Dudakları (Rim Lip) */}
+      {[0.075, -0.075].map((yPos, idx) => (
+        <mesh key={idx} position={[0, yPos, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <torusGeometry args={[0.184, 0.014, 12, 32]} />
+          <meshStandardMaterial color="#f4f4f5" metalness={0.96} roughness={0.1} />
+        </mesh>
+      ))}
+
+      {/* 3. Orta Konik Göbek Çanağı (Drop-Center Dish) */}
+      <mesh position={[0, 0.02, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.172, 0.135, 0.035, 32, 1, true]} />
+        <meshStandardMaterial color="#a1a1aa" metalness={0.88} roughness={0.2} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* 4. Jant Göbek Aynası (Hub Mounting Disc) */}
+      <mesh position={[0, 0.035, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <ringGeometry args={[0.058, 0.14, 32]} />
+        <meshStandardMaterial color="#e4e4e7" metalness={0.92} roughness={0.15} side={THREE.DoubleSide} />
+      </mesh>
+
+      {/* 5. Merkez Aks Boşluğu Çemberi */}
+      <mesh position={[0, 0.042, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.058, 0.008, 10, 28]} />
+        <meshStandardMaterial color="#52525b" metalness={0.85} roughness={0.25} />
+      </mesh>
+
+      {/* 6. 10 Adet Bijon ve Havalandırma Deliği */}
+      {lugAngles.map((ang, idx) => {
+        const lx = Math.cos(ang) * 0.098;
+        const lz = Math.sin(ang) * 0.098;
+        return (
+          <mesh key={idx} position={[lx, 0.038, lz]}>
+            <cylinderGeometry args={[0.011, 0.011, 0.012, 10]} />
+            <meshBasicMaterial color="#09090b" />
+          </mesh>
+        );
+      })}
+
+      {/* 7. Seçim / Hover Durumunda Mavi Parlama Çemberi */}
+      {(isSelected || hovered) && (
+        <mesh position={[0, 0.082, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.19, 0.009, 10, 32]} />
+          <meshBasicMaterial color="#38bdf8" />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
+// 3 Katlı Endüstriyel Yedek Lastik & Jant Rafı (2 Kat Lastik + 1 Zemin Kat Yatay Jant)
+function ShowroomTireRack({
+  spareTiresData,
+  spareRimsData,
+  selectedTireId,
+  isSwapMode,
+  isRackFocused,
+  onSelectTire,
+  onSelectRims
+}) {
+  const [rimHovered, setRimHovered] = useState(false);
+
+  const filledTiresCount = useMemo(() => {
+    if (!spareTiresData) return 0;
+    return RACK_TIRE_POSITIONS.filter((p) => {
+      const t = spareTiresData[p.id];
+      return Boolean(t && (t.brand || t.size || t.notes || t.installedKm));
+    }).length;
+  }, [spareTiresData]);
+
+  const rimsCount = Math.max(0, parseInt(spareRimsData?.count) || 0);
+
+  const headerCanvas = useMemo(
+    () => createRackHeaderCanvas(filledTiresCount, rimsCount),
+    [filledTiresCount, rimsCount]
+  );
+
+  // Yatay jantların 3D dizilim koordinatları (En alt rafta 10 sütun, 10'dan fazlası üst üste yatay istiflenir)
+  const rimPositions = useMemo(() => {
+    const count = Math.min(rimsCount, 30);
+    return Array.from({ length: count }, (_, idx) => {
+      const col = idx % 10;
+      const stackLayer = Math.floor(idx / 10);
+      const x = Number(((col - 4.5) * 0.42).toFixed(3));
+      const y = 0.21 + stackLayer * 0.165;
+      const z = 0.04;
+      return [x, y, z];
+    });
+  }, [rimsCount]);
+
+  const rackWidth = 4.46;
+  const rackDepth = 0.72;
+  const rackHeight = 2.68;
+  const uprightsX = [-2.18, -0.73, 0.73, 2.18];
+  const shelfLevelsY = [0.08, 0.76, 1.64];
+
+  return (
+    <group position={[9.2, 0, -6.85]}>
+      {/* 1. DİKEY ÇELİK TAŞIYICI KOLONLAR (Ön ve Arka) */}
+      {uprightsX.map((ux, idx) => {
+        const frontColHeight = (idx === 1 || idx === 2) ? 2.34 : rackHeight;
+        return (
+          <group key={`col-${idx}`} position={[ux, 0, 0]}>
+            {/* Ön Dikme (Orta dikmeler üst tabelanın alt hizasında biter, tabelanın önüne geçmez) */}
+            <mesh position={[0, frontColHeight / 2, rackDepth / 2]} castShadow receiveShadow>
+              <boxGeometry args={[0.065, frontColHeight, 0.065]} />
+              <meshStandardMaterial color="#18181b" metalness={0.85} roughness={0.25} />
+            </mesh>
+            {/* Arka Dikme */}
+            <mesh position={[0, rackHeight / 2, -rackDepth / 2]} castShadow receiveShadow>
+              <boxGeometry args={[0.065, rackHeight, 0.065]} />
+              <meshStandardMaterial color="#18181b" metalness={0.85} roughness={0.25} />
+            </mesh>
+            {/* Zemin Ankraj Plakaları */}
+            <mesh position={[0, 0.01, rackDepth / 2]}>
+              <boxGeometry args={[0.12, 0.02, 0.12]} />
+              <meshStandardMaterial color="#f59e0b" metalness={0.6} roughness={0.3} />
+            </mesh>
+            <mesh position={[0, 0.01, -rackDepth / 2]}>
+              <boxGeometry args={[0.12, 0.02, 0.12]} />
+              <meshStandardMaterial color="#f59e0b" metalness={0.6} roughness={0.3} />
+            </mesh>
+            {/* Yan Çapraz Gergi Profilleri */}
+            {[0.45, 1.25, 2.05].map((braceY, bIdx) => (
+              <mesh
+                key={bIdx}
+                position={[0, braceY, 0]}
+                rotation={[bIdx % 2 === 0 ? 0.55 : -0.55, 0, 0]}
+              >
+                <boxGeometry args={[0.03, 0.03, rackDepth * 1.1]} />
+                <meshStandardMaterial color="#27272a" metalness={0.8} roughness={0.3} />
+              </mesh>
+            ))}
+          </group>
+        );
+      })}
+
+      {/* 2. 3 KATMANLI YATAY TRAVERS KİRİŞLER (Zemin Jant Katı + Orta Lastik Katı + Üst Lastik Katı) */}
+      {shelfLevelsY.map((sy, sIdx) => (
+        <group key={`shelf-${sIdx}`} position={[0, sy, 0]}>
+          {/* Ön Travers Kirişi */}
+          <mesh position={[0, 0, rackDepth / 2 - 0.12]} castShadow receiveShadow>
+            <boxGeometry args={[rackWidth, 0.055, 0.055]} />
+            <meshStandardMaterial color="#27272a" metalness={0.82} roughness={0.25} />
+          </mesh>
+          {/* Ön Turuncu Endüstriyel Güvenlik Şeridi */}
+          <mesh position={[0, 0, rackDepth / 2 - 0.091]}>
+            <planeGeometry args={[rackWidth - 0.1, 0.02]} />
+            <meshBasicMaterial color={sIdx === 0 ? '#38bdf8' : '#f59e0b'} />
+          </mesh>
+          {/* Arka Travers Kirişi */}
+          <mesh position={[0, 0, -rackDepth / 2 + 0.12]} castShadow receiveShadow>
+            <boxGeometry args={[rackWidth, 0.055, 0.055]} />
+            <meshStandardMaterial color="#27272a" metalness={0.82} roughness={0.25} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* 3. EN ALT KAT (ZEMİN JANT BÖLÜMÜ) ÇELİK IZGARA PLATFORMU */}
+      <group
+        position={[0, 0.09, 0]}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelectRims();
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          setRimHovered(true);
+          document.body.style.cursor = 'pointer';
+        }}
+        onPointerOut={(e) => {
+          e.stopPropagation();
+          setRimHovered(false);
+          document.body.style.cursor = 'auto';
+        }}
+      >
+        <mesh receiveShadow>
+          <boxGeometry args={[rackWidth - 0.12, 0.03, rackDepth - 0.16]} />
+          <meshStandardMaterial
+            color={selectedTireId === 'RIMS' || rimHovered ? '#1e293b' : '#18181b'}
+            metalness={0.75}
+            roughness={0.35}
+          />
+        </mesh>
+        {/* Jant Bölümü Seçim Çerçevesi */}
+        {(selectedTireId === 'RIMS' || rimHovered) && (
+          <mesh position={[0, 0.02, 0]}>
+            <boxGeometry args={[rackWidth - 0.08, 0.01, rackDepth - 0.12]} />
+            <meshBasicMaterial color="#38bdf8" transparent opacity={0.35} />
+          </mesh>
+        )}
+      </group>
+
+      {/* 4. ÜST ALINLIK TABELASI VE ENTEGRE LED AYDINLATMA */}
+      <group position={[0, 2.52, rackDepth / 2 + 0.03]}>
+        <mesh castShadow>
+          <boxGeometry args={[rackWidth, 0.36, 0.05]} />
+          <meshStandardMaterial color="#09090b" metalness={0.8} roughness={0.2} />
+        </mesh>
+        <mesh position={[0, 0, 0.027]}>
+          <planeGeometry args={[rackWidth - 0.06, 0.32]} />
+          <meshStandardMaterial roughness={0.2} metalness={0.1} emissive="#18181b">
+            <canvasTexture attach="map" image={headerCanvas} anisotropy={16} />
+            <canvasTexture attach="emissiveMap" image={headerCanvas} anisotropy={16} />
+          </meshStandardMaterial>
+        </mesh>
+      </group>
+
+      {/* Raf İçi Lokal LED Aydınlatmalar */}
+      <pointLight position={[-1.2, 2.35, 0.5]} intensity={0.65} distance={4.5} color="#f8fafc" decay={1.8} />
+      <pointLight position={[1.2, 2.35, 0.5]} intensity={0.65} distance={4.5} color="#f8fafc" decay={1.8} />
+
+      {/* 5. 20 ADET YEDEK LASTİK SLOTU (Üst Kat: 1-10, Orta Kat: 11-20) */}
+      {RACK_TIRE_POSITIONS.map((slotObj) => (
+        <SpareTire3D
+          key={slotObj.id}
+          slotObj={slotObj}
+          tireData={spareTiresData?.[slotObj.id]}
+          isSelected={selectedTireId === slotObj.id}
+          isSwapMode={isSwapMode}
+          isRackFocused={isRackFocused}
+          onSelectTire={onSelectTire}
+        />
+      ))}
+
+      {/* 6. EN ALT KAT: YATAY DİZİLMİŞ 3D AĞIR VASITA JANTLARI */}
+      {rimPositions.map((pos, idx) => (
+        <SpareRim3D
+          key={`rim-${idx}`}
+          position={pos}
+          isSelected={selectedTireId === 'RIMS'}
+          hovered={rimHovered}
+          onSelectRims={onSelectRims}
+          onHoverChange={setRimHovered}
+        />
+      ))}
+    </group>
+  );
+}
+
+// Kamera Odak Geçiş Kontrolcüsü (Araç <-> Yedek Raf Arasında Yumuşak Geçiş)
+function CameraFocusController({ controlsRef, cameraTransitionRef }) {
+  useFrame((state) => {
+    const trans = cameraTransitionRef.current;
+    if (!trans || !trans.active || !controlsRef.current) return;
+
+    state.camera.position.lerp(trans.desiredPos, 0.09);
+    controlsRef.current.target.lerp(trans.desiredTarget, 0.11);
+    controlsRef.current.update();
+
+    if (
+      state.camera.position.distanceTo(trans.desiredPos) < 0.06 &&
+      controlsRef.current.target.distanceTo(trans.desiredTarget) < 0.04
+    ) {
+      trans.active = false;
+    }
+  });
+  return null;
+}
+
 // 3D Showroom Ortamı (Modern Endüstriyel Pavilyon)
-function ShowroomEnvironment() {
+function ShowroomEnvironment({
+  spareTiresData,
+  spareRimsData,
+  selectedTireId,
+  isSwapMode,
+  isRackFocused,
+  onSelectTire,
+  onSelectRims
+}) {
   return (
     <group position={[0, -0.5, 0]}>
       {/* Parlak Cilalı Epoksi Zemin (Açık Gri / Showroom Tipi) */}
@@ -1307,6 +1882,17 @@ function ShowroomEnvironment() {
 
       {/* DİKEY AHŞAP AKUSTİK DEKOR PANELİ (Z = -7.4) */}
       <WoodSlatPanel position={[3.6, 0, -7.42]} width={6.0} height={4.8} />
+
+      {/* 3 KATLI YEDEK LASTİK (20 SLOT) & YATAY JANT RAFI (Ahşap Panel ile Ofis Camı Arası: X = 9.2, Z = -6.85) */}
+      <ShowroomTireRack
+        spareTiresData={spareTiresData}
+        spareRimsData={spareRimsData}
+        selectedTireId={selectedTireId}
+        isSwapMode={isSwapMode}
+        isRackFocused={isRackFocused}
+        onSelectTire={onSelectTire}
+        onSelectRims={onSelectRims}
+      />
 
       {/* DUVAR SÜSLEMELERİ & IŞIKLI EMBLAMLAR (Z = -7.4) */}
       <ShowroomLogoSign />
@@ -1370,6 +1956,7 @@ function ShowroomEnvironment() {
 // Ana Lastik Yönetim Bileşeni
 export default function Tire3DViewer({ currentKm, onClose }) {
   const { activeTruckId, activeTruckData } = useTruck();
+  const { activeCompanyId } = useCompany();
   const { addMaintenance } = useContext(DataContext);
 
   const [selectedTireId, setSelectedTireId] = useState(null);
@@ -1382,12 +1969,100 @@ export default function Tire3DViewer({ currentKm, onClose }) {
   const [showTuning, setShowTuning] = useState(false);
   const isCalibrationMode = true; // Koordinat ince ayar aracı her zaman açık olarak istendi
 
+  // Kamera odak görünümü: 'truck' | 'rack'
+  const [cameraView, setCameraView] = useState('truck');
+  const cameraTransitionRef = useRef({
+    active: false,
+    desiredPos: new THREE.Vector3(5, 3, 6),
+    desiredTarget: new THREE.Vector3(0, 0, 0)
+  });
+
+  const focusOnRack = () => {
+    setCameraView('rack');
+    cameraTransitionRef.current = {
+      active: true,
+      desiredPos: new THREE.Vector3(9.2, 0.95, -1.6),
+      desiredTarget: new THREE.Vector3(9.2, 0.85, -6.85)
+    };
+  };
+
+  const focusOnTruck = () => {
+    setCameraView('truck');
+    cameraTransitionRef.current = {
+      active: true,
+      desiredPos: new THREE.Vector3(5, 3, 6),
+      desiredTarget: new THREE.Vector3(0, 0, 0)
+    };
+  };
+
   // Sağ panel modları: 'info' (okuma), 'edit' (güncelleme), 'replace' (yeni lastik takma), 'history' (tarihçe)
   const [panelMode, setPanelMode] = useState('info');
 
   // Swap / Rotasyon durumu
   const [isSwapMode, setIsSwapMode] = useState(false);
   const [swapSourceId, setSwapSourceId] = useState(null);
+
+  // Şirket Ortak Yedek Lastik (20 Slot) ve Yatay Jant Envanteri
+  const [spareTiresData, setSpareTiresData] = useState({});
+  const [spareRimsData, setSpareRimsData] = useState({ count: 0, notes: '' });
+  const [spareHistoryData, setSpareHistoryData] = useState([]);
+  const [rimsForm, setRimsForm] = useState({ count: 0, notes: '' });
+  const [savingRims, setSavingRims] = useState(false);
+
+  const companyRackDocId = useMemo(
+    () => `${activeCompanyId || 'inaner_logistics'}_tire_rack`,
+    [activeCompanyId]
+  );
+
+  // Ortak Raf Verisini Firestore'dan Canlı Dinle
+  useEffect(() => {
+    if (!activeCompanyId) return;
+    const localKey = `tir_spare_rack_${activeCompanyId}`;
+    try {
+      const cached = localStorage.getItem(localKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.spareTires) setSpareTiresData(parsed.spareTires);
+        if (parsed.spareRims) {
+          setSpareRimsData(parsed.spareRims);
+          setRimsForm({ count: parsed.spareRims.count || 0, notes: parsed.spareRims.notes || '' });
+        }
+        if (Array.isArray(parsed.spareHistory)) setSpareHistoryData(parsed.spareHistory);
+      }
+    } catch (_) {}
+
+    const rackRef = doc(db, 'company_data', companyRackDocId);
+    const unsub = onSnapshot(
+      rackRef,
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          const st = data.spareTires || {};
+          const sr = data.spareRims || { count: 0, notes: '' };
+          const sh = Array.isArray(data.spareHistory) ? data.spareHistory : [];
+          setSpareTiresData(st);
+          setSpareRimsData(sr);
+          setSpareHistoryData(sh);
+          setRimsForm({ count: sr.count || 0, notes: sr.notes || '' });
+          try {
+            localStorage.setItem(localKey, JSON.stringify({ spareTires: st, spareRims: sr, spareHistory: sh }));
+          } catch (_) {}
+        }
+      },
+      (err) => {
+        console.warn('Ortak yedek raf verisi dinlenemedi:', err);
+      }
+    );
+
+    return () => unsub();
+  }, [activeCompanyId, companyRackDocId]);
+
+  const filledSpareTiresCount = useMemo(() => {
+    return RACK_TIRE_POSITIONS.filter((p) => {
+      const t = spareTiresData?.[p.id];
+      return Boolean(t && (t.brand || t.size || t.notes || t.installedKm));
+    }).length;
+  }, [spareTiresData]);
   
   // Kalibrasyon — Firestore'dan yükle
   const calibrationRef = useRef(JSON.parse(JSON.stringify(DEFAULT_CALIBRATION)));
@@ -1423,7 +2098,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
               // Otomatik olarak Firestore'a kaydet
               await setDoc(ref, parsed);
               localStorage.removeItem('tire-3d-calibrations');
-              console.log('✅ Kalibrasyon localStorage\'dan Firestore\'a taşındı.');
+              console.log('Kalibrasyon localStorage üzerinden Firestore üzerine taşındı.');
             }
           } catch (migrErr) {
             console.warn('Migrasyon hatası:', migrErr);
@@ -1440,7 +2115,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
   // UI metinlerini DOM manipülasyonu ile anlık olarak güncelleyen optimize fonksiyon
   const updateTextDisplays = () => {
     const cal = calibrationRef.current;
-    if (!selectedTireObj) return;
+    if (!selectedTireObj || selectedTireObj.isRack) return;
 
     if (!cal.offsets) cal.offsets = {};
     const offsets = cal.offsets[selectedTireId] || [0, 0, 0];
@@ -1484,12 +2159,12 @@ export default function Tire3DViewer({ currentKm, onClose }) {
   useEffect(() => {
     const cal = calibrationRef.current;
     if (!cal.offsets) cal.offsets = {};
-    if (selectedTireId && !cal.offsets[selectedTireId]) {
+    if (selectedTireId && selectedTireId !== 'RIMS' && !selectedTireId.startsWith('SPARE_') && !cal.offsets[selectedTireId]) {
       cal.offsets[selectedTireId] = [0, 0, 0];
     }
     cal.selectedId = selectedTireId;
 
-    const currentOffsets = selectedTireId ? cal.offsets[selectedTireId] : [0, 0, 0];
+    const currentOffsets = (selectedTireId && cal.offsets[selectedTireId]) ? cal.offsets[selectedTireId] : [0, 0, 0];
 
     const sliderX = document.getElementById('slider-offsetX');
     if (sliderX) sliderX.value = currentOffsets[0];
@@ -1517,16 +2192,23 @@ export default function Tire3DViewer({ currentKm, onClose }) {
     setPanelMode('info');
   }, [selectedTireId]);
 
-  // Firestore'dan gelen lastik verileri
+  // Firestore'dan gelen araç lastik verileri
   const tiresData = activeTruckData?.tires || {};
 
-  // Tekerlek geçmişini filtreleyen memo
+  const selectedTireObj = useMemo(
+    () => ALL_TIRE_POSITIONS.find((t) => t.id === selectedTireId) || null,
+    [selectedTireId]
+  );
+  const isRackSlot = Boolean(selectedTireObj?.isRack);
+
+  // Tekerlek geçmişini filtreleyen memo (Araç veya Ortak Raf)
   const tireHistory = useMemo(() => {
-    if (!activeTruckData?.tiresHistory) return [];
-    return activeTruckData.tiresHistory
+    const sourceList = isRackSlot ? spareHistoryData : (activeTruckData?.tiresHistory || []);
+    if (!Array.isArray(sourceList)) return [];
+    return sourceList
       .filter(record => record.tireId === selectedTireId)
       .sort((a, b) => new Date(b.removedDate) - new Date(a.removedDate));
-  }, [activeTruckData?.tiresHistory, selectedTireId]);
+  }, [isRackSlot, spareHistoryData, activeTruckData?.tiresHistory, selectedTireId]);
 
   // Form durum yönetimi
   const [form, setForm] = useState({
@@ -1543,59 +2225,96 @@ export default function Tire3DViewer({ currentKm, onClose }) {
 
   const [saving, setSaving] = useState(false);
 
-  // Seçilen lastik değiştikçe formu doldur
+  // Seçilen lastik değiştikçe formu doldur (Araç veya Ortak Yedek Raf)
   useEffect(() => {
-    if (selectedTireId) {
-      const tire = tiresData[selectedTireId] || {};
+    if (selectedTireId && selectedTireId !== 'RIMS') {
+      const isRack = selectedTireId.startsWith('SPARE_');
+      const tire = isRack ? (spareTiresData[selectedTireId] || {}) : (tiresData[selectedTireId] || {});
       setForm({
         brand: tire.brand || '',
         model: tire.model || '',
         size: tire.size || '',
-        installedKm: tire.installedKm || '',
+        installedKm: isRack ? (tire.usedKm ?? tire.installedKm ?? '') : (tire.installedKm ?? ''),
         installedDate: tire.installedDate || '',
-        threadDepth: tire.threadDepth || '',
+        threadDepth: tire.threadDepth ?? '',
         status: tire.status || 'İyi',
         tireType: tire.tireType || 'Sıfır',
         notes: tire.notes || ''
       });
     }
-  }, [selectedTireId, activeTruckData]);
+  }, [selectedTireId, activeTruckData, spareTiresData]);
 
-  // Bilgi Düzenleme Kaydı (Okuma modundaki editör)
+  // Lastik KM hesaplama
+  const calculateTireKm = (installedKm) => {
+    const km = parseInt(installedKm);
+    if (isNaN(km) || km <= 0) return 0;
+    const diff = currentKm - km;
+    return diff > 0 ? diff : 0;
+  };
+
+  // Bilgi Düzenleme Kaydı (Araç veya Ortak Yedek Raf)
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!activeTruckId || !selectedTireId) return;
+    if (!selectedTireId || !selectedTireObj) return;
 
     setSaving(true);
     try {
-      const truckRef = doc(db, 'trucks', activeTruckId);
-      const updatedTire = {
-        brand: form.brand,
-        model: form.model,
-        size: form.size,
-        installedKm: parseInt(form.installedKm) || 0,
-        installedDate: form.installedDate,
-        threadDepth: parseFloat(form.threadDepth) || 0,
-        status: form.status,
-        tireType: form.tireType || 'Sıfır',
-        notes: form.notes,
-        lastUpdated: new Date().toISOString()
-      };
+      if (isRackSlot) {
+        const rackRef = doc(db, 'company_data', companyRackDocId);
+        const updatedSpareTire = {
+          brand: form.brand,
+          model: form.model,
+          size: form.size,
+          usedKm: parseInt(form.installedKm) || 0,
+          installedKm: parseInt(form.installedKm) || 0,
+          installedDate: form.installedDate || new Date().toISOString().split('T')[0],
+          threadDepth: parseFloat(form.threadDepth) || 0,
+          status: form.status,
+          tireType: form.tireType || 'Sıfır',
+          notes: form.notes,
+          lastUpdated: new Date().toISOString()
+        };
+        const nextSpareTires = { ...spareTiresData, [selectedTireId]: updatedSpareTire };
+        setSpareTiresData(nextSpareTires);
+        await setDoc(
+          rackRef,
+          {
+            companyId: activeCompanyId || 'inaner_logistics',
+            spareTires: nextSpareTires,
+            updatedAt: new Date().toISOString()
+          },
+          { merge: true }
+        );
+      } else {
+        if (!activeTruckId) return;
+        const truckRef = doc(db, 'trucks', activeTruckId);
+        const updatedTire = {
+          brand: form.brand,
+          model: form.model,
+          size: form.size,
+          installedKm: parseInt(form.installedKm) || 0,
+          installedDate: form.installedDate,
+          threadDepth: parseFloat(form.threadDepth) || 0,
+          status: form.status,
+          tireType: form.tireType || 'Sıfır',
+          notes: form.notes,
+          lastUpdated: new Date().toISOString()
+        };
 
-      await updateDoc(truckRef, {
-        [`tires.${selectedTireId}`]: updatedTire
-      });
+        await updateDoc(truckRef, {
+          [`tires.${selectedTireId}`]: updatedTire
+        });
 
-      // Log in maintenance records
-      await addMaintenance({
-        date: new Date().toISOString().split('T')[0],
-        type: 'Lastik Bilgi Güncelleme',
-        description: `${selectedTireObj.label} konumundaki lastik bilgileri güncellendi. Yeni: ${form.brand} ${form.model} (${form.installedKm} KM) - Tip: ${form.tireType}`,
-        km: currentKm,
-        cost: 0,
-        files: [],
-        doneItems: []
-      });
+        await addMaintenance({
+          date: new Date().toISOString().split('T')[0],
+          type: 'Lastik Bilgi Güncelleme',
+          description: `${selectedTireObj.label} konumundaki lastik bilgileri güncellendi. Yeni: ${form.brand} ${form.model} (${form.installedKm} KM) - Tip: ${form.tireType}`,
+          km: currentKm,
+          cost: 0,
+          files: [],
+          doneItems: []
+        });
+      }
 
       setPanelMode('info');
     } catch (error) {
@@ -1605,62 +2324,213 @@ export default function Tire3DViewer({ currentKm, onClose }) {
     }
   };
 
-  // Yeni Lastik Kurulum Kaydı (Arşivleme ve Değiştirme)
-  const handleReplaceTireSubmit = async (e) => {
-    e.preventDefault();
-    if (!activeTruckId || !selectedTireId) return;
+  // Yedek Raf Slotunu Boşaltma (Arşivleyerek Kaldırma)
+  const handleClearRackSlot = async () => {
+    if (!isRackSlot || !selectedTireId) return;
+    const oldTire = spareTiresData[selectedTireId];
+    if (!oldTire || !oldTire.brand) return;
+    if (!window.confirm(`${selectedTireObj.label} slotundaki ${oldTire.brand} ${oldTire.model || ''} lastiğini raftan kaldırmak istediğinize emin misiniz?`)) {
+      return;
+    }
 
     setSaving(true);
     try {
-      const truckRef = doc(db, 'trucks', activeTruckId);
-      
-      // Eski lastik verilerini alıp tarihçeye ekle
-      const oldTire = tiresData[selectedTireId] || {};
+      const rackRef = doc(db, 'company_data', companyRackDocId);
       const historyRecord = {
         tireId: selectedTireId,
         brand: oldTire.brand || 'Belirtilmedi',
         model: oldTire.model || '',
         size: oldTire.size || '',
-        installedKm: parseInt(oldTire.installedKm) || 0,
+        installedKm: 0,
+        removedKm: parseInt(oldTire.usedKm ?? oldTire.installedKm) || 0,
         installedDate: oldTire.installedDate || '',
-        removedKm: currentKm,
         removedDate: new Date().toISOString().split('T')[0],
-        status: oldTire.status || 'Kritik',
+        status: oldTire.status || 'İyi',
         tireType: oldTire.tireType || 'Sıfır',
         notes: oldTire.notes || ''
       };
+      const nextSpareTires = { ...spareTiresData };
+      delete nextSpareTires[selectedTireId];
+      const nextHistory = [...spareHistoryData, historyRecord];
 
-      const updatedHistory = [...(activeTruckData?.tiresHistory || []), historyRecord];
+      setSpareTiresData(nextSpareTires);
+      setSpareHistoryData(nextHistory);
 
-      // Yeni takılan lastik verisi
-      const newTireData = {
-        brand: form.brand,
-        model: form.model,
-        size: form.size,
-        installedKm: parseInt(form.installedKm) || 0,
-        installedDate: form.installedDate,
-        threadDepth: parseFloat(form.threadDepth) || 0,
-        status: form.status,
-        tireType: form.tireType || 'Sıfır',
-        notes: form.notes,
+      await setDoc(
+        rackRef,
+        {
+          companyId: activeCompanyId || 'inaner_logistics',
+          spareTires: nextSpareTires,
+          spareHistory: nextHistory,
+          updatedAt: new Date().toISOString()
+        },
+        { merge: true }
+      );
+      setPanelMode('info');
+    } catch (err) {
+      alert('Raf slotu boşaltılırken hata oluştu: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Jant Envanteri Kaydetme (Adet + Genel Notlar)
+  const handleUpdateRimsCountImmediate = async (nextCount) => {
+    const clamped = Math.max(0, Math.min(30, parseInt(nextCount) || 0));
+    const nextRims = {
+      count: clamped,
+      notes: rimsForm.notes,
+      lastUpdated: new Date().toISOString()
+    };
+    setRimsForm((prev) => ({ ...prev, count: clamped }));
+    setSpareRimsData(nextRims);
+    try {
+      const rackRef = doc(db, 'company_data', companyRackDocId);
+      await setDoc(
+        rackRef,
+        {
+          companyId: activeCompanyId || 'inaner_logistics',
+          spareRims: nextRims,
+          updatedAt: new Date().toISOString()
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Jant adedi güncellenemedi:', err);
+    }
+  };
+
+  const handleSaveRims = async (e) => {
+    e.preventDefault();
+    setSavingRims(true);
+    try {
+      const rackRef = doc(db, 'company_data', companyRackDocId);
+      const nextRims = {
+        count: Math.max(0, Math.min(30, parseInt(rimsForm.count) || 0)),
+        notes: rimsForm.notes || '',
         lastUpdated: new Date().toISOString()
       };
+      setSpareRimsData(nextRims);
+      await setDoc(
+        rackRef,
+        {
+          companyId: activeCompanyId || 'inaner_logistics',
+          spareRims: nextRims,
+          updatedAt: new Date().toISOString()
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      alert('Jant bilgileri kaydedilirken hata oluştu: ' + err.message);
+    } finally {
+      setSavingRims(false);
+    }
+  };
 
-      await updateDoc(truckRef, {
-        [`tires.${selectedTireId}`]: newTireData,
-        tiresHistory: updatedHistory
-      });
+  // Yeni Lastik Kurulum Kaydı (Arşivleme ve Değiştirme — Araç veya Raf)
+  const handleReplaceTireSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedTireId || !selectedTireObj) return;
 
-      // Log in maintenance records
-      await addMaintenance({
-        date: new Date().toISOString().split('T')[0],
-        type: 'Lastik Değişimi',
-        description: `${selectedTireObj.label} konumundaki lastik yenisiyle değiştirildi. Eski: ${oldTire.brand || 'Belirtilmedi'} ${oldTire.model || ''} (${oldTire.installedKm || 0} KM), Yeni: ${form.brand} ${form.model} (Takılan KM: ${form.installedKm} KM) - Tip: ${form.tireType}`,
-        km: currentKm,
-        cost: 0,
-        files: [],
-        doneItems: []
-      });
+    setSaving(true);
+    try {
+      if (isRackSlot) {
+        const rackRef = doc(db, 'company_data', companyRackDocId);
+        const oldTire = spareTiresData[selectedTireId] || {};
+        const nextHistory = [...spareHistoryData];
+        if (oldTire.brand) {
+          nextHistory.push({
+            tireId: selectedTireId,
+            brand: oldTire.brand || 'Belirtilmedi',
+            model: oldTire.model || '',
+            size: oldTire.size || '',
+            installedKm: 0,
+            removedKm: parseInt(oldTire.usedKm ?? oldTire.installedKm) || 0,
+            installedDate: oldTire.installedDate || '',
+            removedDate: new Date().toISOString().split('T')[0],
+            status: oldTire.status || 'İyi',
+            tireType: oldTire.tireType || 'Sıfır',
+            notes: oldTire.notes || ''
+          });
+        }
+        const newSpareTire = {
+          brand: form.brand,
+          model: form.model,
+          size: form.size,
+          usedKm: parseInt(form.installedKm) || 0,
+          installedKm: parseInt(form.installedKm) || 0,
+          installedDate: form.installedDate || new Date().toISOString().split('T')[0],
+          threadDepth: parseFloat(form.threadDepth) || 0,
+          status: form.status,
+          tireType: form.tireType || 'Sıfır',
+          notes: form.notes,
+          lastUpdated: new Date().toISOString()
+        };
+        const nextSpareTires = { ...spareTiresData, [selectedTireId]: newSpareTire };
+        setSpareTiresData(nextSpareTires);
+        setSpareHistoryData(nextHistory);
+
+        await setDoc(
+          rackRef,
+          {
+            companyId: activeCompanyId || 'inaner_logistics',
+            spareTires: nextSpareTires,
+            spareHistory: nextHistory,
+            updatedAt: new Date().toISOString()
+          },
+          { merge: true }
+        );
+      } else {
+        if (!activeTruckId) return;
+        const truckRef = doc(db, 'trucks', activeTruckId);
+        
+        // Eski lastik verilerini alıp tarihçeye ekle
+        const oldTire = tiresData[selectedTireId] || {};
+        const historyRecord = {
+          tireId: selectedTireId,
+          brand: oldTire.brand || 'Belirtilmedi',
+          model: oldTire.model || '',
+          size: oldTire.size || '',
+          installedKm: parseInt(oldTire.installedKm) || 0,
+          installedDate: oldTire.installedDate || '',
+          removedKm: currentKm,
+          removedDate: new Date().toISOString().split('T')[0],
+          status: oldTire.status || 'Kritik',
+          tireType: oldTire.tireType || 'Sıfır',
+          notes: oldTire.notes || ''
+        };
+
+        const updatedHistory = [...(activeTruckData?.tiresHistory || []), historyRecord];
+
+        // Yeni takılan lastik verisi
+        const newTireData = {
+          brand: form.brand,
+          model: form.model,
+          size: form.size,
+          installedKm: parseInt(form.installedKm) || 0,
+          installedDate: form.installedDate,
+          threadDepth: parseFloat(form.threadDepth) || 0,
+          status: form.status,
+          tireType: form.tireType || 'Sıfır',
+          notes: form.notes,
+          lastUpdated: new Date().toISOString()
+        };
+
+        await updateDoc(truckRef, {
+          [`tires.${selectedTireId}`]: newTireData,
+          tiresHistory: updatedHistory
+        });
+
+        await addMaintenance({
+          date: new Date().toISOString().split('T')[0],
+          type: 'Lastik Değişimi',
+          description: `${selectedTireObj.label} konumundaki lastik yenisiyle değiştirildi. Eski: ${oldTire.brand || 'Belirtilmedi'} ${oldTire.model || ''} (${oldTire.installedKm || 0} KM), Yeni: ${form.brand} ${form.model} (Takılan KM: ${form.installedKm} KM) - Tip: ${form.tireType}`,
+          km: currentKm,
+          cost: 0,
+          files: [],
+          doneItems: []
+        });
+      }
 
       setPanelMode('info');
     } catch (error) {
@@ -1670,7 +2540,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
     }
   };
 
-  // Swap / Rotasyon yerleştirme tıklaması tetikleme
+  // Swap / Rotasyon yerleştirme tıklaması tetikleme (Araç <-> Araç, Araç <-> Ortak Raf, Raf <-> Raf)
   const handleTireClick = async (tireId) => {
     if (isSwapMode) {
       if (tireId === swapSourceId) {
@@ -1678,34 +2548,133 @@ export default function Tire3DViewer({ currentKm, onClose }) {
         setSwapSourceId(null);
         return;
       }
-      
-      const sourceTireObj = TIRE_POSITIONS.find(t => t.id === swapSourceId);
-      const targetTireObj = TIRE_POSITIONS.find(t => t.id === tireId);
-      const sourceTireData = tiresData[swapSourceId] || {};
-      const targetTireData = tiresData[tireId] || {};
-      
-      const confirmText = `${sourceTireObj.label} (${sourceTireData.brand || 'Boş'}) ile ${targetTireObj.label} (${targetTireData.brand || 'Boş'}) lastiklerinin yerlerini (konumlarını) ve tüm verilerini değiştirmek istiyor musunuz?`;
-      
+
+      const sourceTireObj = ALL_TIRE_POSITIONS.find(t => t.id === swapSourceId);
+      const targetTireObj = ALL_TIRE_POSITIONS.find(t => t.id === tireId);
+      if (!sourceTireObj || !targetTireObj) return;
+
+      const sourceIsRack = Boolean(sourceTireObj.isRack);
+      const targetIsRack = Boolean(targetTireObj.isRack);
+
+      const sourceTireData = sourceIsRack ? (spareTiresData[swapSourceId] || {}) : (tiresData[swapSourceId] || {});
+      const targetTireData = targetIsRack ? (spareTiresData[tireId] || {}) : (tiresData[tireId] || {});
+
+      const confirmText = `${sourceTireObj.label} (${sourceTireData.brand || 'Boş Slot'}) ile ${targetTireObj.label} (${targetTireData.brand || 'Boş Slot'}) konumlarındaki lastikleri yer değiştirmek (swap) istiyor musunuz?`;
+
       if (window.confirm(confirmText)) {
         try {
-          const truckRef = doc(db, 'trucks', activeTruckId);
-          
-          await updateDoc(truckRef, {
-            [`tires.${swapSourceId}`]: targetTireData,
-            [`tires.${tireId}`]: sourceTireData
-          });
-          
+          const todayStr = new Date().toISOString().split('T')[0];
+
+          // Araçtan rafa geçen lastiğin çalışma KM'sini dondur
+          const convertTruckToRack = (tData) => {
+            if (!tData || !tData.brand) return null;
+            const runKm = calculateTireKm(tData.installedKm);
+            return {
+              ...tData,
+              usedKm: runKm,
+              installedKm: runKm,
+              lastTruckPlate: activeTruckData?.plate || '',
+              lastUpdated: new Date().toISOString()
+            };
+          };
+
+          // Raftan araca geçen lastiğin takıldığı KM'yi güncel araç KM'sine göre dengele
+          const convertRackToTruck = (rData) => {
+            if (!rData || !rData.brand) return {};
+            const priorUsedKm = parseInt(rData.usedKm ?? rData.installedKm) || 0;
+            const effectiveInstalledKm = currentKm > 0 ? Math.max(0, currentKm - priorUsedKm) : priorUsedKm;
+            return {
+              brand: rData.brand || '',
+              model: rData.model || '',
+              size: rData.size || '',
+              installedKm: effectiveInstalledKm,
+              usedKm: priorUsedKm,
+              installedDate: rData.installedDate || todayStr,
+              threadDepth: parseFloat(rData.threadDepth) || 0,
+              status: rData.status || 'İyi',
+              tireType: rData.tireType || 'Sıfır',
+              notes: rData.notes || '',
+              lastUpdated: new Date().toISOString()
+            };
+          };
+
+          if (!sourceIsRack && !targetIsRack) {
+            // 1. Araç <-> Araç Swap
+            const truckRef = doc(db, 'trucks', activeTruckId);
+            await updateDoc(truckRef, {
+              [`tires.${swapSourceId}`]: targetTireData,
+              [`tires.${tireId}`]: sourceTireData
+            });
+          } else if (sourceIsRack && targetIsRack) {
+            // 2. Raf <-> Raf Swap
+            const rackRef = doc(db, 'company_data', companyRackDocId);
+            const nextSpare = { ...spareTiresData };
+            if (targetTireData && targetTireData.brand) {
+              nextSpare[swapSourceId] = targetTireData;
+            } else {
+              delete nextSpare[swapSourceId];
+            }
+            if (sourceTireData && sourceTireData.brand) {
+              nextSpare[tireId] = sourceTireData;
+            } else {
+              delete nextSpare[tireId];
+            }
+            setSpareTiresData(nextSpare);
+            await setDoc(
+              rackRef,
+              {
+                companyId: activeCompanyId || 'inaner_logistics',
+                spareTires: nextSpare,
+                updatedAt: new Date().toISOString()
+              },
+              { merge: true }
+            );
+          } else {
+            // 3. Araç <-> Ortak Yedek Raf Swap
+            const truckSlotId = sourceIsRack ? tireId : swapSourceId;
+            const rackSlotId = sourceIsRack ? swapSourceId : tireId;
+            const currentTruckTire = sourceIsRack ? targetTireData : sourceTireData;
+            const currentRackTire = sourceIsRack ? sourceTireData : targetTireData;
+
+            const newTruckTire = convertRackToTruck(currentRackTire);
+            const newRackTire = convertTruckToRack(currentTruckTire);
+
+            const truckRef = doc(db, 'trucks', activeTruckId);
+            await updateDoc(truckRef, {
+              [`tires.${truckSlotId}`]: newTruckTire
+            });
+
+            const rackRef = doc(db, 'company_data', companyRackDocId);
+            const nextSpare = { ...spareTiresData };
+            if (newRackTire && newRackTire.brand) {
+              nextSpare[rackSlotId] = newRackTire;
+            } else {
+              delete nextSpare[rackSlotId];
+            }
+            setSpareTiresData(nextSpare);
+            await setDoc(
+              rackRef,
+              {
+                companyId: activeCompanyId || 'inaner_logistics',
+                spareTires: nextSpare,
+                updatedAt: new Date().toISOString()
+              },
+              { merge: true }
+            );
+          }
+
           await addMaintenance({
-            date: new Date().toISOString().split('T')[0],
+            date: todayStr,
             type: 'Lastik Rotasyonu',
-            description: `${sourceTireObj.label} (${sourceTireData.brand || 'Belirtilmedi'} ${sourceTireData.model || ''}) ile ${targetTireObj.label} (${targetTireData.brand || 'Belirtilmedi'} ${targetTireData.model || ''}) lastiklerinin yerleri değiştirildi (swap).`,
+            description: `${sourceTireObj.label} (${sourceTireData.brand || 'Boş'} ${sourceTireData.model || ''}) ile ${targetTireObj.label} (${targetTireData.brand || 'Boş'} ${targetTireData.model || ''}) lastiklerinin yerleri değiştirildi (swap).`,
             km: currentKm,
             cost: 0,
             files: [],
             doneItems: []
           });
-          
-          alert('Lastik konumları başarıyla swaplandı (yer değiştirildi).');
+
+          setSelectedTireId(tireId);
+          alert('Lastik konumları başarıyla swaplandı.');
         } catch (err) {
           alert('Swap işlemi sırasında hata oluştu: ' + err.message);
         } finally {
@@ -1717,20 +2686,27 @@ export default function Tire3DViewer({ currentKm, onClose }) {
         setSwapSourceId(null);
       }
     } else {
+      const clickedTire = ALL_TIRE_POSITIONS.find(t => t.id === tireId);
+      if (clickedTire?.isRack) {
+        if (cameraView !== 'rack') focusOnRack();
+        setSelectedTireId(tireId);
+        return;
+      }
+
+      if (cameraView === 'rack') {
+        focusOnTruck();
+      }
+
       // Çift tekerlek döngüsü: aynı aks/taraftaki _out ve _in arasında geçiş
-      const clickedTire = TIRE_POSITIONS.find(t => t.id === tireId);
       if (clickedTire && (clickedTire.type === 'dual-out' || clickedTire.type === 'dual-in')) {
-        // Bu lastikle aynı aks ve taraftaki dual çiftini bul
         const pairedType = clickedTire.type === 'dual-out' ? 'dual-in' : 'dual-out';
         const pairedTire = TIRE_POSITIONS.find(
           t => t.axle === clickedTire.axle && t.side === clickedTire.side && t.type === pairedType
         );
-        // Şu an seçili olan tıklananın çifti ise çifte geç (toggle)
         if (pairedTire && selectedTireId === tireId) {
           setSelectedTireId(pairedTire.id);
           return;
         }
-        // Aksi halde her zaman önce _out'u seç
         const outerTire = TIRE_POSITIONS.find(
           t => t.axle === clickedTire.axle && t.side === clickedTire.side && t.type === 'dual-out'
         );
@@ -1743,14 +2719,21 @@ export default function Tire3DViewer({ currentKm, onClose }) {
     }
   };
 
+  const handleSelectRims = () => {
+    setIsSwapMode(false);
+    setSwapSourceId(null);
+    if (cameraView !== 'rack') focusOnRack();
+    setSelectedTireId('RIMS');
+  };
+
   // Lastik Değişimi panel modu geçişi
   const handleReplaceTireClick = () => {
-    const tire = tiresData[selectedTireId] || {};
+    const tire = isRackSlot ? (spareTiresData[selectedTireId] || {}) : (tiresData[selectedTireId] || {});
     setForm({
       brand: '',
       model: '',
-      size: tire.size || '',
-      installedKm: currentKm,
+      size: tire.size || '315/80 R22.5',
+      installedKm: isRackSlot ? 0 : currentKm,
       installedDate: new Date().toISOString().split('T')[0],
       threadDepth: 15,
       status: 'İyi',
@@ -1760,23 +2743,10 @@ export default function Tire3DViewer({ currentKm, onClose }) {
     setPanelMode('replace');
   };
 
-  // Kamerayı Sıfırla
-  const handleResetCamera = () => {
-    if (controlsRef.current) {
-      controlsRef.current.reset();
-    }
-  };
-
-  // Lastik KM hesaplama
-  const calculateTireKm = (installedKm) => {
-    const km = parseInt(installedKm);
-    if (isNaN(km) || km <= 0) return 0;
-    const diff = currentKm - km;
-    return diff > 0 ? diff : 0;
-  };
-
-  const selectedTireObj = TIRE_POSITIONS.find(t => t.id === selectedTireId);
-  const currentTireKm = selectedTireId ? calculateTireKm(form.installedKm) : 0;
+  const currentTireKm = selectedTireId && selectedTireId !== 'RIMS'
+    ? (isRackSlot ? (parseInt(form.installedKm) || 0) : calculateTireKm(form.installedKm))
+    : 0;
+  const hasActiveTireData = Boolean(form.brand || form.size || form.notes);
 
 
 
@@ -1784,7 +2754,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
     <div className="relative w-full h-full min-h-screen lg:h-screen bg-[#070709] overflow-hidden flex flex-col lg:block font-sans select-none text-[var(--text-primary)]">
       
       {/* Floating Header */}
-      <div className="w-full h-16 bg-[#0c0c0f]/40 backdrop-blur-md border-b border-slate-800/40 px-6 flex justify-between items-center z-20 flex-shrink-0 lg:absolute lg:top-0 lg:left-0 lg:right-0">
+      <div className="w-full min-h-16 py-2 bg-[#0c0c0f]/60 backdrop-blur-md border-b border-slate-800/40 px-4 sm:px-6 flex flex-wrap justify-between items-center gap-2 z-20 flex-shrink-0 lg:absolute lg:top-0 lg:left-0 lg:right-0">
         <div className="flex items-center gap-2.5">
           <div className="p-2 bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-400 rounded-xl shadow-lg">
             <Disc size={18} className="animate-pulse" />
@@ -1798,24 +2768,74 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                 </span>
               )}
             </div>
-            <p className="text-[10px] text-slate-400">Aracın 12 lastikli dijital ikiz simülasyonu ve aktif durum paneli</p>
+            <p className="text-[10px] text-slate-400 hidden sm:block">Aracın 12 lastikli dijital ikiz simülasyonu ve ortak yedek lastik/jant istasyonu</p>
           </div>
         </div>
-        
-        {onClose && (
-          <button 
+
+        {/* Sahne Odak Geçiş Butonları (Araç <-> Yedek Lastik Rafı <-> Yedek Jantlar) */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <button
             type="button"
-            onClick={onClose} 
-            className="p-2 bg-slate-900/60 hover:bg-slate-850 border border-slate-800 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer flex items-center justify-center"
+            onClick={() => {
+              focusOnTruck();
+              if (selectedTireId === 'RIMS' || selectedTireId?.startsWith('SPARE_')) {
+                setSelectedTireId(null);
+              }
+            }}
+            className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+              cameraView === 'truck' && selectedTireId !== 'RIMS' && !selectedTireId?.startsWith('SPARE_')
+                ? 'bg-fuchsia-500/15 border-fuchsia-500/40 text-fuchsia-300 shadow-sm'
+                : 'bg-slate-900/70 hover:bg-slate-800/90 border-slate-800 text-slate-300 hover:text-white'
+            }`}
           >
-            <X size={16} />
+            <Truck size={13} />
+            <span>Araç (12)</span>
           </button>
-        )}
+
+          <button
+            type="button"
+            onClick={() => {
+              focusOnRack();
+              setSelectedTireId(null);
+            }}
+            className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+              selectedTireId?.startsWith('SPARE_') || (cameraView === 'rack' && selectedTireId !== 'RIMS')
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-sm'
+                : 'bg-slate-900/70 hover:bg-slate-800/90 border-slate-800 text-slate-300 hover:text-white'
+            }`}
+          >
+            <Layers size={13} />
+            <span>Yedek Rafı ({filledSpareTiresCount}/20)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSelectRims}
+            className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+              selectedTireId === 'RIMS'
+                ? 'bg-sky-500/15 border-sky-500/40 text-sky-300 shadow-sm'
+                : 'bg-slate-900/70 hover:bg-slate-800/90 border-slate-800 text-slate-300 hover:text-white'
+            }`}
+          >
+            <Disc size={13} />
+            <span>Jantlar ({spareRimsData?.count || 0})</span>
+          </button>
+
+          {onClose && (
+            <button 
+              type="button"
+              onClick={onClose} 
+              className="p-2 bg-slate-900/60 hover:bg-slate-850 border border-slate-800 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer flex items-center justify-center ml-1"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 3D Canvas Background Container */}
       <div className={`h-[45vh] lg:h-full lg:absolute lg:inset-0 lg:z-0 bg-[#09090b] transition-transform duration-500 ease-in-out w-full lg:w-[calc(100%+360px)] ${
-        selectedTireId && selectedTireObj 
+        selectedTireId && (selectedTireObj || selectedTireId === 'RIMS')
           ? 'lg:-translate-x-[360px]' 
           : 'lg:-translate-x-[180px]'
       }`}>
@@ -1848,7 +2868,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                 camera={{ position: [5, 3, 6], fov: 48 }}
               >
                 <color attach="background" args={["#09090b"]} />
-                <fog attach="fog" args={["#09090b", 12, 30]} />
+                <fog attach="fog" args={["#09090b", 14, 34]} />
                 <ambientLight intensity={0.4} color="#e0f2fe" />
                 <directionalLight 
                   position={[10, 6, 8]} 
@@ -1875,9 +2895,22 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                     tiresData={tiresData}
                     calibrationRef={calibrationRef}
                   />
-                  <ShowroomEnvironment />
+                  <ShowroomEnvironment
+                    spareTiresData={spareTiresData}
+                    spareRimsData={spareRimsData}
+                    selectedTireId={selectedTireId}
+                    isSwapMode={isSwapMode}
+                    isRackFocused={cameraView === 'rack' || Boolean(selectedTireObj?.isRack) || selectedTireId === 'RIMS'}
+                    onSelectTire={handleTireClick}
+                    onSelectRims={handleSelectRims}
+                  />
                   <Environment preset="warehouse" />
                 </Suspense>
+
+                <CameraFocusController
+                  controlsRef={controlsRef}
+                  cameraTransitionRef={cameraTransitionRef}
+                />
 
                 <ContactShadows 
                   position={[0, -0.49, 0]} 
@@ -1898,12 +2931,17 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                   ref={controlsRef}
                   enableDamping 
                   dampingFactor={0.05}
-                  minDistance={3} 
-                  maxDistance={7.0} 
-                  minPolarAngle={Math.PI / 3.5}
-                  maxPolarAngle={Math.PI / 2.05}
+                  minDistance={2.2} 
+                  maxDistance={12.0} 
+                  minPolarAngle={Math.PI / 3.8}
+                  maxPolarAngle={Math.PI / 2.02}
                   autoRotate={isRotating}
                   autoRotateSpeed={0.8}
+                  onStart={() => {
+                    if (cameraTransitionRef.current) {
+                      cameraTransitionRef.current.active = false;
+                    }
+                  }}
                 />
               </Canvas>
             </ErrorBoundary>
@@ -1911,8 +2949,8 @@ export default function Tire3DViewer({ currentKm, onClose }) {
         )}
       </div>
 
-      {/* 3D Kalibrasyon/İnce Ayar Paneli (Şshifted out of translated container to prevent clipping) */}
-      {isCalibrationMode && !hasError && selectedTireId && selectedTireObj && (
+      {/* 3D Kalibrasyon/İnce Ayar Paneli (Sadece araç üzerindeki tekerlekler seçiliyken görünür) */}
+      {isCalibrationMode && !hasError && selectedTireId && selectedTireObj && !selectedTireObj.isRack && (
         <div className="absolute top-20 left-4 z-20 pointer-events-auto">
           {!showTuning ? (
             <button
@@ -2134,25 +3172,121 @@ export default function Tire3DViewer({ currentKm, onClose }) {
 
       {/* Swap Modu Uyarı Bannerı */}
       {isSwapMode && (
-        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-30 bg-indigo-600/90 border border-indigo-500 text-white font-bold text-xs py-2.5 px-5 rounded-2xl shadow-[0_4px_25px_rgba(99,102,241,0.5)] flex items-center gap-2 animate-bounce backdrop-blur-md">
-          <ArrowLeftRight size={14} className="animate-pulse text-indigo-200" />
-          <span>Lastik Swap Modu: Yerini değiştirmek istediğiniz diğer lastiği seçin...</span>
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-30 bg-indigo-600/95 border border-indigo-400/60 text-white font-bold text-xs py-2.5 px-4 sm:px-5 rounded-2xl shadow-[0_4px_25px_rgba(99,102,241,0.5)] flex flex-wrap items-center gap-2.5 backdrop-blur-md max-w-[92vw]">
+          <ArrowLeftRight size={14} className="animate-pulse text-indigo-200 shrink-0" />
+          <span>Swap Modu: Yer değiştireceğiniz hedef lastiği (Araç veya Yedek Raf) seçin</span>
+          <button
+            type="button"
+            onClick={() => {
+              if (cameraView === 'rack') {
+                focusOnTruck();
+              } else {
+                focusOnRack();
+              }
+            }}
+            className="text-[10px] bg-white/15 hover:bg-white/25 px-2.5 py-1 rounded-lg border border-white/25 transition cursor-pointer flex items-center gap-1"
+          >
+            {cameraView === 'rack' ? <Truck size={11} /> : <Layers size={11} />}
+            <span>{cameraView === 'rack' ? 'Araçtan Seç' : 'Yedek Rafından Seç'}</span>
+          </button>
           <button 
             type="button"
             onClick={() => {
               setIsSwapMode(false);
               setSwapSourceId(null);
             }}
-            className="ml-4 text-[10px] bg-slate-950/60 hover:bg-slate-950/80 px-2 py-0.5 rounded border border-white/20 transition cursor-pointer"
+            className="text-[10px] bg-slate-950/60 hover:bg-slate-950/80 px-2.5 py-1 rounded-lg border border-white/20 transition cursor-pointer"
           >
             İptal
           </button>
         </div>
       )}
 
-      {/* Sağ Panel - Lastik Teşhis Formu / Detayları */}
+      {/* Sağ Panel - Yedek Jant Envanteri (Zemin Kat - Yatay Jantlar) */}
+      {selectedTireId === 'RIMS' && (
+        <div className="w-full lg:w-[390px] lg:absolute lg:top-20 lg:right-6 lg:z-10 bg-[#0a0d14]/90 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-5 shadow-[0_4px_30px_rgba(0,0,0,0.85)] flex flex-col gap-4 max-h-[calc(100vh-110px)] overflow-y-auto">
+          <div className="flex justify-between items-start border-b border-white/[0.06] pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="bg-sky-500/15 text-sky-400 border border-sky-500/30 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  Zemin Kat (1. Raf)
+                </span>
+                <span className="text-[10px] text-slate-400 font-semibold">Şirket Ortak Envanteri</span>
+              </div>
+              <h3 className="text-sm font-bold text-white mt-1">Yedek Jant Yönetimi (Yatay Dizilim)</h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedTireId(null)}
+              className="p-1.5 bg-slate-900/60 hover:bg-slate-850 border border-slate-800 text-slate-400 hover:text-white rounded-lg transition cursor-pointer"
+            >
+              <X size={14} />
+            </button>
+          </div>
+
+          {/* Jant Sayısı Kontrol Kartı */}
+          <div className="bg-slate-950/70 border border-slate-800/80 p-4 rounded-xl flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Toplam Yedek Jant Adedi</span>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">En alt rafta yatay 3D olarak gösterilir</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleUpdateRimsCountImmediate((rimsForm.count || 0) - 1)}
+                className="w-8 h-8 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 flex items-center justify-center transition cursor-pointer active:scale-95"
+              >
+                <Minus size={14} />
+              </button>
+              <input
+                type="number"
+                min="0"
+                max="30"
+                value={rimsForm.count}
+                onChange={(e) => handleUpdateRimsCountImmediate(e.target.value)}
+                className="w-14 text-center bg-slate-950 border border-sky-500/40 rounded-lg py-1 text-sm font-mono font-extrabold text-sky-400 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => handleUpdateRimsCountImmediate((rimsForm.count || 0) + 1)}
+                className="w-8 h-8 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-sky-300 flex items-center justify-center transition cursor-pointer active:scale-95"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Genel Jant Notları Formu */}
+          <form onSubmit={handleSaveRims} className="flex flex-col gap-3">
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">
+                Genel Jant Notları
+              </label>
+              <textarea
+                rows="5"
+                value={rimsForm.notes}
+                onChange={(e) => setRimsForm({ ...rimsForm, notes: e.target.value })}
+                placeholder="Jant ebatları, çelik/alüminyum durumu veya genel envanter notlarını buraya yazın..."
+                className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500 resize-none leading-relaxed"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={savingRims}
+              className="w-full py-2.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-lg disabled:opacity-50 cursor-pointer"
+            >
+              <Save size={13} />
+              <span>{savingRims ? 'Kaydediliyor...' : 'Jant Notlarını Kaydet'}</span>
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* Sağ Panel - Lastik Teşhis Formu / Detayları (Araç ve 20 Slotlu Yedek Raf) */}
       {selectedTireId && selectedTireObj && (
-        <div className="w-full lg:w-[380px] lg:absolute lg:top-20 lg:right-6 lg:z-10 bg-slate-950/65 backdrop-blur-lg border border-slate-800/80 rounded-2xl p-5 shadow-[0_4px_30px_rgba(0,0,0,0.8)] flex flex-col max-h-[calc(100vh-120px)] overflow-y-auto">
+        <div className="w-full lg:w-[390px] lg:absolute lg:top-20 lg:right-6 lg:z-10 bg-[#0a0d14]/90 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-5 shadow-[0_4px_30px_rgba(0,0,0,0.85)] flex flex-col max-h-[calc(100vh-110px)] overflow-y-auto">
           
           {/* INFO MODE */}
           {panelMode === 'info' && (
@@ -2161,7 +3295,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
               <div className="flex justify-between items-start border-b border-slate-800 pb-3">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="bg-fuchsia-500/10 text-fuchsia-400 border border-fuchsia-500/20 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    <span className={`${isRackSlot ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' : 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20'} border text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider`}>
                       {selectedTireObj.group}
                     </span>
                     <span className="text-[10px] text-slate-400 font-semibold">{selectedTireId} Konumu</span>
@@ -2176,9 +3310,9 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                           type="button"
                           onClick={() => setSelectedTireId(pairedTire.id)}
                           className="flex items-center gap-1 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/25 text-indigo-400 hover:text-indigo-300 text-[9px] font-bold px-2 py-0.5 rounded-full transition cursor-pointer"
-                          title={`${pairedTire.label} lastığine geç`}
+                          title={`${pairedTire.label} lastiğine geç`}
                         >
-                          <span>{selectedTireObj.type === 'dual-out' ? '⊙ Dış' : '◎ İç'}</span>
+                          <span>{selectedTireObj.type === 'dual-out' ? 'Dış' : 'İç'}</span>
                           <ArrowLeftRight size={9} />
                           <span>{pairedTire.type === 'dual-out' ? 'Dış' : 'İç'}</span>
                         </button>
@@ -2197,74 +3331,150 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                 </button>
               </div>
 
-              {/* Ömür Kartı */}
-              <div className="bg-slate-950/60 border border-slate-900/80 p-3 rounded-xl flex items-center justify-between shadow-inner">
-                <div>
-                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Çalışma Kilometresi</span>
-                  <span className="text-base font-black text-slate-100 mt-0.5 block">
-                    {currentTireKm.toLocaleString()} KM
-                  </span>
-                </div>
-                <div className={`p-1.5 rounded-lg border text-[10px] font-bold ${
-                  form.status === 'Kritik' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
-                  form.status === 'Orta' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
-                  'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                }`}>
-                  {form.status === 'Kritik' && 'Kritik Seviye'}
-                  {form.status === 'Orta' && 'Orta Seviye'}
-                  {form.status === 'İyi' && 'İyi / Sağlam'}
-                </div>
-              </div>
-
-              {/* Bilgi Detayları Grid */}
-              <div className="grid grid-cols-2 gap-3 bg-slate-900/15 border border-slate-900/50 p-3 rounded-xl">
-                <div>
-                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Marka</span>
-                  <span className="text-xs text-slate-200 font-semibold mt-0.5 block">{form.brand || 'Belirtilmedi'}</span>
-                </div>
-                <div>
-                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Model</span>
-                  <span className="text-xs text-slate-200 font-semibold mt-0.5 block">{form.model || 'Belirtilmedi'}</span>
-                </div>
-                <div>
-                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Ebat</span>
-                  <span className="text-xs text-slate-200 font-semibold mt-0.5 block">{form.size || 'Belirtilmedi'}</span>
-                </div>
-                <div>
-                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Diş Derinliği</span>
-                  <span className="text-xs text-slate-200 font-semibold mt-0.5 block">{form.threadDepth ? `${form.threadDepth} mm` : 'Belirtilmedi'}</span>
-                </div>
-                <div>
-                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Takıldığı KM</span>
-                  <span className="text-xs text-slate-200 font-semibold mt-0.5 block">{form.installedKm ? `${parseInt(form.installedKm).toLocaleString()} KM` : 'Belirtilmedi'}</span>
-                </div>
-                <div>
-                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Takıldığı Tarih</span>
-                  <span className="text-xs text-slate-200 font-semibold mt-0.5 block">{form.installedDate || 'Belirtilmedi'}</span>
-                </div>
-                <div className="col-span-2 border-t border-slate-800/80 pt-2">
-                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Kaplama / Sıfır</span>
-                  <span className="text-xs text-slate-200 font-semibold mt-0.5 block">{form.tireType || 'Sıfır'}</span>
-                </div>
-                {form.notes && (
-                  <div className="col-span-2 border-t border-slate-800/80 pt-2">
-                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Notlar</span>
-                    <span className="text-xs text-slate-300 mt-0.5 block break-words">{form.notes}</span>
+              {/* Eğer seçili olan bir Yedek Raf Slotu ise ve henüz lastik eklenmemişse (Boş Slot) */}
+              {isRackSlot && !hasActiveTireData ? (
+                <div className="bg-slate-950/70 border border-dashed border-slate-800 rounded-xl p-5 text-center flex flex-col items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-400 flex items-center justify-center">
+                    <Disc size={18} />
                   </div>
-                )}
-              </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white">Bu Yedek Raf Slotu Boş</h4>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Bu slota yeni bir yedek lastik kaydedebilir veya araç üzerindeki bir lastiği buraya taşıyabilirsiniz.
+                    </p>
+                  </div>
+                  <div className="w-full flex flex-col gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForm({
+                          brand: '',
+                          model: '',
+                          size: '315/80 R22.5',
+                          installedKm: 0,
+                          installedDate: new Date().toISOString().split('T')[0],
+                          threadDepth: 15,
+                          status: 'İyi',
+                          tireType: 'Sıfır',
+                          notes: ''
+                        });
+                        setPanelMode('edit');
+                      }}
+                      className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-lg cursor-pointer"
+                    >
+                      <Plus size={14} />
+                      <span>Bu Slota Yedek Lastik Ekle</span>
+                    </button>
 
-              {/* Buton Grubu (Apple/Minimal Reorganizasyonu!) */}
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={() => setPanelMode('edit')}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-fuchsia-500 to-indigo-500 hover:from-fuchsia-600 hover:to-indigo-600 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg cursor-pointer border-none"
-                >
-                  <Pencil size={13} />
-                  <span>Bilgileri & Lastiği Düzenle</span>
-                </button>
-              </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSwapMode(true);
+                        setSwapSourceId(selectedTireId);
+                        focusOnTruck();
+                      }}
+                      className="w-full py-2 px-4 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <ArrowLeftRight size={13} className="text-indigo-400" />
+                      <span>Araçtan Bu Slota Lastik Taşı (Swap)</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Ömür Kartı */}
+                  <div className="bg-slate-950/60 border border-slate-900/80 p-3 rounded-xl flex items-center justify-between shadow-inner">
+                    <div>
+                      <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">
+                        {isRackSlot ? 'Toplam Kullanılmış KM' : 'Çalışma Kilometresi'}
+                      </span>
+                      <span className="text-base font-black text-slate-100 mt-0.5 block font-mono">
+                        {currentTireKm.toLocaleString()} KM
+                      </span>
+                    </div>
+                    <div className={`p-1.5 rounded-lg border text-[10px] font-bold ${
+                      form.status === 'Kritik' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
+                      form.status === 'Orta' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                      'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                    }`}>
+                      {form.status === 'Kritik' && 'Kritik Seviye'}
+                      {form.status === 'Orta' && 'Orta Seviye'}
+                      {form.status === 'İyi' && 'İyi / Sağlam'}
+                    </div>
+                  </div>
+
+                  {/* Bilgi Detayları Grid */}
+                  <div className="grid grid-cols-2 gap-3 bg-slate-900/15 border border-slate-900/50 p-3 rounded-xl">
+                    <div>
+                      <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Marka</span>
+                      <span className="text-xs text-slate-200 font-semibold mt-0.5 block">{form.brand || 'Belirtilmedi'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Model</span>
+                      <span className="text-xs text-slate-200 font-semibold mt-0.5 block">{form.model || 'Belirtilmedi'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Ebat</span>
+                      <span className="text-xs text-slate-200 font-semibold mt-0.5 block">{form.size || 'Belirtilmedi'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Diş Derinliği</span>
+                      <span className="text-xs text-slate-200 font-semibold mt-0.5 block">{form.threadDepth ? `${form.threadDepth} mm` : 'Belirtilmedi'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">
+                        {isRackSlot ? 'Kullanılmış KM' : 'Takıldığı KM'}
+                      </span>
+                      <span className="text-xs text-slate-200 font-semibold mt-0.5 block">
+                        {form.installedKm !== '' && form.installedKm !== undefined ? `${parseInt(form.installedKm).toLocaleString()} KM` : 'Belirtilmedi'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">
+                        {isRackSlot ? 'Kayıt Tarihi' : 'Takıldığı Tarih'}
+                      </span>
+                      <span className="text-xs text-slate-200 font-semibold mt-0.5 block">{form.installedDate || 'Belirtilmedi'}</span>
+                    </div>
+                    <div className="col-span-2 border-t border-slate-800/80 pt-2">
+                      <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Kaplama / Sıfır</span>
+                      <span className="text-xs text-slate-200 font-semibold mt-0.5 block">{form.tireType || 'Sıfır'}</span>
+                    </div>
+                    {form.notes && (
+                      <div className="col-span-2 border-t border-slate-800/80 pt-2">
+                        <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Notlar</span>
+                        <span className="text-xs text-slate-300 mt-0.5 block break-words">{form.notes}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Hızlı Aksiyon & Düzenleme Butonları */}
+                  <div className="mt-2 flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSwapMode(true);
+                        setSwapSourceId(selectedTireId);
+                        if (isRackSlot) {
+                          focusOnTruck();
+                        }
+                      }}
+                      className="w-full py-2.5 px-4 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <ArrowLeftRight size={13} />
+                      <span>{isRackSlot ? 'Bu Yedek Lastiği Araca Swapla' : 'Başka Lastikle / Yedek Rafıyla Swapla'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPanelMode('edit')}
+                      className="w-full py-2.5 px-4 bg-gradient-to-r from-fuchsia-500 to-indigo-500 hover:from-fuchsia-600 hover:to-indigo-600 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg cursor-pointer border-none"
+                    >
+                      <Pencil size={13} />
+                      <span>Bilgileri & Lastiği Düzenle</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -2273,7 +3483,9 @@ export default function Tire3DViewer({ currentKm, onClose }) {
             <div className="flex flex-col gap-4">
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                 <div>
-                  <span className="text-[10px] text-fuchsia-400 font-bold uppercase tracking-wider block">Bilgi Güncelleme</span>
+                  <span className="text-[10px] text-fuchsia-400 font-bold uppercase tracking-wider block">
+                    {isRackSlot ? 'Yedek Raf Slotu Düzenleme' : 'Bilgi Güncelleme'}
+                  </span>
                   <h3 className="text-sm font-bold text-white">{selectedTireObj.label}</h3>
                 </div>
                 <button
@@ -2285,7 +3497,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                 </button>
               </div>
 
-              {/* İşlemler Alt-Menüsü (Yeni Reorganizasyon!) */}
+              {/* İşlemler Alt-Menüsü */}
               <div className="bg-slate-950/80 border border-slate-900 p-2.5 rounded-xl flex justify-between gap-1.5 shadow-inner">
                 <button
                   type="button"
@@ -2316,6 +3528,17 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                   <History size={11} className="text-amber-400" />
                   <span>Geçmiş</span>
                 </button>
+
+                {isRackSlot && hasActiveTireData && (
+                  <button
+                    type="button"
+                    onClick={handleClearRackSlot}
+                    className="py-1.5 px-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-[10px] font-bold text-red-400 rounded-lg transition flex items-center justify-center gap-1 cursor-pointer"
+                    title="Bu raf slotunu boşalt"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                )}
               </div>
 
               <form onSubmit={handleSave} className="flex flex-col gap-4">
@@ -2352,7 +3575,9 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                     />
                   </div>
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Takıldığı KM</label>
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">
+                      {isRackSlot ? 'Kullanılmış KM' : 'Takıldığı KM'}
+                    </label>
                     <input
                       type="number"
                       required
@@ -2362,7 +3587,9 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                     />
                   </div>
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Takıldığı Tarih</label>
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">
+                      {isRackSlot ? 'Kayıt Tarihi' : 'Takıldığı Tarih'}
+                    </label>
                     <input
                       type="date"
                       required
@@ -2452,7 +3679,9 @@ export default function Tire3DViewer({ currentKm, onClose }) {
             <form onSubmit={handleReplaceTireSubmit} className="flex flex-col gap-4">
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                 <div>
-                  <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block">Yeni Lastik Takma</span>
+                  <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block">
+                    {isRackSlot ? 'Slota Yeni Yedek Lastik Koyma' : 'Yeni Lastik Takma'}
+                  </span>
                   <h3 className="text-sm font-bold text-white">{selectedTireObj.label}</h3>
                 </div>
                 <button
@@ -2497,7 +3726,9 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                   />
                 </div>
                 <div>
-                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Takıldığı KM</label>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">
+                    {isRackSlot ? 'Kullanılmış KM' : 'Takıldığı KM'}
+                  </label>
                   <input
                     type="number"
                     required
@@ -2507,7 +3738,9 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                   />
                 </div>
                 <div>
-                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Takıldığı Tarih</label>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">
+                    {isRackSlot ? 'Kayıt Tarihi' : 'Takıldığı Tarih'}
+                  </label>
                   <input
                     type="date"
                     required
@@ -2583,7 +3816,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                   ) : (
                     <>
                       <Save size={12} />
-                      <span>Yeni Lastik Tak</span>
+                      <span>{isRackSlot ? 'Rafa Kaydet' : 'Yeni Lastik Tak'}</span>
                     </>
                   )}
                 </button>
@@ -2616,7 +3849,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
 
               {tireHistory.length === 0 ? (
                 <div className="text-center py-16 text-slate-500 text-xs">
-                  Bu tekerlek konumu için eski lastik kaydı bulunamadı.
+                  Bu konum için eski lastik kaydı bulunamadı.
                 </div>
               ) : (
                 <div className="flex flex-col gap-3 overflow-y-auto max-h-[350px] pr-1.5">

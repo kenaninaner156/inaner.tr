@@ -1,7 +1,7 @@
 import React, { useContext, useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Printer, Save, PlusCircle, CheckCircle, Clock, Trash2, StickyNote, Paperclip, Menu, Calendar, User, ChevronDown, Check, Edit2, Layers, ListChecks, AlertCircle, X } from 'lucide-react';
+import { FileText, Printer, Save, PlusCircle, CheckCircle, Clock, Trash2, StickyNote, Paperclip, Menu, Calendar, User, ChevronDown, Check, Edit2, Layers, ListChecks, AlertCircle, X, ShieldCheck, Lock } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
 import { useCompany } from '../context/CompanyContext';
@@ -185,8 +185,23 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
         };
     }, [activeInvoice, routeSummary, routeHistory]);
 
-    // Faturanın GİB'de imzalanıp imzalanmadığı kontrolü (İmzalanmışsa tahmini fiyat gizlenir)
-    const isInvoiceSigned = activeInvoice?.gibStatus?.toLowerCase() === 'signed' || activeInvoice?.gibStatus?.toLowerCase() === 'approved' || activeInvoice?.signed === true;
+    // Faturanın GİB'de resmi onaylı olup olmadığı kontrolü
+    const isInvoiceOfficiallyApproved = (inv) => Boolean(
+        inv && (
+            inv.gibStatus === 'Signed' ||
+            inv.gibStatus === 'Approved' ||
+            inv.gibStatus?.toLowerCase() === 'signed' ||
+            inv.gibStatus?.toLowerCase() === 'approved' ||
+            inv.signed === true
+        )
+    );
+
+    const isInvoiceSigned = isInvoiceOfficiallyApproved(activeInvoice);
+
+    // Resmi Onaylı Fatura Silme Engeli Animasyon State'i & Silme Onay Modalı
+    const [lockedInvoiceWarning, setLockedInvoiceWarning] = useState(null);
+    const [deleteConfirmInvoice, setDeleteConfirmInvoice] = useState(null);
+    const [isDeletingInvoice, setIsDeletingInvoice] = useState(false);
 
     // Fiyat Kırılımı ve Eksik Rota Modal State'leri
     const [showPriceBreakdownModal, setShowPriceBreakdownModal] = useState(false);
@@ -200,6 +215,7 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
         setIsSavingRoutePrice(true);
         try {
             const key = `${(from || '').trim()}|||${(to || '').trim()}`;
+            const previousPrice = routeHistory?.[key]?.unitPrice || 0;
             const existingName = routeHistory?.[key]?.name;
             const defaultOldName = `${from} ${to} NAKLİYESİ`.toUpperCase();
             const defaultNewName = `${from} ${to} UÇUCU KÜL NAKLİYESİ`.toUpperCase();
@@ -217,6 +233,19 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                 }
             };
             if (saveRouteHistory) await saveRouteHistory(updatedHistory);
+            if (addLog) {
+                addLog(
+                    'FATURA_ROTA_FIYAT_GUNCELLE',
+                    `${from} → ${to} güzergah birim fiyatı güncellendi: ₺${Number(previousPrice).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} → ₺${numPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} / Ton`,
+                    {
+                        table: 'company_data',
+                        id: key,
+                        route: `${from} → ${to}`,
+                        before: { route: `${from} → ${to}`, unitPrice: `₺${Number(previousPrice).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}` },
+                        after: { route: `${from} → ${to}`, unitPrice: `₺${numPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}` }
+                    }
+                );
+            }
             setEditingRouteKey(null);
             setEditingPriceInput('');
         } catch (e) {
@@ -293,21 +322,41 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
 
     const handleSelectPeriod = ({ startDate, endDate, trips: selectedTrips, isConsolidated, truckIds, plates }) => {
         // Yeni taslak oluştur
+        const draftId = `TASLAK-${Date.now().toString().slice(-4)}`;
+        const draftTonnage = (selectedTrips || []).reduce((acc, t) => acc + parseTonnageInTons(t.tonnage), 0);
+        const draftPlates = (plates && plates.length > 0) ? plates : (activeTruckData?.plate ? [activeTruckData.plate] : []);
         const newDraft = {
-            id: `TASLAK-${Date.now().toString().slice(-4)}`,
+            id: draftId,
             startDate,
             endDate,
             trips: selectedTrips,
             status: 'Draft',
             isConsolidated: !!isConsolidated,
             truckIds: truckIds || [],
-            plates: plates || []
+            plates: draftPlates
         };
         setActiveInvoice(newDraft);
         saveDraftInvoice(newDraft);
         setIsViewingOldInvoice(false);
         setNetPrice(0);
         setMobileActiveView('preview');
+
+        if (addLog) {
+            const periodStr = `${startDate || '-'} – ${endDate || '-'}`;
+            addLog(
+                'FATURA_TASLAK_OLUSTUR',
+                `${periodStr} dönemi için fatura taslağı oluşturuldu | ${(selectedTrips || []).length} Sefer • ${draftTonnage.toFixed(2)} Ton • Araç: ${draftPlates.join(', ') || 'Belirtilmedi'}`,
+                {
+                    table: 'company_data',
+                    id: draftId,
+                    period: periodStr,
+                    tripCount: (selectedTrips || []).length,
+                    totalTonnage: `${draftTonnage.toFixed(2)} Ton`,
+                    plates: draftPlates.join(', ') || 'Belirtilmedi',
+                    isConsolidated: isConsolidated ? 'Konsolide' : 'Tek Araç'
+                }
+            );
+        }
     };
 
     // Eski faturaya tıklandığında önizle
@@ -330,6 +379,9 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
         }
 
         const totalTonnage = activeInvoice.trips.reduce((acc, t) => acc + parseTonnageInTons(t.tonnage), 0);
+        const computedTotal = (netPrice && Number(netPrice) > 0)
+            ? Number(netPrice)
+            : (estimatedCalculation?.totalPayable > 0 ? Number(estimatedCalculation.totalPayable.toFixed(2)) : 0);
 
         const newInvoiceData = {
             startDate: activeInvoice.startDate,
@@ -344,21 +396,23 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                 truckPlate: t.truckPlate
             })),
             totalTonnage,
-            grandTotal: netPrice || 0,
+            grandTotal: computedTotal,
             status: 'Sent',
             docId: `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(3, '0')}`,
             isConsolidated: !!activeInvoice.isConsolidated,
             truckIds: activeInvoice.truckIds || (activeInvoice.truckId ? [activeInvoice.truckId] : (activeTruckId ? [activeTruckId] : [])),
-            plates: activeInvoice.plates || (activeTruckData?.plate ? [activeTruckData.plate] : [])
+            plates: activeInvoice.plates && activeInvoice.plates.length > 0 ? activeInvoice.plates : (activeTruckData?.plate ? [activeTruckData.plate] : [])
         };
 
         try {
-            await addInvoice(newInvoiceData);
+            const createdDocId = await addInvoice(newInvoiceData);
 
             const batch = writeBatch(db);
             activeInvoice.trips.forEach(trip => {
-                const tripRef = doc(db, 'trips', trip.id);
-                batch.update(tripRef, { status: 'Fatura Kesildi' });
+                if (trip.id) {
+                    const tripRef = doc(db, 'trips', trip.id);
+                    batch.update(tripRef, { status: 'Fatura Kesildi' });
+                }
             });
             await batch.commit();
             await clearDraftInvoice();
@@ -369,14 +423,12 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
               title: 'Yeni Fatura Kesildi',
               description: 'Fatura başarıyla oluşturuldu.',
               fields: [
-                { name: 'Firma', value: String(newInvoiceData?.customer || newInvoiceData?.company || '—'), inline: true },
+                { name: 'Dönem', value: `${newInvoiceData.startDate} – ${newInvoiceData.endDate}`, inline: true },
                 { name: 'Tutar', value: String(newInvoiceData?.grandTotal || '—') + ' ₺', inline: true },
               ]
             });
 
-            addLog('FATURA_KESILDI', `${activeInvoice.startDate} - ${activeInvoice.endDate} periyodu için fatura başarıyla kesildi.`);
-
-            setActiveInvoice({ ...newInvoiceData, id: newInvoiceData.docId });
+            setActiveInvoice({ ...newInvoiceData, id: createdDocId || newInvoiceData.docId });
             setIsViewingOldInvoice(false);
         } catch {
             alert("Fatura kaydedilirken bir hata oluştu.");
@@ -384,39 +436,82 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
     };
 
     const handleDeleteInvoice = async (invoiceId, docId, e) => {
-        e.stopPropagation();
+        if (e) e.stopPropagation();
 
-        // Mobil kontrolü (768px altı)
-        const isMobile = window.innerWidth < 768;
+        const targetInvoice = (invoices || []).find(inv => inv.id === invoiceId);
+        if (!targetInvoice) return;
 
-        if (isMobile || window.confirm(`${docId} numaralı faturayı/dökümü silmek istediğinize emin misiniz? (Bağlı seferler faturası kesilmemiş hale dönecektir)`)) {
-            try {
-                // Faturayı siliyoruz (Soft Delete)
-                const deletedInvoice = invoices.find(inv => inv.id === invoiceId);
-                const linkedInvoice = invoices.find(inv => inv.id === invoiceId);
+        const periodStr = formatFullDateRange(targetInvoice.startDate, targetInvoice.endDate, targetInvoice.docId || docId);
+        const tripCount = targetInvoice.trips?.length || 0;
+        const tonnageVal = ((targetInvoice.trips && targetInvoice.trips.length > 0)
+            ? targetInvoice.trips.reduce((acc, t) => acc + parseTonnageInTons(t.tonnage), 0)
+            : (targetInvoice.totalTonnage || 0)).toFixed(2);
+        const amountStr = Number(targetInvoice.grandTotal || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const platesStr = Array.isArray(targetInvoice.plates) && targetInvoice.plates.length > 0
+            ? targetInvoice.plates.join(', ')
+            : (activeTruckData?.plate || 'Belirtilmedi');
 
-                await deleteInvoice(invoiceId);
+        // E-Arşiv'de Resmi Onaylı ise silinemez -> Modern animasyonlu uyarı göster ve logla
+        if (isInvoiceOfficiallyApproved(targetInvoice)) {
+            setLockedInvoiceWarning({
+                id: targetInvoice.id,
+                docId: targetInvoice.docId || docId || targetInvoice.id,
+                period: periodStr,
+                tripCount,
+                tonnage: tonnageVal,
+                grandTotal: amountStr,
+                tick: Date.now()
+            });
 
-                // F2: Fatura silme bildirimi
-                sendDiscordAlert({
-                  type: 'danger',
-                  title: 'Fatura Silindi',
-                  description: 'Bir fatura kaydı silindi.',
-                  fields: [
-                    { name: 'Tutar', value: String(deletedInvoice?.grandTotal || deletedInvoice?.amount || deletedInvoice?.total || '—') + ' ₺', inline: true },
-                  ]
-                });
+            if (addLog) {
+                addLog(
+                    'FATURA_KORUMA_ENGELI',
+                    `${targetInvoice.docId || docId || targetInvoice.id} (${periodStr}) Resmi Onaylı faturasını silme girişimi engellendi | ${tripCount} Sefer • ${tonnageVal} Ton • Tutar: ₺${amountStr} • Araç: ${platesStr}`,
+                    {
+                        docId: targetInvoice.docId || docId || targetInvoice.id,
+                        period: periodStr,
+                        tripCount,
+                        totalTonnage: `${tonnageVal} Ton`,
+                        grandTotal: `₺${amountStr}`,
+                        plates: platesStr,
+                        gibStatus: 'Resmi Onaylı'
+                    }
+                );
+            }
+            return;
+        }
 
-                // Bu faturaya bağlı olan seferleri bulup statülerini "Fatura Bekliyor" olarak geri alıyoruz
-                if (linkedInvoice && linkedInvoice.trips) {
-                    const batch = writeBatch(db);
-                    linkedInvoice.trips.forEach(trip => {
-                        const tripRef = doc(db, 'trips', trip.id);
-                        batch.update(tripRef, { status: 'Fatura Bekliyor' });
-                    });
-                    await batch.commit();
-                }
-            } catch { /* empty */ }
+        // Resmi onaylı değilse modern onay modalını aç
+        setDeleteConfirmInvoice(targetInvoice);
+    };
+
+    const handleConfirmDeleteInvoice = async () => {
+        if (!deleteConfirmInvoice) return;
+        const targetInvoice = deleteConfirmInvoice;
+        if (isInvoiceOfficiallyApproved(targetInvoice)) {
+            setDeleteConfirmInvoice(null);
+            return;
+        }
+
+        setIsDeletingInvoice(true);
+        try {
+            await deleteInvoice(targetInvoice.id);
+
+            sendDiscordAlert({
+                type: 'danger',
+                title: 'Fatura Silindi',
+                description: 'Bir fatura kaydı silindi.',
+                fields: [
+                    { name: 'Belge No', value: String(targetInvoice?.docId || targetInvoice?.id || '—'), inline: true },
+                    { name: 'Tutar', value: String(targetInvoice?.grandTotal || targetInvoice?.amount || targetInvoice?.total || '—') + ' ₺', inline: true },
+                ]
+            });
+
+            setDeleteConfirmInvoice(null);
+        } catch (err) {
+            console.error("Fatura silinirken hata:", err);
+        } finally {
+            setIsDeletingInvoice(false);
         }
     };
 
@@ -456,6 +551,26 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
 
     const handlePrintPDF = () => {
         if (!invoicePrintRef.current) return;
+
+        if (activeInvoice && addLog) {
+            const periodStr = formatFullDateRange(activeInvoice.startDate, activeInvoice.endDate, activeInvoice.docId);
+            const tripCount = activeInvoice.trips?.length || 0;
+            const tonnageVal = totalInvoiceTonnage.toFixed(2);
+            const amountVal = Number(activeInvoice.grandTotal || estimatedCalculation?.totalPayable || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            addLog(
+                'FATURA_PDF_INDIR',
+                `${activeInvoice.docId || activeInvoice.id || 'Taslak'} (${periodStr}) sefer dökümü PDF olarak yazdırıldı/indirildi | ${tripCount} Sefer • ${tonnageVal} Ton • ₺${amountVal}`,
+                {
+                    table: 'invoices',
+                    id: activeInvoice.id || 'draft',
+                    docId: activeInvoice.docId || activeInvoice.id || 'Taslak',
+                    period: periodStr,
+                    tripCount,
+                    totalTonnage: `${tonnageVal} Ton`,
+                    grandTotal: `₺${amountVal}`
+                }
+            );
+        }
 
         const printTitle = formatInvoicePeriodName(activeInvoice?.startDate, activeInvoice?.endDate, activeInvoice?.docId);
         const printContent = invoicePrintRef.current;
@@ -653,14 +768,18 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                     <div className="p-3 flex-1 overflow-y-auto custom-scrollbar space-y-2 relative">
                         {(invoices || []).length > 0 ? (invoices || []).filter(inv => !inv.deleted).map((inv) => {
                             const isActive = activeInvoice?.id === inv.id && isViewingOldInvoice;
+                            const isOfficial = isInvoiceOfficiallyApproved(inv);
+                            const isLockedWarned = lockedInvoiceWarning?.id === inv.id;
                             return (
-                            <div
+                            <motion.div
                                 key={inv.id}
                                 role="button"
                                 tabIndex={0}
                                 onClick={() => handleViewInvoice(inv)}
                                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewInvoice(inv); } }}
-                                className={`w-full text-left p-3 rounded-xl transition-all duration-300 group relative cursor-pointer outline-none overflow-hidden block ${isActive ? 'border-transparent' : 'border border-[var(--border-color)] bg-white/5 hover:bg-white/10'}`}
+                                animate={isLockedWarned ? { x: [0, -6, 6, -4, 4, -2, 2, 0] } : { x: 0 }}
+                                transition={{ duration: 0.42, ease: 'easeInOut' }}
+                                className={`w-full text-left p-3 rounded-xl transition-all duration-300 group relative cursor-pointer outline-none overflow-hidden block ${isActive ? 'border-transparent' : isLockedWarned ? 'border border-amber-500/40 bg-amber-500/[0.04]' : 'border border-[var(--border-color)] bg-white/5 hover:bg-white/10'}`}
                             >
                                 {!isActive && <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors duration-300 -z-10" />}
                                 {isActive && (
@@ -684,16 +803,25 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                                     KONSOLİDE
                                                 </span>
                                             )}
+                                            {isOfficial && (
+                                                <span className="inline-flex items-center gap-1 text-[9px] bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 px-1.5 py-0.5 rounded-md font-semibold shrink-0">
+                                                    <ShieldCheck size={10} className="text-emerald-400" />
+                                                    Resmi Onaylı
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-1.5 shrink-0">
-                                            <button
+                                            <motion.button
                                                 type="button"
+                                                whileTap={isOfficial ? { scale: 0.9 } : { scale: 0.92 }}
                                                 onClick={(e) => handleDeleteInvoice(inv.id, inv.docId, e)}
-                                                className={`p-1 transition-colors ${isActive ? 'text-white/50 hover:text-red-400' : 'text-slate-500 hover:text-red-400'}`}
-                                                title="Sil"
+                                                className={isOfficial
+                                                    ? 'p-1.5 rounded-lg text-slate-500/40 hover:text-slate-400/60 opacity-40 cursor-pointer transition-all'
+                                                    : `p-1.5 rounded-lg transition-colors cursor-pointer ${isActive ? 'text-white/50 hover:text-red-400 hover:bg-red-500/10' : 'text-slate-500 hover:text-red-400 hover:bg-red-500/10'}`
+                                                }
                                             >
                                                 <Trash2 size={14} />
-                                            </button>
+                                            </motion.button>
                                         </div>
                                     </div>
                                     <motion.div 
@@ -704,8 +832,46 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                         ₺{inv.grandTotal?.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                                     </motion.div>
                                     <div className={`text-xs mt-0.5 transition-colors ${isActive ? 'text-white/60' : 'text-slate-500'}`}>{inv.trips?.length || 0} Sefer | {((inv.trips && inv.trips.length > 0) ? inv.trips.reduce((acc, t) => acc + parseTonnageInTons(t.tonnage), 0) : (inv.totalTonnage || 0)).toFixed(2)} Ton</div>
+
+                                    {/* Resmi Onaylı Fatura Silme Engeli Kart İçi Modern Animasyonlu Uyarı */}
+                                    <AnimatePresence>
+                                        {isLockedWarned && (
+                                            <motion.div
+                                                key={`locked-inline-${lockedInvoiceWarning?.tick}`}
+                                                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                                                animate={{ opacity: 1, height: 'auto', marginTop: 8 }}
+                                                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                                                transition={{ type: 'spring', stiffness: 420, damping: 30 }}
+                                                className="overflow-hidden rounded-xl"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <div className="p-2.5 rounded-xl bg-emerald-500/[0.06] border border-emerald-500/25 flex items-start gap-2.5 relative">
+                                                    <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0 text-emerald-400 mt-0.5">
+                                                        <Lock size={13} />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-[11px] font-bold text-white tracking-tight">
+                                                                Bu Fatura Resmi Onaylı
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[10.5px] text-slate-300 leading-relaxed mt-0.5">
+                                                            <strong className="text-white font-semibold">{lockedInvoiceWarning?.period}</strong> dönemine ait fatura E-Arşiv üzerinde resmi onaylı olduğu için silinemez. Silmek için önce E-Arşiv Fatura ekranından onay durumunu kaldırmanız gerekir.
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); setLockedInvoiceWarning(null); }}
+                                                        className="text-slate-400 hover:text-white p-0.5 rounded transition-colors cursor-pointer shrink-0"
+                                                    >
+                                                        <X size={13} />
+                                                    </button>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
-                            </div>
+                            </motion.div>
                             )
                         }) : (
                             <div className="text-center py-8 text-slate-500 text-sm absolute inset-0 flex flex-col items-center justify-center">
@@ -1065,11 +1231,27 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                             </button>
                             <button
                                 onClick={() => {
+                                    if (activeInvoice && addLog) {
+                                        const periodStr = `${activeInvoice.startDate || '-'} – ${activeInvoice.endDate || '-'}`;
+                                        const tripCount = activeInvoice.trips?.length || 0;
+                                        const draftTon = totalInvoiceTonnage.toFixed(2);
+                                        addLog(
+                                            'FATURA_TASLAK_IPTAL',
+                                            `${periodStr} dönemine ait işlem bekleyen fatura taslağı iptal edildi | ${tripCount} Sefer • ${draftTon} Ton`,
+                                            {
+                                                table: 'company_data',
+                                                id: activeInvoice.id || 'draft',
+                                                period: periodStr,
+                                                tripCount,
+                                                totalTonnage: `${draftTon} Ton`
+                                            }
+                                        );
+                                    }
                                     clearDraftInvoice();
                                     setActiveInvoice(null);
                                     setShowCancelConfirm(false);
                                 }}
-                                className="flex-1 py-2.5 rounded-lg font-bold w-full bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 transition-all text-sm"
+                                className="flex-1 py-2.5 rounded-lg font-bold w-full bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 transition-all text-sm cursor-pointer"
                             >
                                 Evet, İptal Et
                             </button>
@@ -1298,6 +1480,62 @@ const Invoices = ({ onOpenMenu, isMobile } = {}) => {
                                     Kapat
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+
+
+            {/* ─── STANDART FATURA SİLME ONAY MODALI (RESMİ ONAYSIZ FATURALAR İÇİN) ─── */}
+            {deleteConfirmInvoice && typeof document !== 'undefined' && createPortal(
+                <div
+                    className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-[99998] p-4 animate-in fade-in duration-200"
+                    onClick={() => !isDeletingInvoice && setDeleteConfirmInvoice(null)}
+                >
+                    <div
+                        className="bg-[#0a0d14] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-md p-6 relative overflow-hidden animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-start gap-4 mb-5">
+                            <div className="w-11 h-11 rounded-xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-center shrink-0 text-rose-400">
+                                <Trash2 size={20} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h3 className="text-base font-bold text-white tracking-tight">
+                                    Faturayı Silmek İstediğinize Emin Misiniz?
+                                </h3>
+                                <p className="text-xs text-slate-400 leading-relaxed mt-1">
+                                    <strong className="text-slate-200">{formatFullDateRange(deleteConfirmInvoice.startDate, deleteConfirmInvoice.endDate, deleteConfirmInvoice.docId)}</strong> dönemine ait faturayı sildiğinizde bağlı <strong className="text-slate-200">{deleteConfirmInvoice.trips?.length || 0} sefer</strong> tekrar <span className="text-sky-400 font-semibold">Fatura Bekliyor</span> durumuna dönecektir.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-3.5 py-2.5 mb-5 text-xs font-mono">
+                            <span className="text-slate-400">{deleteConfirmInvoice.docId || deleteConfirmInvoice.id}</span>
+                            <span className="font-bold text-white">
+                                ₺{Number(deleteConfirmInvoice.grandTotal || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                            </span>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                disabled={isDeletingInvoice}
+                                onClick={() => setDeleteConfirmInvoice(null)}
+                                className="flex-1 py-2.5 rounded-xl font-semibold text-xs text-slate-300 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-all cursor-pointer disabled:opacity-50"
+                            >
+                                Vazgeç
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isDeletingInvoice}
+                                onClick={handleConfirmDeleteInvoice}
+                                className="flex-1 py-2.5 rounded-xl font-bold text-xs text-white bg-rose-600 hover:bg-rose-500 transition-all shadow-lg shadow-rose-950/50 cursor-pointer disabled:opacity-50"
+                            >
+                                {isDeletingInvoice ? 'Siliniyor...' : 'Evet, Faturayı Sil'}
+                            </button>
                         </div>
                     </div>
                 </div>,

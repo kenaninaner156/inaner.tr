@@ -1,16 +1,52 @@
 import React, { useState, useContext, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Droplet, Plus, MapPin, X, Trash2, Paperclip, FileText, Download, Pencil, StickyNote, ChevronDown, Calendar, Activity, Wallet, TrendingUp, Gauge, Fuel as FuelIcon, Menu, ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { Droplet, Plus, MapPin, X, Trash2, Paperclip, FileText, Download, Pencil, StickyNote, ChevronDown, Calendar, Activity, Wallet, TrendingUp, Gauge, Fuel as FuelIcon, Menu, ChevronLeft, ChevronRight, Check, Percent, AlertTriangle } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
 import { useTruck } from '../context/TruckContext';
+import { useCompany } from '../context/CompanyContext';
+import { db } from '../services/firebaseConfig';
+import { doc, onSnapshot, setDoc, deleteField } from 'firebase/firestore';
 import FileUpload from './FileUpload';
 import CustomDatePicker from './CustomDatePicker';
 import { sendDiscordAlert } from '../services/discordWebhook';
+import { getGuardedUserConfig, isGuardOnCooldown, setGuardCooldown, findUserOwnTruck, isPlateMatchingUser } from '../utils/userTruckGuard';
 
 const Fuel = ({ onOpenMenu, isMobile }) => {
-    const { fuelRecords, addFuel, deleteFuel, editFuel, allCompanyStations } = useContext(DataContext);
-    const { activeTruckData, switchNextTruck, trucks } = useTruck();
+    const { fuelRecords, allCompanyFuelRecords, addFuel, deleteFuel, editFuel, allCompanyStations, currentSession } = useContext(DataContext);
+    const { setActiveTruckId, activeTruckData, switchNextTruck, trucks } = useTruck();
+    const { activeCompanyId } = useCompany();
     const lastTitleTapRef = useRef(0);
+
+    // %5 Mazot İskontosu Aktif/Pasif Durumu (Kalıcı Hafıza: localStorage + Firestore)
+    const [fuelDiscountEnabled, setFuelDiscountEnabled] = useState(() => {
+        const saved = localStorage.getItem('tir_fuel_discount_enabled');
+        return saved !== null ? saved === 'true' : true;
+    });
+
+    const companyInfoDocId = activeCompanyId === 'inaner_logistics' ? 'info' : `${activeCompanyId || 'inaner_logistics'}_info`;
+
+    useEffect(() => {
+        if (!activeCompanyId) return;
+        const unsub = onSnapshot(doc(db, 'company_data', companyInfoDocId), (snap) => {
+            if (snap.exists() && snap.data().fuelDiscountEnabled !== undefined) {
+                const val = Boolean(snap.data().fuelDiscountEnabled);
+                setFuelDiscountEnabled(val);
+                localStorage.setItem('tir_fuel_discount_enabled', String(val));
+            }
+        });
+        return () => unsub();
+    }, [activeCompanyId, companyInfoDocId]);
+
+    const toggleGlobalFuelDiscount = async () => {
+        const nextVal = !fuelDiscountEnabled;
+        setFuelDiscountEnabled(nextVal);
+        localStorage.setItem('tir_fuel_discount_enabled', String(nextVal));
+        try {
+            await setDoc(doc(db, 'company_data', companyInfoDocId), { fuelDiscountEnabled: nextVal }, { merge: true });
+        } catch (err) {
+            console.warn('Mazot iskonto tercihi senkronize edilemedi:', err);
+        }
+    };
 
     const handleTitleClick = (e) => {
         const now = Date.now();
@@ -191,28 +227,43 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
     };
 
     const openEditModal = (record) => {
+        const isDiscounted = Boolean(record.hasDiscount || record.discountRate > 0 || (record.undiscountedPrice && Number(record.undiscountedPrice) > Number(record.price)));
+        const basePriceToEdit = isDiscounted && record.undiscountedPrice ? record.undiscountedPrice : record.price;
         setEditingFuel(record);
         setEditForm({
             date: record.date,
             station: record.station,
             liters: formatDecimal(record.liters),
-            price: formatDecimal(record.price),
+            price: formatDecimal(basePriceToEdit),
             odometer: formatKM(record.odometer) || '',
             notes: record.notes || '',
             files: record.files || [],
-            isPartial: record.isPartial || false
+            isPartial: record.isPartial || false,
+            hasDiscount: isDiscounted
         });
     };
 
-    const handleAdd = (e) => {
-        e.preventDefault();
+    const [duplicateFuelConfirm, setDuplicateFuelConfirm] = useState(null);
+
+    const executeAddFuel = () => {
         const enteredOdo = formData.odometer ? parseFloat(formData.odometer.toString().replace(/\./g, '')) : null;
+        const rawPrice = parseDecimal(formData.price);
+        const discountAmount = fuelDiscountEnabled ? Number((rawPrice * 0.05).toFixed(2)) : 0;
+        const finalPrice = fuelDiscountEnabled ? Number((rawPrice - discountAmount).toFixed(2)) : rawPrice;
 
         addFuel({
             date: formData.date,
             station: formData.station,
             liters: parseDecimal(formData.liters),
-            price: parseDecimal(formData.price),
+            price: finalPrice,
+            ...(fuelDiscountEnabled ? {
+                undiscountedPrice: rawPrice,
+                discountRate: 5,
+                discountAmount,
+                hasDiscount: true
+            } : {
+                hasDiscount: false
+            }),
             odometer: enteredOdo,
             notes: formData.notes,
             files: formData.files,
@@ -226,10 +277,12 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
             fields: [
                 { name: 'İstasyon', value: String(formData.station || '—'), inline: true },
                 { name: 'Miktar', value: String(formData.liters || '—') + ' litre', inline: true },
-                { name: 'Tutar', value: String(formData.price || '—') + ' ₺', inline: true },
+                { name: 'Tutar', value: String(formatDecimal(finalPrice) || '—') + ' ₺', inline: true },
                 { name: 'Tarih', value: String(formData.date || '—'), inline: true },
             ]
         });
+
+        setDuplicateFuelConfirm(null);
 
         // Modal kapatılmaz, seri fiş girişine kesintisiz devam edilir
         setSaveSuccess(true);
@@ -250,12 +303,117 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
         }));
     };
 
+    const [truckGuardConfirm, setTruckGuardConfirm] = useState(null);
+
+    const proceedWithFuelDuplicateCheck = () => {
+        const enteredLiters = parseDecimal(formData.liters);
+        const rawPrice = parseDecimal(formData.price);
+        const discountAmount = fuelDiscountEnabled ? Number((rawPrice * 0.05).toFixed(2)) : 0;
+        const finalPrice = fuelDiscountEnabled ? Number((rawPrice - discountAmount).toFixed(2)) : rawPrice;
+
+        // Aynı tarihte aynı litre veya aynı tutara sahip silinmemiş fiş kontrolü
+        const existingDuplicate = (fuelRecords || []).find(r => {
+            if (r.deleted) return false;
+            if (r.date !== formData.date) return false;
+            const rLiters = parseFloat(r.liters) || 0;
+            const rPrice = parseFloat(r.price) || 0;
+            const rRawPrice = parseFloat(r.undiscountedPrice) || rPrice;
+            const sameLiters = enteredLiters > 0 && Math.abs(rLiters - enteredLiters) < 0.01;
+            const samePrice = rawPrice > 0 && (Math.abs(rPrice - finalPrice) < 0.05 || Math.abs(rRawPrice - rawPrice) < 0.05);
+            return sameLiters || samePrice;
+        });
+
+        if (existingDuplicate) {
+            setDuplicateFuelConfirm({
+                existing: existingDuplicate,
+                enteredDate: formData.date,
+                enteredLiters,
+                finalPrice,
+                station: formData.station || existingDuplicate.station || 'Belirtilmedi'
+            });
+            return;
+        }
+
+        executeAddFuel();
+    };
+
+    const handleConfirmCrossTruckFuel = () => {
+        if (truckGuardConfirm?.config?.userKey) {
+            setGuardCooldown(truckGuardConfirm.config.userKey);
+        }
+        setTruckGuardConfirm(null);
+        proceedWithFuelDuplicateCheck();
+    };
+
+    const handleSwitchToOwnTruckInFuel = () => {
+        if (!truckGuardConfirm) return;
+        const { ownTruck, config } = truckGuardConfirm;
+        const targetTruckId = ownTruck?.id || config?.expectedDefaultTruckId;
+        if (targetTruckId) {
+            const currentActiveRecords = (fuelRecords || []).filter(r => !r.deleted && r.odometer);
+            const currentSorted = [...currentActiveRecords].sort((a, b) => new Date(b.date) - new Date(a.date));
+            const currentDefaultOdo = currentSorted[0] ? formatKM(currentSorted[0].odometer) : '';
+
+            const ownRecords = (allCompanyFuelRecords || []).filter(r => !r.deleted && r.truckId === targetTruckId && r.odometer);
+            const ownSorted = [...ownRecords].sort((a, b) => new Date(b.date) - new Date(a.date));
+            const ownDefaultOdo = ownSorted[0] ? formatKM(ownSorted[0].odometer) : '';
+
+            setFormData(prev => ({
+                ...prev,
+                odometer: (prev.odometer === currentDefaultOdo && ownDefaultOdo) ? ownDefaultOdo : prev.odometer
+            }));
+            setActiveTruckId(targetTruckId);
+        }
+        setTruckGuardConfirm(null);
+    };
+
+    const handleAdd = (e) => {
+        e.preventDefault();
+
+        const guardCfg = getGuardedUserConfig(currentSession?.username);
+        if (guardCfg && !isGuardOnCooldown(guardCfg.userKey)) {
+            const plateOk = isPlateMatchingUser(activeTruckData?.plate, guardCfg);
+            if (!plateOk) {
+                const ownTruck = findUserOwnTruck(trucks, guardCfg);
+                setTruckGuardConfirm({
+                    config: guardCfg,
+                    ownTruck,
+                    ownPlate: ownTruck?.plate || guardCfg.expectedDefaultPlate,
+                    currentPlate: activeTruckData?.plate || 'Diğer Araç',
+                    station: formData.station || 'Belirtilmedi',
+                    liters: formData.liters,
+                    price: formData.price
+                });
+                return;
+            }
+        }
+
+        proceedWithFuelDuplicateCheck();
+    };
+
     const handleEdit = async () => {
+        const rawPrice = parseDecimal(editForm.price);
+        const isDisc = Boolean(editForm.hasDiscount);
+        const discountAmount = isDisc ? Number((rawPrice * 0.05).toFixed(2)) : 0;
+        const finalPrice = isDisc ? Number((rawPrice - discountAmount).toFixed(2)) : rawPrice;
+
         await editFuel(editingFuel.id, {
             date: editForm.date,
             station: editForm.station,
             liters: parseDecimal(editForm.liters),
-            price: parseDecimal(editForm.price),
+            price: finalPrice,
+            ...(isDisc ? {
+                undiscountedPrice: rawPrice,
+                discountRate: 5,
+                discountAmount,
+                hasDiscount: true
+            } : {
+                undiscountedPrice: deleteField(),
+                discountRate: deleteField(),
+                discountAmount: deleteField(),
+                discountPeriod: deleteField(),
+                hasDiscount: false
+            }),
             odometer: editForm.odometer ? parseFloat(editForm.odometer.toString().replace(/\./g, '')) : null,
             notes: editForm.notes,
             files: editForm.files,
@@ -858,31 +1016,39 @@ return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md">
                     <div className="glass-panel w-full max-w-md p-4 sm:p-6 relative animate-in zoom-in-95 duration-200 max-h-[92dvh] overflow-hidden flex flex-col border-cyan-500/30">
                         <button onClick={() => setEditingFuel(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer z-20"><X size={20} /></button>
-                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-5 flex items-center gap-2 flex-shrink-0">
-                            <Pencil size={18} className="text-cyan-400" /> Fişi Düzenle
-                        </h3>
+                        <div className="flex flex-col justify-center mb-4 sm:mb-5 flex-shrink-0 select-none w-fit">
+                            <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 leading-none">
+                                <Pencil size={18} className="text-cyan-400 shrink-0" /> Fişi Düzenle
+                            </h3>
+                            {activeTruckData?.plate && (
+                                <span
+                                    key={activeTruckData.plate}
+                                    className="text-[10px] sm:text-[11px] font-mono font-medium text-slate-400/75 tracking-wider uppercase leading-none mt-1.5 ml-[26px] transition-colors animate-in fade-in duration-200"
+                                >
+                                    {activeTruckData.plate}
+                                </span>
+                            )}
+                        </div>
                         <div className="space-y-4 flex-1 overflow-y-auto pr-1 sm:pr-2 custom-scrollbar pb-3">
-                            <div className="grid grid-cols-2 gap-3 items-end">
-                                {/* Tarih */}
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tarih</label>
-                                    <CustomDatePicker 
-                                        value={editForm.date}
-                                        onChange={val => setEditForm({ ...editForm, date: val })}
-                                        className="glass-input text-left px-3 py-2 text-sm"
-                                    />
-                                </div>
-                                <div>
+                            {/* Tarih & Ek Bilgiler */}
+                            <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Tarih</label>
                                     <button
                                         type="button"
                                         onClick={() => setEditShowExtra(!editShowExtra)}
-                                        className={`w-full py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer h-[38px] ${editShowExtra ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-lg shadow-cyan-500/10' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
+                                        className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${editShowExtra ? 'bg-cyan-500/10 border-cyan-500/50 text-cyan-400 shadow-sm' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                                     >
-                                        <StickyNote size={13} className={editShowExtra ? "animate-pulse" : ""} />
+                                        <StickyNote size={12} />
                                         <span>Ek Bilgiler</span>
-                                        <ChevronDown size={13} className={editShowExtra ? "rotate-180 transition-transform" : "transition-transform"} />
+                                        <ChevronDown size={12} className={editShowExtra ? "rotate-180 transition-transform" : "transition-transform"} />
                                     </button>
                                 </div>
+                                <CustomDatePicker theme="cyan" 
+                                    value={editForm.date}
+                                    onChange={val => setEditForm({ ...editForm, date: val })}
+                                    className="glass-input text-left text-sm"
+                                />
                             </div>
                             
                             {/* İstasyon */}
@@ -890,7 +1056,8 @@ return (
                                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">İstasyon / Konum</label>
                                 <input 
                                     type="text" 
-                                    className="w-full glass-input px-3 py-2 text-sm"
+                                    placeholder="Örn: Shell Eryaman"
+                                    className="w-full glass-input px-4 py-2.5 text-sm"
                                     value={editForm.station}
                                     onFocus={() => setShowEditSuggestions(true)}
                                     onBlur={() => setTimeout(() => setShowEditSuggestions(false), 200)}
@@ -933,25 +1100,36 @@ return (
                                 </div>
 
                                 {/* Tutar Row */}
-                                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between shadow-sm relative overflow-hidden">
+                                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm relative overflow-hidden">
                                     <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-emerald-500/40 to-transparent"></div>
-                                    <label className="text-[11px] font-bold text-emerald-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap">Toplam Tutar</label>
-                                    <div className="flex-1 ml-2 flex justify-end items-center">
-                                        <input 
-                                            type="tel" 
-                                            required
-                                            className="bg-transparent text-xl font-black text-emerald-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-emerald-900/30"
-                                            value={editForm.price}
-                                            onChange={e => setEditForm({ ...editForm, price: formatDecimal(e.target.value) })}
-                                            placeholder="0,00"
-                                        />
-                                        <span className={`font-bold text-lg mt-0.5 shrink-0 ml-1 transition-colors duration-300 ${editForm.price ? 'text-emerald-400' : 'text-emerald-900/30'}`}>₺</span>
+                                    <div className="flex flex-col justify-center">
+                                        <label className="text-[11px] font-bold text-emerald-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap">Toplam Tutar</label>
+                                        {editForm.hasDiscount && (
+                                            <span className="text-[11px] font-bold font-mono text-emerald-400/45 mt-1 tracking-tight">
+                                                {parseDecimal(editForm.price) > 0
+                                                    ? `${Number((parseDecimal(editForm.price) - Number((parseDecimal(editForm.price) * 0.05).toFixed(2))).toFixed(2)).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺`
+                                                    : '0,00 ₺'}
+                                            </span>
+                                        )}
                                     </div>
-                                    {parseDecimal(editForm.liters) > 0 && parseDecimal(editForm.price) > 0 && (
-                                        <div className="w-full text-right text-[10px] text-emerald-500/60 mt-1.5 font-bold animate-in fade-in zoom-in duration-300">
-                                            BİRİM: ₺{(parseDecimal(editForm.price) / parseDecimal(editForm.liters)).toFixed(2)} / Lt
+                                    <div className="flex-1 ml-2 flex flex-col items-end justify-center">
+                                        <div className="flex justify-end items-center w-full">
+                                            <input 
+                                                type="tel" 
+                                                required
+                                                className="bg-transparent text-xl font-black text-emerald-400 text-right focus:outline-none w-[130px] min-w-0 placeholder:text-emerald-900/30"
+                                                value={editForm.price}
+                                                onChange={e => setEditForm({ ...editForm, price: formatDecimal(e.target.value) })}
+                                                placeholder="0,00"
+                                            />
+                                            <span className={`font-bold text-lg mt-0.5 shrink-0 ml-1 transition-colors duration-300 ${editForm.price ? 'text-emerald-400' : 'text-emerald-900/30'}`}>₺</span>
                                         </div>
-                                    )}
+                                        {parseDecimal(editForm.liters) > 0 && parseDecimal(editForm.price) > 0 && (
+                                            <div className="text-right text-[10px] text-emerald-500/60 mt-1 font-bold animate-in fade-in zoom-in duration-300">
+                                                BİRİM: ₺{((editForm.hasDiscount ? Number((parseDecimal(editForm.price) - Number((parseDecimal(editForm.price) * 0.05).toFixed(2))).toFixed(2)) : parseDecimal(editForm.price)) / parseDecimal(editForm.liters)).toFixed(2)} / Lt
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Araç KM Row */}
@@ -973,9 +1151,23 @@ return (
                                 </div>
                             </div>
                             {editShowExtra && (
-                                <div className="space-y-4 pt-2 border-t border-white/5 animate-in slide-in-from-top-4 duration-300">
+                                <div className="space-y-4 pt-4 border-t border-white/5 animate-in slide-in-from-top-4 duration-500">
                                     <div className="mb-4">
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Dolum Durumu</label>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Dolum Durumu</label>
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditForm({ ...editForm, hasDiscount: !editForm.hasDiscount })}
+                                                title={editForm.hasDiscount ? '%5 Mazot İskontosu Açık (Kapatmak için tıklayın)' : '%5 Mazot İskontosu Kapalı (Açmak için tıklayın)'}
+                                                className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
+                                                    editForm.hasDiscount
+                                                        ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+                                                        : 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300 hover:bg-white/10'
+                                                }`}
+                                            >
+                                                <Percent size={13} />
+                                            </button>
+                                        </div>
                                         <div className="grid grid-cols-2 gap-2 p-1 bg-black/40 rounded-xl border border-white/5">
                                             <button
                                                 type="button"
@@ -997,14 +1189,14 @@ return (
                                         <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5"><StickyNote size={12} className="text-slate-400" /> Not (İsteğe Bağlı)</label>
                                         <textarea
                                             rows={2}
-                                            className="w-full glass-input px-3 py-2 text-sm resize-none text-white"
-                                            placeholder="Not ekleyin..."
+                                            className="w-full glass-input px-4 py-2 resize-none text-sm text-white"
+                                            placeholder="Fiş hakkında not ekleyin..."
                                             value={editForm.notes}
                                             onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Paperclip size={12} className="text-slate-400" /> Fotoğraf / Belge</label>
+                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Paperclip size={12} className="text-slate-400" /> Fiş Fotoğrafı / Belge</label>
                                         <FileUpload files={editForm.files} onChange={files => setEditForm({ ...editForm, files })} />
                                     </div>
                                 </div>
@@ -1034,9 +1226,24 @@ return (
                         <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white cursor-pointer z-20">
                             <X size={20} />
                         </button>
-                        <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-5 flex items-center flex-shrink-0">
-                            <Droplet className="mr-2 text-cyan-400" /> Yeni Mazot Fişi
-                        </h3>
+                        <div
+                            onClick={handleTitleClick}
+                            onDoubleClick={handleTitleDoubleClick}
+                            className="flex flex-col justify-center mb-4 sm:mb-5 flex-shrink-0 select-none cursor-pointer group w-fit"
+                            title={trucks?.length > 1 ? "Çift tıklayarak aracı değiştirin" : undefined}
+                        >
+                            <h3 className="text-lg sm:text-xl font-bold text-white flex items-center leading-none group-hover:text-slate-100 transition-colors">
+                                <Droplet className="mr-2 text-cyan-400 shrink-0" /> Yeni Mazot Fişi
+                            </h3>
+                            {activeTruckData?.plate && (
+                                <span
+                                    key={activeTruckData.plate}
+                                    className="text-[10px] sm:text-[11px] font-mono font-medium text-slate-400/75 group-hover:text-cyan-400 tracking-wider uppercase leading-none mt-1.5 ml-8 transition-colors animate-in fade-in duration-200"
+                                >
+                                    {activeTruckData.plate}
+                                </span>
+                            )}
+                        </div>
 
                         {saveSuccess && (
                             <div className="flex items-center gap-2 p-2.5 mb-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold animate-in fade-in slide-in-from-top-2 duration-200">
@@ -1060,7 +1267,7 @@ return (
                                         <ChevronDown size={12} className={showExtra ? "rotate-180 transition-transform" : "transition-transform"} />
                                     </button>
                                 </div>
-                                <CustomDatePicker 
+                                <CustomDatePicker theme="cyan" 
                                     value={formData.date}
                                     onChange={val => setFormData({ ...formData, date: val })}
                                     className="glass-input text-left text-sm"
@@ -1116,25 +1323,36 @@ return (
                                 </div>
 
                                 {/* Tutar Row */}
-                                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between shadow-sm relative overflow-hidden">
+                                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl px-4 py-3 flex items-center justify-between shadow-sm relative overflow-hidden">
                                     <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-emerald-500/40 to-transparent"></div>
-                                    <label className="text-[11px] font-bold text-emerald-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap">Toplam Tutar</label>
-                                    <div className="flex-1 ml-2 flex justify-end items-center">
-                                        <input 
-                                            type="tel" 
-                                            required
-                                            className="bg-transparent text-xl font-black text-emerald-400 text-right focus:outline-none w-[90px] min-w-0 placeholder:text-emerald-900/30"
-                                            value={formData.price}
-                                            onChange={e => setFormData({ ...formData, price: formatDecimal(e.target.value) })}
-                                            placeholder="0,00"
-                                        />
-                                        <span className={`font-bold text-lg mt-0.5 shrink-0 ml-1 transition-colors duration-300 ${formData.price ? 'text-emerald-400' : 'text-emerald-900/30'}`}>₺</span>
+                                    <div className="flex flex-col justify-center">
+                                        <label className="text-[11px] font-bold text-emerald-500/80 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap">Toplam Tutar</label>
+                                        {fuelDiscountEnabled && (
+                                            <span className="text-[11px] font-bold font-mono text-emerald-400/45 mt-1 tracking-tight">
+                                                {parseDecimal(formData.price) > 0
+                                                    ? `${Number((parseDecimal(formData.price) - Number((parseDecimal(formData.price) * 0.05).toFixed(2))).toFixed(2)).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺`
+                                                    : '0,00 ₺'}
+                                            </span>
+                                        )}
                                     </div>
-                                    {parseDecimal(formData.liters) > 0 && parseDecimal(formData.price) > 0 && (
-                                        <div className="w-full text-right text-[10px] text-emerald-500/60 mt-1.5 font-bold animate-in fade-in zoom-in duration-300">
-                                            BİRİM: ₺{(parseDecimal(formData.price) / parseDecimal(formData.liters)).toFixed(2)} / Lt
+                                    <div className="flex-1 ml-2 flex flex-col items-end justify-center">
+                                        <div className="flex justify-end items-center w-full">
+                                            <input 
+                                                type="tel" 
+                                                required
+                                                className="bg-transparent text-xl font-black text-emerald-400 text-right focus:outline-none w-[130px] min-w-0 placeholder:text-emerald-900/30"
+                                                value={formData.price}
+                                                onChange={e => setFormData({ ...formData, price: formatDecimal(e.target.value) })}
+                                                placeholder="0,00"
+                                            />
+                                            <span className={`font-bold text-lg mt-0.5 shrink-0 ml-1 transition-colors duration-300 ${formData.price ? 'text-emerald-400' : 'text-emerald-900/30'}`}>₺</span>
                                         </div>
-                                    )}
+                                        {parseDecimal(formData.liters) > 0 && parseDecimal(formData.price) > 0 && (
+                                            <div className="text-right text-[10px] text-emerald-500/60 mt-1 font-bold animate-in fade-in zoom-in duration-300">
+                                                BİRİM: ₺{((fuelDiscountEnabled ? Number((parseDecimal(formData.price) - Number((parseDecimal(formData.price) * 0.05).toFixed(2))).toFixed(2)) : parseDecimal(formData.price)) / parseDecimal(formData.liters)).toFixed(2)} / Lt
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Araç KM Row */}
@@ -1159,7 +1377,21 @@ return (
                             {showExtra && (
                                 <div className="space-y-4 pt-4 border-t border-white/5 animate-in slide-in-from-top-4 duration-500">
                                     <div className="mb-4">
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Dolum Durumu</label>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Dolum Durumu</label>
+                                            <button
+                                                type="button"
+                                                onClick={toggleGlobalFuelDiscount}
+                                                title={fuelDiscountEnabled ? '%5 Mazot İskontosu Açık (Kapatmak için tıklayın)' : '%5 Mazot İskontosu Kapalı (Açmak için tıklayın)'}
+                                                className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
+                                                    fuelDiscountEnabled
+                                                        ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+                                                        : 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300 hover:bg-white/10'
+                                                }`}
+                                            >
+                                                <Percent size={13} />
+                                            </button>
+                                        </div>
                                         <div className="grid grid-cols-2 gap-2 p-1 bg-black/40 rounded-xl border border-white/5">
                                             <button
                                                 type="button"
@@ -1211,6 +1443,139 @@ return (
                                 )}
                             </button>
                         </form>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* ─── KULLANICI / ARAÇ UYUŞMAZLIĞI UYARI MODALI (GÖKSEL & MERT) ─── */}
+            {truckGuardConfirm && createPortal(
+                <div
+                    className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200"
+                    onClick={() => setTruckGuardConfirm(null)}
+                >
+                    <div
+                        className="glass-panel border-cyan-500/30 rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.9)] w-full max-w-md p-6 relative overflow-hidden animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            type="button"
+                            onClick={() => setTruckGuardConfirm(null)}
+                            className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                        >
+                            <X size={18} />
+                        </button>
+                        <div className="flex items-start gap-4 mb-5 pr-6">
+                            <div className="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center shrink-0 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
+                                <AlertTriangle size={20} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h3 className="text-base font-bold text-white tracking-tight">
+                                    Farklı Plakaya Fiş Girişi
+                                </h3>
+                                <p className="text-xs text-slate-300 leading-relaxed mt-1">
+                                    <strong className="text-cyan-400 font-semibold">{truckGuardConfirm.config.honorific}</strong>, tanımlı aracınız <strong className="text-white font-semibold">{truckGuardConfirm.ownPlate}</strong> iken şu anda <strong className="text-cyan-400 font-semibold">{truckGuardConfirm.currentPlate}</strong> plakalı araca mazot fişi giriyorsunuz. Devam etmek istediğinize emin misiniz?
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-3.5 mb-5 space-y-2 text-xs relative overflow-hidden">
+                            <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-cyan-500/40 to-transparent"></div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-400">Aktif Araç Plakası</span>
+                                <span className="font-mono font-bold text-cyan-400">{truckGuardConfirm.currentPlate}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-400">İstasyon</span>
+                                <span className="font-bold text-white">{truckGuardConfirm.station}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-400">Miktar</span>
+                                <span className="font-mono font-bold text-cyan-400">{truckGuardConfirm.liters} Lt</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-400">Tutar</span>
+                                <span className="font-mono font-bold text-emerald-400">₺{truckGuardConfirm.price}</span>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-2.5">
+                            <button
+                                type="button"
+                                onClick={handleSwitchToOwnTruckInFuel}
+                                className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs text-cyan-300 hover:text-white bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 transition-all cursor-pointer"
+                            >
+                                {truckGuardConfirm.ownPlate} Aracına Geç
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmCrossTruckFuel}
+                                className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-cyan-600 to-teal-500 hover:from-cyan-500 hover:to-teal-400 border border-cyan-400/40 transition-all shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 cursor-pointer"
+                            >
+                                Evet, Yine de Kaydet
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* ─── MÜKERRER MAZOT FİŞİ UYARI MODALI ─── */}
+            {duplicateFuelConfirm && createPortal(
+                <div
+                    className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200"
+                    onClick={() => setDuplicateFuelConfirm(null)}
+                >
+                    <div
+                        className="glass-panel border-cyan-500/30 rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.9)] w-full max-w-md p-6 relative overflow-hidden animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-start gap-4 mb-5">
+                            <div className="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center shrink-0 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
+                                <AlertTriangle size={20} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h3 className="text-base font-bold text-white tracking-tight">
+                                    Benzer Mazot Fişi Mevcut
+                                </h3>
+                                <p className="text-xs text-slate-300 leading-relaxed mt-1">
+                                    <strong className="text-cyan-400 font-semibold">{new Date(duplicateFuelConfirm.enteredDate).toLocaleDateString('tr-TR')}</strong> tarihinde bu araca ait aynı bilgilere sahip bir mazot fişi zaten kayıtlı. Yine de eklemek istediğinize emin misiniz?
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-3.5 mb-5 space-y-2 text-xs relative overflow-hidden">
+                            <div className="absolute left-0 top-0 w-1 h-full bg-gradient-to-b from-transparent via-cyan-500/40 to-transparent"></div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-400">İstasyon</span>
+                                <span className="font-bold text-white">{duplicateFuelConfirm.existing.station || duplicateFuelConfirm.station}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-400">Miktar</span>
+                                <span className="font-mono font-bold text-cyan-400">{formatDecimal(duplicateFuelConfirm.existing.liters)} Lt</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-400">Tutar</span>
+                                <span className="font-mono font-bold text-emerald-400">₺{formatDecimal(duplicateFuelConfirm.existing.price)}</span>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setDuplicateFuelConfirm(null)}
+                                className="flex-1 py-2.5 rounded-xl font-semibold text-xs text-slate-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-all cursor-pointer"
+                            >
+                                Hayır, Vazgeç
+                            </button>
+                            <button
+                                type="button"
+                                onClick={executeAddFuel}
+                                className="flex-1 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-cyan-600 to-teal-500 hover:from-cyan-500 hover:to-teal-400 border border-cyan-400/40 transition-all shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 cursor-pointer"
+                            >
+                                Evet, Yine de Kaydet
+                            </button>
+                        </div>
                     </div>
                 </div>,
                 document.body

@@ -111,7 +111,7 @@ export default async function handler(req, res) {
                 // Yetki Denetimi:
                 // Super Admin her rolü ve her şirkete kullanıcı oluşturabilir.
                 // Company Admin sadece kendi şirketine şoför/user oluşturabilir (başka yöneticiler veya super_admin oluşturamaz).
-                if (callerRole !== 'super_admin' && (callerRole !== 'company_admin' || callerCompanyId !== targetCompanyId || role === 'company_admin' || role === 'super_admin')) {
+                if (callerRole !== 'super_admin' && (!['company_admin', 'admin'].includes(callerRole) || callerCompanyId !== targetCompanyId || role === 'company_admin' || role === 'super_admin')) {
                     return res.status(403).json({ error: 'Bu kullanıcıyı oluşturmak veya bu role atamak için yetkiniz yok.' });
                 }
 
@@ -156,7 +156,7 @@ export default async function handler(req, res) {
                 const targetCompanyId = assignedCompanyId || pendingData.companyId || callerCompanyId;
 
                 // Yetki Denetimi: Super Admin değilse ve kendi şirketinden değilse reddet
-                if (callerRole !== 'super_admin' && (callerRole !== 'company_admin' || callerCompanyId !== targetCompanyId)) {
+                if (callerRole !== 'super_admin' && (!['company_admin', 'admin'].includes(callerRole) || callerCompanyId !== targetCompanyId)) {
                     return res.status(403).json({ error: 'Bu kullanıcıyı onaylamak için yetkiniz yok.' });
                 }
 
@@ -202,7 +202,7 @@ export default async function handler(req, res) {
                 const targetData = targetSnapshot.data();
 
                 // Yetki Denetimi
-                if (callerRole !== 'super_admin' && (callerRole !== 'company_admin' || callerCompanyId !== targetData.companyId)) {
+                if (callerRole !== 'super_admin' && (!['company_admin', 'admin'].includes(callerRole) || callerCompanyId !== targetData.companyId)) {
                     return res.status(403).json({ error: 'Bu kullanıcının şifresini değiştirmek için yetkiniz yok.' });
                 }
 
@@ -242,7 +242,7 @@ export default async function handler(req, res) {
                     }
 
                     const pendingData = pendingSnapshot.data();
-                    if (callerRole !== 'super_admin' && (callerRole !== 'company_admin' || callerCompanyId !== pendingData.companyId)) {
+                    if (callerRole !== 'super_admin' && (!['company_admin', 'admin'].includes(callerRole) || callerCompanyId !== pendingData.companyId)) {
                         return res.status(403).json({ error: 'Bu kullanıcıyı silmek için yetkiniz yok.' });
                     }
 
@@ -255,7 +255,7 @@ export default async function handler(req, res) {
                 const targetData = targetSnapshot.data();
 
                 // Yetki Denetimi
-                if (callerRole !== 'super_admin' && (callerRole !== 'company_admin' || callerCompanyId !== targetData.companyId)) {
+                if (callerRole !== 'super_admin' && (!['company_admin', 'admin'].includes(callerRole) || callerCompanyId !== targetData.companyId)) {
                     return res.status(403).json({ error: 'Bu kullanıcıyı silmek için yetkiniz yok.' });
                 }
 
@@ -270,7 +270,7 @@ export default async function handler(req, res) {
 
             case 'sendPushNotification': {
                 // Bildirim Gönderme Eylemi (Yalnızca Super Admin veya ilgili Şirketin Yöneticisi)
-                if (callerRole !== 'super_admin' && callerRole !== 'company_admin' && callerRole !== 'admin') {
+                if (callerRole !== 'super_admin' && !['company_admin', 'admin'].includes(callerRole) && callerRole !== 'admin') {
                     return res.status(403).json({ error: 'Bildirim göndermek için yönetici yetkiniz bulunmamaktadır.' });
                 }
 

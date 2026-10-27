@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -8,6 +8,7 @@ import {
     Truck, Award, Coins, UserCheck, Megaphone, CheckCheck, Loader2
 } from 'lucide-react';
 import { DataContext } from '../context/DataContext';
+import { useTruck } from '../context/TruckContext';
 import { auth } from '../services/firebaseConfig';
 import FileUpload from './FileUpload';
 
@@ -65,6 +66,25 @@ const Detaylar = ({ onOpenMenu, isMobile }) => {
         allDrivers, companyNotifications, acknowledgeNotification, markNotificationAsRead,
         deleteCompanyNotification, clearAllCompanyNotifications
     } = React.useContext(DataContext);
+
+    const { activeTruckData, switchNextTruck, trucks } = useTruck();
+    const lastTitleTapRef = useRef(0);
+
+    const handleTitleClick = (e) => {
+        const now = Date.now();
+        if (lastTitleTapRef.current && (now - lastTitleTapRef.current) < 380) {
+            e.preventDefault();
+            switchNextTruck?.();
+            lastTitleTapRef.current = 0;
+            return;
+        }
+        lastTitleTapRef.current = now;
+    };
+
+    const handleTitleDoubleClick = (e) => {
+        e.preventDefault();
+        switchNextTruck?.();
+    };
 
     const [activeTab, setActiveTab] = useState('belgeler');
     const [notifFilter, setNotifFilter] = useState('all'); // 'all' | 'company' | 'penalties' | 'docs'
@@ -282,9 +302,24 @@ const Detaylar = ({ onOpenMenu, isMobile }) => {
                         </button>
                     )}
                     
-                    <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white whitespace-nowrap">
-                        Ceza & Belgeler
-                    </h2>
+                    <div 
+                        onClick={handleTitleClick}
+                        onDoubleClick={handleTitleDoubleClick}
+                        className="flex flex-col justify-center min-w-0 shrink-0 select-none cursor-pointer group py-0.5"
+                        title={trucks?.length > 1 ? "Çift tıklayarak aracı değiştirin" : undefined}
+                    >
+                        <h2 className="text-base sm:text-xl font-bold tracking-tight text-white whitespace-nowrap leading-none group-hover:text-slate-100 transition-colors">
+                            Ceza & Belgeler
+                        </h2>
+                        {activeTruckData?.plate && (
+                            <span 
+                                key={activeTruckData.plate}
+                                className="text-[10px] sm:text-[11px] font-mono font-medium text-slate-400/75 group-hover:text-cyan-400 tracking-wider uppercase leading-none mt-1 transition-colors animate-in fade-in duration-200"
+                            >
+                                {activeTruckData.plate}
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 {/* Sağ Grup: Cezalar sekmesi seçiliyse Ceza Ekle butonu */}

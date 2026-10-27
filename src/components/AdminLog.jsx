@@ -18,9 +18,29 @@ const ACTION_CONFIG = {
     ODEME_EKLE: { label: 'Ödeme Eklendi', color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
     ODEME_GUNCELLE: { label: 'Ödeme Güncellendi', color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20' },
     ODEME_SIL: { label: 'Ödeme Silindi', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
-    FATURA_OLUSTUR: { label: 'Fatura Oluşturuldu', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
-    FATURA_GUNCELLE: { label: 'Fatura Güncellendi', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+    FATURA_OLUSTUR: { label: 'Fatura Kesildi', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+    FATURA_KESILDI: { label: 'Fatura Kesildi', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+    FATURA_GUNCELLE: { label: 'Fatura Güncellendi', color: 'text-sky-400', bg: 'bg-sky-500/10 border-sky-500/20' },
     FATURA_SIL: { label: 'Fatura Silindi', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
+    FATURA_SIL_ENGELLENDI: { label: 'Silme Engellendi (Resmi Onaylı)', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/25' },
+    FATURA_KORUMA_ENGELI: { label: 'Silme Engellendi (Resmi Onaylı)', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/25' },
+    FATURA_TASLAK_OLUSTUR: { label: 'Fatura Taslağı Oluşturuldu', color: 'text-sky-400', bg: 'bg-sky-500/10 border-sky-500/20' },
+    FATURA_TASLAK_IPTAL: { label: 'Fatura Taslağı İptal Edildi', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
+    FATURA_PDF_INDIR: { label: 'Sefer Dökümü PDF İndirildi', color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
+    FATURA_ROTA_FIYAT_GUNCELLE: { label: 'Rota Birim Fiyatı Güncellendi', color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20' },
+    GIB_FATURA_GONDERILDI: { label: 'E-Arşiv Taslak Gönderildi', color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20' },
+    GIB_SMS_GONDERILDI: { label: 'E-Arşiv SMS Gönderildi', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
+    GIB_FATURA_IMZALANDI: { label: 'E-Arşiv Resmi Onaylandı', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+    GIB_MANUEL_IMZALANDI: { label: 'Resmi Onaylı İşaretlendi', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+    GIB_ONAY_KALDIR: { label: 'E-Arşiv Resmi Onay Kaldırıldı', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
+    GIB_DURUM_SIFIRLA: { label: 'E-Arşiv Taslak Sıfırlandı', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
+    GIB_PDF_INDIR: { label: 'E-Arşiv PDF İndirildi', color: 'text-sky-400', bg: 'bg-sky-500/10 border-sky-500/20' },
+    GIB_BELGE_GUNCELLE: { label: 'E-Arşiv Belge Güncellendi', color: 'text-teal-400', bg: 'bg-teal-500/10 border-teal-500/20' },
+    GIB_BELGE_SIL: { label: 'E-Arşiv Belge Silindi', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
+    GIB_MUSTERI_KAYDET: { label: 'E-Arşiv Müşteri Kaydedildi', color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20' },
+    GIB_MUSTERI_SIL: { label: 'E-Arşiv Müşteri Silindi', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
+    GIB_AYARLARINI_GUNCELLE: { label: 'E-Arşiv Ayarları Güncellendi', color: 'text-slate-300', bg: 'bg-slate-500/10 border-slate-500/20' },
+    GIB_OTURUM_KAPAT: { label: 'GİB Oturumu Kapatıldı', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
     CEZA_EKLE: { label: 'Trafik Cezası Eklendi', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
     CEZA_SİL: { label: 'Ceza Silindi', color: 'text-rose-400', bg: 'bg-rose-500/10 border-rose-500/20' },
     CEZA_DURUM: { label: 'Ceza Durumu Değişti', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20' },
@@ -117,7 +137,10 @@ const AdminLog = () => {
     // Geri Alınabilirlik Durumu Kontrolü
     const canRestore = (entry) => {
         const action = entry.action || '';
-        return (action.includes('SİL') || action.includes('SIL')) && entry.meta?.table && entry.meta?.id;
+        if (action.includes('ENGELLENDI') || action.includes('ENGELI') || action.includes('IPTAL') || action === 'GIB_BELGE_SIL' || action === 'GIB_MUSTERI_SIL') {
+            return false;
+        }
+        return (action.endsWith('_SİL') || action.endsWith('_SIL')) && entry.meta?.table && entry.meta?.id;
     };
 
     const canRollback = (entry) => {
@@ -130,7 +153,7 @@ const AdminLog = () => {
             const action = entry.action || '';
 
             if (filter === 'FINANS') {
-                if (!action.includes('MAZOT') && !action.includes('ODEME') && !action.includes('FATURA') && !action.includes('CEZA') && !action.includes('ISKONTO')) return false;
+                if (!action.includes('MAZOT') && !action.includes('ODEME') && !action.includes('FATURA') && !action.includes('GIB') && !action.includes('CEZA') && !action.includes('ISKONTO')) return false;
             } else if (filter === 'OPERASYON') {
                 if (!action.includes('SEFER') && !action.includes('ROTA')) return false;
             } else if (filter === 'BAKIM') {
@@ -548,37 +571,81 @@ const AdminLog = () => {
                                     {isExpanded && hasMeta && (
                                         <div className="border-t border-white/[0.04] bg-[#0c1017]/90 p-3 sm:p-4 space-y-2.5">
                                             {/* Karşılaştırmalı Diff (Eski vs Yeni) */}
-                                            {entry.meta.before && entry.meta.after ? (
-                                                renderHumanDiff(entry.meta.before, entry.meta.after)
-                                            ) : (
-                                                /* Bilgi Rozetleri */
-                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                                                    {entry.meta.table && (
-                                                        <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
-                                                            <span className="text-[10px] text-slate-500 uppercase block font-semibold">Koleksiyon</span>
-                                                            <span className="text-sky-400 font-mono">{entry.meta.table}</span>
-                                                        </div>
-                                                    )}
-                                                    {entry.meta.id && (
-                                                        <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
-                                                            <span className="text-[10px] text-slate-500 uppercase block font-semibold">Belge Kimliği</span>
-                                                            <span className="text-slate-300 font-mono text-[11px] truncate block" title={entry.meta.id}>{entry.meta.id}</span>
-                                                        </div>
-                                                    )}
-                                                    {entry.meta.device && (
-                                                        <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
-                                                            <span className="text-[10px] text-slate-500 uppercase block font-semibold">Cihaz Bilgisi</span>
-                                                            <span className="text-slate-200 truncate block">{entry.meta.device}</span>
-                                                        </div>
-                                                    )}
-                                                    {entry.meta.location && (
-                                                        <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
-                                                            <span className="text-[10px] text-slate-500 uppercase block font-semibold">Bağlantı Konumu</span>
-                                                            <span className="text-amber-400 truncate block">{entry.meta.location}</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
+                                            {entry.meta.before && entry.meta.after && renderHumanDiff(entry.meta.before, entry.meta.after)}
+
+                                            {/* Bilgi Rozetleri */}
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                                                {entry.meta.docId && (
+                                                    <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
+                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Fatura / Belge No</span>
+                                                        <span className="text-white font-mono font-bold text-[11px] truncate block">{entry.meta.docId}</span>
+                                                    </div>
+                                                )}
+                                                {entry.meta.period && (
+                                                    <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
+                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Dönem</span>
+                                                        <span className="text-slate-200 font-semibold text-[11px] truncate block">{entry.meta.period}</span>
+                                                    </div>
+                                                )}
+                                                {entry.meta.grandTotal !== undefined && (
+                                                    <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
+                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Toplam Tutar</span>
+                                                        <span className="text-emerald-400 font-mono font-bold text-[11px] truncate block">{String(entry.meta.grandTotal)}</span>
+                                                    </div>
+                                                )}
+                                                {entry.meta.totalTonnage !== undefined && (
+                                                    <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
+                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Sefer & Tonaj</span>
+                                                        <span className="text-sky-400 font-mono text-[11px] truncate block">
+                                                            {entry.meta.tripCount !== undefined ? `${entry.meta.tripCount} Sefer • ` : ''}{String(entry.meta.totalTonnage)}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                {entry.meta.plates && (
+                                                    <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
+                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Araç Plakası</span>
+                                                        <span className="text-slate-200 font-mono text-[11px] truncate block">{entry.meta.plates}</span>
+                                                    </div>
+                                                )}
+                                                {entry.meta.gibStatus && (
+                                                    <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
+                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">E-Arşiv Durumu</span>
+                                                        <span className="text-orange-400 font-semibold text-[11px] truncate block">{entry.meta.gibStatus}</span>
+                                                    </div>
+                                                )}
+                                                {entry.meta.buyerTitle && (
+                                                    <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
+                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Alıcı Firma</span>
+                                                        <span className="text-slate-200 text-[11px] truncate block" title={entry.meta.buyerTitle}>
+                                                            {entry.meta.buyerTitle} {entry.meta.buyerVkn ? `(${entry.meta.buyerVkn})` : ''}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                {entry.meta.table && (
+                                                    <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
+                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Koleksiyon</span>
+                                                        <span className="text-sky-400 font-mono">{entry.meta.table}</span>
+                                                    </div>
+                                                )}
+                                                {entry.meta.id && (
+                                                    <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
+                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Belge Kimliği</span>
+                                                        <span className="text-slate-300 font-mono text-[11px] truncate block" title={entry.meta.id}>{entry.meta.id}</span>
+                                                    </div>
+                                                )}
+                                                {entry.meta.device && (
+                                                    <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
+                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Cihaz Bilgisi</span>
+                                                        <span className="text-slate-200 truncate block">{entry.meta.device}</span>
+                                                    </div>
+                                                )}
+                                                {entry.meta.location && (
+                                                    <div className="bg-[#07090e] border border-white/[0.06] p-2 rounded-lg">
+                                                        <span className="text-[10px] text-slate-500 uppercase block font-semibold">Bağlantı Konumu</span>
+                                                        <span className="text-amber-400 truncate block">{entry.meta.location}</span>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
