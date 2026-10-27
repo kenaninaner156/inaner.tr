@@ -2905,75 +2905,80 @@ export default function Tire3DViewer({ currentKm, onClose }) {
   return (
     <div className="relative w-full h-full bg-[#070709] overflow-hidden font-sans select-none text-[var(--text-primary)]">
       
-      {/* Floating Header (Mobil, iPad ve Masaüstünde Tek Satır Kompakt Obsidian Bar) */}
-      <div className="absolute top-0 left-0 right-0 h-14 sm:h-16 bg-[#0a0d14]/80 backdrop-blur-xl border-b border-white/[0.06] px-3 sm:px-6 flex justify-between items-center gap-2 z-20">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="p-1.5 sm:p-2 bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-400 rounded-xl shadow-lg shrink-0">
-            <Disc size={16} className="animate-pulse sm:w-[18px] sm:h-[18px]" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <h2 className="text-xs sm:text-sm font-bold text-white tracking-wide truncate">
-                <span className="sm:hidden">Lastik & 3D</span>
-                <span className="hidden sm:inline">Lastik Yönetimi & 3D Teşhis</span>
-              </h2>
-              {activeTruckData?.plate && (
-                <span className="bg-slate-800/90 text-[10px] text-slate-200 font-extrabold px-1.5 sm:px-2 py-0.5 rounded border border-slate-700/60 uppercase shrink-0">
-                  {activeTruckData.plate}
-                </span>
-              )}
+      {/* Floating Header (Mobil Safe-Area / Çentik ve Dynamic Island Altına Hizalı) */}
+      <div 
+        className="absolute top-0 left-0 right-0 z-20 bg-[#0a0d14]/85 backdrop-blur-xl border-b border-white/[0.06]"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
+        <div className="h-14 sm:h-16 px-3 sm:px-6 flex justify-between items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-1.5 sm:p-2 bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-400 rounded-xl shadow-lg shrink-0">
+              <Disc size={16} className="animate-pulse sm:w-[18px] sm:h-[18px]" />
             </div>
-            <p className="text-[10px] text-slate-400 hidden md:block truncate">
-              Aracın 12 lastikli dijital ikiz simülasyonu ve ortak yedek lastik/jant istasyonu
-            </p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h2 className="text-xs sm:text-sm font-bold text-white tracking-wide truncate">
+                  <span className="sm:hidden">Lastik & 3D</span>
+                  <span className="hidden sm:inline">Lastik Yönetimi & 3D Teşhis</span>
+                </h2>
+                {activeTruckData?.plate && (
+                  <span className="bg-slate-800/90 text-[10px] text-slate-200 font-extrabold px-1.5 sm:px-2 py-0.5 rounded border border-slate-700/60 uppercase shrink-0">
+                    {activeTruckData.plate}
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-400 hidden md:block truncate">
+                Aracın 12 lastikli dijital ikiz simülasyonu ve ortak yedek lastik/jant istasyonu
+              </p>
+            </div>
           </div>
-        </div>
 
-        {/* Sahne Odak Geçiş Butonları (Araç <-> Depo) */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              focusOnTruck();
-              if (selectedTireId === 'RIMS' || selectedTireId?.startsWith('SPARE_')) {
-                setSelectedTireId(null);
-              }
-            }}
-            className={`h-9 px-3 sm:px-3.5 rounded-xl text-[11px] font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
-              cameraView === 'truck'
-                ? 'bg-fuchsia-500/15 border-fuchsia-500/40 text-fuchsia-300 shadow-sm'
-                : 'bg-slate-900/70 hover:bg-slate-800/90 border-slate-800 text-slate-300 hover:text-white'
-            }`}
-          >
-            <Truck size={13} />
-            <span>Araç</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              focusOnRack();
-              setSelectedTireId(null);
-            }}
-            className={`h-9 px-3 sm:px-3.5 rounded-xl text-[11px] font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
-              cameraView === 'rack'
-                ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-sm'
-                : 'bg-slate-900/70 hover:bg-slate-800/90 border-slate-800 text-slate-300 hover:text-white'
-            }`}
-          >
-            <Layers size={13} />
-            <span>Depo</span>
-          </button>
-
-          {onClose && (
-            <button 
+          {/* Sahne Odak Geçiş Butonları (Araç <-> Depo) */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button
               type="button"
-              onClick={onClose} 
-              className="w-9 h-9 bg-slate-900/60 hover:bg-slate-850 border border-slate-800 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer flex items-center justify-center ml-0.5"
+              onClick={() => {
+                focusOnTruck();
+                if (selectedTireId === 'RIMS' || selectedTireId?.startsWith('SPARE_')) {
+                  setSelectedTireId(null);
+                }
+              }}
+              className={`h-9 px-3 sm:px-3.5 rounded-xl text-[11px] font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                cameraView === 'truck'
+                  ? 'bg-fuchsia-500/15 border-fuchsia-500/40 text-fuchsia-300 shadow-sm'
+                  : 'bg-slate-900/70 hover:bg-slate-800/90 border-slate-800 text-slate-300 hover:text-white'
+              }`}
             >
-              <X size={16} />
+              <Truck size={13} />
+              <span>Araç</span>
             </button>
-          )}
+
+            <button
+              type="button"
+              onClick={() => {
+                focusOnRack();
+                setSelectedTireId(null);
+              }}
+              className={`h-9 px-3 sm:px-3.5 rounded-xl text-[11px] font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                cameraView === 'rack'
+                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 shadow-sm'
+                  : 'bg-slate-900/70 hover:bg-slate-800/90 border-slate-800 text-slate-300 hover:text-white'
+              }`}
+            >
+              <Layers size={13} />
+              <span>Depo</span>
+            </button>
+
+            {onClose && (
+              <button 
+                type="button"
+                onClick={onClose} 
+                className="w-9 h-9 bg-slate-900/60 hover:bg-slate-850 border border-slate-800 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer flex items-center justify-center ml-0.5"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -3003,7 +3008,7 @@ export default function Tire3DViewer({ currentKm, onClose }) {
               }}
             >
               <Canvas 
-                shadows 
+                shadows={{ type: THREE.PCFShadowMap }} 
                 gl={{ 
                   antialias: true, 
                   toneMapping: THREE.ACESFilmicToneMapping, 
@@ -3100,7 +3105,10 @@ export default function Tire3DViewer({ currentKm, onClose }) {
 
       {/* 3D Kalibrasyon/İnce Ayar Paneli (Sadece araç üzerindeki tekerlekler seçiliyken görünür) */}
       {isCalibrationMode && !hasError && selectedTireId && selectedTireObj && !selectedTireObj.isRack && (
-        <div className="absolute top-16 sm:top-20 left-3 sm:left-4 z-20 pointer-events-auto">
+        <div 
+          className="absolute left-3 sm:left-4 z-20 pointer-events-auto"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 4.25rem)' }}
+        >
           {!showTuning ? (
             <button
               onClick={() => setShowTuning(true)}
@@ -3322,7 +3330,10 @@ export default function Tire3DViewer({ currentKm, onClose }) {
 
       {/* Swap Modu Uyarı Bannerı */}
       {isSwapMode && (
-        <div className="absolute top-16 sm:top-20 left-1/2 transform -translate-x-1/2 z-30 bg-indigo-600/95 border border-indigo-400/60 text-white font-bold text-[11px] sm:text-xs py-2 sm:py-2.5 px-3.5 sm:px-5 rounded-2xl shadow-[0_4px_25px_rgba(99,102,241,0.5)] flex flex-wrap items-center justify-center gap-2 backdrop-blur-md w-[92vw] sm:w-auto max-w-[94vw]">
+        <div 
+          className="absolute left-1/2 transform -translate-x-1/2 z-30 bg-indigo-600/95 border border-indigo-400/60 text-white font-bold text-[11px] sm:text-xs py-2 sm:py-2.5 px-3.5 sm:px-5 rounded-2xl shadow-[0_4px_25px_rgba(99,102,241,0.5)] flex flex-wrap items-center justify-center gap-2 backdrop-blur-md w-[92vw] sm:w-auto max-w-[94vw]"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 4.25rem)' }}
+        >
           <ArrowLeftRight size={14} className="animate-pulse text-indigo-200 shrink-0" />
           <span>Swap Modu: Hedef konumu seçin</span>
           <button
@@ -3354,7 +3365,13 @@ export default function Tire3DViewer({ currentKm, onClose }) {
 
       {/* Sağ / Alt Panel - Yedek Jant Envanteri (Mobilde Bottom Sheet, iPad ve Masaüstünde Yan Çekmece) */}
       {selectedTireId === 'RIMS' && (
-        <div className="fixed md:absolute bottom-0 md:bottom-auto inset-x-0 md:inset-x-auto md:top-20 md:right-4 lg:right-6 z-30 md:z-10 w-full md:w-[340px] lg:w-[390px] bg-[#0a0d14]/95 md:bg-[#0a0d14]/90 backdrop-blur-2xl border-t md:border border-white/[0.10] md:border-white/[0.08] rounded-t-3xl md:rounded-2xl p-4 sm:p-5 pb-6 md:pb-5 shadow-[0_-12px_40px_rgba(0,0,0,0.9)] md:shadow-[0_4px_30px_rgba(0,0,0,0.85)] flex flex-col gap-3.5 max-h-[56dvh] md:max-h-[calc(100dvh-100px)] overflow-y-auto overscroll-contain">
+        <div 
+          className="fixed md:absolute bottom-0 md:bottom-auto inset-x-0 md:inset-x-auto md:right-4 lg:right-6 z-30 md:z-10 w-full md:w-[340px] lg:w-[390px] bg-[#0a0d14]/95 md:bg-[#0a0d14]/90 backdrop-blur-2xl border-t md:border border-white/[0.10] md:border-white/[0.08] rounded-t-3xl md:rounded-2xl p-4 sm:p-5 shadow-[0_-12px_40px_rgba(0,0,0,0.9)] md:shadow-[0_4px_30px_rgba(0,0,0,0.85)] flex flex-col gap-3.5 max-h-[58dvh] md:max-h-[calc(100dvh-env(safe-area-inset-top,0px)-5.5rem)] overflow-y-auto overscroll-contain"
+          style={{ 
+            top: typeof window !== 'undefined' && window.innerWidth >= 768 ? 'calc(env(safe-area-inset-top, 0px) + 4.75rem)' : undefined,
+            paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)' 
+          }}
+        >
           <div className="w-10 h-1 bg-white/15 rounded-full mx-auto -mt-1 mb-0.5 md:hidden shrink-0" />
           <div className="flex justify-between items-center border-b border-white/[0.06] pb-3">
             <h3 className="text-sm font-bold text-white">Yedek Jant</h3>
@@ -3429,7 +3446,13 @@ export default function Tire3DViewer({ currentKm, onClose }) {
 
       {/* Sağ / Alt Panel - Lastik Teşhis Formu / Detayları (Mobilde Bottom Sheet, iPad ve Masaüstünde Yan Çekmece) */}
       {selectedTireId && selectedTireObj && (
-        <div className="fixed md:absolute bottom-0 md:bottom-auto inset-x-0 md:inset-x-auto md:top-20 md:right-4 lg:right-6 z-30 md:z-10 w-full md:w-[340px] lg:w-[390px] bg-[#0a0d14]/95 md:bg-[#0a0d14]/90 backdrop-blur-2xl border-t md:border border-white/[0.10] md:border-white/[0.08] rounded-t-3xl md:rounded-2xl p-4 sm:p-5 pb-6 md:pb-5 shadow-[0_-12px_40px_rgba(0,0,0,0.9)] md:shadow-[0_4px_30px_rgba(0,0,0,0.85)] flex flex-col max-h-[58dvh] md:max-h-[calc(100dvh-100px)] overflow-y-auto overscroll-contain">
+        <div 
+          className="fixed md:absolute bottom-0 md:bottom-auto inset-x-0 md:inset-x-auto md:right-4 lg:right-6 z-30 md:z-10 w-full md:w-[340px] lg:w-[390px] bg-[#0a0d14]/95 md:bg-[#0a0d14]/90 backdrop-blur-2xl border-t md:border border-white/[0.10] md:border-white/[0.08] rounded-t-3xl md:rounded-2xl p-4 sm:p-5 shadow-[0_-12px_40px_rgba(0,0,0,0.9)] md:shadow-[0_4px_30px_rgba(0,0,0,0.85)] flex flex-col max-h-[58dvh] md:max-h-[calc(100dvh-env(safe-area-inset-top,0px)-5.5rem)] overflow-y-auto overscroll-contain"
+          style={{ 
+            top: typeof window !== 'undefined' && window.innerWidth >= 768 ? 'calc(env(safe-area-inset-top, 0px) + 4.75rem)' : undefined,
+            paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)' 
+          }}
+        >
           <div className="w-10 h-1 bg-white/15 rounded-full mx-auto -mt-1 mb-2.5 md:hidden shrink-0" />
           
           {/* INFO MODE */}
