@@ -1945,6 +1945,32 @@ function CameraFocusController({ controlsRef, cameraTransitionRef, cameraView })
       controlsRef.current.update();
       trans.active = false;
     }
+
+    // SHOWROOM FİZİKSEL ÇARPIŞMA KORUMASI (Kameranın çatıya veya duvarların arkasına geçmesini engeller)
+    if (!trans.active) {
+      // 1. Tavan (3.55m) ve zemin (0.22m) sınırı (çatı makaslarının üstüne çıkamaz)
+      state.camera.position.y = THREE.MathUtils.clamp(state.camera.position.y, 0.22, 3.55);
+
+      // 2. Yan duvar sınırları (-13.8m .. +13.8m)
+      state.camera.position.x = THREE.MathUtils.clamp(state.camera.position.x, -13.8, 13.8);
+
+      // 3. Arka beton duvar (-7.5m) ve ön cam (16.5m) sınırı
+      // Depo rafı Z = -6.85'te olduğundan depodayken rafın arkasına geçişi engellemek için Z >= -6.40
+      // Araç görünümünde ise arka beton duvara çarpmamak için Z >= -6.90
+      const minZ = cameraView === 'rack' ? -6.40 : -6.90;
+      state.camera.position.z = THREE.MathUtils.clamp(state.camera.position.z, minZ, 15.5);
+
+      // 4. Araç görünümünde tırın arkasındaki sağ lastiklere bakarken (Z < 0) kamerayı arka koridor içinde tut
+      if (cameraView === 'truck' && state.camera.position.z < 0) {
+        const distToTruck = state.camera.position.distanceTo(controlsRef.current.target);
+        if (distToTruck > 6.1) {
+          const dir = state.camera.position.clone().sub(controlsRef.current.target).normalize();
+          state.camera.position.copy(controlsRef.current.target).addScaledVector(dir, 6.1);
+        }
+      }
+
+      controlsRef.current.update();
+    }
   });
   return null;
 }
@@ -3086,9 +3112,11 @@ export default function Tire3DViewer({ currentKm, onClose }) {
                   enableDamping 
                   dampingFactor={0.05}
                   minDistance={2.2} 
-                  maxDistance={18.0} 
-                  minPolarAngle={Math.PI / 3.8}
-                  maxPolarAngle={Math.PI / 2.02}
+                  maxDistance={cameraView === 'rack' ? 12.0 : 16.5} 
+                  minPolarAngle={cameraView === 'rack' ? Math.PI / 2.7 : Math.PI / 2.5}
+                  maxPolarAngle={Math.PI / 2.04}
+                  minAzimuthAngle={cameraView === 'rack' ? -Math.PI / 4.2 : -Infinity}
+                  maxAzimuthAngle={cameraView === 'rack' ? Math.PI / 4.2 : Infinity}
                   autoRotate={isRotating}
                   autoRotateSpeed={0.8}
                   onStart={() => {
