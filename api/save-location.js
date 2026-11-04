@@ -135,8 +135,33 @@ export default async function handler(req, res) {
 
         let lat, lon, speed, altitude, timestampStr, deviceId;
 
+        // 0. Tracksolid Pro (Jimi IoT) 7.1 / 7.4 / 7.5 Webhook Push Formatları
+        if (data.msgType === 'jimi.push.device.alarm' && typeof data.data === 'string') {
+            const alarmObj = JSON.parse(data.data);
+            lat = parseFloat(alarmObj.lat);
+            lon = parseFloat(alarmObj.lng);
+            speed = 0;
+            altitude = 0;
+            timestampStr = alarmObj.alarmTime;
+            deviceId = alarmObj.imei || alarmObj.deviceName || 'Göksel';
+        } else if (data.deviceImei !== undefined && data.latitude !== undefined && data.longitude !== undefined) {
+            lat = parseFloat(data.latitude);
+            lon = parseFloat(data.longitude);
+            const sKmh = parseFloat(data.speed) || 0;
+            speed = sKmh > 0 ? sKmh / 1.852 : 0;
+            altitude = 0;
+            timestampStr = data.reportTime;
+            deviceId = data.driverId || data.deviceImei || 'Göksel';
+        } else if (data.msgType === 'jimi.push.device.status' && data.latitude !== undefined && data.longitude !== undefined) {
+            lat = parseFloat(data.latitude);
+            lon = parseFloat(data.longitude);
+            speed = 0;
+            altitude = 0;
+            timestampStr = data.time;
+            deviceId = data.driverId || data.imei || 'Göksel';
+        }
         // 1. Traccar OsmAnd formatı (URL Query veya düz JSON)
-        if (data.lat !== undefined && data.lon !== undefined) {
+        else if (data.lat !== undefined && data.lon !== undefined) {
             lat = parseFloat(data.lat);
             lon = parseFloat(data.lon);
             speed = parseFloat(data.speed) || 0;
@@ -330,6 +355,8 @@ export default async function handler(req, res) {
         }
 
         return res.status(200).json({ 
+            code: 200,
+            msg: 'success',
             success: true, 
             message: 'Konum basariyla kaydedildi',
             id: docRefId

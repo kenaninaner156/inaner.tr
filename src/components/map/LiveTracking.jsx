@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line 
 import { Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { calcStats, cleanGpsSpikes, haversineKm, getPointTime } from '../../utils/mapUtils';
-import { Activity, WifiOff, X, Search, ShieldAlert, Navigation, Compass, Crosshair, ChevronRight, ChevronDown, Check } from 'lucide-react';
+import { Activity, WifiOff, X, Search, ShieldAlert, Navigation, Compass, Crosshair, ChevronRight, ChevronDown, Check, Maximize2 } from 'lucide-react';
+import CameraModal from './CameraModal';
+import { getCameraConfig, fetchLiveStreamUrl, attachStreamToVideo, isDemoCameraActive } from '../../services/cameraService';
 
 // ── Tema renkleri — site ile tam uyumlu ──────────────────────────────────
 const PANEL_BG     = 'rgba(13, 18, 25, 0.96)';
@@ -374,11 +376,120 @@ const formatDuration = (minutes) => {
   return `${hrs}s ${mins.toString().padStart(2, '0')}d`;
 };
 
+// ── Seçili Araç Kartı Altında Canlı Kamera Önizlemesi ────────────────────
+// Görüntü yoksa hiçbir şey göstermez (orijinal kart korunur), görüntü geldiğinde animasyonla açılır.
+function InlineCameraPreview({ driverId, quality = 'sd', onOpenCamera }) {
+  const camConfig = getCameraConfig(driverId);
+  const [streamUrl, setStreamUrl] = useState(null);
+  const [isVideoReady, setIsVideoReady] = useState(false);
+  const videoRef = useRef(null);
+  const cleanupRef = useRef(null);
+
+  useEffect(() => {
+    if (!camConfig) return;
+    let cancelled = false;
+
+    Promise.resolve().then(() => {
+      if (!cancelled) setIsVideoReady(false);
+    });
+
+    fetchLiveStreamUrl(driverId, quality).then((info) => {
+      if (cancelled) return;
+      if (info?.url) {
+        setStreamUrl(info.url);
+      } else {
+        setStreamUrl(null);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [driverId, quality, camConfig]);
+
+  useEffect(() => {
+    if (!streamUrl || !videoRef.current) return;
+    let cancelled = false;
+
+    const connect = async () => {
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
+      const cleanup = await attachStreamToVideo(videoRef.current, streamUrl);
+      if (cancelled) {
+        if (cleanup) cleanup();
+        return;
+      }
+      cleanupRef.current = cleanup;
+    };
+
+    connect();
+    return () => {
+      cancelled = true;
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
+    };
+  }, [streamUrl]);
+
+  if (!camConfig || !streamUrl) return null;
+
+  return (
+    <motion.div
+      initial={false}
+      animate={{
+        height: isVideoReady ? 136 : 0,
+        opacity: isVideoReady ? 1 : 0,
+      }}
+      transition={{ duration: 0.38, ease: [0.23, 1, 0.32, 1] }}
+      className="overflow-hidden"
+    >
+      <div className="px-2.5 pb-2.5 pt-0.5">
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onOpenCamera) onOpenCamera(driverId);
+          }}
+          className="relative w-full h-[126px] rounded-xl overflow-hidden border border-white/[0.08] bg-black cursor-pointer group shadow-[0_8px_24px_rgba(0,0,0,0.65)]"
+        >
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            loop
+            onLoadedData={() => setIsVideoReady(true)}
+            onPlaying={() => setIsVideoReady(true)}
+            onError={() => setIsVideoReady(false)}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          />
+
+          {/* İnce Üst Karartma & Minimalist CANLI Noktası */}
+          <div className="absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-black/60 to-transparent pointer-events-none" />
+
+          <div className="absolute top-2 left-2.5 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/55 backdrop-blur-md border border-white/[0.08] pointer-events-none">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399] animate-pulse" />
+            <span className="text-[9px] font-mono font-bold text-white tracking-wider">CANLI</span>
+          </div>
+
+          <div className="absolute top-2 right-2 w-6 h-6 rounded-lg bg-black/55 backdrop-blur-md border border-white/[0.08] flex items-center justify-center text-white/80 group-hover:text-white group-hover:bg-black/75 transition-all pointer-events-none">
+            <Maximize2 size={11} />
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 function SidebarItem({ 
   vehicle, 
   isFollowed, 
   setFollowedDriverId,
-  setIsCameraFollowActive
+  setIsCameraFollowActive,
+  cameraQuality,
+  onOpenCamera
 }) {
   const map = useMap();
   const { driverId, driverName, plate, name, isOnline, speedKmh, km, lastPoint, topSpeedKmh, avgSpeedKmh, parkDurationText } = vehicle;
@@ -433,7 +544,7 @@ function SidebarItem({
         </div>
       </div>
 
-      {/* Expanded Telemetry Section (Clean 3-Column Strip) */}
+      {/* Expanded Telemetry Section (Clean 3-Column Strip + Inline Live Camera if stream available) */}
       <AnimatePresence>
         {isFollowed && (
           <motion.div
@@ -478,6 +589,12 @@ function SidebarItem({
                 </div>
               </div>
             </div>
+
+            <InlineCameraPreview
+              driverId={driverId}
+              quality={cameraQuality}
+              onOpenCamera={onOpenCamera}
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -547,10 +664,12 @@ function MobileMapActions({ vehicleList, followedVehicle, setFollowedDriverId, s
 function MobileFollowedCard({ 
   vehicle,
   vehicleList,
-  onSelectVehicle
+  onSelectVehicle,
+  cameraQuality,
+  onOpenCamera
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { driverName, plate, name, isOnline, speedKmh, km, topSpeedKmh, avgSpeedKmh, parkDurationText } = vehicle;
+  const { driverId, driverName, plate, name, isOnline, speedKmh, km, topSpeedKmh, avgSpeedKmh, parkDurationText } = vehicle;
 
   const cardRef = useCallback(node => {
     if (node) {
@@ -648,32 +767,40 @@ function MobileFollowedCard({
         </div>
       </div>
 
-      {/* 3 Kolonlu Telemetri İstatistikleri */}
-      <div className="grid grid-cols-3 divide-x divide-white/[0.05] p-2 bg-[#0b0e15]/80 rounded-2xl border border-white/[0.04] text-center">
-        <div className="px-1">
-          <div className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">ANLIK HIZ</div>
-          <div className="text-xs font-mono font-bold text-slate-100 mt-0.5">
-            {!isOnline ? (
-              <span className="text-slate-500 font-sans text-[10px]">Çevrimdışı</span>
-            ) : speedKmh <= 7 ? (
-              <span className="text-slate-300 font-sans text-[11px] font-semibold leading-tight">
-                {parkDurationText || 'Park'}
-              </span>
-            ) : (
-              <>
-                {speedKmh} <span className="text-[8px] font-sans font-normal text-slate-400">km/h</span>
-              </>
-            )}
+      {/* 3 Kolonlu Telemetri İstatistikleri + Canlı Kamera (Görüntü Varsa) */}
+      <div className="bg-[#0b0e15]/80 rounded-2xl border border-white/[0.04] overflow-hidden">
+        <div className="grid grid-cols-3 divide-x divide-white/[0.05] p-2 text-center">
+          <div className="px-1">
+            <div className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">ANLIK HIZ</div>
+            <div className="text-xs font-mono font-bold text-slate-100 mt-0.5">
+              {!isOnline ? (
+                <span className="text-slate-500 font-sans text-[10px]">Çevrimdışı</span>
+              ) : speedKmh <= 7 ? (
+                <span className="text-slate-300 font-sans text-[11px] font-semibold leading-tight">
+                  {parkDurationText || 'Park'}
+                </span>
+              ) : (
+                <>
+                  {speedKmh} <span className="text-[8px] font-sans font-normal text-slate-400">km/h</span>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="px-1">
+            <div className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">MAX HIZ</div>
+            <div className="text-xs font-mono font-bold text-slate-100 mt-0.5">{topSpeedKmh || speedKmh} <span className="text-[8px] font-sans font-normal text-slate-400">km/h</span></div>
+          </div>
+          <div className="px-1">
+            <div className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">ORT. HIZ</div>
+            <div className="text-xs font-mono font-bold text-slate-100 mt-0.5">{avgSpeedKmh || speedKmh} <span className="text-[8px] font-sans font-normal text-slate-400">km/h</span></div>
           </div>
         </div>
-        <div className="px-1">
-          <div className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">MAX HIZ</div>
-          <div className="text-xs font-mono font-bold text-slate-100 mt-0.5">{topSpeedKmh || speedKmh} <span className="text-[8px] font-sans font-normal text-slate-400">km/h</span></div>
-        </div>
-        <div className="px-1">
-          <div className="text-[8px] font-semibold text-slate-400 uppercase tracking-wider">ORT. HIZ</div>
-          <div className="text-xs font-mono font-bold text-slate-100 mt-0.5">{avgSpeedKmh || speedKmh} <span className="text-[8px] font-sans font-normal text-slate-400">km/h</span></div>
-        </div>
+
+        <InlineCameraPreview
+          driverId={driverId}
+          quality={cameraQuality}
+          onOpenCamera={onOpenCamera}
+        />
       </div>
     </div>
   );
@@ -693,6 +820,8 @@ export default function LiveTracking({
   const [isCameraFollowActive, setIsCameraFollowActive] = useState(true);
   const [showSidebar, setShowSidebar]           = useState(true);
   const [zoom, setZoom] = useState(13);
+  const [activeCameraDriverId, setActiveCameraDriverId] = useState(null);
+  const [cameraQuality, setCameraQuality] = useState('sd');
   const didInitRef = useRef(false);
 
   // Canlı park süresi sayacı ve saniyelik sinyal akışı için periyodik güncelleme (1 saniyede bir)
@@ -725,7 +854,8 @@ export default function LiveTracking({
   const DEFAULT_MAPPINGS = {
     Mert: { driverName: 'Mert', plate: '06 FTN 692' },
     Goksel: { driverName: 'Göksel', plate: '06 FTN 692' },
-    'Göksel': { driverName: 'Göksel', plate: '06 FTN 692' }
+    'Göksel': { driverName: 'Göksel', plate: '06 FTN 692' },
+    Demo: { driverName: 'Dash Cam Beta', plate: '34 JIMI 182' },
   };
 
   const getVehicleInfo = (deviceId) => {
@@ -741,7 +871,23 @@ export default function LiveTracking({
     };
   };
 
-  const vehicleList = Object.entries(sessionsByDriver)
+  // Demo kamera aktifse ve gerçek veride 'Demo' yoksa, test için canlı Demo aracını ekle
+  const effectiveSessionsByDriver = useMemo(() => {
+    const base = { ...(sessionsByDriver || {}) };
+    if (isDemoCameraActive() && !base.Demo) {
+      const t = now;
+      base.Demo = [
+        [
+          { lat: 40.7812, lon: 29.4310, speed: 36.7, timestamp: t - 600000, dailyKm: 142.4 },
+          { lat: 40.7768, lon: 29.4520, speed: 41.0, timestamp: t - 300000, dailyKm: 142.4 },
+          { lat: 40.7725, lon: 29.4745, speed: 42.1, timestamp: t - 5000, dailyKm: 142.4 },
+        ],
+      ];
+    }
+    return base;
+  }, [sessionsByDriver, now]);
+
+  const vehicleList = Object.entries(effectiveSessionsByDriver)
     .map(([driverId, sessions]) => {
       if (!sessions.length) return null;
       const latestSession = sessions[sessions.length - 1];
@@ -902,6 +1048,8 @@ export default function LiveTracking({
                 if (setSelectedHistoryDriver) setSelectedHistoryDriver(driverId);
                 if (setActiveTab) setActiveTab('history');
               }}
+              cameraQuality={cameraQuality}
+              onOpenCamera={(driverId) => setActiveCameraDriverId(driverId)}
             />
           )}
         </>
@@ -953,6 +1101,8 @@ export default function LiveTracking({
                     setIsCameraFollowActive={setIsCameraFollowActive}
                     setActiveTab={setActiveTab}
                     setSelectedHistoryDriver={setSelectedHistoryDriver}
+                    cameraQuality={cameraQuality}
+                    onOpenCamera={(driverId) => setActiveCameraDriverId(driverId)}
                   />
                 ))
               )}
@@ -977,6 +1127,14 @@ export default function LiveTracking({
           </motion.button>
         )}
       </AnimatePresence>
+
+      <CameraModal
+        isOpen={Boolean(activeCameraDriverId)}
+        onClose={() => setActiveCameraDriverId(null)}
+        deviceId={activeCameraDriverId}
+        initialQuality={cameraQuality}
+        onQualityChange={setCameraQuality}
+      />
     </>
   );
 }

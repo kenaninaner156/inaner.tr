@@ -441,12 +441,37 @@ export default {
         });
       }
 
-      // ── 5. GPS KOORDİNAT VE AÇI AYRIŞTIRMA (Traccar / OsmAnd / Custom) ──
+      // ── 5. GPS KOORDİNAT VE AÇI AYRIŞTIRMA (Traccar / OsmAnd / Tracksolid Pro Push) ──
       let deviceId = 'Bilinmeyen_Cihaz';
       let rawLat, rawLon, speed = 0, altitude = 0, rawHeading = 0;
       let pointTimestamp = new Date().toISOString();
 
-      if (data.lat !== undefined && data.lon !== undefined) {
+      // Tracksolid Pro 7.1 Alarm Push (form-urlencoded içinde JSON string olarak gelen data)
+      if (data.msgType === 'jimi.push.device.alarm' && typeof data.data === 'string') {
+        try {
+          const alarmObj = JSON.parse(data.data);
+          rawLat = parseFloat(alarmObj.lat);
+          rawLon = parseFloat(alarmObj.lng);
+          pointTimestamp = alarmObj.alarmTime || pointTimestamp;
+          deviceId = String(alarmObj.imei || alarmObj.deviceName || 'Göksel').trim();
+        } catch (_) {}
+      } else if (data.deviceImei !== undefined && data.latitude !== undefined && data.longitude !== undefined) {
+        // Tracksolid Pro 7.4 GPS Position Data Push (/location/push) — Hız birimi KM/H'dir, Knots'a (1.852) çevrilir
+        rawLat = parseFloat(data.latitude);
+        rawLon = parseFloat(data.longitude);
+        const sKmh = parseFloat(data.speed) || 0;
+        speed = sKmh > 0 ? sKmh / 1.852 : 0;
+        rawHeading = parseFloat(data.direction) || 0;
+        pointTimestamp = data.reportTime || pointTimestamp;
+        deviceId = String(data.driverId || data.deviceImei || 'Göksel').trim();
+      } else if (data.msgType === 'jimi.push.device.status' && data.latitude !== undefined && data.longitude !== undefined) {
+        // Tracksolid Pro 7.5 Device Status Data Push (ACC_ON / ACC_OFF)
+        rawLat = parseFloat(data.latitude);
+        rawLon = parseFloat(data.longitude);
+        speed = 0;
+        pointTimestamp = data.time || pointTimestamp;
+        deviceId = String(data.driverId || data.imei || 'Göksel').trim();
+      } else if (data.lat !== undefined && data.lon !== undefined) {
         rawLat = parseFloat(data.lat);
         rawLon = parseFloat(data.lon);
         speed = parseFloat(data.speed) || 0;
@@ -474,8 +499,10 @@ export default {
         deviceId = String(data.device_id || data.id || 'Bilinmeyen_Cihaz').trim();
       }
 
-      // Goksel -> Göksel İsim Normalizasyonu
-      if (deviceId === 'Goksel') deviceId = 'Göksel';
+      // Goksel veya JC182 IMEI -> Göksel İsim Normalizasyonu
+      if (deviceId === 'Goksel' || (env.GOKSEL_IMEI && deviceId === String(env.GOKSEL_IMEI))) {
+        deviceId = 'Göksel';
+      }
 
       if (isNaN(rawLat) || isNaN(rawLon) || rawLat < -90 || rawLat > 90 || rawLon < -180 || rawLon > 180) {
         return new Response(JSON.stringify({ error: 'Gecersiz koordinat' }), {
@@ -776,6 +803,8 @@ export default {
       liveFleet.set(deviceId, vehicle);
 
       return new Response(JSON.stringify({
+        code: 200,
+        msg: 'success',
         success: true,
         message: 'Konum Cloudflare Edge Hub üzerinde başarıyla işlendi',
         id: deviceId,
