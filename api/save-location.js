@@ -1,6 +1,7 @@
 /* eslint-env node */
 import admin from 'firebase-admin';
 import { db } from '../lib/firebaseAdmin.js';
+import cameraStreamHandler from '../lib/cameraStreamHandler.js';
 
 function getHaversineKm(lat1, lon1, lat2, lon2) {
     if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return 0;
@@ -11,7 +12,13 @@ function getHaversineKm(lat1, lon1, lat2, lon2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+const CAMERA_ACTIONS = new Set(['live', 'history', 'history_stream', 'close_stream', 'command', 'location', 'proxy_flv']);
+
 export default async function handler(req, res) {
+    const reqData = { ...(req.query || {}), ...(req.body || {}) };
+    if (reqData.__camera === '1' || CAMERA_ACTIONS.has(reqData.action) || req.url?.startsWith('/api/camera-stream')) {
+        return cameraStreamHandler(req, res);
+    }
     if (req.method !== 'GET' && req.method !== 'POST') {
         return res.status(405).json({ error: 'Sadece GET veya POST kabul edilir' });
     }

@@ -37,6 +37,7 @@
     }
   ],
   "rewrites": [
+    { "source": "/api/camera-stream", "destination": "/api/save-location?__camera=1" },
     { "source": "/location/push", "destination": "/api/save-location" },
     { "source": "/version.json", "destination": "/version.json" },
     { "source": "/firebase-messaging-sw.js", "destination": "/firebase-messaging-sw.js" },
