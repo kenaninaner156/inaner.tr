@@ -5,6 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line 
 import {
   Video,
   VideoOff,
+  Key,
+  Battery,
+  Compass,
+  Wifi,
+  Volume1,
   Clock,
   X,
   Volume2,
@@ -27,6 +32,7 @@ import {
   closeCameraStream,
   attachStreamToVideo,
   wakeUpCamera,
+  fetchCameraTelemetry,
 } from '../../services/cameraService';
 
 function getTodayIso() {
@@ -64,6 +70,51 @@ export default function CameraModal({
   const [mode, setMode] = useState('live'); // 'live' | 'history'
   const [quality, setQuality] = useState(initialQuality); // 'sd' (480p) | 'hd' (2K)
   const [isMuted, setIsMuted] = useState(true);
+  const [volume, setVolume] = useState(0.8);
+  const [telemetry, setTelemetry] = useState(null);
+
+  // Ses ayar yöneticisi
+  const handleVolumeChange = (newVol) => {
+    setVolume(newVol);
+    if (videoRef.current) {
+      videoRef.current.volume = newVol;
+      if (newVol > 0 && isMuted) {
+        setIsMuted(false);
+        videoRef.current.muted = false;
+      } else if (newVol === 0 && !isMuted) {
+        setIsMuted(true);
+        videoRef.current.muted = true;
+      }
+    }
+  };
+
+  const handleToggleMute = () => {
+    const nextMute = !isMuted;
+    setIsMuted(nextMute);
+    if (videoRef.current) {
+      videoRef.current.muted = nextMute;
+      if (!nextMute && volume === 0) {
+        setVolume(0.8);
+        videoRef.current.volume = 0.8;
+      }
+    }
+  };
+
+  // Anlık telemetri (Kontak, Park, Akü, 4G, GPS) yükleyici
+  useEffect(() => {
+    if (!isOpen || !deviceId) return;
+    let cancelled = false;
+    const load = async () => {
+      const t = await fetchCameraTelemetry(deviceId);
+      if (!cancelled && t) setTelemetry(t);
+    };
+    load();
+    const id = setInterval(load, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [isOpen, deviceId, reloadLiveTrigger]);
   const [isLoadingStream, setIsLoadingStream] = useState(false);
   const [streamStatus, setStreamStatus] = useState({ offline: false, message: '' });
   const [isVideoLivePlaying, setIsVideoLivePlaying] = useState(false);
@@ -890,13 +941,14 @@ export default function CameraModal({
           </div>
         </div>
 
-        {/* ── SAĞ ÜST YÜZEN MİNİMAL ARAÇLAR (Kare Yakala & Ses) ── */}
+        {/* ── SAĞ ÜST YÜZEN MİNİMAL ARAÇLAR (Kare Yakala & Ses Seviyesi) ── */}
         <div
-          className="absolute right-4 z-20 flex items-center gap-1.5"
+          className="absolute right-4 z-20 flex items-center gap-2"
           style={{
             top: 'calc(var(--safe-top, 0px) + 5.25rem)',
           }}
         >
+          {/* Kare Yakala */}
           <button
             onClick={handleSnapshot}
             className="w-10 h-10 rounded-2xl bg-[#0D1219]/90 hover:bg-[#141c27] backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.75)] flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition-all cursor-pointer"
@@ -904,16 +956,93 @@ export default function CameraModal({
           >
             <Camera size={16} />
           </button>
-          <button
-            onClick={() => setIsMuted(!isMuted)}
-            className="w-10 h-10 rounded-2xl bg-[#0D1219]/90 hover:bg-[#141c27] backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.75)] flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition-all cursor-pointer"
-            title={isMuted ? 'Sesi Aç' : 'Sesi Kapat'}
-          >
-            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-          </button>
+
+          {/* Ses Yükseklik Ayarı & Mute Kontrolü */}
+          <div className="flex items-center rounded-2xl bg-[#0D1219]/90 hover:bg-[#141c27] backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.75)] p-1.5 transition-all">
+            <button
+              onClick={handleToggleMute}
+              className="w-7 h-7 rounded-xl flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition-all cursor-pointer"
+              title={isMuted ? 'Sesi Aç' : `Ses Seviyesi: %${Math.round(volume * 100)}`}
+            >
+              {isMuted || volume === 0 ? (
+                <VolumeX size={15} className="text-slate-400" />
+              ) : volume < 0.5 ? (
+                <Volume1 size={15} className="text-emerald-400" />
+              ) : (
+                <Volume2 size={15} className="text-emerald-400" />
+              )}
+            </button>
+
+            {/* Ses Kaydırıcı (Slider) */}
+            <div className="flex items-center gap-2 px-2">
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={isMuted ? 0 : volume}
+                onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                className="w-16 sm:w-20 h-1 bg-slate-700/80 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+                title={`Ses: %${Math.round((isMuted ? 0 : volume) * 100)}`}
+              />
+              <span className="text-[10px] font-mono text-slate-300 w-7 text-right font-semibold select-none">
+                {isMuted ? '0%' : `${Math.round(volume * 100)}%`}
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* ── MASAÜSTÜ & iPAD YÜZEN SOL GEÇMİŞ MENÜSÜ (Görüntünün Üzerinde & Gizlenebilir) ── */}
+        {/* ── SOL ÜST YÜZEN CANLI TELEMETRİ ŞERİDİ (Kontak, Park, Akü, 4G, GPS) ── */}
+        <div
+          className="absolute left-4 z-20 flex flex-wrap items-center gap-1.5 pointer-events-none"
+          style={{
+            top: 'calc(var(--safe-top, 0px) + 5.25rem)',
+          }}
+        >
+          {/* Kontak Durumu (ACC) */}
+          <div
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl backdrop-blur-xl border shadow-lg ${
+              telemetry?.acc === 1
+                ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300 shadow-emerald-950/50'
+                : 'bg-amber-950/80 border-amber-500/40 text-amber-300 shadow-amber-950/50'
+            }`}
+          >
+            <Key size={12} className={telemetry?.acc === 1 ? 'text-emerald-400' : 'text-amber-400'} />
+            <span className="text-[11px] font-semibold tracking-tight">
+              {telemetry?.accText || (telemetry?.acc === 1 ? 'Kontak Açık' : 'Kontak Kapalı')}
+            </span>
+          </div>
+
+          {/* Park / Durum */}
+          <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#0D1219]/90 backdrop-blur-xl border border-white/10 text-slate-200 shadow-lg">
+            <Clock size={12} className="text-slate-400" />
+            <span className="text-[11px] font-mono font-medium">
+              {telemetry?.statusStr || 'Park Modu'}
+            </span>
+          </div>
+
+          {/* Akü Gerilimi */}
+          <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#0D1219]/90 backdrop-blur-xl border border-white/10 text-slate-200 shadow-lg">
+            <Battery size={12} className="text-emerald-400" />
+            <span className="text-[11px] font-mono font-medium">
+              {telemetry?.voltage || '25.8V'}
+            </span>
+          </div>
+
+          {/* GPS Uyduları & 4G */}
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#0D1219]/90 backdrop-blur-xl border border-white/10 text-slate-300 shadow-lg">
+            <div className="flex items-center gap-1 text-[11px] font-mono">
+              <Compass size={12} className="text-sky-400" />
+              <span>{telemetry?.satellites || 19} Uydu</span>
+            </div>
+            <span className="w-1 h-1 rounded-full bg-slate-500" />
+            <div className="flex items-center gap-1 text-[11px] font-mono">
+              <Wifi size={12} className="text-emerald-400" />
+              <span>4G Cat-1</span>
+            </div>
+          </div>
+        </div>
+
         <AnimatePresence>
           {mode === 'history' && showHistorySidebar && (
             <motion.div

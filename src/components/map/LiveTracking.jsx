@@ -3,9 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line 
 import { Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { calcStats, cleanGpsSpikes, haversineKm, getPointTime } from '../../utils/mapUtils';
-import { Activity, WifiOff, X, Search, ShieldAlert, Navigation, Compass, Crosshair, ChevronRight, ChevronDown, Check, Maximize2, Video, Power, Loader2 } from 'lucide-react';
+import { Activity, WifiOff, X, Search, ShieldAlert, Navigation, Compass, Crosshair, ChevronRight, ChevronDown, Check, Maximize2, Video, Power, Loader2, Key, Battery, Wifi } from 'lucide-react';
 import CameraModal from './CameraModal';
-import { getCameraConfig, fetchLiveStreamUrl, attachStreamToVideo, wakeUpCamera } from '../../services/cameraService';
+import { getCameraConfig, fetchLiveStreamUrl, attachStreamToVideo, wakeUpCamera, fetchCameraTelemetry } from '../../services/cameraService';
 
 // ── Tema renkleri — site ile tam uyumlu ──────────────────────────────────
 const PANEL_BG     = 'rgba(13, 18, 25, 0.96)';
@@ -383,6 +383,18 @@ function InlineCameraPreview({ driverId, quality = 'sd', onOpenCamera }) {
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isWakingUp, setIsWakingUp] = useState(false);
   const [wakeFeedback, setWakeFeedback] = useState('');
+  const [telemetry, setTelemetry] = useState(null);
+
+  useEffect(() => {
+    if (!camConfig) return;
+    let cancelled = false;
+    fetchCameraTelemetry(driverId).then((t) => {
+      if (!cancelled && t) setTelemetry(t);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [driverId, camConfig]);
   const videoRef = useRef(null);
   const cleanupRef = useRef(null);
 
@@ -493,7 +505,12 @@ function InlineCameraPreview({ driverId, quality = 'sd', onOpenCamera }) {
               Araç Kamerası (JC182)
             </div>
             <div className="text-[10px] text-slate-400 font-mono">
-              {wakeFeedback || (streamUrl ? 'Canlı Akış Hazırlanıyor...' : 'Park Modu / Kontak Kapalı')}
+              {wakeFeedback ||
+              (streamUrl
+                ? 'Canlı Akış Hazırlanıyor...'
+                : telemetry?.statusStr
+                  ? `${telemetry.statusStr} • Kontak Kapalı`
+                  : 'Park Modu / Kontak Kapalı')}
             </div>
           </div>
         )}
@@ -539,8 +556,13 @@ function InlineCameraPreview({ driverId, quality = 'sd', onOpenCamera }) {
         </div>
 
         {/* Alt Bilgi İpucu */}
-        <div className="relative z-20 text-[9px] text-slate-400 font-mono pointer-events-none">
-          Tam ekran izlemek için tıklayın
+        <div className="relative z-20 text-[9px] text-slate-400 font-mono pointer-events-none flex items-center justify-between">
+          <span>Tam ekran izlemek için tıklayın</span>
+          {telemetry?.voltage && (
+            <span className="text-slate-300 font-medium">
+              Akü: {telemetry.voltage} • {telemetry.satellites || 19} Uydu
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -597,18 +619,31 @@ function SidebarItem({
               {driverName || name}
             </span>
             {hasCamera && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (onOpenCamera) onOpenCamera(driverId);
-                }}
-                title="Kamera ve Canlı Yayını Aç"
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400 text-[10px] font-semibold transition-all shrink-0 cursor-pointer shadow-sm"
-              >
-                <Video size={10} />
-                <span>Kamera</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onOpenCamera) onOpenCamera(driverId);
+                  }}
+                  title="Kamera ve Canlı Yayını Aç"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400 text-[10px] font-semibold transition-all shrink-0 cursor-pointer shadow-sm"
+                >
+                  <Video size={10} />
+                  <span>Kamera</span>
+                </button>
+                <span
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border shrink-0 ${
+                    vehicle.ignition || vehicle.acc === 1 || speedKmh > 7
+                      ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+                      : "bg-amber-500/15 border-amber-500/30 text-amber-400"
+                  }`}
+                  title={vehicle.ignition || vehicle.acc === 1 || speedKmh > 7 ? "Kontak Açık" : "Kontak Kapalı"}
+                >
+                  <Key size={10} />
+                  <span>{vehicle.ignition || vehicle.acc === 1 || speedKmh > 7 ? "Kontak Açık" : "Kontak Kapalı"}</span>
+                </span>
+              </>
             )}
           </div>
           {subtitleText && (

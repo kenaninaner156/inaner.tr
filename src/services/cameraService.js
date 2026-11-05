@@ -97,6 +97,23 @@ export async function enableCameraAudio(deviceId) {
 }
 
 /**
+ * Aracın anlık kontak (ACC), park durumu, akü voltajı, uydu ve 4G telemetrisini döndürür.
+ * @param {string} deviceId
+ */
+export async function fetchCameraTelemetry(deviceId) {
+  const cfg = getCameraConfig(deviceId);
+  if (!cfg) return null;
+  try {
+    const res = await fetch(`/api/camera-stream?action=telemetry&imei=${encodeURIComponent(cfg.imei)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Canlı yayın URL'sini döndürür (Tracksolid Pro /v3/new/newVideo/getLiveStreamUrl).
  * @param {string} deviceId - Araç / sürücü kimliği ('Göksel')
  * @param {'sd' | 'hd'} quality - 'sd' (480p, codeType=2, 50GB kotayı korur) veya 'hd' (2K, codeType=1)
