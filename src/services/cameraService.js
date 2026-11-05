@@ -1,21 +1,11 @@
 // Tracksolid Pro EU (Jimi IoT JC182) Kamera ve Akış Servisi
-// Kamera teslim edildiğinde CAMERA_VEHICLES içindeki 'Göksel' kaydını aktif edip IMEI girmeniz yeterlidir.
+// Göksel 06 FTN 692 plakalı araca takılı Jimi JC182 araç kamerası donanımına bağlıdır.
 
 const TRACKSOLID_EU_OPEN_API = 'https://eu-open.tracksolidpro.com/route/rest';
 
 export const CAMERA_VEHICLES = {
-  Demo: {
-    enabled: true,
-    isDemo: true,
-    imei: '868120304685362',
-    model: 'JC182',
-    channel: 1, // JT808/1078 protokolü cihazlarda (JC182) kanal 1'den başlar
-    driverName: 'Dash Cam Beta',
-    plate: '34 JIMI 182',
-  },
   'Göksel': {
     enabled: true,
-    isDemo: false,
     imei: '869058070168628',
     model: 'JC182',
     channel: 1,
@@ -24,7 +14,6 @@ export const CAMERA_VEHICLES = {
   },
   Goksel: {
     enabled: true,
-    isDemo: false,
     imei: '869058070168628',
     model: 'JC182',
     channel: 1,
@@ -46,18 +35,6 @@ export function getSessionAppId() {
   return sessionAppId;
 }
 
-// Demo modunda kullanılan gerçek yol kamerası akışları (480p SD alt akış vs 1080p/2K ana akış)
-const DEMO_STREAMS = {
-  live: {
-    sd: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/8/81/C%C3%A4cilienbr%C3%BCcke_Oldenburg_%28Dashcam%29.webm/C%C3%A4cilienbr%C3%BCcke_Oldenburg_%28Dashcam%29.webm.480p.vp9.webm',
-    hd: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/8/81/C%C3%A4cilienbr%C3%BCcke_Oldenburg_%28Dashcam%29.webm/C%C3%A4cilienbr%C3%BCcke_Oldenburg_%28Dashcam%29.webm.1080p.vp9.webm',
-  },
-  highway: {
-    sd: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/3/3c/Driving_on_Clopper_Road_from_Firstfield_Road_onto_I-270_southbound_towards_Shady_Grove_Road_%281_June_2026%29.webm/Driving_on_Clopper_Road_from_Firstfield_Road_onto_I-270_southbound_towards_Shady_Grove_Road_%281_June_2026%29.webm.480p.vp9.webm',
-    hd: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/8/81/C%C3%A4cilienbr%C3%BCcke_Oldenburg_%28Dashcam%29.webm/C%C3%A4cilienbr%C3%BCcke_Oldenburg_%28Dashcam%29.webm.1080p.vp9.webm',
-  },
-};
-
 export function getCameraConfig(deviceId) {
   if (!deviceId) return null;
   const normalized = deviceId === 'Goksel' ? 'Göksel' : deviceId;
@@ -67,33 +44,70 @@ export function getCameraConfig(deviceId) {
 }
 
 export function isDemoCameraActive() {
-  return Boolean(CAMERA_VEHICLES.Demo?.enabled);
+  return false;
 }
 
 /**
- * Canlı yayın URL'sini döndürür (4.6 jimi.device.media.live.stream).
- * @param {string} deviceId - Araç / sürücü kimliği ('Demo' veya 'Göksel')
- * @param {'sd' | 'hd'} quality - 'sd' (480p, codeType=2) veya 'hd' (2K, codeType=1)
+ * Park halindeki kamerayı 4G hücresel ağ üzerinden uyandırır ve telemetri durumunu yeniler.
+ * Tracksolid Pro STATUS# talimatını (instructionId: 525) iletir.
+ * @param {string} deviceId
+ */
+export async function wakeUpCamera(deviceId) {
+  const cfg = getCameraConfig(deviceId);
+  if (!cfg) return { success: false, message: 'Kamera yapılandırması bulunamadı.' };
+
+  try {
+    const res = await fetch(`/api/camera-stream?action=wakeup&imei=${encodeURIComponent(cfg.imei)}`);
+    const data = await res.json();
+    return {
+      success: Boolean(data?.ok || data?.code === 0 || data?.code === 255 || data?.code === 10000),
+      message: data?.message || 'Uyandırma sinyali iletildi.',
+      statusText: data?.statusText || '',
+      telemetry: data?.telemetry || null,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: err.message || 'Uyandırma isteği gönderilemedi.',
+    };
+  }
+}
+
+/**
+ * Kameranın dahili mikrofonunu ve ses kaydını (RECORDAUDIO,1,ON#) etkinleştirir.
+ * @param {string} deviceId
+ */
+export async function enableCameraAudio(deviceId) {
+  const cfg = getCameraConfig(deviceId);
+  if (!cfg) return { success: false, message: 'Kamera yapılandırması bulunamadı.' };
+
+  try {
+    const res = await fetch(`/api/camera-stream?action=enable_audio&imei=${encodeURIComponent(cfg.imei)}`);
+    const data = await res.json();
+    return {
+      success: Boolean(data?.ok || data?.code === 0 || data?.code === 255 || data?.code === 10000),
+      message: data?.message || 'Ses kaydı etkinleştirildi.',
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: err.message || 'Ses kaydı ayarlanamadı.',
+    };
+  }
+}
+
+/**
+ * Canlı yayın URL'sini döndürür (Tracksolid Pro /v3/new/newVideo/getLiveStreamUrl).
+ * @param {string} deviceId - Araç / sürücü kimliği ('Göksel')
+ * @param {'sd' | 'hd'} quality - 'sd' (480p, codeType=2, 50GB kotayı korur) veya 'hd' (2K, codeType=1)
  * @param {boolean} setQualityCmd - Kalite değiştirme komutu gönderilsin mi
  */
 export async function fetchLiveStreamUrl(deviceId, quality = 'sd', setQualityCmd = false) {
   const cfg = getCameraConfig(deviceId);
   if (!cfg) return null;
 
-  if (cfg.isDemo) {
-    await new Promise(resolve => setTimeout(resolve, 420));
-    return {
-      url: quality === 'hd' ? DEMO_STREAMS.live.hd : DEMO_STREAMS.live.sd,
-      format: 'webm',
-      quality,
-      codeType: quality === 'hd' ? 1 : 2,
-      channel: cfg.channel,
-      imei: cfg.imei,
-      appId: getSessionAppId(),
-    };
-  }
-
   try {
+    // 50 GB hücresel veri kotasını korumak için varsayılan olarak 480p sub-stream (codeType: 2) kullanılır
     const codeType = quality === 'hd' ? 1 : 2;
     const appId = getSessionAppId();
     const res = await fetch(
@@ -117,7 +131,7 @@ export async function fetchLiveStreamUrl(deviceId, quality = 'sd', setQualityCmd
     return {
       url: null,
       offline: Boolean(data?.offline),
-      message: data?.message || 'Kamera çevrimdışı veya kapalı.',
+      message: data?.message || 'Kamera çevrimdışı veya araç kontağı kapalı.',
       telemetry: data?.telemetry || null,
       appId,
     };
@@ -127,77 +141,11 @@ export async function fetchLiveStreamUrl(deviceId, quality = 'sd', setQualityCmd
 }
 
 /**
- * Seçili gün için SD karttaki geçmiş video kayıt parçalarını döndürür (4.7 cmd + 4.8 get).
+ * Seçili gün için SD karttaki geçmiş video kayıt parçalarını döndürür.
  */
 export async function fetchCameraHistorySegments(deviceId, dateStr, quality = 'sd') {
   const cfg = getCameraConfig(deviceId);
   if (!cfg) return { segments: [], recordedDates: [] };
-
-  const today = new Date();
-  const recordedDates = [];
-  for (let i = 0; i < 18; i++) {
-    if (i === 3 || i === 8 || i === 14) continue;
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    recordedDates.push(d.toISOString().slice(0, 10));
-  }
-
-  if (cfg.isDemo) {
-    await new Promise(resolve => setTimeout(resolve, 240));
-    const hasData = recordedDates.includes(dateStr);
-    if (!hasData) {
-      return { segments: [], recordedDates };
-    }
-
-    const streamA = quality === 'hd' ? DEMO_STREAMS.live.hd : DEMO_STREAMS.live.sd;
-    const streamB = quality === 'hd' ? DEMO_STREAMS.highway.hd : DEMO_STREAMS.highway.sd;
-
-    return {
-      recordedDates,
-      segments: [
-        {
-          id: `${dateStr}_seg_1`,
-          startTime: '08:14',
-          endTime: '08:46',
-          beginTime: `${dateStr} 08:14:00`,
-          endTimeFull: `${dateStr} 08:46:00`,
-          durationSec: 1920,
-          url: streamA,
-          fileName: `JC182_${dateStr.replace(/-/g, '')}_081400_CH1.mp4`,
-        },
-        {
-          id: `${dateStr}_seg_2`,
-          startTime: '11:20',
-          endTime: '12:05',
-          beginTime: `${dateStr} 11:20:00`,
-          endTimeFull: `${dateStr} 12:05:00`,
-          durationSec: 2700,
-          url: streamB,
-          fileName: `JC182_${dateStr.replace(/-/g, '')}_112000_CH1.mp4`,
-        },
-        {
-          id: `${dateStr}_seg_3`,
-          startTime: '14:50',
-          endTime: '15:28',
-          beginTime: `${dateStr} 14:50:00`,
-          endTimeFull: `${dateStr} 15:28:00`,
-          durationSec: 2280,
-          url: streamA,
-          fileName: `JC182_${dateStr.replace(/-/g, '')}_145000_CH1.mp4`,
-        },
-        {
-          id: `${dateStr}_seg_4`,
-          startTime: '17:10',
-          endTime: '17:42',
-          beginTime: `${dateStr} 17:10:00`,
-          endTimeFull: `${dateStr} 17:42:00`,
-          durationSec: 1920,
-          url: streamB,
-          fileName: `JC182_${dateStr.replace(/-/g, '')}_171000_CH1.mp4`,
-        },
-      ],
-    };
-  }
 
   try {
     const codeType = quality === 'hd' ? 1 : 2;
@@ -217,15 +165,14 @@ export async function fetchCameraHistorySegments(deviceId, dateStr, quality = 's
 }
 
 /**
- * Seçili geçmiş kayıt parçasının (segment) gerçek akış URL'sini alır (4.9 jimi.device.media.history.stream).
- * JC182 (JT808/1078) için beginTime & endTime kullanır.
+ * Seçili geçmiş kayıt parçasının (segment) gerçek akış URL'sini alır.
  */
 export async function resolveHistorySegmentStream(deviceId, segment) {
   if (!segment) return null;
   if (segment.url) return segment.url;
 
   const cfg = getCameraConfig(deviceId);
-  if (!cfg || cfg.isDemo) return segment.url || null;
+  if (!cfg) return null;
 
   try {
     const appId = getSessionAppId();
@@ -248,14 +195,14 @@ export async function resolveHistorySegmentStream(deviceId, segment) {
 }
 
 /**
- * Kamera menüsü kapatıldığında 4G akışını sonlandırır (4.10 jimi.device.media.close.stream).
+ * Kamera menüsü kapatıldığında 4G akışını sonlandırır.
  * Aylık 50 GB SIM kart kotasının gereksiz harcanmasını engeller.
  * @param {string} deviceId
  * @param {'live' | 'history'} mode
  */
 export async function closeCameraStream(deviceId, mode = 'live') {
   const cfg = getCameraConfig(deviceId);
-  if (!cfg || cfg.isDemo) return;
+  if (!cfg) return;
 
   try {
     const appId = getSessionAppId();
@@ -307,11 +254,14 @@ export async function attachStreamToVideo(videoEl, streamUrl) {
             type: 'flv',
             isLive: true,
             url: streamUrl,
+            hasAudio: true,
+            hasVideo: true,
           },
           {
             enableWorker: true,
             enableStashBuffer: false,
             stashInitialSize: 128,
+            lazyLoad: false,
           }
         );
         player.attachMediaElement(videoEl);

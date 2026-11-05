@@ -12,7 +12,7 @@ function getHaversineKm(lat1, lon1, lat2, lon2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const CAMERA_ACTIONS = new Set(['live', 'history', 'history_stream', 'close_stream', 'command', 'location', 'proxy_flv']);
+const CAMERA_ACTIONS = new Set(['live', 'history', 'history_stream', 'close_stream', 'command', 'location', 'proxy_flv', 'wakeup', 'enable_audio']);
 
 export default async function handler(req, res) {
     const reqData = { ...(req.query || {}), ...(req.body || {}) };
@@ -243,6 +243,13 @@ export default async function handler(req, res) {
         };
 
         const cleanDeviceId = String(deviceId).trim();
+
+        // Göksel artık araçta takılı Jimi JC182 kamera ve telemetri donanımı üzerinden takip edilmektedir.
+        // Eski telefon GPS (Traccar iOS / OsmAnd) sinyallerinin donanım konumunu ezmesini engelle:
+        if ((cleanDeviceId === 'Göksel' || cleanDeviceId === 'Goksel') && !data.msgType && !data.deviceImei) {
+            return res.status(200).json({ success: true, message: 'Göksel JC182 donanımı ile takip edilmektedir, telefon sinyali devredışıdır.' });
+        }
+
         const dateStr = getTurkeyDateStr(formattedTimestamp);
 
         // Discord'a ham veri sinyalini anında düşür (teşhis ve canlı kontrol için)

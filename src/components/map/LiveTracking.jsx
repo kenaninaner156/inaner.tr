@@ -5,7 +5,7 @@ import L from 'leaflet';
 import { calcStats, cleanGpsSpikes, haversineKm, getPointTime } from '../../utils/mapUtils';
 import { Activity, WifiOff, X, Search, ShieldAlert, Navigation, Compass, Crosshair, ChevronRight, ChevronDown, Check, Maximize2 } from 'lucide-react';
 import CameraModal from './CameraModal';
-import { getCameraConfig, fetchLiveStreamUrl, attachStreamToVideo, isDemoCameraActive } from '../../services/cameraService';
+import { getCameraConfig, fetchLiveStreamUrl, attachStreamToVideo } from '../../services/cameraService';
 
 // ── Tema renkleri — site ile tam uyumlu ──────────────────────────────────
 const PANEL_BG     = 'rgba(13, 18, 25, 0.96)';
@@ -855,7 +855,6 @@ export default function LiveTracking({
     Mert: { driverName: 'Mert', plate: '06 FTN 692' },
     Goksel: { driverName: 'Göksel', plate: '06 FTN 692' },
     'Göksel': { driverName: 'Göksel', plate: '06 FTN 692' },
-    Demo: { driverName: 'Dash Cam Beta', plate: '34 JIMI 182' },
   };
 
   const getVehicleInfo = (deviceId) => {
@@ -871,21 +870,9 @@ export default function LiveTracking({
     };
   };
 
-  // Demo kamera aktifse ve gerçek veride 'Demo' yoksa, test için canlı Demo aracını ekle
   const effectiveSessionsByDriver = useMemo(() => {
-    const base = { ...(sessionsByDriver || {}) };
-    if (isDemoCameraActive() && !base.Demo) {
-      const t = now;
-      base.Demo = [
-        [
-          { lat: 40.7812, lon: 29.4310, speed: 36.7, timestamp: t - 600000, dailyKm: 142.4 },
-          { lat: 40.7768, lon: 29.4520, speed: 41.0, timestamp: t - 300000, dailyKm: 142.4 },
-          { lat: 40.7725, lon: 29.4745, speed: 42.1, timestamp: t - 5000, dailyKm: 142.4 },
-        ],
-      ];
-    }
-    return base;
-  }, [sessionsByDriver, now]);
+    return sessionsByDriver || {};
+  }, [sessionsByDriver]);
 
   const vehicleList = Object.entries(effectiveSessionsByDriver)
     .map(([driverId, sessions]) => {

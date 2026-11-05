@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Loader2,
   Check,
+  Power,
 } from 'lucide-react';
 import {
   fetchLiveStreamUrl,
@@ -25,6 +26,7 @@ import {
   resolveHistorySegmentStream,
   closeCameraStream,
   attachStreamToVideo,
+  wakeUpCamera,
 } from '../../services/cameraService';
 
 function getTodayIso() {
@@ -64,6 +66,31 @@ export default function CameraModal({
   const [isMuted, setIsMuted] = useState(true);
   const [isLoadingStream, setIsLoadingStream] = useState(false);
   const [streamStatus, setStreamStatus] = useState({ offline: false, message: '' });
+  const [isWakingUp, setIsWakingUp] = useState(false);
+  const [wakeFeedback, setWakeFeedback] = useState('');
+  const [reloadLiveTrigger, setReloadLiveTrigger] = useState(0);
+
+  const handleWakeUp = async () => {
+    if (!deviceId || isWakingUp) return;
+    setIsWakingUp(true);
+    setWakeFeedback('Cihaza 4G üzerinden uyandırma sinyali iletiliyor...');
+    try {
+      const res = await wakeUpCamera(deviceId);
+      if (res.success) {
+        setWakeFeedback('Uyandırma komutu iletildi. Yayın başlatılıyor...');
+      } else {
+        setWakeFeedback(res.message || 'Cihaz yanıt vermedi.');
+      }
+    } catch {
+      setWakeFeedback('Uyandırma isteği iletilemedi.');
+    }
+    // 3.5 saniye sonra canlı yayını yeniden tetikle
+    setTimeout(() => {
+      setReloadLiveTrigger((c) => c + 1);
+      setIsWakingUp(false);
+      setTimeout(() => setWakeFeedback(''), 4500);
+    }, 3500);
+  };
 
   // Sol / Alt Geçmiş menüsü gizleme durumu
   const [showHistorySidebar, setShowHistorySidebar] = useState(true);
@@ -176,7 +203,7 @@ export default function CameraModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, mode, deviceId, quality]);
+  }, [isOpen, mode, deviceId, quality, reloadLiveTrigger]);
 
   // Geçmiş kayıt parçalarını yükle (4.7 cmd + 4.8 get)
   useEffect(() => {
@@ -684,6 +711,31 @@ export default function CameraModal({
                 <p className="text-xs text-slate-400 mt-1 leading-relaxed">
                   {streamStatus.message || 'Araç kontağı açıldığında canlı görüntü otomatik olarak başlayacaktır.'}
                 </p>
+                {wakeFeedback && (
+                  <p className="text-xs text-emerald-400 mt-2.5 font-medium animate-pulse">
+                    {wakeFeedback}
+                  </p>
+                )}
+                <div className="mt-4 pointer-events-auto flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleWakeUp}
+                    disabled={isWakingUp}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-xs font-semibold shadow-lg shadow-emerald-950/50 border border-emerald-400/40 active:scale-95 transition-all disabled:opacity-60 cursor-pointer"
+                  >
+                    {isWakingUp ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin text-white" />
+                        <span>Uyandırılıyor...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Power size={14} className="text-white" />
+                        <span>Kamerayı Uyandır</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           )}
