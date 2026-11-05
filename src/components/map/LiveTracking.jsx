@@ -384,6 +384,8 @@ function InlineCameraPreview({ driverId, quality = 'sd', onOpenCamera }) {
   const [isWakingUp, setIsWakingUp] = useState(false);
   const [wakeFeedback, setWakeFeedback] = useState('');
   const [telemetry, setTelemetry] = useState(null);
+  const videoRef = useRef(null);
+  const cleanupRef = useRef(null);
 
   useEffect(() => {
     if (!camConfig) return;
@@ -395,8 +397,6 @@ function InlineCameraPreview({ driverId, quality = 'sd', onOpenCamera }) {
       cancelled = true;
     };
   }, [driverId, camConfig]);
-  const videoRef = useRef(null);
-  const cleanupRef = useRef(null);
 
   const handleInlineWakeUp = async (e) => {
     e.stopPropagation();
@@ -820,18 +820,31 @@ function MobileFollowedCard({
               {driverName || name}
             </span>
             {hasCamera && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (onOpenCamera) onOpenCamera(driverId);
-                }}
-                title="Kamera ve Canlı Yayını Aç"
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400 text-[10px] font-semibold transition-all shrink-0 cursor-pointer shadow-sm"
-              >
-                <Video size={10} />
-                <span>Kamera</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onOpenCamera) onOpenCamera(driverId);
+                  }}
+                  title="Kamera ve Canlı Yayını Aç"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400 text-[10px] font-semibold transition-all shrink-0 cursor-pointer shadow-sm"
+                >
+                  <Video size={10} />
+                  <span>Kamera</span>
+                </button>
+                <span
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold border shrink-0 ${
+                    vehicle.ignition || vehicle.acc === 1 || speedKmh > 7
+                      ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+                      : "bg-amber-500/15 border-amber-500/30 text-amber-400"
+                  }`}
+                  title={vehicle.ignition || vehicle.acc === 1 || speedKmh > 7 ? "Kontak Açık" : "Kontak Kapalı"}
+                >
+                  <Key size={10} />
+                  <span>{vehicle.ignition || vehicle.acc === 1 || speedKmh > 7 ? "Kontak Açık" : "Kontak Kapalı"}</span>
+                </span>
+              </>
             )}
             <ChevronDown 
               size={14} 

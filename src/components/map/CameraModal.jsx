@@ -100,49 +100,12 @@ export default function CameraModal({
     }
   };
 
-  // Anlık telemetri (Kontak, Park, Akü, 4G, GPS) yükleyici
-  useEffect(() => {
-    if (!isOpen || !deviceId) return;
-    let cancelled = false;
-    const load = async () => {
-      const t = await fetchCameraTelemetry(deviceId);
-      if (!cancelled && t) setTelemetry(t);
-    };
-    load();
-    const id = setInterval(load, 15000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [isOpen, deviceId, reloadLiveTrigger]);
   const [isLoadingStream, setIsLoadingStream] = useState(false);
   const [streamStatus, setStreamStatus] = useState({ offline: false, message: '' });
   const [isVideoLivePlaying, setIsVideoLivePlaying] = useState(false);
   const [isWakingUp, setIsWakingUp] = useState(false);
   const [wakeFeedback, setWakeFeedback] = useState('');
   const [reloadLiveTrigger, setReloadLiveTrigger] = useState(0);
-
-  const handleWakeUp = async () => {
-    if (!deviceId || isWakingUp) return;
-    setIsWakingUp(true);
-    setWakeFeedback('Cihaza 4G üzerinden uyandırma sinyali iletiliyor...');
-    try {
-      const res = await wakeUpCamera(deviceId);
-      if (res.success) {
-        setWakeFeedback('Uyandırma komutu iletildi. Cihaz yanıt verdi, yayın başlatılıyor...');
-      } else {
-        setWakeFeedback(res.message || 'Cihaz yanıt vermedi.');
-      }
-    } catch {
-      setWakeFeedback('Uyandırma isteği iletilemedi.');
-    }
-    // 3.5 saniye sonra canlı yayını yeniden tetikle
-    setTimeout(() => {
-      setReloadLiveTrigger((c) => c + 1);
-      setIsWakingUp(false);
-      setTimeout(() => setWakeFeedback(''), 4500);
-    }, 3500);
-  };
 
   // Sol / Alt Geçmiş menüsü gizleme durumu
   const [showHistorySidebar, setShowHistorySidebar] = useState(true);
@@ -166,6 +129,44 @@ export default function CameraModal({
 
   const videoRef = useRef(null);
   const cleanupStreamRef = useRef(null);
+
+  // Anlık telemetri (Kontak, Park, Akü, 4G, GPS) yükleyici
+  useEffect(() => {
+    if (!isOpen || !deviceId) return;
+    let cancelled = false;
+    const load = async () => {
+      const t = await fetchCameraTelemetry(deviceId);
+      if (!cancelled && t) setTelemetry(t);
+    };
+    load();
+    const id = setInterval(load, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [isOpen, deviceId, reloadLiveTrigger]);
+
+  const handleWakeUp = async () => {
+    if (!deviceId || isWakingUp) return;
+    setIsWakingUp(true);
+    setWakeFeedback('Cihaza 4G üzerinden uyandırma sinyali iletiliyor...');
+    try {
+      const res = await wakeUpCamera(deviceId);
+      if (res.success) {
+        setWakeFeedback('Uyandırma komutu iletildi. Cihaz yanıt verdi, yayın başlatılıyor...');
+      } else {
+        setWakeFeedback(res.message || 'Cihaz yanıt vermedi.');
+      }
+    } catch {
+      setWakeFeedback('Uyandırma isteği iletilemedi.');
+    }
+    // 3.5 saniye sonra canlı yayını yeniden tetikle
+    setTimeout(() => {
+      setReloadLiveTrigger((c) => c + 1);
+      setIsWakingUp(false);
+      setTimeout(() => setWakeFeedback(''), 4500);
+    }, 3500);
+  };
 
   // Harita tıklama/kaydırma sızıntılarını engelle
   const modalRootRef = useCallback((node) => {
@@ -647,7 +648,7 @@ export default function CameraModal({
               <span className={isSelected ? 'text-amber-300' : 'text-slate-200'}>
                 {seg.startTime}
               </span>
-              <span className="text-slate-600">➔</span>
+              <ChevronRight size={12} className="text-slate-600 shrink-0" />
               <span className={isSelected ? 'text-amber-300' : 'text-slate-400'}>
                 {seg.endTime}
               </span>
@@ -943,7 +944,7 @@ export default function CameraModal({
 
         {/* ── SAĞ ÜST YÜZEN MİNİMAL ARAÇLAR (Kare Yakala & Ses Seviyesi) ── */}
         <div
-          className="absolute right-4 z-20 flex items-center gap-2"
+          className="absolute right-3 sm:right-4 z-20 flex items-center gap-1.5 sm:gap-2"
           style={{
             top: 'calc(var(--safe-top, 0px) + 5.25rem)',
           }}
@@ -951,14 +952,14 @@ export default function CameraModal({
           {/* Kare Yakala */}
           <button
             onClick={handleSnapshot}
-            className="w-10 h-10 rounded-2xl bg-[#0D1219]/90 hover:bg-[#141c27] backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.75)] flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition-all cursor-pointer"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-[#0D1219]/90 hover:bg-[#141c27] backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.75)] flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition-all cursor-pointer shrink-0"
             title="Kare Yakala"
           >
             <Camera size={16} />
           </button>
 
           {/* Ses Yükseklik Ayarı & Mute Kontrolü */}
-          <div className="flex items-center rounded-2xl bg-[#0D1219]/90 hover:bg-[#141c27] backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.75)] p-1.5 transition-all">
+          <div className="flex items-center rounded-2xl bg-[#0D1219]/90 hover:bg-[#141c27] backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.75)] p-1 sm:p-1.5 transition-all">
             <button
               onClick={handleToggleMute}
               className="w-7 h-7 rounded-xl flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition-all cursor-pointer"
@@ -973,8 +974,8 @@ export default function CameraModal({
               )}
             </button>
 
-            {/* Ses Kaydırıcı (Slider) */}
-            <div className="flex items-center gap-2 px-2">
+            {/* Ses Kaydırıcı (Slider) - Masaüstü ve geniş ekranlarda görünür */}
+            <div className="hidden sm:flex items-center gap-2 px-2">
               <input
                 type="range"
                 min="0"
@@ -992,56 +993,58 @@ export default function CameraModal({
           </div>
         </div>
 
-        {/* ── SOL ÜST YÜZEN CANLI TELEMETRİ ŞERİDİ (Kontak, Park, Akü, 4G, GPS) ── */}
-        <div
-          className="absolute left-4 z-20 flex flex-wrap items-center gap-1.5 pointer-events-none"
-          style={{
-            top: 'calc(var(--safe-top, 0px) + 5.25rem)',
-          }}
-        >
-          {/* Kontak Durumu (ACC) */}
+        {/* ── SOL ÜST YÜZEN CANLI TELEMETRİ ŞERİDİ (Kontak, Park, Akü, 4G, GPS) — Yalnızca Canlı Modda ── */}
+        {mode === 'live' && (
           <div
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl backdrop-blur-xl border shadow-lg ${
-              telemetry?.acc === 1
-                ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300 shadow-emerald-950/50'
-                : 'bg-amber-950/80 border-amber-500/40 text-amber-300 shadow-amber-950/50'
-            }`}
+            className="absolute left-3 sm:left-4 z-20 flex flex-wrap sm:flex-nowrap items-center gap-1.5 pointer-events-none max-w-[calc(100vw-115px)] sm:max-w-none"
+            style={{
+              top: 'calc(var(--safe-top, 0px) + 5.25rem)',
+            }}
           >
-            <Key size={12} className={telemetry?.acc === 1 ? 'text-emerald-400' : 'text-amber-400'} />
-            <span className="text-[11px] font-semibold tracking-tight">
-              {telemetry?.accText || (telemetry?.acc === 1 ? 'Kontak Açık' : 'Kontak Kapalı')}
-            </span>
-          </div>
-
-          {/* Park / Durum */}
-          <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#0D1219]/90 backdrop-blur-xl border border-white/10 text-slate-200 shadow-lg">
-            <Clock size={12} className="text-slate-400" />
-            <span className="text-[11px] font-mono font-medium">
-              {telemetry?.statusStr || 'Park Modu'}
-            </span>
-          </div>
-
-          {/* Akü Gerilimi */}
-          <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#0D1219]/90 backdrop-blur-xl border border-white/10 text-slate-200 shadow-lg">
-            <Battery size={12} className="text-emerald-400" />
-            <span className="text-[11px] font-mono font-medium">
-              {telemetry?.voltage || '25.8V'}
-            </span>
-          </div>
-
-          {/* GPS Uyduları & 4G */}
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#0D1219]/90 backdrop-blur-xl border border-white/10 text-slate-300 shadow-lg">
-            <div className="flex items-center gap-1 text-[11px] font-mono">
-              <Compass size={12} className="text-sky-400" />
-              <span>{telemetry?.satellites || 19} Uydu</span>
+            {/* Kontak Durumu (ACC) */}
+            <div
+              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl backdrop-blur-xl border shadow-lg shrink-0 ${
+                telemetry?.acc === 1
+                  ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-300 shadow-emerald-950/50'
+                  : 'bg-amber-950/80 border-amber-500/40 text-amber-300 shadow-amber-950/50'
+              }`}
+            >
+              <Key size={12} className={telemetry?.acc === 1 ? 'text-emerald-400' : 'text-amber-400'} />
+              <span className="text-[11px] font-semibold tracking-tight whitespace-nowrap">
+                {telemetry?.accText || (telemetry?.acc === 1 ? 'Kontak Açık' : 'Kontak Kapalı')}
+              </span>
             </div>
-            <span className="w-1 h-1 rounded-full bg-slate-500" />
-            <div className="flex items-center gap-1 text-[11px] font-mono">
-              <Wifi size={12} className="text-emerald-400" />
-              <span>4G Cat-1</span>
+
+            {/* Park / Durum */}
+            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#0D1219]/90 backdrop-blur-xl border border-white/10 text-slate-200 shadow-lg shrink-0">
+              <Clock size={12} className="text-slate-400" />
+              <span className="text-[11px] font-mono font-medium whitespace-nowrap">
+                {telemetry?.statusStr || 'Park Modu'}
+              </span>
+            </div>
+
+            {/* Akü Gerilimi */}
+            <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#0D1219]/90 backdrop-blur-xl border border-white/10 text-slate-200 shadow-lg shrink-0">
+              <Battery size={12} className="text-emerald-400" />
+              <span className="text-[11px] font-mono font-medium whitespace-nowrap">
+                {telemetry?.voltage || '25.8V'}
+              </span>
+            </div>
+
+            {/* GPS Uyduları & 4G */}
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#0D1219]/90 backdrop-blur-xl border border-white/10 text-slate-300 shadow-lg shrink-0">
+              <div className="flex items-center gap-1 text-[11px] font-mono">
+                <Compass size={12} className="text-sky-400" />
+                <span>{telemetry?.satellites || 19} Uydu</span>
+              </div>
+              <span className="w-1 h-1 rounded-full bg-slate-500" />
+              <div className="flex items-center gap-1 text-[11px] font-mono">
+                <Wifi size={12} className="text-emerald-400" />
+                <span>4G Cat-1</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <AnimatePresence>
           {mode === 'history' && showHistorySidebar && (
