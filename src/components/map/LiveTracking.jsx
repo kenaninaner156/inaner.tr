@@ -3,9 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line 
 import { Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { calcStats, cleanGpsSpikes, haversineKm, getPointTime } from '../../utils/mapUtils';
-import { Activity, WifiOff, X, Search, ShieldAlert, Navigation, Compass, Crosshair, ChevronRight, ChevronDown, Check, Maximize2 } from 'lucide-react';
+import { Activity, WifiOff, X, Search, ShieldAlert, Navigation, Compass, Crosshair, ChevronRight, ChevronDown, Check, Maximize2, Video, Power, Loader2 } from 'lucide-react';
 import CameraModal from './CameraModal';
-import { getCameraConfig, fetchLiveStreamUrl, attachStreamToVideo } from '../../services/cameraService';
+import { getCameraConfig, fetchLiveStreamUrl, attachStreamToVideo, wakeUpCamera } from '../../services/cameraService';
 
 // ── Tema renkleri — site ile tam uyumlu ──────────────────────────────────
 const PANEL_BG     = 'rgba(13, 18, 25, 0.96)';
@@ -377,13 +377,38 @@ const formatDuration = (minutes) => {
 };
 
 // ── Seçili Araç Kartı Altında Canlı Kamera Önizlemesi ────────────────────
-// Görüntü yoksa hiçbir şey göstermez (orijinal kart korunur), görüntü geldiğinde animasyonla açılır.
 function InlineCameraPreview({ driverId, quality = 'sd', onOpenCamera }) {
   const camConfig = getCameraConfig(driverId);
   const [streamUrl, setStreamUrl] = useState(null);
   const [isVideoReady, setIsVideoReady] = useState(false);
+  const [isWakingUp, setIsWakingUp] = useState(false);
+  const [wakeFeedback, setWakeFeedback] = useState('');
   const videoRef = useRef(null);
   const cleanupRef = useRef(null);
+
+  const handleInlineWakeUp = async (e) => {
+    e.stopPropagation();
+    if (isWakingUp) return;
+    setIsWakingUp(true);
+    setWakeFeedback('Uyandırılıyor...');
+    try {
+      const res = await wakeUpCamera(driverId);
+      if (res.success) {
+        setWakeFeedback('Sinyal iletildi');
+      } else {
+        setWakeFeedback(res.message || 'Hata');
+      }
+    } catch {
+      setWakeFeedback('Hata');
+    }
+    setTimeout(() => {
+      fetchLiveStreamUrl(driverId, quality).then((info) => {
+        if (info?.url) setStreamUrl(info.url);
+      });
+      setIsWakingUp(false);
+      setTimeout(() => setWakeFeedback(''), 3000);
+    }, 3000);
+  };
 
   useEffect(() => {
     if (!camConfig) return;
@@ -434,7 +459,66 @@ function InlineCameraPreview({ driverId, quality = 'sd', onOpenCamera }) {
     };
   }, [streamUrl]);
 
-  if (!camConfig || !streamUrl) return null;
+  if (!camConfig) return null;
+
+  // Kamera çevrimdışı / park halindeyse doğrudan hızlı uyandırma ve açma butonu göster
+  if (!streamUrl) {
+    return (
+      <div className="px-2.5 pb-2.5 pt-1">
+        <div className="w-full p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between gap-2 shadow-md">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onOpenCamera) onOpenCamera(driverId);
+            }}
+            className="flex items-center gap-2.5 min-w-0 text-left hover:opacity-90 transition-opacity cursor-pointer flex-1"
+          >
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+              <Video size={13} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-slate-200 truncate">
+                Araç Kamerası (JC182)
+              </div>
+              <div className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
+                {wakeFeedback || 'Canlı Akış & Geçmiş Kayıtlar'}
+              </div>
+            </div>
+          </button>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={handleInlineWakeUp}
+              disabled={isWakingUp}
+              title="Kamerayı 4G üzerinden uyandır"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-[10px] font-semibold transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+            >
+              {isWakingUp ? (
+                <Loader2 size={11} className="animate-spin text-white" />
+              ) : (
+                <Power size={11} className="text-white" />
+              )}
+              <span>{isWakingUp ? 'Uyandırılıyor...' : 'Uyandır'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onOpenCamera) onOpenCamera(driverId);
+              }}
+              className="p-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white transition-all cursor-pointer"
+              title="Kamera Panelini Aç"
+            >
+              <Maximize2 size={12} />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -493,6 +577,7 @@ function SidebarItem({
 }) {
   const map = useMap();
   const { driverId, driverName, plate, name, isOnline, speedKmh, km, lastPoint, topSpeedKmh, avgSpeedKmh, parkDurationText } = vehicle;
+  const hasCamera = Boolean(getCameraConfig(driverId));
 
   const borderClass = isFollowed 
     ? 'border-white/20 shadow-[0_4px_24px_rgba(0,0,0,0.6)]' 
@@ -527,8 +612,24 @@ function SidebarItem({
         className="w-full flex items-center justify-between p-3.5 cursor-pointer select-none gap-3"
       >
         <div className="min-w-0 flex-1">
-          <div className={`text-sm font-bold tracking-tight truncate ${isFollowed ? 'text-white' : 'text-slate-200'}`}>
-            {driverName || name}
+          <div className="flex items-center gap-2">
+            <span className={`text-sm font-bold tracking-tight truncate ${isFollowed ? 'text-white' : 'text-slate-200'}`}>
+              {driverName || name}
+            </span>
+            {hasCamera && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onOpenCamera) onOpenCamera(driverId);
+                }}
+                title="Kamera ve Canlı Yayını Aç"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400 text-[10px] font-semibold transition-all shrink-0 cursor-pointer shadow-sm"
+              >
+                <Video size={10} />
+                <span>Kamera</span>
+              </button>
+            )}
           </div>
           {subtitleText && (
             <div className="text-xs font-mono text-slate-400 font-medium tracking-tight mt-0.5 truncate">
@@ -670,6 +771,7 @@ function MobileFollowedCard({
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const { driverId, driverName, plate, name, isOnline, speedKmh, km, topSpeedKmh, avgSpeedKmh, parkDurationText } = vehicle;
+  const hasCamera = Boolean(getCameraConfig(driverId));
 
   const cardRef = useCallback(node => {
     if (node) {
@@ -702,6 +804,20 @@ function MobileFollowedCard({
             <span className="text-sm font-bold text-white truncate">
               {driverName || name}
             </span>
+            {hasCamera && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onOpenCamera) onOpenCamera(driverId);
+                }}
+                title="Kamera ve Canlı Yayını Aç"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400 text-[10px] font-semibold transition-all shrink-0 cursor-pointer shadow-sm"
+              >
+                <Video size={10} />
+                <span>Kamera</span>
+              </button>
+            )}
             <ChevronDown 
               size={14} 
               className={`text-slate-400 shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180 text-white' : ''}`}

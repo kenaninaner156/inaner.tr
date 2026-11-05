@@ -809,6 +809,28 @@ export default function CameraModal({
                   </button>
                 );
               })}
+
+              {/* 3. TUŞ: KAMERAYI UYANDIR (4G Cat-1 Ping) */}
+              <button
+                type="button"
+                onClick={handleWakeUp}
+                disabled={isWakingUp}
+                title="Kamerayı 4G hücresel ağ üzerinden uyandır ve akışı yenile"
+                className={`relative flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs transition-all duration-300 group outline-none cursor-pointer select-none active:scale-95 ${
+                  isWakingUp
+                    ? 'text-emerald-300 bg-emerald-500/20 border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.25)]'
+                    : 'text-slate-300 hover:text-white hover:bg-white/[0.06] border border-white/[0.04] hover:border-white/10'
+                }`}
+              >
+                {isWakingUp ? (
+                  <Loader2 size={14} className="animate-spin text-emerald-400 shrink-0" />
+                ) : (
+                  <Power size={14} className="text-emerald-400 group-hover:scale-110 transition-transform shrink-0" />
+                )}
+                <span className="relative z-10 text-xs font-semibold truncate">
+                  {isWakingUp ? 'Uyandırılıyor' : 'Uyandır'}
+                </span>
+              </button>
             </div>
 
             <div className="w-px h-5 bg-white/10 mx-0.5 sm:mx-1 flex-shrink-0" />
