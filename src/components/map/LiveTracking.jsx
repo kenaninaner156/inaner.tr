@@ -485,7 +485,7 @@ function InlineCameraPreview({ driverId, quality = 'sd', onOpenCamera }) {
             autoPlay
             muted
             playsInline
-            loop
+            
             onLoadedData={() => setIsVideoReady(true)}
             onPlaying={() => setIsVideoReady(true)}
             onError={() => setIsVideoReady(false)}

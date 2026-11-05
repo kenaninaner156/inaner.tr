@@ -721,7 +721,7 @@ export default function CameraModal({
             ref={videoRef}
             autoPlay
             playsInline
-            loop
+            
             muted={isMuted}
             onLoadedData={() => setIsLoadingStream(false)}
             onWaiting={() => setIsLoadingStream(true)}
@@ -898,8 +898,8 @@ export default function CameraModal({
             {/* Kalite Seçici (480p SD | 2K HD) Kayan Bar */}
             <div className="flex items-center bg-[#080b10] rounded-xl p-0.5 border border-white/[0.06] shrink-0">
               {[
-                { id: 'sd', label: '480p' },
-                { id: 'hd', label: '2K' },
+                { id: 'sd', label: '360p' },
+                { id: 'hd', label: '720p' },
               ].map((q) => {
                 const active = quality === q.id;
                 return (

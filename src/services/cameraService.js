@@ -256,6 +256,11 @@ function loadMpegtsLibrary() {
 export async function attachStreamToVideo(videoEl, streamUrl) {
   if (!videoEl || !streamUrl) return null;
 
+  // Döngüye düşmeyi kesinlikle engelle
+  try {
+    videoEl.loop = false;
+  } catch {}
+
   const isFlv =
     streamUrl.includes('.flv') ||
     streamUrl.includes('action=proxy_flv') ||
@@ -277,15 +282,37 @@ export async function attachStreamToVideo(videoEl, streamUrl) {
           {
             enableWorker: true,
             enableStashBuffer: false,
-            stashInitialSize: 128,
+            stashInitialSize: 64,
             lazyLoad: false,
+            autoCleanupSourceBuffer: true,
+            autoCleanupMaxBackwardDuration: 8,
+            autoCleanupMinBackwardDuration: 3,
+            liveBufferLatencyChasing: true,
+            liveBufferLatencyMaxLatency: 1.2,
+            liveBufferLatencyMinRemain: 0.2,
           }
         );
         player.attachMediaElement(videoEl);
         player.load();
         player.play().catch(() => {});
+
+        // Canlı yayın gecikme avcısı: Akış donarsa veya geride kalırsa canlı uca sıçra
+        const latencyTimer = setInterval(() => {
+          if (!videoEl || videoEl.paused || !player) return;
+          try {
+            if (videoEl.buffered && videoEl.buffered.length > 0) {
+              const liveEdge = videoEl.buffered.end(videoEl.buffered.length - 1);
+              const lag = liveEdge - videoEl.currentTime;
+              if (lag > 1.4) {
+                videoEl.currentTime = Math.max(0, liveEdge - 0.15);
+              }
+            }
+          } catch {}
+        }, 1500);
+
         return () => {
           try {
+            clearInterval(latencyTimer);
             player.pause();
             player.unload();
             player.detachMediaElement();
