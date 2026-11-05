@@ -14,9 +14,18 @@ export const CAMERA_VEHICLES = {
     plate: '34 JIMI 182',
   },
   'Göksel': {
-    enabled: false, // JC182 kamera geldiğinde true yapın ve IMEI numarasını girin
+    enabled: true,
     isDemo: false,
-    imei: '',
+    imei: '869058070168628',
+    model: 'JC182',
+    channel: 1,
+    driverName: 'Göksel',
+    plate: '06 FTN 692',
+  },
+  Goksel: {
+    enabled: true,
+    isDemo: false,
+    imei: '869058070168628',
     model: 'JC182',
     channel: 1,
     driverName: 'Göksel',
@@ -102,9 +111,16 @@ export async function fetchLiveStreamUrl(deviceId, quality = 'sd', setQualityCmd
         channel: cfg.channel,
         imei: cfg.imei,
         appId,
+        offline: false,
       };
     }
-    return null;
+    return {
+      url: null,
+      offline: Boolean(data?.offline),
+      message: data?.message || 'Kamera çevrimdışı veya kapalı.',
+      telemetry: data?.telemetry || null,
+      appId,
+    };
   } catch {
     return null;
   }

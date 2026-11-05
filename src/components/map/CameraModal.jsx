@@ -4,6 +4,7 @@ import L from 'leaflet';
 import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import {
   Video,
+  VideoOff,
   Clock,
   X,
   Volume2,
@@ -62,6 +63,7 @@ export default function CameraModal({
   const [quality, setQuality] = useState(initialQuality); // 'sd' (480p) | 'hd' (2K)
   const [isMuted, setIsMuted] = useState(true);
   const [isLoadingStream, setIsLoadingStream] = useState(false);
+  const [streamStatus, setStreamStatus] = useState({ offline: false, message: '' });
 
   // Sol / Alt Geçmiş menüsü gizleme durumu
   const [showHistorySidebar, setShowHistorySidebar] = useState(true);
@@ -140,10 +142,18 @@ export default function CameraModal({
     });
 
     fetchLiveStreamUrl(deviceId, quality, true).then(async (streamInfo) => {
-      if (cancelled || !streamInfo?.url || !videoRef.current) {
-        if (!cancelled) setIsLoadingStream(false);
+      if (cancelled) return;
+      if (!streamInfo?.url || !videoRef.current) {
+        setIsLoadingStream(false);
+        if (streamInfo?.offline) {
+          setStreamStatus({
+            offline: true,
+            message: streamInfo.message || 'Kamera çevrimdışı veya araç kontağı kapalı.',
+          });
+        }
         return;
       }
+      setStreamStatus({ offline: false, message: '' });
       if (cleanupStreamRef.current) {
         cleanupStreamRef.current();
         cleanupStreamRef.current = null;
@@ -662,6 +672,21 @@ export default function CameraModal({
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Çevrimdışı / Araç Kontağı Kapalı Durumu */}
+          {mode === 'live' && streamStatus.offline && !isLoadingStream && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-3 z-10 px-4">
+              <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center backdrop-blur-md shadow-2xl">
+                <VideoOff size={24} className="text-slate-400" />
+              </div>
+              <div className="text-center max-w-sm">
+                <p className="text-sm font-semibold text-slate-200">Kamera Çevrimdışı</p>
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  {streamStatus.message || 'Araç kontağı açıldığında canlı görüntü otomatik olarak başlayacaktır.'}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── ÜST YÜZEN KAYAN BAR (Harita Üst Barı ile Birebir Aynı Konumda) ── */}
