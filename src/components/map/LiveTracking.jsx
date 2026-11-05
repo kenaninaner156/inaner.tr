@@ -406,17 +406,13 @@ function InlineCameraPreview({ driverId, quality = 'sd', onOpenCamera }) {
         if (info?.url) setStreamUrl(info.url);
       });
       setIsWakingUp(false);
-      setTimeout(() => setWakeFeedback(''), 3000);
-    }, 3000);
+      setTimeout(() => setWakeFeedback(''), 3500);
+    }, 2500);
   };
 
   useEffect(() => {
     if (!camConfig) return;
     let cancelled = false;
-
-    Promise.resolve().then(() => {
-      if (!cancelled) setIsVideoReady(false);
-    });
 
     fetchLiveStreamUrl(driverId, quality).then((info) => {
       if (cancelled) return;
@@ -461,83 +457,17 @@ function InlineCameraPreview({ driverId, quality = 'sd', onOpenCamera }) {
 
   if (!camConfig) return null;
 
-  // Kamera çevrimdışı / park halindeyse doğrudan hızlı uyandırma ve açma butonu göster
-  if (!streamUrl) {
-    return (
-      <div className="px-2.5 pb-2.5 pt-1">
-        <div className="w-full p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between gap-2 shadow-md">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (onOpenCamera) onOpenCamera(driverId);
-            }}
-            className="flex items-center gap-2.5 min-w-0 text-left hover:opacity-90 transition-opacity cursor-pointer flex-1"
-          >
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-              <Video size={13} />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-semibold text-slate-200 truncate">
-                Araç Kamerası (JC182)
-              </div>
-              <div className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
-                {wakeFeedback || 'Canlı Akış & Geçmiş Kayıtlar'}
-              </div>
-            </div>
-          </button>
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={handleInlineWakeUp}
-              disabled={isWakingUp}
-              title="Kamerayı 4G üzerinden uyandır"
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-[10px] font-semibold transition-all disabled:opacity-50 cursor-pointer shadow-sm"
-            >
-              {isWakingUp ? (
-                <Loader2 size={11} className="animate-spin text-white" />
-              ) : (
-                <Power size={11} className="text-white" />
-              )}
-              <span>{isWakingUp ? 'Uyandırılıyor...' : 'Uyandır'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onOpenCamera) onOpenCamera(driverId);
-              }}
-              className="p-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-slate-300 hover:text-white transition-all cursor-pointer"
-              title="Kamera Panelini Aç"
-            >
-              <Maximize2 size={12} />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <motion.div
-      initial={false}
-      animate={{
-        height: isVideoReady ? 136 : 0,
-        opacity: isVideoReady ? 1 : 0,
-      }}
-      transition={{ duration: 0.38, ease: [0.23, 1, 0.32, 1] }}
-      className="overflow-hidden"
-    >
-      <div className="px-2.5 pb-2.5 pt-0.5">
-        <div
-          onClick={(e) => {
-            e.stopPropagation();
-            if (onOpenCamera) onOpenCamera(driverId);
-          }}
-          className="relative w-full h-[126px] rounded-xl overflow-hidden border border-white/[0.08] bg-black cursor-pointer group shadow-[0_8px_24px_rgba(0,0,0,0.65)]"
-        >
+    <div className="px-2.5 pb-2.5 pt-1">
+      <div
+        onClick={(e) => {
+          e.stopPropagation();
+          if (onOpenCamera) onOpenCamera(driverId);
+        }}
+        className="relative w-full h-[126px] rounded-xl overflow-hidden border border-white/[0.08] bg-[#080b11] cursor-pointer group shadow-[0_8px_24px_rgba(0,0,0,0.65)] select-none flex flex-col justify-between p-2.5"
+      >
+        {/* Canlı Video Elemanı (Görüntü aktığı an görünür) */}
+        {streamUrl && (
           <video
             ref={videoRef}
             autoPlay
@@ -547,23 +477,73 @@ function InlineCameraPreview({ driverId, quality = 'sd', onOpenCamera }) {
             onLoadedData={() => setIsVideoReady(true)}
             onPlaying={() => setIsVideoReady(true)}
             onError={() => setIsVideoReady(false)}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 group-hover:scale-[1.03] ${
+              isVideoReady ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+            }`}
           />
+        )}
 
-          {/* İnce Üst Karartma & Minimalist CANLI Noktası */}
-          <div className="absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-black/60 to-transparent pointer-events-none" />
+        {/* Video henüz akmıyorken veya araç beklemedeyken arkadaki zarif Obsidian kart */}
+        {!isVideoReady && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center bg-gradient-to-b from-[#0d1219] to-[#07090e] z-0 gap-1.5">
+            <div className="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-emerald-400 shadow-md">
+              <Video size={16} />
+            </div>
+            <div className="text-xs font-semibold text-slate-200 group-hover:text-white transition-colors">
+              Araç Kamerası (JC182)
+            </div>
+            <div className="text-[10px] text-slate-400 font-mono">
+              {wakeFeedback || (streamUrl ? 'Canlı Akış Hazırlanıyor...' : 'Park Modu / Kontak Kapalı')}
+            </div>
+          </div>
+        )}
 
-          <div className="absolute top-2 left-2.5 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/55 backdrop-blur-md border border-white/[0.08] pointer-events-none">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399] animate-pulse" />
-            <span className="text-[9px] font-mono font-bold text-white tracking-wider">CANLI</span>
+        {/* Üst Durum Rozeti ve Uyandırma / Büyütme Butonları */}
+        <div className="relative z-20 flex items-center justify-between pointer-events-none w-full">
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-white/[0.08]">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                isVideoReady
+                  ? 'bg-emerald-400 shadow-[0_0_6px_#34d399] animate-pulse'
+                  : 'bg-amber-400'
+              }`}
+            />
+            <span className="text-[9px] font-mono font-bold text-white tracking-wider">
+              {isVideoReady ? 'CANLI' : 'BEKLEMEDE'}
+            </span>
           </div>
 
-          <div className="absolute top-2 right-2 w-6 h-6 rounded-lg bg-black/55 backdrop-blur-md border border-white/[0.08] flex items-center justify-center text-white/80 group-hover:text-white group-hover:bg-black/75 transition-all pointer-events-none">
-            <Maximize2 size={11} />
+          <div className="flex items-center gap-1 pointer-events-auto">
+            <button
+              type="button"
+              onClick={handleInlineWakeUp}
+              disabled={isWakingUp}
+              title="Kamerayı 4G üzerinden uyandır"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 active:scale-95 text-white text-[10px] font-semibold transition-all disabled:opacity-50 cursor-pointer shadow-sm border border-emerald-400/30"
+            >
+              {isWakingUp ? (
+                <Loader2 size={10} className="animate-spin text-white" />
+              ) : (
+                <Power size={10} className="text-white" />
+              )}
+              <span>{isWakingUp ? 'Uyandırılıyor...' : 'Uyandır'}</span>
+            </button>
+
+            <div
+              className="w-6 h-6 rounded-lg bg-black/60 backdrop-blur-md border border-white/[0.08] flex items-center justify-center text-white/80 group-hover:text-white group-hover:bg-black/80 transition-all"
+              title="Tam Ekran Aç"
+            >
+              <Maximize2 size={11} />
+            </div>
           </div>
         </div>
+
+        {/* Alt Bilgi İpucu */}
+        <div className="relative z-20 text-[9px] text-slate-400 font-mono pointer-events-none">
+          Tam ekran izlemek için tıklayın
+        </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 

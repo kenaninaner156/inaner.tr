@@ -66,6 +66,7 @@ export default function CameraModal({
   const [isMuted, setIsMuted] = useState(true);
   const [isLoadingStream, setIsLoadingStream] = useState(false);
   const [streamStatus, setStreamStatus] = useState({ offline: false, message: '' });
+  const [isVideoLivePlaying, setIsVideoLivePlaying] = useState(false);
   const [isWakingUp, setIsWakingUp] = useState(false);
   const [wakeFeedback, setWakeFeedback] = useState('');
   const [reloadLiveTrigger, setReloadLiveTrigger] = useState(0);
@@ -77,7 +78,7 @@ export default function CameraModal({
     try {
       const res = await wakeUpCamera(deviceId);
       if (res.success) {
-        setWakeFeedback('Uyandırma komutu iletildi. Yayın başlatılıyor...');
+        setWakeFeedback('Uyandırma komutu iletildi. Cihaz yanıt verdi, yayın başlatılıyor...');
       } else {
         setWakeFeedback(res.message || 'Cihaz yanıt vermedi.');
       }
@@ -132,12 +133,14 @@ export default function CameraModal({
 
   const handleQualitySwitch = (newQuality) => {
     if (newQuality === quality) return;
+    setIsVideoLivePlaying(false);
     setQuality(newQuality);
     if (onQualityChange) onQualityChange(newQuality);
   };
 
   const handleModeSwitch = (newMode) => {
     if (newMode === mode) return;
+    setIsVideoLivePlaying(false);
     if (deviceId) {
       closeCameraStream(deviceId, mode);
     }
@@ -674,6 +677,7 @@ export default function CameraModal({
             onPlaying={() => {
               setIsLoadingStream(false);
               setIsPlaying(true);
+              setIsVideoLivePlaying(true);
             }}
             onTimeUpdate={(e) => {
               const v = e.currentTarget;
@@ -700,16 +704,18 @@ export default function CameraModal({
             )}
           </AnimatePresence>
 
-          {/* Çevrimdışı / Araç Kontağı Kapalı Durumu */}
-          {mode === 'live' && streamStatus.offline && !isLoadingStream && (
+          {/* Çevrimdışı / Araç Kontağı Kapalı / Uyku Modu Durumu */}
+          {mode === 'live' && (!isVideoLivePlaying || streamStatus.offline) && !isLoadingStream && (
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-3 z-10 px-4">
               <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center backdrop-blur-md shadow-2xl">
                 <VideoOff size={24} className="text-slate-400" />
               </div>
               <div className="text-center max-w-sm">
-                <p className="text-sm font-semibold text-slate-200">Kamera Çevrimdışı</p>
+                <p className="text-sm font-semibold text-slate-200">
+                  {streamStatus.offline ? 'Kamera Çevrimdışı' : 'Kamera Bekleme Modunda (Kontak Kapalı)'}
+                </p>
                 <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                  {streamStatus.message || 'Araç kontağı açıldığında canlı görüntü otomatik olarak başlayacaktır.'}
+                  {streamStatus.message || 'Canlı video aktarımı için cihazı uyandırabilir veya araç kontağını açabilirsiniz.'}
                 </p>
                 {wakeFeedback && (
                   <p className="text-xs text-emerald-400 mt-2.5 font-medium animate-pulse">
@@ -721,12 +727,12 @@ export default function CameraModal({
                     type="button"
                     onClick={handleWakeUp}
                     disabled={isWakingUp}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-xs font-semibold shadow-lg shadow-emerald-950/50 border border-emerald-400/40 active:scale-95 transition-all disabled:opacity-60 cursor-pointer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-xs font-semibold shadow-lg shadow-emerald-950/50 border border-emerald-400/40 active:scale-95 transition-all disabled:opacity-60 cursor-pointer"
                   >
                     {isWakingUp ? (
                       <>
                         <Loader2 size={14} className="animate-spin text-white" />
-                        <span>Uyandırılıyor...</span>
+                        <span>Cihaz Uyandırılıyor...</span>
                       </>
                     ) : (
                       <>
@@ -737,6 +743,31 @@ export default function CameraModal({
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Sağ Alt Köşede Her Zaman Erişilebilir "Kamerayı Uyandır" Butonu */}
+          {mode === 'live' && (
+            <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 z-20 pointer-events-auto flex">
+              <button
+                type="button"
+                onClick={handleWakeUp}
+                disabled={isWakingUp}
+                className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-[#0D1219]/90 hover:bg-[#141b24] border border-white/10 hover:border-emerald-500/40 text-slate-200 hover:text-white text-xs font-semibold backdrop-blur-xl shadow-2xl transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                title="Kamerayı 4G üzerinden uyandır"
+              >
+                {isWakingUp ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin text-emerald-400" />
+                    <span>Cihaz Uyandırılıyor...</span>
+                  </>
+                ) : (
+                  <>
+                    <Power size={14} className="text-emerald-400" />
+                    <span>Kamerayı Uyandır</span>
+                  </>
+                )}
+              </button>
             </div>
           )}
         </div>
@@ -809,28 +840,6 @@ export default function CameraModal({
                   </button>
                 );
               })}
-
-              {/* 3. TUŞ: KAMERAYI UYANDIR (4G Cat-1 Ping) */}
-              <button
-                type="button"
-                onClick={handleWakeUp}
-                disabled={isWakingUp}
-                title="Kamerayı 4G hücresel ağ üzerinden uyandır ve akışı yenile"
-                className={`relative flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs transition-all duration-300 group outline-none cursor-pointer select-none active:scale-95 ${
-                  isWakingUp
-                    ? 'text-emerald-300 bg-emerald-500/20 border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.25)]'
-                    : 'text-slate-300 hover:text-white hover:bg-white/[0.06] border border-white/[0.04] hover:border-white/10'
-                }`}
-              >
-                {isWakingUp ? (
-                  <Loader2 size={14} className="animate-spin text-emerald-400 shrink-0" />
-                ) : (
-                  <Power size={14} className="text-emerald-400 group-hover:scale-110 transition-transform shrink-0" />
-                )}
-                <span className="relative z-10 text-xs font-semibold truncate">
-                  {isWakingUp ? 'Uyandırılıyor' : 'Uyandır'}
-                </span>
-              </button>
             </div>
 
             <div className="w-px h-5 bg-white/10 mx-0.5 sm:mx-1 flex-shrink-0" />
