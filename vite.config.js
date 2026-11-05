@@ -13,7 +13,8 @@ function apiDevMiddleware() {
           try {
             const parsedUrl = new URL(req.url, 'http://localhost');
             const routeName = parsedUrl.pathname.replace('/api/', '').split('?')[0];
-            const filePath = path.resolve(process.cwd(), 'api', `${routeName}.js`);
+            const targetName = routeName === 'camera-stream' ? 'save-location' : routeName;
+            const filePath = path.resolve(process.cwd(), 'api', `${targetName}.js`);
             
             const module = await import(`${url.pathToFileURL(filePath).href}?t=${Date.now()}`);
             const handler = module.default;
