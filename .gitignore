@@ -57,4 +57,5 @@ scripts/test-*.mjs
 .vercel
 .env*.local
 live_full_backup.json
+scratch/
 

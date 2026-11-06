@@ -12,7 +12,7 @@ function getHaversineKm(lat1, lon1, lat2, lon2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const CAMERA_ACTIONS = new Set(['live', 'history', 'history_stream', 'close_stream', 'command', 'location', 'telemetry', 'proxy_flv', 'wakeup', 'enable_audio']);
+const CAMERA_ACTIONS = new Set(['live', 'history', 'history_stream', 'close_stream', 'command', 'location', 'telemetry', 'proxy_flv', 'wakeup', 'enable_audio', 'snap', 'proxy_img']);
 
 export default async function handler(req, res) {
     const reqData = { ...(req.query || {}), ...(req.body || {}) };

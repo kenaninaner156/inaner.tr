@@ -130,6 +130,35 @@ export async function enableCameraAudio(deviceId) {
 }
 
 /**
+ * Kameraya uzaktan donanımsal anlık fotoğraf çekim komutu iletir (SNAP# / instructionId: 727)
+ * ve 4G hücresel bağlantı üzerinden orijinal çekilen fotoğraf dosyasını doğrudan sunucudan alır.
+ * @param {string} deviceId
+ */
+export async function triggerCameraSnapshot(deviceId) {
+  const cfg = getCameraConfig(deviceId);
+  if (!cfg) return { success: false, message: 'Kamera yapılandırması bulunamadı.' };
+
+  try {
+    const res = await fetch(`/api/camera-stream?action=snap&imei=${encodeURIComponent(cfg.imei)}`);
+    const data = await res.json();
+    return {
+      success: Boolean(data?.success && data?.photoUrl),
+      photoUrl: data?.photoUrl || null,
+      proxyUrl: data?.photoUrl ? `/api/camera-stream?action=proxy_img&target=${encodeURIComponent(data.photoUrl)}` : null,
+      fileSize: data?.fileSize || null,
+      createAt: data?.createAt || null,
+      message: data?.message || (data?.success ? 'Orijinal fotoğraf alındı.' : 'Fotoğraf yüklenemedi.'),
+    };
+  } catch (err) {
+    return {
+      success: false,
+      photoUrl: null,
+      message: err.message || 'Fotoğraf çekim isteği gönderilemedi.',
+    };
+  }
+}
+
+/**
  * Aracın anlık kontak (ACC), park durumu, akü voltajı, uydu ve 4G telemetrisini döndürür.
  * @param {string} deviceId
  */
@@ -286,7 +315,7 @@ function loadMpegtsLibrary() {
   return mpegtsPromise;
 }
 
-export async function attachStreamToVideo(videoEl, streamUrl) {
+export async function attachStreamToVideo(videoEl, streamUrl, onStats = null) {
   if (!videoEl || !streamUrl) return null;
 
   // Döngüye düşmeyi kesinlikle engelle
@@ -304,32 +333,55 @@ export async function attachStreamToVideo(videoEl, streamUrl) {
     try {
       const mpegts = await loadMpegtsLibrary();
       if (mpegts && mpegts.isSupported()) {
-        // Jimi JC182 donanımı 4G hücresel ağda yalnızca video akışı (FLV Video Tag) iletir.
-        // hasAudio: false olarak ayarlanması, mpegts.js demuxer'ının ses paketi beklemesini önler ve anında görüntü oynatır.
+        // Jimi JC182 araç kamerası AAC stereo ses (FLV Audio Tag 8, format 10) akışını iletir.
+        // hasAudio: true ile MediaSource audio SourceBuffer oluşturularak kabin içi ses canlı olarak oynatılır.
         const player = mpegts.createPlayer(
           {
             type: 'flv',
             isLive: true,
             url: streamUrl,
-            hasAudio: false,
+            hasAudio: true,
             hasVideo: true,
           },
           {
             enableWorker: true,
-            enableStashBuffer: false,
-            stashInitialSize: 64,
+            enableStashBuffer: true,
+            stashInitialSize: 384,
             lazyLoad: false,
             autoCleanupSourceBuffer: true,
-            autoCleanupMaxBackwardDuration: 8,
-            autoCleanupMinBackwardDuration: 3,
-            liveBufferLatencyChasing: true,
-            liveBufferLatencyMaxLatency: 1.2,
-            liveBufferLatencyMinRemain: 0.2,
+            autoCleanupMaxBackwardDuration: 15,
+            autoCleanupMinBackwardDuration: 6,
+            liveBufferLatencyChasing: false,
+            liveBufferLatencyMaxLatency: 4.5,
+            liveBufferLatencyMinRemain: 1.2,
+            fixAudioTimestampGap: true,
+            accurateSeek: false,
           }
         );
         player.attachMediaElement(videoEl);
         player.load();
-        player.play().catch(() => {});
+        const playPromise = player.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            // Tarayıcı otomatik ses politikasında ilk etapta sessiz başlat, kullanıcı tıklamasıyla sesi aç
+            videoEl.muted = true;
+            player.play().catch(() => {});
+          });
+        }
+
+        // Gerçek zamanlı ağ ve veri akış hızı (Throughput & Latency) istatistiklerini yakala
+        const statsEvent = mpegts.Events?.STATISTICS_INFO || 'statistics_info';
+        player.on(statsEvent, (stats) => {
+          if (typeof onStats === 'function' && stats) {
+            onStats({
+              speedKBps: Math.round(stats.speed || 0),
+              speedKbps: Math.round((stats.speed || 0) * 8),
+              latencySec: stats.currentLatency != null ? Number(stats.currentLatency).toFixed(1) : null,
+              decodedFrames: stats.decodedFrames || 0,
+              droppedFrames: stats.droppedFrames || 0,
+            });
+          }
+        });
 
         // mpegts.js yerleşik liveBufferLatencyChasing motoru ile akışı pürüzsüz ve kesintisiz senkronize tutar.
         return () => {
