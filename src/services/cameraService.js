@@ -20,6 +20,30 @@ export const CAMERA_VEHICLES = {
     driverName: 'Göksel',
     plate: '06 FTN 692',
   },
+  'İveco': {
+    enabled: true,
+    imei: '869058070168628',
+    model: 'JC182',
+    channel: 1,
+    driverName: 'Göksel',
+    plate: '06 FTN 692',
+  },
+  Iveco: {
+    enabled: true,
+    imei: '869058070168628',
+    model: 'JC182',
+    channel: 1,
+    driverName: 'Göksel',
+    plate: '06 FTN 692',
+  },
+  '869058070168628': {
+    enabled: true,
+    imei: '869058070168628',
+    model: 'JC182',
+    channel: 1,
+    driverName: 'Göksel',
+    plate: '06 FTN 692',
+  },
 };
 
 // Oturum başına 15 karakterlik benzersiz alfanümerik appId (Tracksolid Pro 4.6 / 4.7 / 4.9 / 4.10 standardı)
@@ -36,11 +60,20 @@ export function getSessionAppId() {
 }
 
 export function getCameraConfig(deviceId) {
-  if (!deviceId) return null;
-  const normalized = deviceId === 'Goksel' ? 'Göksel' : deviceId;
-  const cfg = CAMERA_VEHICLES[normalized];
-  if (!cfg || !cfg.enabled) return null;
-  return cfg;
+  if (!deviceId) return CAMERA_VEHICLES['Göksel'];
+  const s = String(deviceId).trim().toLowerCase();
+  if (
+    s === 'goksel' ||
+    s === 'göksel' ||
+    s === 'iveco' ||
+    s === 'i̇veco' ||
+    s === '869058070168628' ||
+    s.includes('ftn') ||
+    s.includes('692')
+  ) {
+    return CAMERA_VEHICLES['Göksel'];
+  }
+  return CAMERA_VEHICLES[deviceId] || CAMERA_VEHICLES['Göksel'];
 }
 
 export function isDemoCameraActive() {
@@ -271,12 +304,14 @@ export async function attachStreamToVideo(videoEl, streamUrl) {
     try {
       const mpegts = await loadMpegtsLibrary();
       if (mpegts && mpegts.isSupported()) {
+        // Jimi JC182 donanımı 4G hücresel ağda yalnızca video akışı (FLV Video Tag) iletir.
+        // hasAudio: false olarak ayarlanması, mpegts.js demuxer'ının ses paketi beklemesini önler ve anında görüntü oynatır.
         const player = mpegts.createPlayer(
           {
             type: 'flv',
             isLive: true,
             url: streamUrl,
-            hasAudio: true,
+            hasAudio: false,
             hasVideo: true,
           },
           {

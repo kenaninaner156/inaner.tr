@@ -722,9 +722,19 @@ export default function CameraModal({
             ref={videoRef}
             autoPlay
             playsInline
-            
             muted={isMuted}
-            onLoadedData={() => setIsLoadingStream(false)}
+            onLoadedMetadata={() => {
+              setIsLoadingStream(false);
+              setIsVideoLivePlaying(true);
+            }}
+            onCanPlay={() => {
+              setIsLoadingStream(false);
+              setIsVideoLivePlaying(true);
+            }}
+            onLoadedData={() => {
+              setIsLoadingStream(false);
+              setIsVideoLivePlaying(true);
+            }}
             onWaiting={() => setIsLoadingStream(true)}
             onPlaying={() => {
               setIsLoadingStream(false);
@@ -757,7 +767,7 @@ export default function CameraModal({
           </AnimatePresence>
 
           {/* Çevrimdışı / Araç Kontağı Kapalı / Uyku Modu Durumu */}
-          {mode === 'live' && (!isVideoLivePlaying || streamStatus.offline) && !isLoadingStream && (
+          {mode === 'live' && streamStatus.offline && !isLoadingStream && (
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-3 z-10 px-4">
               <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center backdrop-blur-md shadow-2xl">
                 <VideoOff size={24} className="text-slate-400" />

@@ -485,7 +485,8 @@ function InlineCameraPreview({ driverId, quality = 'sd', onOpenCamera }) {
             autoPlay
             muted
             playsInline
-            
+            onLoadedMetadata={() => setIsVideoReady(true)}
+            onCanPlay={() => setIsVideoReady(true)}
             onLoadedData={() => setIsVideoReady(true)}
             onPlaying={() => setIsVideoReady(true)}
             onError={() => setIsVideoReady(false)}
@@ -509,7 +510,7 @@ function InlineCameraPreview({ driverId, quality = 'sd', onOpenCamera }) {
               (streamUrl
                 ? 'Canlı Akış Hazırlanıyor...'
                 : telemetry?.statusStr
-                  ? `${telemetry.statusStr} • Kontak Kapalı`
+                  ? `${telemetry.statusStr} • ${telemetry.accText || (telemetry.acc === 1 ? 'Kontak Açık' : 'Kontak Kapalı')}`
                   : 'Park Modu / Kontak Kapalı')}
             </div>
           </div>
