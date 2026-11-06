@@ -60,7 +60,7 @@ export function getSessionAppId() {
 }
 
 export function getCameraConfig(deviceId) {
-  if (!deviceId) return CAMERA_VEHICLES['Göksel'];
+  if (!deviceId) return null;
   const s = String(deviceId).trim().toLowerCase();
   if (
     s === 'goksel' ||
@@ -73,7 +73,7 @@ export function getCameraConfig(deviceId) {
   ) {
     return CAMERA_VEHICLES['Göksel'];
   }
-  return CAMERA_VEHICLES[deviceId] || CAMERA_VEHICLES['Göksel'];
+  return null;
 }
 
 export function isDemoCameraActive() {
@@ -331,23 +331,9 @@ export async function attachStreamToVideo(videoEl, streamUrl) {
         player.load();
         player.play().catch(() => {});
 
-        // Canlı yayın gecikme avcısı: Akış donarsa veya geride kalırsa canlı uca sıçra
-        const latencyTimer = setInterval(() => {
-          if (!videoEl || videoEl.paused || !player) return;
-          try {
-            if (videoEl.buffered && videoEl.buffered.length > 0) {
-              const liveEdge = videoEl.buffered.end(videoEl.buffered.length - 1);
-              const lag = liveEdge - videoEl.currentTime;
-              if (lag > 1.4) {
-                videoEl.currentTime = Math.max(0, liveEdge - 0.15);
-              }
-            }
-          } catch {}
-        }, 1500);
-
+        // mpegts.js yerleşik liveBufferLatencyChasing motoru ile akışı pürüzsüz ve kesintisiz senkronize tutar.
         return () => {
           try {
-            clearInterval(latencyTimer);
             player.pause();
             player.unload();
             player.detachMediaElement();

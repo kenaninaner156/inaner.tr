@@ -72,6 +72,7 @@ export default function CameraModal({
   const [isMuted, setIsMuted] = useState(true);
   const [volume, setVolume] = useState(0.8);
   const [telemetry, setTelemetry] = useState(null);
+  const [actualResolution, setActualResolution] = useState(null);
 
   // Ses ayar yöneticisi
   const handleVolumeChange = (newVol) => {
@@ -723,9 +724,13 @@ export default function CameraModal({
             autoPlay
             playsInline
             muted={isMuted}
-            onLoadedMetadata={() => {
+            onLoadedMetadata={(e) => {
               setIsLoadingStream(false);
               setIsVideoLivePlaying(true);
+              const v = e.currentTarget;
+              if (v && v.videoWidth && v.videoHeight) {
+                setActualResolution(`${v.videoWidth}×${v.videoHeight}`);
+              }
             }}
             onCanPlay={() => {
               setIsLoadingStream(false);
@@ -808,8 +813,8 @@ export default function CameraModal({
             </div>
           )}
 
-          {/* Sağ Alt Köşede Her Zaman Erişilebilir "Kamerayı Uyandır" Butonu */}
-          {mode === 'live' && (
+          {/* Sağ Alt Köşede Erişilebilir "Kamerayı Uyandır" Butonu - Yalnızca yayın akmıyorken */}
+          {mode === 'live' && !isVideoLivePlaying && (
             <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 z-20 pointer-events-auto flex">
               <button
                 type="button"
@@ -906,37 +911,45 @@ export default function CameraModal({
 
             <div className="w-px h-5 bg-white/10 mx-0.5 sm:mx-1 flex-shrink-0" />
 
-            {/* Kalite Seçici (480p SD | 2K HD) Kayan Bar */}
-            <div className="flex items-center bg-[#080b10] rounded-xl p-0.5 border border-white/[0.06] shrink-0">
-              {[
-                { id: 'sd', label: '360p' },
-                { id: 'hd', label: '720p' },
-              ].map((q) => {
-                const active = quality === q.id;
-                return (
-                  <button
-                    key={q.id}
-                    onClick={() => handleQualitySwitch(q.id)}
-                    className="relative px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold transition-colors duration-200 cursor-pointer outline-none"
-                    style={{ color: active ? '#fff' : '#64748b' }}
-                  >
-                    {active && (
-                      <motion.div
-                        layoutId="camera-quality-pill"
-                        initial={false}
-                        transition={{
-                          type: 'spring',
-                          stiffness: 400,
-                          damping: 32,
-                          mass: 0.8,
-                        }}
-                        className="absolute inset-0 rounded-lg bg-white/[0.12] border border-white/[0.18]"
-                      />
-                    )}
-                    <span className="relative z-10">{q.label}</span>
-                  </button>
-                );
-              })}
+            {/* Kalite Seçici (360p | 720p) Kayan Bar ve Canlı Çözünürlük Etiketi */}
+            <div className="flex items-center gap-1">
+              <div className="flex items-center bg-[#080b10] rounded-xl p-0.5 border border-white/[0.06] shrink-0">
+                {[
+                  { id: 'sd', label: '360p' },
+                  { id: 'hd', label: '720p' },
+                ].map((q) => {
+                  const active = quality === q.id;
+                  return (
+                    <button
+                      key={q.id}
+                      onClick={() => handleQualitySwitch(q.id)}
+                      className="relative px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold transition-colors duration-200 cursor-pointer outline-none"
+                      style={{ color: active ? '#fff' : '#64748b' }}
+                    >
+                      {active && (
+                        <motion.div
+                          layoutId="camera-quality-pill"
+                          initial={false}
+                          transition={{
+                            type: 'spring',
+                            stiffness: 400,
+                            damping: 32,
+                            mass: 0.8,
+                          }}
+                          className="absolute inset-0 rounded-lg bg-white/[0.12] border border-white/[0.18]"
+                        />
+                      )}
+                      <span className="relative z-10">{q.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {actualResolution && (
+                <span className="text-[10px] font-mono text-emerald-400 font-semibold px-2 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/20 shrink-0">
+                  {actualResolution}
+                </span>
+              )}
             </div>
 
             <div className="w-px h-5 bg-white/10 mx-0.5 sm:mx-1 flex-shrink-0" />

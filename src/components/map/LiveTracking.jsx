@@ -532,20 +532,22 @@ function InlineCameraPreview({ driverId, quality = 'sd', onOpenCamera }) {
           </div>
 
           <div className="flex items-center gap-1 pointer-events-auto">
-            <button
-              type="button"
-              onClick={handleInlineWakeUp}
-              disabled={isWakingUp}
-              title="Kamerayı 4G üzerinden uyandır"
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 active:scale-95 text-white text-[10px] font-semibold transition-all disabled:opacity-50 cursor-pointer shadow-sm border border-emerald-400/30"
-            >
-              {isWakingUp ? (
-                <Loader2 size={10} className="animate-spin text-white" />
-              ) : (
-                <Power size={10} className="text-white" />
-              )}
-              <span>{isWakingUp ? 'Uyandırılıyor...' : 'Uyandır'}</span>
-            </button>
+            {!isVideoReady && (
+              <button
+                type="button"
+                onClick={handleInlineWakeUp}
+                disabled={isWakingUp}
+                title="Kamerayı 4G üzerinden uyandır"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 active:scale-95 text-white text-[10px] font-semibold transition-all disabled:opacity-50 cursor-pointer shadow-sm border border-emerald-400/30"
+              >
+                {isWakingUp ? (
+                  <Loader2 size={10} className="animate-spin text-white" />
+                ) : (
+                  <Power size={10} className="text-white" />
+                )}
+                <span>{isWakingUp ? 'Uyandırılıyor...' : 'Uyandır'}</span>
+              </button>
+            )}
 
             <div
               className="w-6 h-6 rounded-lg bg-black/60 backdrop-blur-md border border-white/[0.08] flex items-center justify-center text-white/80 group-hover:text-white group-hover:bg-black/80 transition-all"
@@ -557,10 +559,9 @@ function InlineCameraPreview({ driverId, quality = 'sd', onOpenCamera }) {
         </div>
 
         {/* Alt Bilgi İpucu */}
-        <div className="relative z-20 text-[9px] text-slate-400 font-mono pointer-events-none flex items-center justify-between">
-          <span>Tam ekran izlemek için tıklayın</span>
+        <div className="relative z-20 text-[9px] text-slate-400 font-mono pointer-events-none flex items-center justify-end">
           {telemetry?.voltage && (
-            <span className="text-slate-300 font-medium">
+            <span className="px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md border border-white/[0.08] text-slate-200 font-medium">
               Akü: {telemetry.voltage} • {telemetry.satellites || 19} Uydu
             </span>
           )}
@@ -1170,6 +1171,7 @@ export default function LiveTracking({
 
           {followedVehicle && (
             <MobileFollowedCard
+              key={followedVehicle.driverId}
               vehicle={followedVehicle}
               vehicleList={vehicleList}
               onSelectVehicle={(driverId) => {
