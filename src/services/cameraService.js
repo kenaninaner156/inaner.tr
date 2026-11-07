@@ -130,6 +130,57 @@ export async function enableCameraAudio(deviceId) {
 }
 
 /**
+ * JC182 24V İveco akü koruma eşiği (23.2V), 20° viraj GPS hassasiyeti (ANGLEREP) ve 5sn sürüş GPS profilini uygular.
+ * @param {string} deviceId
+ */
+export async function calibrateCameraHardware(deviceId = 'Göksel') {
+  const cfg = getCameraConfig(deviceId);
+  if (!cfg) return { success: false, message: 'Kamera yapılandırması bulunamadı.' };
+
+  try {
+    const res = await fetch(`/api/camera-stream?action=calibrate&imei=${encodeURIComponent(cfg.imei)}`);
+    const data = await res.json();
+    return {
+      success: Boolean(data?.ok),
+      profile: data?.profile || null,
+      results: data?.results || null,
+      health: data?.health || null,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: err.message || 'Donanım kalibrasyonu tamamlanamadı.',
+    };
+  }
+}
+
+/**
+ * Kameranın hafıza kartı (CAMERA,TF#) ve 24V akü / sinyal sağlığını (STATUS#) sorgular.
+ * @param {string} deviceId
+ */
+export async function fetchCameraHardwareHealth(deviceId = 'Göksel') {
+  const cfg = getCameraConfig(deviceId);
+  if (!cfg) return { success: false, message: 'Kamera yapılandırması bulunamadı.' };
+
+  try {
+    const res = await fetch(`/api/camera-stream?action=health_check&imei=${encodeURIComponent(cfg.imei)}`);
+    const data = await res.json();
+    return {
+      success: Boolean(data?.ok),
+      sdCard: data?.sdCard || null,
+      deviceStatus: data?.deviceStatus || null,
+      calibration: data?.calibration || null,
+      checkedAt: data?.checkedAt || null,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: err.message || 'Donanım sağlık durumu alınamadı.',
+    };
+  }
+}
+
+/**
  * Kameraya uzaktan donanımsal anlık fotoğraf çekim komutu iletir (SNAP# / instructionId: 727)
  * ve 4G hücresel bağlantı üzerinden orijinal çekilen fotoğraf dosyasını doğrudan sunucudan alır.
  * @param {string} deviceId
