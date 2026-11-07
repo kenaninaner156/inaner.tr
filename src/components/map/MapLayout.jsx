@@ -10,7 +10,8 @@ import L from 'leaflet';
 import { useTruck } from '../../context/TruckContext';
 import { useCompany } from '../../context/CompanyContext';
 import { DataContext } from '../../context/DataContext';
-import { groupIntoSessions, getPointTime } from '../../utils/mapUtils';
+import { groupIntoSessions, getPointTime, haversineKm } from '../../utils/mapUtils';
+import { fetchCameraTelemetry } from '../../services/cameraService';
 
 import LiveTracking from './LiveTracking';
 import RouteHistory from './RouteHistory';
@@ -124,18 +125,117 @@ let lastCompanyId = null;
 let cleanupTimeout = null;
 
 let edgePollerInterval = null;
+let latestCameraHw = null;
+let lastCameraHwFetchAt = 0;
+let cameraHwFetching = false;
+
+const refreshCameraHardwareGps = async () => {
+  if (cameraHwFetching) return;
+  if (typeof document !== 'undefined' && document.hidden) return;
+  cameraHwFetching = true;
+  lastCameraHwFetchAt = Date.now();
+  try {
+    const hw = await fetchCameraTelemetry('Göksel', true);
+    if (hw && Number.isFinite(Number(hw.lat)) && Number.isFinite(Number(hw.lon))) {
+      latestCameraHw = hw;
+    }
+  } catch {
+    // sessiz geç
+  } finally {
+    cameraHwFetching = false;
+  }
+};
 
 const pollEdgeLive = async (companyId) => {
   try {
-    const res = await fetch(`https://inaner.tr/api/save-location?action=get_live&token=inaner123&_t=${Date.now()}`, {
+    const nowMs = Date.now();
+    if (!latestCameraHw && !cameraHwFetching) {
+      await refreshCameraHardwareGps();
+    } else if (nowMs - lastCameraHwFetchAt >= 3000 && !cameraHwFetching) {
+      refreshCameraHardwareGps();
+    }
+
+    const res = await fetch(`https://inaner.tr/api/save-location?action=get_live&token=inaner123&_t=${nowMs}`, {
       cache: 'no-store'
     });
-    if (!res.ok) return;
-    const data = await res.json();
-    if (data.success && Array.isArray(data.vehicles) && data.vehicles.length > 0) {
+    const data = res.ok ? await res.json() : { success: true, vehicles: [] };
+    const rawVehicles = Array.isArray(data?.vehicles) ? [...data.vehicles] : [];
+
+    // Göksel için yalnızca JC182 kamera donanımı GPS + Kontak (ACC) otoritesidir
+    if (latestCameraHw && Number.isFinite(Number(latestCameraHw.lat)) && Number.isFinite(Number(latestCameraHw.lon))) {
+      const hwLat = Number(latestCameraHw.lat);
+      const hwLon = Number(latestCameraHw.lon);
+      const hwSpeedKnots = (Number(latestCameraHw.speed) || 0) / 1.852;
+      const hwRawMs = latestCameraHw.timestampIso ? new Date(latestCameraHw.timestampIso).getTime() : nowMs;
+      // cleanGpsSpikes zaman sıralamasında kamera noktasının daima en son (lastPoint) olmasını garanti et
+      const hwEffectiveMs = Number.isFinite(hwRawMs) ? Math.max(hwRawMs, nowMs) : nowMs;
+      const hwTs = new Date(hwEffectiveMs).toISOString();
+      const hwStatus = latestCameraHw.hwStatus || latestCameraHw.status || '';
+      const isMovingHw = Boolean(latestCameraHw.isMoving || hwStatus === 'MOVE' || Number(latestCameraHw.speed) >= 2);
+
+      const gokselIdx = rawVehicles.findIndex((v) => {
+        const vid = String(v.deviceId || v.driverId || v.id || '').trim();
+        return vid === 'Göksel' || vid === 'Goksel' || vid === '869058070168628';
+      });
+
+      if (gokselIdx >= 0) {
+        const curVeh = rawVehicles[gokselIdx];
+        let cleanTrail = Array.isArray(curVeh.recentTrail)
+          ? curVeh.recentTrail.filter((pt) => getPointTime(pt) < hwEffectiveMs - 500)
+          : [];
+        if (cleanTrail.length > 0) {
+          const lastTrailPt = cleanTrail[cleanTrail.length - 1];
+          const jumpKm = haversineKm(Number(lastTrailPt.lat), Number(lastTrailPt.lon), hwLat, hwLon);
+          if (jumpKm > 1.5 && !isMovingHw) {
+            cleanTrail = [];
+          }
+        }
+        rawVehicles[gokselIdx] = {
+          ...curVeh,
+          id: 'Göksel',
+          deviceId: 'Göksel',
+          driverId: 'Göksel',
+          lat: hwLat,
+          lon: hwLon,
+          speed: hwSpeedKnots,
+          heading: Number(latestCameraHw.heading) || curVeh.heading || 0,
+          acc: latestCameraHw.acc,
+          hwStatus,
+          isMovingHw,
+          isIdling: Boolean(latestCameraHw.isIdling),
+          stationaryMinutes: latestCameraHw.stationaryMinutes ?? null,
+          timestamp: hwTs,
+          updatedAt: hwTs,
+          recentTrail: cleanTrail,
+        };
+      } else {
+        rawVehicles.push({
+          id: 'Göksel',
+          deviceId: 'Göksel',
+          driverId: 'Göksel',
+          companyId: null,
+          lat: hwLat,
+          lon: hwLon,
+          speed: hwSpeedKnots,
+          altitude: 0,
+          heading: Number(latestCameraHw.heading) || 0,
+          acc: latestCameraHw.acc,
+          hwStatus,
+          isMovingHw,
+          isIdling: Boolean(latestCameraHw.isIdling),
+          stationaryMinutes: latestCameraHw.stationaryMinutes ?? null,
+          timestamp: hwTs,
+          updatedAt: hwTs,
+          dailyKm: 0,
+          recentTrail: [],
+        });
+      }
+    }
+
+    if (rawVehicles.length > 0) {
       const filtered = companyId
-        ? data.vehicles.filter(d => !d.companyId || d.companyId === companyId)
-        : data.vehicles;
+        ? rawVehicles.filter(d => !d.companyId || d.companyId === companyId)
+        : rawVehicles;
 
       const unrolledLocations = [];
       filtered.forEach(veh => {
@@ -152,9 +252,10 @@ const pollEdgeLive = async (companyId) => {
               speed: pt.speed || 0,
               altitude: pt.altitude || 0,
               heading: pt.heading || veh.heading || 0,
+              acc: pt.acc ?? null,
               timestamp: pt.timestamp,
               createdAt: pt.timestamp,
-              ignition: (pt.speed || 0) > 2
+              ignition: pt.acc !== undefined && pt.acc !== null ? Boolean(pt.acc) : (pt.speed || 0) > 2
             });
           });
         }
@@ -169,9 +270,14 @@ const pollEdgeLive = async (companyId) => {
             speed: veh.speed || 0,
             altitude: veh.altitude || 0,
             heading: veh.heading || 0,
+            acc: veh.acc ?? null,
+            hwStatus: veh.hwStatus || '',
+            isMovingHw: Boolean(veh.isMovingHw),
+            isIdling: Boolean(veh.isIdling),
+            stationaryMinutes: veh.stationaryMinutes ?? null,
             timestamp: veh.updatedAt || veh.timestamp || new Date().toISOString(),
             createdAt: veh.updatedAt || veh.timestamp || new Date().toISOString(),
-            ignition: (veh.speed || 0) > 2,
+            ignition: veh.acc !== undefined && veh.acc !== null ? Boolean(veh.acc) : (veh.speed || 0) > 2,
             dailyKm: typeof veh.dailyKm === 'number' ? veh.dailyKm : undefined
           });
         }

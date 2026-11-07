@@ -2,8 +2,17 @@ import React, { useState, useEffect, useRef, useCallback, useContext } from 'rea
 import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import { Polyline, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { Calendar, ChevronLeft, ChevronRight, ChevronDown, Play, Pause, X, Smartphone, BookmarkPlus, Scissors, Edit2, Check, Loader2, Clock } from 'lucide-react';
-import { calcStats, getInterpolatedPointLinear, haversineKm, groupIntoSessions, filterSessionPoints, getPointTime, isMeaningfulTrip } from '../../utils/mapUtils';
+import { Calendar, ChevronLeft, ChevronRight, ChevronDown, Play, Pause, X, Smartphone, BookmarkPlus, Scissors, Edit2, Check, Loader2, Clock, Video, Volume2, VolumeX, Maximize2, Power } from 'lucide-react';
+import { calcStats, getInterpolatedPointLinear, getProgressForTimestamp, haversineKm, groupIntoSessions, filterSessionPoints, getPointTime, isMeaningfulTrip } from '../../utils/mapUtils';
+import {
+  getCameraConfig,
+  fetchCachedCameraHistorySegments,
+  resolveHistoryTimestampStream,
+  attachStreamToVideo,
+  wakeUpCamera,
+  closeCameraStream,
+} from '../../services/cameraService';
+import CameraModal from './CameraModal';
 import { DataContext } from '../../context/DataContext';
 import { db } from '../../services/firebaseConfig';
 import { collection, query, where, orderBy, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
@@ -21,6 +30,28 @@ function formatDuration(totalMin) {
   const m = Math.round(totalMin % 60);
   if (h > 0) return `${h} sa ${m} dk`;
   return `${m} dk`;
+}
+
+function formatLocalIsoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function getTurkeyTodayIso() {
+  try {
+    const formatter = new Intl.DateTimeFormat('tr-TR', {
+      timeZone: 'Europe/Istanbul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = formatter.formatToParts(new Date());
+    const day = parts.find((p) => p.type === 'day')?.value || '01';
+    const month = parts.find((p) => p.type === 'month')?.value || '01';
+    const year = parts.find((p) => p.type === 'year')?.value || '2026';
+    return `${year}-${month}-${day}`;
+  } catch {
+    return new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+  }
 }
 
 const SpeedPolylines = React.memo(({ session }) => {
@@ -124,7 +155,12 @@ function MobileRouteHistoryCard({
   setProgress,
   interpolatedData,
   historyLoading,
-  customRouteNames
+  customRouteNames,
+  hasCamera,
+  isRouteVideoOpen,
+  onToggleRouteVideo,
+  onTogglePlay,
+  onUserSeek,
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -165,7 +201,7 @@ function MobileRouteHistoryCard({
     }
   }, []);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getTurkeyTodayIso();
   const isTodayDate = historyDate === todayStr;
 
   // Sadece gerçek, hareket edilmiş seferleri filtrele (0 km park veya rölanti kayıtlarını eler)
@@ -178,13 +214,13 @@ function MobileRouteHistoryCard({
 
   const yesterdayDate = new Date();
   yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-  const yesterdayStr = yesterdayDate.toISOString().slice(0, 10);
+  const yesterdayStr = formatLocalIsoDate(yesterdayDate);
 
   // Generate 5 quick date items (Bugün, Dün, vb.)
   const quickDates = Array.from({ length: 5 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const dStr = d.toISOString().slice(0, 10);
+    const dStr = i === 0 ? todayStr : formatLocalIsoDate(d);
     const isToday = i === 0;
     const isYesterday = i === 1;
     const label = isToday ? 'Bugün' : isYesterday ? 'Dün' : d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
@@ -517,7 +553,8 @@ function MobileRouteHistoryCard({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsPlaying(!isPlaying);
+                  if (onTogglePlay) onTogglePlay();
+                  else setIsPlaying(!isPlaying);
                 }}
                 className="w-9 h-9 rounded-full bg-gradient-to-r from-amber-600 to-orange-500 flex items-center justify-center text-white active:scale-95 shadow-[0_2px_12px_rgba(245,158,11,0.35)] transition-all shrink-0"
               >
@@ -533,6 +570,24 @@ function MobileRouteHistoryCard({
               >
                 {playbackSpeed}x
               </button>
+
+              {hasCamera && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onToggleRouteVideo) onToggleRouteVideo();
+                  }}
+                  title="Rota Anı Kamera Kaydı"
+                  className={`w-7 h-7 rounded-xl border flex items-center justify-center transition-colors shrink-0 ${
+                    isRouteVideoOpen
+                      ? 'bg-white/[0.12] border-white/[0.2] text-white'
+                      : 'bg-white/[0.04] border-white/[0.06] text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Video size={13} strokeWidth={1.75} />
+                </button>
+              )}
             </div>
 
             {/* Anlık Simülasyon Hızı */}
@@ -550,8 +605,16 @@ function MobileRouteHistoryCard({
               max="100"
               step="0.1"
               value={progress}
-              onInput={e => { setIsPlaying(false); setProgress(parseFloat(e.target.value)); }}
-              onChange={e => { setIsPlaying(false); setProgress(parseFloat(e.target.value)); }}
+              onInput={e => {
+                const v = parseFloat(e.target.value);
+                if (onUserSeek) onUserSeek(v);
+                else { setIsPlaying(false); setProgress(v); }
+              }}
+              onChange={e => {
+                const v = parseFloat(e.target.value);
+                if (onUserSeek) onUserSeek(v);
+                else { setIsPlaying(false); setProgress(v); }
+              }}
               className="w-full h-1.5 appearance-none rounded-full outline-none cursor-pointer"
               style={{
                 background: `linear-gradient(to right, #f59e0b ${progress}%, rgba(255,255,255,0.08) ${progress}%)`,
@@ -574,6 +637,364 @@ const DATE_FILTERS = [
   { label: '30 Gün', days: 30 },
   { label: 'Tümü',   days: 0 },
 ];
+
+// ── Rota Geçmişi <-> SD Kart 4G Gecikme Korumalı Senkron Video Oynatıcı ──────
+function RouteVideoSyncOverlay({
+  isOpen,
+  driverId,
+  historyDate,
+  seekTargetEpochMs,
+  playbackSpeed = 1,
+  controlRef,
+  onVideoTimestampSync,
+  onPlayingStateChange,
+  onRequestNextChunk,
+  onExpandModal,
+  onClose,
+}) {
+  const [status, setStatus] = useState('connecting'); // 'connecting' | 'waking' | 'playing' | 'paused' | 'empty' | 'error'
+  const [statusMessage, setStatusMessage] = useState('');
+  const [isMuted, setIsMuted] = useState(true);
+  const [displayTimeStr, setDisplayTimeStr] = useState('');
+  const [retryNonce, setRetryNonce] = useState(0);
+
+  const videoRef = useRef(null);
+  const cleanupRef = useRef(null);
+  const activeStreamRef = useRef(null);
+  const startedRef = useRef(false);
+  const isMutedRef = useRef(isMuted);
+
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+    if (videoRef.current) {
+      videoRef.current.muted = isMuted;
+    }
+  }, [isMuted]);
+
+  useEffect(() => {
+    if (videoRef.current && startedRef.current) {
+      videoRef.current.playbackRate = Math.min(2, Math.max(0.5, playbackSpeed || 1));
+    }
+  }, [playbackSpeed]);
+
+  useEffect(() => {
+    if (!controlRef) return;
+    controlRef.current = {
+      hasActiveVideo: () => Boolean(startedRef.current && videoRef.current),
+      togglePlay: () => {
+        const el = videoRef.current;
+        if (!el || !startedRef.current) return;
+        if (el.paused) {
+          el.play().catch(() => {});
+        } else {
+          el.pause();
+        }
+      },
+    };
+    return () => {
+      controlRef.current = null;
+    };
+  }, [controlRef]);
+
+  const overlayRef = useCallback((node) => {
+    if (node) {
+      L.DomEvent.disableClickPropagation(node);
+      L.DomEvent.disableScrollPropagation(node);
+    }
+  }, []);
+
+  // Sekme gizlendiğinde 4G SD kart çekimini sessizce durdur (50 GB SIM kota koruması)
+  useEffect(() => {
+    if (!isOpen) return;
+    const onVis = () => {
+      if (document.hidden) {
+        if (cleanupRef.current) {
+          cleanupRef.current();
+          cleanupRef.current = null;
+        }
+        closeCameraStream(driverId, 'history');
+        onClose();
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [isOpen, driverId, onClose]);
+
+  // Hedef rota zaman damgası değiştiğinde 4G üzerinden tam o saniyeye kilitlen
+  useEffect(() => {
+    if (!isOpen || !driverId || !Number.isFinite(seekTargetEpochMs)) return;
+
+    let cancelled = false;
+    startedRef.current = false;
+    activeStreamRef.current = null;
+
+    const targetLabel = new Date(seekTargetEpochMs).toLocaleTimeString('tr-TR', {
+      timeZone: 'Europe/Istanbul',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      setDisplayTimeStr(targetLabel);
+      setStatus('connecting');
+      setStatusMessage('SD kart akışı hazırlanıyor');
+      onPlayingStateChange(false);
+    });
+
+    const connectAtTimestamp = async () => {
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
+
+      let resolved = await resolveHistoryTimestampStream(driverId, seekTargetEpochMs);
+      if (cancelled) return;
+
+      // Kamera park uykusundaysa otomatik uyandırıp SD listesini yenile
+      if (!resolved.found && resolved.noSegments) {
+        setStatus('waking');
+        setStatusMessage('Kamera uyandırılıyor');
+        await wakeUpCamera(driverId);
+        await new Promise((r) => setTimeout(r, 3200));
+        if (cancelled) return;
+        await fetchCachedCameraHistorySegments(driverId, historyDate, true);
+        if (cancelled) return;
+        setStatus('connecting');
+        setStatusMessage('SD kart akışı hazırlanıyor');
+        resolved = await resolveHistoryTimestampStream(driverId, seekTargetEpochMs);
+        if (cancelled) return;
+      }
+
+      if (!resolved.found || !resolved.url || !videoRef.current) {
+        setStatus(resolved.noSegments ? 'error' : 'empty');
+        setStatusMessage(resolved.reason || 'Seçili saatte SD kayıt bulunamadı');
+        onPlayingStateChange(false);
+        return;
+      }
+
+      activeStreamRef.current = {
+        startEpochMs: resolved.startEpochMs,
+        endEpochMs: resolved.endEpochMs,
+      };
+
+      const connectTimeout = setTimeout(() => {
+        if (!cancelled && !startedRef.current) {
+          if (cleanupRef.current) {
+            cleanupRef.current();
+            cleanupRef.current = null;
+          }
+          setStatus('error');
+          setStatusMessage('4G bağlantı süresi aşıldı');
+          onPlayingStateChange(false);
+        }
+      }, 15000);
+
+      const cleanup = await attachStreamToVideo(videoRef.current, resolved.url, {
+        hasAudio: true,
+        isLive: false,
+        fallbackUrl: resolved.fallbackUrl || null,
+        onAutoMuted: () => setIsMuted(true),
+        onError: () => {
+          if (!cancelled && !startedRef.current) {
+            clearTimeout(connectTimeout);
+            setStatus('error');
+            setStatusMessage('4G video akışı kurulamadı');
+            onPlayingStateChange(false);
+          }
+        },
+      });
+
+      if (cancelled) {
+        clearTimeout(connectTimeout);
+        if (cleanup) cleanup();
+        return;
+      }
+
+      if (videoRef.current) {
+        videoRef.current.muted = isMutedRef.current;
+        videoRef.current.playbackRate = Math.min(2, Math.max(0.5, playbackSpeed || 1));
+      }
+
+      cleanupRef.current = () => {
+        clearTimeout(connectTimeout);
+        if (cleanup) cleanup();
+      };
+    };
+
+    connectAtTimestamp();
+
+    return () => {
+      cancelled = true;
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
+      closeCameraStream(driverId, 'history');
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, driverId, historyDate, seekTargetEpochMs, retryNonce]);
+
+  if (!isOpen) return null;
+
+  const isVideoVisible = status === 'playing' || status === 'paused';
+
+  return (
+    <div
+      ref={overlayRef}
+      className="absolute bottom-[196px] right-3 left-3 sm:left-auto sm:w-[320px] md:bottom-24 md:right-5 md:w-[340px] z-[2100] pointer-events-auto rounded-2xl overflow-hidden bg-[#0a0d14]/95 backdrop-blur-xl border border-white/[0.08] shadow-[0_18px_50px_rgba(0,0,0,0.85)] select-none"
+    >
+      <div className="relative w-full aspect-video bg-[#070a10] flex flex-col justify-between overflow-hidden">
+        <video
+          ref={videoRef}
+          autoPlay
+          muted={isMuted}
+          playsInline
+          disableRemotePlayback
+          x-webkit-airplay="deny"
+          onPlaying={() => {
+            startedRef.current = true;
+            setStatus('playing');
+            onPlayingStateChange(true);
+          }}
+          onPause={() => {
+            if (startedRef.current) {
+              setStatus('paused');
+              onPlayingStateChange(false);
+            }
+          }}
+          onTimeUpdate={() => {
+            const el = videoRef.current;
+            const meta = activeStreamRef.current;
+            if (!el || !meta || !startedRef.current) return;
+            const exactEpochMs = meta.startEpochMs + el.currentTime * 1000;
+            setDisplayTimeStr(
+              new Date(exactEpochMs).toLocaleTimeString('tr-TR', {
+                timeZone: 'Europe/Istanbul',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              })
+            );
+            onVideoTimestampSync(exactEpochMs);
+          }}
+          onEnded={() => {
+            const meta = activeStreamRef.current;
+            if (meta?.endEpochMs && onRequestNextChunk) {
+              onRequestNextChunk(meta.endEpochMs + 1000);
+            } else {
+              onPlayingStateChange(false);
+            }
+          }}
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+            isVideoVisible ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+          }`}
+        />
+
+        {!isVideoVisible && (
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-5 text-center z-0"
+            style={{
+              backgroundImage: 'radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px)',
+              backgroundSize: '14px 14px',
+            }}
+          >
+            {status === 'connecting' || status === 'waking' ? (
+              <>
+                <Loader2 size={15} className="text-slate-400 animate-spin" />
+                <div className="text-[11px] font-medium text-slate-300 tracking-tight">
+                  {statusMessage}
+                </div>
+                {displayTimeStr && (
+                  <div className="text-[10px] font-mono text-slate-500">
+                    Hedef an: {displayTimeStr}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="text-[11px] font-medium text-slate-400 leading-snug">
+                  {statusMessage}
+                </div>
+                {status === 'error' && (
+                  <button
+                    type="button"
+                    onClick={() => setRetryNonce((n) => n + 1)}
+                    className="mt-1 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-[10px] font-medium text-slate-200 transition-colors cursor-pointer"
+                  >
+                    <Power size={11} className="text-slate-300" />
+                    <span>Tekrar Dene</span>
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        <div className="absolute inset-x-0 top-0 h-11 bg-gradient-to-b from-black/80 to-transparent z-20 pointer-events-none" />
+        <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/85 to-transparent z-20 pointer-events-none" />
+
+        {/* Üst Kontrol Satırı */}
+        <div className="relative z-30 flex items-center justify-between p-2">
+          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#0a0d14]/85 border border-white/[0.07]">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                status === 'playing'
+                  ? 'bg-emerald-400'
+                  : status === 'connecting' || status === 'waking'
+                    ? 'bg-amber-400 animate-pulse'
+                    : 'bg-slate-500'
+              }`}
+            />
+            <span className="text-[9px] font-mono font-semibold tracking-wider text-slate-200">
+              {displayTimeStr || 'SD KAYIT'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            {isVideoVisible && (
+              <button
+                type="button"
+                onClick={() => setIsMuted((m) => !m)}
+                title={isMuted ? 'Sesi Aç' : 'Sesi Kapat'}
+                className="w-6 h-6 rounded-lg bg-[#0a0d14]/85 hover:bg-white/[0.12] border border-white/[0.08] flex items-center justify-center text-slate-300 hover:text-white transition-colors cursor-pointer"
+              >
+                {isMuted ? <VolumeX size={11} /> : <Volume2 size={11} />}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onExpandModal}
+              title="Tam Ekran Kamera Arşivi"
+              className="w-6 h-6 rounded-lg bg-[#0a0d14]/85 hover:bg-white/[0.12] border border-white/[0.08] flex items-center justify-center text-slate-300 hover:text-white transition-colors cursor-pointer"
+            >
+              <Maximize2 size={11} />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              title="Kapat"
+              className="w-6 h-6 rounded-lg bg-[#0a0d14]/85 hover:bg-white/[0.12] border border-white/[0.08] flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+
+        {/* Alt Senkron Bilgi Satırı */}
+        <div className="relative z-30 flex items-center justify-between px-2.5 pb-1.5 pointer-events-none">
+          <span className="text-[9px] font-mono text-slate-400 uppercase tracking-wider">
+            ROTA SENKRON KAYIT
+          </span>
+          {playbackSpeed > 2 && isVideoVisible && (
+            <span className="text-[9px] font-mono text-slate-400">2x</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function RouteHistory({
   isVisible,
@@ -739,7 +1160,7 @@ export default function RouteHistory({
   // Hangi günlerin cachelendiğini periyodik olarak veya araç değişince çek
   useEffect(() => {
     if (!isVisible || !selectedDriver) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTurkeyTodayIso();
 
     const processDocs = (docs) => {
       const full = [today];
@@ -799,7 +1220,7 @@ export default function RouteHistory({
         const snapId = `${activeCompanyId || 'default'}_${selectedDriver}_${historyDate}_v7_${manualSplits?.length || 0}_${manualMerges?.length || 0}_${manualDeletes?.length || 0}`; // _v7 cache
         const cacheRef = doc(db, 'vehicle_daily_stats', snapId);
         
-        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayStr = getTurkeyTodayIso();
         const isToday = historyDate === todayStr;
         let points = [];
 
@@ -827,13 +1248,17 @@ export default function RouteHistory({
         }
 
         // 2. CACHE YOKSA VEYA BUGÜN İSE:
-        // 2.0 Bugün ise: Öncelikli olarak hafızadaki canlı konum noktalarını kullan (0 read, anlık veri)
-        if (isToday && Array.isArray(liveLocations) && liveLocations.length > 0) {
-          const livePts = liveLocations.filter(l => l.driverId === selectedDriver || l.deviceId === selectedDriver);
-          if (livePts.length > 0) {
-            points = livePts;
-          }
-        }
+        // NOT: Bugün için önce tüm günün kalıcı noktalarını (D1 / daily_routes) çekip,
+        // ardından hafızadaki aktif canlı noktalarla (liveLocations) birleştiriyoruz;
+        // aksi halde yeni bir sefer başladığında günün önceki seferleri gizlenir.
+        const currentLiveList = liveLocationsRef.current || [];
+        const livePts = (isToday && Array.isArray(currentLiveList) && currentLiveList.length > 0)
+          ? currentLiveList.filter((l) => {
+              const id = l.driverId || l.deviceId;
+              if (selectedDriver === 'Göksel') return id === 'Göksel' || id === 'Goksel';
+              return id === selectedDriver;
+            })
+          : [];
 
         // 2.1 Çevrimdışı Bellek / USB Disk Desteği (window.__INANER_OFFLINE_DB__)
         const isOfflineMode = typeof window !== 'undefined' && (window.__INANER_OFFLINE_DB__ || window.location.protocol === 'file:' || window.location.port === '3456');
@@ -846,7 +1271,7 @@ export default function RouteHistory({
           }
         }
 
-        // 2.2 Öncelikli: Cloudflare D1 SQL üzerinden çek (Sıfır Firestore kotası)
+        // 2.2 Öncelikli: Cloudflare D1 SQL üzerinden günün tüm noktalarını çek (Sıfır Firestore kotası)
         if (points.length === 0) {
           try {
             const d1Res = await fetch(`https://inaner.tr/api/save-location?action=get_history&date=${historyDate}&driverId=${encodeURIComponent(selectedDriver)}&_t=${Date.now()}`);
@@ -874,8 +1299,8 @@ export default function RouteHistory({
           }
         }
 
-        // 2.3 Fallback: Eğer daily_routes'da yoksa veya eski kayıt ise truck_routes'dan çek
-        if (points.length === 0) {
+        // 2.4 Fallback: Eğer D1/daily_routes'da ve canlı listede hiç kayıt yoksa truck_routes'dan çek
+        if (points.length === 0 && livePts.length === 0) {
           const [y, m, d] = historyDate.split('-').map(Number);
           const dayStart = new Date(y, m - 1, d, -4, 0, 0, 0); // Önceki gün 20:00
           const dayEnd   = new Date(y, m - 1, d, 36, 0, 0, 0); // Ertesi gün 12:00
@@ -907,10 +1332,33 @@ export default function RouteHistory({
             return;
           }
         }
-        
-        // 3. VERİYİ KRONOLOJİK SIRALA VE SEFERLERE BÖL
+
+        // 2.5 Bugün ise: D1 geçmiş noktaları + anlık canlı noktaları birleştir ve çakışan zaman damgalarını tekilleştir
+        if (isToday && livePts.length > 0) {
+          points = [...points, ...livePts];
+        }
+
+        // 3. VERİYİ KRONOLOJİK SIRALA, ÇAKIŞAN MİLİSANİYELERİ TEKİLLEŞTİR VE SEFERLERE BÖL
         if (points.length > 0) {
           points.sort((a, b) => getPointTime(a) - getPointTime(b));
+          const deduped = [points[0]];
+          for (let i = 1; i < points.length; i++) {
+            const cur = points[i];
+            const prev = deduped[deduped.length - 1];
+            const dt = Math.abs(getPointTime(cur) - getPointTime(prev));
+            if (
+              dt < 1000 &&
+              Math.abs(Number(cur.lat) - Number(prev.lat)) < 0.00002 &&
+              Math.abs(Number(cur.lon) - Number(prev.lon)) < 0.00002
+            ) {
+              if (cur.acc !== undefined && prev.acc === undefined) {
+                deduped[deduped.length - 1] = cur;
+              }
+              continue;
+            }
+            deduped.push(cur);
+          }
+          points = deduped;
         }
         const rawSessions = groupIntoSessions(points, 30, geofences, manualSplits || [], manualMerges || []);
         
@@ -1109,6 +1557,30 @@ export default function RouteHistory({
   const [progress, setProgress]               = useState(0);
   const [isPlaying, setIsPlaying]             = useState(false);
   const [playbackSpeed, setPlaybackSpeed]     = useState(1);
+  const [isRouteVideoOpen, setIsRouteVideoOpen] = useState(false);
+  const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
+  const [seekTargetEpochMs, setSeekTargetEpochMs] = useState(null);
+  const seekDebounceRef = useRef(null);
+  const routeVideoControlRef = useRef(null);
+  const hasCamera = Boolean(getCameraConfig(selectedDriver));
+
+  // Kameralı araç + gün seçildiğinde SD kart kayıt listesini arka planda sessizce önbelleğe ısıt
+  useEffect(() => {
+    if (!isVisible || !hasCamera || !historyDate) return;
+    fetchCachedCameraHistorySegments(selectedDriver, historyDate).catch(() => {});
+  }, [isVisible, hasCamera, selectedDriver, historyDate]);
+
+  useEffect(() => {
+    if (!isVisible || !hasCamera || !selectedSession) {
+      setIsRouteVideoOpen(false);
+    }
+  }, [isVisible, hasCamera, selectedSession]);
+
+  useEffect(() => {
+    return () => {
+      if (seekDebounceRef.current) clearTimeout(seekDebounceRef.current);
+    };
+  }, []);
   
   // Play'e basılınca auto-pan tekrar aktif olsun
   useEffect(() => {
@@ -1161,12 +1633,17 @@ export default function RouteHistory({
       });
       setProgress(0);
       setIsPlaying(false);
-      setInterpolatedData(getInterpolatedPointLinear(selectedSession, 0));
+      const initialPt = getInterpolatedPointLinear(selectedSession, 0);
+      setInterpolatedData(initialPt);
+      if (isRouteVideoOpen) {
+        const startTs = getPointTime(initialPt) || getPointTime(selectedSession[0]);
+        if (startTs) setSeekTargetEpochMs(startTs);
+      }
     } else {
       setInterpolatedData(null);
       setIsPlaying(false);
     }
-  }, [selectedSession, map, isVisible]);
+  }, [selectedSession, map, isVisible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const lastPanRef = useRef(0);
 
@@ -1198,9 +1675,9 @@ export default function RouteHistory({
     }
   }, [progress, isPlaying]);
 
-  // Oynat / Durdur
+  // Oynat / Durdur (Video senkron açıkken saati <video> onTimeUpdate sürer, serbest sayaç durur)
   useEffect(() => {
-    if (isPlaying) {
+    if (isPlaying && !isRouteVideoOpen) {
       playIntervalRef.current = setInterval(() => {
         setProgress(prev => {
           if (prev >= 100) return 100;
@@ -1211,7 +1688,61 @@ export default function RouteHistory({
       clearInterval(playIntervalRef.current);
     }
     return () => clearInterval(playIntervalRef.current);
-  }, [isPlaying, playbackSpeed]);
+  }, [isPlaying, playbackSpeed, isRouteVideoOpen]);
+
+  const handleToggleRouteVideo = useCallback(() => {
+    if (!selectedSession || !selectedSession.length) return;
+    setIsRouteVideoOpen((prev) => {
+      const next = !prev;
+      setIsPlaying(false);
+      if (next) {
+        setShowPlayer(true);
+        const curPt = getInterpolatedPointLinear(selectedSession, progress);
+        const ts = getPointTime(curPt) || getPointTime(selectedSession[0]);
+        if (ts) setSeekTargetEpochMs(ts);
+      }
+      return next;
+    });
+  }, [selectedSession, progress]);
+
+  const handleUserSeek = useCallback((nextProgress) => {
+    setIsPlaying(false);
+    setProgress(nextProgress);
+    if (isRouteVideoOpen && selectedSession?.length) {
+      if (seekDebounceRef.current) clearTimeout(seekDebounceRef.current);
+      seekDebounceRef.current = setTimeout(() => {
+        const pt = getInterpolatedPointLinear(selectedSession, nextProgress);
+        const ts = getPointTime(pt);
+        if (ts) setSeekTargetEpochMs(ts);
+      }, 850);
+    }
+  }, [isRouteVideoOpen, selectedSession]);
+
+  const handleTogglePlay = useCallback(() => {
+    if (isRouteVideoOpen) {
+      if (routeVideoControlRef.current?.hasActiveVideo()) {
+        routeVideoControlRef.current.togglePlay();
+      }
+      return;
+    }
+    setIsPlaying((p) => !p);
+  }, [isRouteVideoOpen]);
+
+  const handleVideoTimestampSync = useCallback((videoEpochMs) => {
+    if (!selectedSession || selectedSession.length < 2) return;
+    const nextProg = getProgressForTimestamp(selectedSession, videoEpochMs);
+    setProgress(nextProg);
+  }, [selectedSession]);
+
+  const handleRequestNextVideoChunk = useCallback((nextEpochMs) => {
+    if (!selectedSession || selectedSession.length < 2) return;
+    const sessionEndMs = getPointTime(selectedSession[selectedSession.length - 1]);
+    if (nextEpochMs < sessionEndMs) {
+      setSeekTargetEpochMs(nextEpochMs);
+    } else {
+      setIsPlaying(false);
+    }
+  }, [selectedSession]);
 
   const handleSaveRoute = async () => {
     if (!savingSession) return;
@@ -1308,7 +1839,7 @@ export default function RouteHistory({
           <div className="flex p-1 rounded-xl items-center gap-1 bg-[#090d14] border border-white/[0.06]">
             {/* Bugün */}
             {(() => {
-              const todayStr = new Date().toISOString().slice(0, 10);
+              const todayStr = getTurkeyTodayIso();
               const isActive = historyDate === todayStr && calendarMode === 'closed';
               return (
                 <button
@@ -1326,7 +1857,7 @@ export default function RouteHistory({
 
             {/* Geçmiş */}
             {(() => {
-              const todayStr = new Date().toISOString().slice(0, 10);
+              const todayStr = getTurkeyTodayIso();
               const isPanelOpen = calendarMode !== 'closed';
               const isActive = historyDate !== todayStr || isPanelOpen;
               
@@ -1376,7 +1907,7 @@ export default function RouteHistory({
                         const max = calendarMode === '7' ? 6 : 20;
                         const d = new Date();
                         d.setDate(d.getDate() - (max - i));
-                        const dateStr = d.toISOString().slice(0, 10);
+                        const dateStr = formatLocalIsoDate(d);
                         const isSelected = historyDate === dateStr;
                         const dayNames = ['Pz', 'Pt', 'Sa', 'Çr', 'Pe', 'Cu', 'Ct'];
                         const dayName = dayNames[d.getDay()];
@@ -1429,7 +1960,7 @@ export default function RouteHistory({
                         
                         for(let day=1; day<=daysInMonth; day++) {
                           const dObj = new Date(year, month, day);
-                          const dStr = dObj.toISOString().slice(0, 10);
+                          const dStr = formatLocalIsoDate(dObj);
                           const isSelected = historyDate === dStr;
                           const dayNames = ['Pz', 'Pt', 'Sa', 'Çr', 'Pe', 'Cu', 'Ct'];
                           const dayName = dayNames[dObj.getDay()];
@@ -1618,17 +2149,39 @@ export default function RouteHistory({
                           onClick={() => {
                             setSelectedSession(session);
                             setShowPlayer(true);
+                            setIsRouteVideoOpen(false);
                             setIsPlaying(true);
                           }}
-                          className={`p-1.5 rounded-xl transition-all ${
-                            isSelected && showPlayer
+                          className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+                            isSelected && showPlayer && !isRouteVideoOpen
                               ? 'bg-amber-500 text-white shadow-[0_0_12px_rgba(245,158,11,0.35)]'
                               : 'text-slate-400 hover:text-amber-300 hover:bg-white/[0.06]'
                           }`}
                           title="Rotayı Haritada Oynat"
                         >
-                          <Play size={13} fill={isSelected && showPlayer ? "currentColor" : "none"} />
+                          <Play size={13} fill={isSelected && showPlayer && !isRouteVideoOpen ? "currentColor" : "none"} />
                         </button>
+
+                        {hasCamera && (
+                          <button
+                            onClick={() => {
+                              setSelectedSession(session);
+                              setShowPlayer(true);
+                              setIsPlaying(false);
+                              const startTs = getPointTime(session[0]);
+                              if (startTs) setSeekTargetEpochMs(startTs);
+                              setIsRouteVideoOpen(true);
+                            }}
+                            className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+                              isSelected && isRouteVideoOpen
+                                ? 'bg-white/[0.12] text-white border border-white/[0.16]'
+                                : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.06]'
+                            }`}
+                            title="Rota ile Senkron Kamera Kaydını Aç"
+                          >
+                            <Video size={13} strokeWidth={1.75} />
+                          </button>
+                        )}
 
                         {/* Rotayı Kaydet */}
                         <button
@@ -1813,8 +2366,8 @@ export default function RouteHistory({
           >
             {/* Play / Pause */}
             <button
-              onClick={() => setIsPlaying(!isPlaying)}
-              className="w-10 h-10 rounded-full bg-gradient-to-r from-amber-600 to-orange-500 flex items-center justify-center text-white shadow-[0_2px_12px_rgba(245,158,11,0.35)] active:scale-95 transition-all flex-shrink-0"
+              onClick={handleTogglePlay}
+              className="w-10 h-10 rounded-full bg-gradient-to-r from-amber-600 to-orange-500 flex items-center justify-center text-white shadow-[0_2px_12px_rgba(245,158,11,0.35)] active:scale-95 transition-all flex-shrink-0 cursor-pointer"
             >
               {isPlaying
                 ? <Pause fill="currentColor" size={16} />
@@ -1837,6 +2390,22 @@ export default function RouteHistory({
               {playbackSpeed}x
             </button>
 
+            {/* Rota Senkron Kamera Kaydı (Yalnızca Kameralı Araçta) */}
+            {hasCamera && (
+              <button
+                type="button"
+                onClick={handleToggleRouteVideo}
+                title="Rota Anı Kamera Kaydı"
+                className={`w-8 h-8 rounded-xl border flex items-center justify-center transition-colors flex-shrink-0 cursor-pointer ${
+                  isRouteVideoOpen
+                    ? 'bg-white/[0.12] border-white/[0.2] text-white'
+                    : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/[0.06] text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Video size={14} strokeWidth={1.75} />
+              </button>
+            )}
+
             {/* Slider */}
             <div className="flex-1 min-w-0">
               <div className="flex justify-between text-[10px] font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">
@@ -1854,8 +2423,8 @@ export default function RouteHistory({
                   type="range"
                   min="0" max="100" step="0.1"
                   value={progress}
-                  onInput={e => { setIsPlaying(false); setProgress(parseFloat(e.target.value)); }}
-                  onChange={e => { setIsPlaying(false); setProgress(parseFloat(e.target.value)); }}
+                  onInput={e => handleUserSeek(parseFloat(e.target.value))}
+                  onChange={e => handleUserSeek(parseFloat(e.target.value))}
                   className="w-full h-1.5 appearance-none rounded-full outline-none cursor-pointer"
                   style={{
                     background: `linear-gradient(to right, #f59e0b ${progress}%, rgba(255,255,255,0.08) ${progress}%)`,
@@ -1889,6 +2458,7 @@ export default function RouteHistory({
               onClick={() => {
                 setShowPlayer(false);
                 setIsPlaying(false);
+                setIsRouteVideoOpen(false);
               }}
               className="w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.12] transition-all flex-shrink-0"
               title="Oynatıcıyı Kapat"
@@ -1899,6 +2469,30 @@ export default function RouteHistory({
         </motion.div>
       )}
       </AnimatePresence>
+
+      {/* ── ROTA SENKRON MINI KAMERA OYNATICI (4G Gecikme Korumalı, 0-Sapma) ── */}
+      {isVisible && hasCamera && selectedSession && (
+        <RouteVideoSyncOverlay
+          isOpen={isRouteVideoOpen}
+          driverId={selectedDriver}
+          historyDate={historyDate}
+          seekTargetEpochMs={seekTargetEpochMs}
+          playbackSpeed={playbackSpeed}
+          controlRef={routeVideoControlRef}
+          onVideoTimestampSync={handleVideoTimestampSync}
+          onPlayingStateChange={setIsPlaying}
+          onRequestNextChunk={handleRequestNextVideoChunk}
+          onExpandModal={() => {
+            setIsRouteVideoOpen(false);
+            setIsPlaying(false);
+            setIsCameraModalOpen(true);
+          }}
+          onClose={() => {
+            setIsRouteVideoOpen(false);
+            setIsPlaying(false);
+          }}
+        />
+      )}
 
       {/* ── MOBİL ROTA GEÇMİŞİ KARTI (Sadece Mobilde Görünür) ── */}
       {isVisible && (
@@ -1923,6 +2517,22 @@ export default function RouteHistory({
           interpolatedData={interpolatedData}
           historyLoading={historyLoading}
           customRouteNames={customRouteNames}
+          hasCamera={hasCamera}
+          isRouteVideoOpen={isRouteVideoOpen}
+          onToggleRouteVideo={handleToggleRouteVideo}
+          onTogglePlay={handleTogglePlay}
+          onUserSeek={handleUserSeek}
+        />
+      )}
+
+      {/* ── Tam Ekran Kamera Arşiv Modalı ── */}
+      {hasCamera && (
+        <CameraModal
+          isOpen={isCameraModalOpen}
+          onClose={() => setIsCameraModalOpen(false)}
+          deviceId={selectedDriver}
+          initialMode="history"
+          initialDate={historyDate}
         />
       )}
 

@@ -10,6 +10,7 @@ import FileUpload from './FileUpload';
 import CustomDatePicker from './CustomDatePicker';
 import { sendDiscordAlert } from '../services/discordWebhook';
 import { getGuardedUserConfig, isGuardOnCooldown, setGuardCooldown, findUserOwnTruck, isPlateMatchingUser } from '../utils/userTruckGuard';
+import { fetchPeriodTelemetry } from '../services/cameraService';
 
 const Fuel = ({ onOpenMenu, isMobile }) => {
     const { fuelRecords, allCompanyFuelRecords, addFuel, deleteFuel, editFuel, allCompanyStations, currentSession } = useContext(DataContext);
@@ -82,8 +83,68 @@ const Fuel = ({ onOpenMenu, isMobile }) => {
     const [showAddSuggestions, setShowAddSuggestions] = useState(false);
     const [showEditSuggestions, setShowEditSuggestions] = useState(false);
     const [timeFilter, setTimeFilter] = useState('all');
+    const [periodTelemetry, setPeriodTelemetry] = useState(null);
+    const [periodTelemetryLoading, setPeriodTelemetryLoading] = useState(false);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
+
+    const telemetryDriverId = React.useMemo(() => {
+        if (!activeTruckData) return null;
+        try {
+            const raw = localStorage.getItem(`device_mappings_${activeCompanyId || 'default'}`);
+            if (raw) {
+                const mappings = JSON.parse(raw);
+                for (const [devId, info] of Object.entries(mappings || {})) {
+                    if (
+                        (info?.truckId && info.truckId === activeTruckData.id) ||
+                        (info?.plate && activeTruckData.plate && info.plate.replace(/\s+/g, '') === activeTruckData.plate.replace(/\s+/g, ''))
+                    ) {
+                        return devId === 'Goksel' ? 'Göksel' : devId;
+                    }
+                }
+            }
+        } catch {
+            // varsayılan eşleşmeye geç
+        }
+        const plateUpper = (activeTruckData.plate || '').toUpperCase();
+        if (plateUpper.includes('FTN') || activeTruckData.id === 'truck_06ftn692') return 'Göksel';
+        if (plateUpper.includes('CVA')) return 'Mert';
+        return null;
+    }, [activeTruckData, activeCompanyId]);
+
+    useEffect(() => {
+        if (!telemetryDriverId) {
+            setPeriodTelemetry(null);
+            setPeriodTelemetryLoading(false);
+            return;
+        }
+        let cancelled = false;
+        setPeriodTelemetryLoading(true);
+        fetchPeriodTelemetry(telemetryDriverId, timeFilter)
+            .then((res) => {
+                if (!cancelled) {
+                    setPeriodTelemetry(res?.success ? res : null);
+                    setPeriodTelemetryLoading(false);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setPeriodTelemetry(null);
+                    setPeriodTelemetryLoading(false);
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [telemetryDriverId, timeFilter]);
+
+    const formatIdleSummary = (mins) => {
+        const m = Math.max(0, Math.round(Number(mins) || 0));
+        if (m < 60) return `${m} dk`;
+        const h = Math.floor(m / 60);
+        const rem = m % 60;
+        return rem > 0 ? `${h} sa ${rem} dk` : `${h} sa`;
+    };
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -740,7 +801,7 @@ return (
                     </div>
                 </div>
 
-                {/* KART 3: Ortalama Tüketim */}
+                {/* KART 3: Ortalama Tüketim & Kilometre Maliyeti */}
                 <div className="bg-[#0c1017]/90 backdrop-blur-xl border border-white/[0.07] hover:border-sky-500/35 rounded-xl p-3.5 sm:p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group transition-all duration-200">
                     <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-sky-400 pointer-events-none">
                         <Activity size={90} />
@@ -756,46 +817,60 @@ return (
                     </div>
 
                     <div>
-                        <div className="font-black text-xl sm:text-2xl text-white tracking-tight flex items-baseline gap-1">
+                        <div className="font-black text-xl sm:text-2xl text-white tracking-tight flex items-baseline gap-1 font-mono">
                             <span className={summaryStats.avgLtPer100km ? "text-white" : "text-slate-600"}>
                                 {summaryStats.avgLtPer100km ? summaryStats.avgLtPer100km.toFixed(1) : '—'}
                             </span>
                             {summaryStats.avgLtPer100km && (
-                                <span className="text-xs font-semibold text-sky-400">L/100km</span>
+                                <span className="text-xs font-semibold font-sans text-sky-400">L/100km</span>
                             )}
                         </div>
-                        <div className="h-[17px] mt-0.5"></div>
+                        <div className="text-[11px] font-semibold text-slate-400/80 mt-0.5 flex items-center gap-1 font-mono">
+                            <Gauge size={11} className="text-sky-400/80 shrink-0" />
+                            <span>
+                                {summaryStats.avgCostPerKm ? `₺${summaryStats.avgCostPerKm.toFixed(2)} / km` : 'Km maliyeti: —'}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
-                {/* KART 4: Kilometre Maliyeti */}
+                {/* KART 4: GPS Mesafe & Rölanti */}
                 <div className="bg-[#0c1017]/90 backdrop-blur-xl border border-white/[0.07] hover:border-emerald-500/35 rounded-xl p-3.5 sm:p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group transition-all duration-200">
                     <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-10 transition-opacity text-emerald-400 pointer-events-none">
-                        <Gauge size={90} />
+                        <MapPin size={90} />
                     </div>
 
                     <div className="flex items-center justify-between gap-2 mb-1.5">
                         <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                             <span className="p-1 rounded-md bg-emerald-500/10 text-emerald-400">
-                                <Gauge size={12} />
+                                <MapPin size={12} />
                             </span>
-                            Kilometre Maliyeti
+                            {periodTelemetry && !periodTelemetry.hasHardwareAcc ? 'GPS Mesafe' : 'GPS Mesafe & Rölanti'}
                         </span>
                     </div>
 
                     <div>
-                        <div className="font-black text-xl sm:text-2xl text-white tracking-tight flex items-baseline gap-1">
-                            {summaryStats.avgCostPerKm ? (
+                        <div className="font-black text-xl sm:text-2xl text-white tracking-tight flex items-baseline gap-1 font-mono">
+                            {periodTelemetry && !periodTelemetryLoading ? (
                                 <>
-                                    <span className="text-emerald-400 text-base sm:text-lg font-bold">₺</span>
-                                    <span>{summaryStats.avgCostPerKm.toFixed(2)}</span>
-                                    <span className="text-xs font-semibold text-slate-500">/ km</span>
+                                    <span>{Math.round(periodTelemetry.gpsKm || 0).toLocaleString('tr-TR')}</span>
+                                    <span className="text-xs font-semibold font-sans text-emerald-400">km</span>
                                 </>
                             ) : (
                                 <span className="text-slate-600">—</span>
                             )}
                         </div>
-                        <div className="h-[17px] mt-0.5"></div>
+                        <div className="text-[11px] font-semibold text-slate-400/80 mt-0.5 flex items-center gap-1">
+                            {periodTelemetryLoading ? (
+                                <span className="text-slate-500">Hesaplanıyor...</span>
+                            ) : periodTelemetry?.hasHardwareAcc ? (
+                                <span className="font-mono">Rölanti: {formatIdleSummary(periodTelemetry.idleMinutes)}</span>
+                            ) : periodTelemetry ? (
+                                <span className="font-mono">{periodTelemetry.tripCount || 0} Kayıtlı Sefer</span>
+                            ) : (
+                                <span className="text-slate-500">Telemetri verisi yok</span>
+                            )}
+                        </div>
                     </div>
                 </div>
 

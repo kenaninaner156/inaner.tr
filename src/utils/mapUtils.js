@@ -165,15 +165,17 @@ export function groupIntoSessions(rawPoints, maxGapMinutes = 30, geofences = [],
   let geofenceEntryTime = null;
   let geofenceSpentMeaningfulTime = false;
   
-  // Hareketsiz kalma (stationary) takibi için değişken (Traccar knot -> km/h: 1 knot = 1.852 km/h)
+  // Hareketsiz kalma (stationary) ve donanım kontağı (ACC) takibi (1 knot = 1.852 km/h)
   let stationaryStartTime = null;
+  let accOffStartTime = points[0].acc === 0 ? getPointTime(points[0]) : null;
   if ((points[0].speed || 0) * 1.852 < 5) {
     stationaryStartTime = getPointTime(points[0]);
   }
 
   for (let i = 1; i < points.length; i++) {
     const pt = points[i];
-    const prevTime = getPointTime(points[i - 1]);
+    const prevPt = points[i - 1];
+    const prevTime = getPointTime(prevPt);
     const curTime = getPointTime(pt);
     
     let splitTriggered = false;
@@ -183,6 +185,18 @@ export function groupIntoSessions(rawPoints, maxGapMinutes = 30, geofences = [],
       if (!stationaryStartTime) {
         stationaryStartTime = curTime;
       }
+    }
+
+    if (pt.acc === 0) {
+      if (!accOffStartTime) accOffStartTime = curTime;
+    } else if (pt.acc === 1 && prevPt.acc === 0) {
+      const offDuration = curTime - (accOffStartTime || prevTime);
+      if (offDuration >= 5 * 60 * 1000) {
+        splitTriggered = true;
+      }
+      accOffStartTime = null;
+    } else if (pt.acc === 1) {
+      accOffStartTime = null;
     }
 
     // Kural 1: 30 dk zaman boşluğu
@@ -407,13 +421,45 @@ export function getInterpolatedPointLinear(points, progressPercent) {
 
   const p1 = points[Math.min(segIndex, points.length - 1)];
   const p2 = points[Math.min(segIndex + 1, points.length - 1)];
+  const t1 = getPointTime(p1);
+  const t2 = getPointTime(p2);
+  const interpTimestamp =
+    t1 > 0 && t2 >= t1
+      ? new Date(Math.round(t1 + (t2 - t1) * ratio)).toISOString()
+      : p1.timestamp;
 
   return {
     lat: p1.lat + (p2.lat - p1.lat) * ratio,
     lon: p1.lon + (p2.lon - p1.lon) * ratio,
-    timestamp: p1.timestamp,
+    timestamp: interpTimestamp,
     speed: (p1.speed || 0) + ((p2.speed || 0) - (p1.speed || 0)) * ratio,
+    acc: ratio < 0.5 ? p1.acc : p2.acc,
     interpolated: true,
     originalIndex: segIndex,
   };
+}
+
+/**
+ * Verilen bir zaman damgasını (epochMs) getInterpolatedPointLinear ile birebir örtüşen
+ * %0 - %100 ilerleme değerine dönüştürür (Video <-> Harita 0-sapma senkronizasyonu).
+ */
+export function getProgressForTimestamp(points, targetEpochMs) {
+  if (!points || points.length < 2 || !Number.isFinite(targetEpochMs)) return 0;
+
+  const firstTime = getPointTime(points[0]);
+  const lastTime = getPointTime(points[points.length - 1]);
+  if (targetEpochMs <= firstTime) return 0;
+  if (targetEpochMs >= lastTime) return 100;
+
+  const totalSegments = points.length - 1;
+  for (let i = 0; i < totalSegments; i++) {
+    const t1 = getPointTime(points[i]);
+    const t2 = getPointTime(points[i + 1]);
+    if (targetEpochMs >= t1 && targetEpochMs <= t2) {
+      const segDuration = t2 - t1;
+      const ratio = segDuration > 0 ? (targetEpochMs - t1) / segDuration : 0;
+      return Math.min(100, Math.max(0, ((i + ratio) / totalSegments) * 100));
+    }
+  }
+  return 100;
 }

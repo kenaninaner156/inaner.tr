@@ -20,10 +20,11 @@ import {
   Loader2,
   Check,
   Power,
+  RefreshCw,
 } from 'lucide-react';
 import {
   fetchLiveStreamUrl,
-  fetchCameraHistorySegments,
+  fetchCachedCameraHistorySegments,
   resolveHistorySegmentStream,
   closeCameraStream,
   attachStreamToVideo,
@@ -61,17 +62,37 @@ export default function CameraModal({
   isOpen,
   onClose,
   deviceId,
+  initialMode = 'live',
   initialQuality = 'sd',
+  initialDate = null,
   onQualityChange,
 }) {
-  const [mode, setMode] = useState('live'); // 'live' | 'history'
+  const [mode, setMode] = useState(initialMode); // 'live' | 'history'
   const [quality, setQuality] = useState(initialQuality); // 'sd' (480p) | 'hd' (2K)
   const [isMuted, setIsMuted] = useState(false);
+  const [autoMutedByBrowser, setAutoMutedByBrowser] = useState(false);
   const [volume, setVolume] = useState(1.0);
+
+  const videoRef = useRef(null);
+  const cleanupStreamRef = useRef(null);
+  const liveStartedRef = useRef(false);
+
+  // Modal açıldığında hedef sekmeyi senkronize et ('live' veya 'history')
+  useEffect(() => {
+    if (!isOpen) return;
+    Promise.resolve().then(() => {
+      setMode(initialMode || 'live');
+      if (initialDate) {
+        setHistoryDate(initialDate);
+      }
+      setAutoMutedByBrowser(false);
+    });
+  }, [isOpen, initialMode, initialDate]);
 
   // Ses ayar yöneticisi (Kamera mikrofon ve canlı kabin sesi)
   const handleVolumeChange = (newVol) => {
     setVolume(newVol);
+    setAutoMutedByBrowser(false);
     if (videoRef.current) {
       videoRef.current.volume = newVol;
       if (newVol > 0) {
@@ -88,6 +109,7 @@ export default function CameraModal({
   const handleToggleMute = () => {
     const nextMute = !isMuted;
     setIsMuted(nextMute);
+    setAutoMutedByBrowser(false);
     if (videoRef.current) {
       videoRef.current.muted = nextMute;
       if (!nextMute) {
@@ -120,6 +142,8 @@ export default function CameraModal({
   const [segments, setSegments] = useState([]);
   const [selectedSegment, setSelectedSegment] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyReloadNonce, setHistoryReloadNonce] = useState(0);
+  const switchedFromLiveAtRef = useRef(0);
 
   // Geçmiş video oynatıcı kontrolleri
   const [isPlaying, setIsPlaying] = useState(true);
@@ -128,9 +152,6 @@ export default function CameraModal({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  const videoRef = useRef(null);
-  const cleanupStreamRef = useRef(null);
-
   const handleWakeUp = async () => {
     if (!deviceId || isWakingUp) return;
     setIsWakingUp(true);
@@ -138,19 +159,18 @@ export default function CameraModal({
     try {
       const res = await wakeUpCamera(deviceId);
       if (res.success) {
-        setWakeFeedback('Uyandırma komutu iletildi. Cihaz yanıt verdi, yayın başlatılıyor...');
+        setWakeFeedback('Uyandırma sinyali iletildi, görüntü başlatılıyor...');
       } else {
         setWakeFeedback(res.message || 'Cihaz yanıt vermedi.');
       }
     } catch {
       setWakeFeedback('Uyandırma isteği iletilemedi.');
     }
-    // 3.5 saniye sonra canlı yayını yeniden tetikle
     setTimeout(() => {
       setReloadLiveTrigger((c) => c + 1);
       setIsWakingUp(false);
       setTimeout(() => setWakeFeedback(''), 4500);
-    }, 3500);
+    }, 3000);
   };
 
   // Harita tıklama/kaydırma sızıntılarını engelle
@@ -162,6 +182,10 @@ export default function CameraModal({
   }, []);
 
   const handleClose = useCallback(() => {
+    if (cleanupStreamRef.current) {
+      cleanupStreamRef.current();
+      cleanupStreamRef.current = null;
+    }
     if (deviceId) {
       closeCameraStream(deviceId, mode);
     }
@@ -174,11 +198,20 @@ export default function CameraModal({
     setQuality(newQuality);
     if (onQualityChange) onQualityChange(newQuality);
   };
+  void handleQualitySwitch;
 
   const handleModeSwitch = (newMode) => {
     if (newMode === mode) return;
+    if (cleanupStreamRef.current) {
+      cleanupStreamRef.current();
+      cleanupStreamRef.current = null;
+    }
     setIsVideoLivePlaying(false);
+    setStreamStatus({ offline: false, message: '' });
     if (deviceId) {
+      if (mode === 'live' && newMode === 'history') {
+        switchedFromLiveAtRef.current = Date.now();
+      }
       closeCameraStream(deviceId, mode);
     }
     setMode(newMode);
@@ -198,82 +231,181 @@ export default function CameraModal({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isOpen, handleClose]);
 
-  // Canlı yayın akışını yükle (4.6 jimi.device.media.live.stream)
+  // Görünmez SIM Kota Koruması: Sekme gizlendiğinde veya 3 dk hareketsiz canlı yayında 4G akışını sessizce durdur
   useEffect(() => {
     if (!isOpen || mode !== 'live' || !deviceId) return;
-    let cancelled = false;
-    const savedTime = videoRef.current?.currentTime || 0;
 
-    Promise.resolve().then(() => {
-      if (!cancelled) setIsLoadingStream(true);
-      enableCameraAudio(deviceId).catch(() => {});
-    });
-
-    fetchLiveStreamUrl(deviceId, quality, true).then(async (streamInfo) => {
-      if (cancelled) return;
-      if (!streamInfo?.url || !videoRef.current) {
-        setIsLoadingStream(false);
-        if (streamInfo?.offline) {
-          setStreamStatus({
-            offline: true,
-            message: streamInfo.message || 'Kamera çevrimdışı veya araç kontağı kapalı.',
-          });
-        }
-        return;
-      }
-      setStreamStatus({ offline: false, message: '' });
+    const pauseLiveSilently = () => {
       if (cleanupStreamRef.current) {
         cleanupStreamRef.current();
         cleanupStreamRef.current = null;
       }
-      const cleanup = await attachStreamToVideo(videoRef.current, streamInfo.url);
+      closeCameraStream(deviceId, 'live');
+      liveStartedRef.current = false;
+      setIsVideoLivePlaying(false);
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        pauseLiveSilently();
+      } else {
+        setReloadLiveTrigger((c) => c + 1);
+      }
+    };
+
+    let idleTimer = null;
+    if (isVideoLivePlaying) {
+      idleTimer = setTimeout(() => {
+        pauseLiveSilently();
+        setStreamStatus({
+          offline: true,
+          message: 'Veri tasarrufu için canlı akış duraklatıldı. Devam etmek için yenileyebilirsiniz.',
+        });
+      }, 3 * 60 * 1000);
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      if (idleTimer) clearTimeout(idleTimer);
+    };
+  }, [isOpen, mode, deviceId, isVideoLivePlaying]);
+
+  // Canlı yayın akışını yükle (WSS-FLV düşük gecikmeli bağlantı)
+  useEffect(() => {
+    if (!isOpen || mode !== 'live' || !deviceId) return;
+    let cancelled = false;
+    liveStartedRef.current = false;
+
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      setIsLoadingStream(true);
+      setIsVideoLivePlaying(false);
+      setStreamStatus({ offline: false, message: '' });
+      enableCameraAudio(deviceId).catch(() => {});
+    });
+
+    // 14 saniye içinde görüntü karesi gelmezse sonsuz yükleme ekranını sonlandırıp uyku kartını göster
+    const streamTimeout = setTimeout(() => {
+      if (!cancelled && !liveStartedRef.current) {
+        if (cleanupStreamRef.current) {
+          cleanupStreamRef.current();
+          cleanupStreamRef.current = null;
+        }
+        setIsLoadingStream(false);
+        setStreamStatus({
+          offline: true,
+          message: 'Araç park halinde. Canlı görüntü için kamerayı uyandırabilir veya geçmiş kayıtları izleyebilirsiniz.',
+        });
+      }
+    }, 14000);
+
+    fetchLiveStreamUrl(deviceId, quality, true).then(async (streamInfo) => {
+      if (cancelled) return;
+      if (!streamInfo?.url || !videoRef.current) {
+        clearTimeout(streamTimeout);
+        setIsLoadingStream(false);
+        setStreamStatus({
+          offline: true,
+          message:
+            streamInfo?.message ||
+            'Araç park halinde. Canlı görüntü için kamerayı uyandırabilir veya geçmiş kayıtları izleyebilirsiniz.',
+        });
+        return;
+      }
+
+      if (cleanupStreamRef.current) {
+        cleanupStreamRef.current();
+        cleanupStreamRef.current = null;
+      }
+
+      const cleanup = await attachStreamToVideo(videoRef.current, streamInfo.url, {
+        hasAudio: true,
+        isLive: true,
+        fallbackUrl: streamInfo.fallbackUrl || null,
+        onAutoMuted: () => {
+          if (!cancelled) {
+            setIsMuted(true);
+            setAutoMutedByBrowser(true);
+          }
+        },
+        onError: (_errType, errDetail) => {
+          if (cancelled || liveStartedRef.current) return;
+          clearTimeout(streamTimeout);
+          setIsLoadingStream(false);
+          setStreamStatus({
+            offline: true,
+            message:
+              typeof errDetail === 'string' && errDetail.includes('iOS')
+                ? errDetail
+                : 'Canlı görüntü bağlantısı bekleniyor. Kamerayı uyandırarak tekrar deneyebilirsiniz.',
+          });
+        },
+      });
+
       if (cancelled) {
         if (cleanup) cleanup();
         return;
       }
       cleanupStreamRef.current = cleanup;
-      if (savedTime > 0 && videoRef.current) {
-        try {
-          videoRef.current.currentTime = savedTime;
-        } catch {
-          // ignore seek error on live streams
-        }
-      }
     });
 
     return () => {
       cancelled = true;
+      clearTimeout(streamTimeout);
     };
   }, [isOpen, mode, deviceId, quality, reloadLiveTrigger]);
 
-  // Geçmiş kayıt parçalarını yükle (4.7 cmd + 4.8 get)
+  // Geçmiş kayıt parçalarını yükle (4.7 cmd + 4.8 get — önbellek ve 4G tekrar deneme destekli)
   useEffect(() => {
     if (!isOpen || mode !== 'history' || !deviceId) return;
     let cancelled = false;
+    const forceRefresh = historyReloadNonce > 0;
 
-    Promise.resolve().then(() => {
-      if (!cancelled) setHistoryLoading(true);
-    });
-
-    fetchCameraHistorySegments(deviceId, historyDate, quality).then((res) => {
+    const loadSegments = async () => {
+      await Promise.resolve();
       if (cancelled) return;
-      setRecordedDates(res.recordedDates || []);
-      const segs = res.segments || [];
+      setHistoryLoading(true);
+
+      // Canlı yayından yeni geçildiyse cihazın RTMP oturumunu kapatması için 350ms nefes payı tanı
+      const sinceLiveSwitch = Date.now() - switchedFromLiveAtRef.current;
+      if (sinceLiveSwitch >= 0 && sinceLiveSwitch < 350) {
+        await new Promise((r) => setTimeout(r, 350 - sinceLiveSwitch));
+      }
+      if (cancelled) return;
+
+      const res = await fetchCachedCameraHistorySegments(
+        deviceId,
+        historyDate,
+        forceRefresh,
+        quality
+      );
+      if (cancelled) return;
+
+      if (Array.isArray(res.recordedDates) && res.recordedDates.length > 0) {
+        setRecordedDates((prev) => [...new Set([...prev, ...res.recordedDates])]);
+      }
+      // En güncel kayıt en üstte olacak şekilde sırala
+      const segs = [...(res.segments || [])].sort((a, b) =>
+        String(b.beginTime || '').localeCompare(String(a.beginTime || ''))
+      );
       setSegments(segs);
       setSelectedSegment((prev) => {
         if (prev) {
-          const match = segs.find(s => s.id === prev.id);
+          const match = segs.find((s) => s.id === prev.id);
           if (match) return match;
         }
         return segs[0] || null;
       });
       setHistoryLoading(false);
-    });
+    };
+
+    loadSegments();
 
     return () => {
       cancelled = true;
     };
-  }, [isOpen, mode, deviceId, historyDate, quality]);
+  }, [isOpen, mode, deviceId, historyDate, quality, historyReloadNonce]);
 
   // Seçili geçmiş segmenti videoya bağla (4.9 jimi.device.media.history.stream)
   useEffect(() => {
@@ -293,7 +425,19 @@ export default function CameraModal({
         cleanupStreamRef.current();
         cleanupStreamRef.current = null;
       }
-      const cleanup = await attachStreamToVideo(videoRef.current, streamUrl);
+      const cleanup = await attachStreamToVideo(videoRef.current, streamUrl, {
+        hasAudio: true,
+        isLive: false,
+        onAutoMuted: () => {
+          if (!cancelled) {
+            setIsMuted(true);
+            setAutoMutedByBrowser(true);
+          }
+        },
+        onError: () => {
+          if (!cancelled) setIsLoadingStream(false);
+        },
+      });
       if (cancelled) {
         if (cleanup) cleanup();
         return;
@@ -337,7 +481,6 @@ export default function CameraModal({
     const nowTurkeyIso = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 19).replace(/[:T]/g, '-');
 
     try {
-      // 1. Cihaza donanımsal çekim yaptır ve 4G üzerinden orijinal dosyayı çek
       const res = await triggerCameraSnapshot(deviceId);
 
       if (res?.success && res?.photoUrl) {
@@ -365,12 +508,12 @@ export default function CameraModal({
         return;
       }
 
-      // 2. Fallback: 4G yükleme zaman aşımına uğrarsa canlı yayından dürüst anlık kare al
+      // Fallback: 4G yükleme zaman aşımına uğrarsa canlı yayından anlık kare al
       const v = videoRef.current;
-      if (v) {
+      if (v && v.videoWidth > 0) {
         const canvas = document.createElement('canvas');
-        canvas.width = v.videoWidth || 640;
-        canvas.height = v.videoHeight || 360;
+        canvas.width = v.videoWidth;
+        canvas.height = v.videoHeight;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
 
@@ -516,7 +659,7 @@ export default function CameraModal({
                     const max = calendarMode === '7' ? 6 : 20;
                     const d = new Date();
                     d.setDate(d.getDate() - (max - i));
-                    const dateStr = d.toISOString().slice(0, 10);
+                    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
                     const isSelected = historyDate === dateStr;
                     const dayNames = ['Pz', 'Pt', 'Sa', 'Çr', 'Pe', 'Cu', 'Ct'];
                     const dayName = dayNames[d.getDay()];
@@ -646,19 +789,43 @@ export default function CameraModal({
   const renderSegmentsList = () => {
     if (historyLoading) {
       return (
-        <div className="flex items-center justify-center py-6">
+        <div className="flex flex-col items-center justify-center gap-2 py-6">
           <Loader2 size={18} className="text-amber-400 animate-spin" />
+          <span className="text-[11px] text-slate-400">SD kart kayıtları sorgulanıyor...</span>
         </div>
       );
     }
     if (segments.length === 0) {
       return (
-        <div className="py-6 text-center text-xs text-slate-500">
-          Kayıt bulunamadı.
+        <div className="py-5 flex flex-col items-center gap-2.5 text-center">
+          <span className="text-xs text-slate-500">Kayıt bulunamadı.</span>
+          <button
+            type="button"
+            onClick={() => setHistoryReloadNonce((n) => n + 1)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-[11px] font-medium text-slate-300 hover:text-white transition-colors cursor-pointer"
+          >
+            <RefreshCw size={12} />
+            <span>Tekrar Sorgula</span>
+          </button>
         </div>
       );
     }
-    return segments.map((seg) => {
+    return (
+      <>
+        <div className="flex items-center justify-between px-1 pb-1">
+          <span className="text-[10px] font-mono text-slate-400">
+            {segments.length} kayıt parçası
+          </span>
+          <button
+            type="button"
+            onClick={() => setHistoryReloadNonce((n) => n + 1)}
+            title="Listeyi Yenile"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+          >
+            <RefreshCw size={11} />
+          </button>
+        </div>
+        {segments.map((seg) => {
       const isSelected = selectedSegment?.id === seg.id;
       return (
         <div
@@ -688,17 +855,19 @@ export default function CameraModal({
           </div>
 
           <div className="flex items-center gap-1.5">
-            <a
-              href={seg.url}
-              download={seg.fileName || true}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors"
-              title="İndir"
-            >
-              <Download size={13} />
-            </a>
+            {seg.url && (
+              <a
+                href={seg.url}
+                download={seg.fileName || true}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors"
+                title="İndir"
+              >
+                <Download size={13} />
+              </a>
+            )}
             {isSelected && (
               <div className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center">
                 <Check size={12} />
@@ -707,7 +876,9 @@ export default function CameraModal({
           </div>
         </div>
       );
-    });
+    })}
+      </>
+    );
   };
 
   return createPortal(
@@ -748,43 +919,46 @@ export default function CameraModal({
           }
         `}</style>
 
-        {/* ── TAM EKRAN VİDEO SAHNESİ (Kırpılma Olmadan Tam Alanı Kaplar, Menüler Üzerinde Yüzer) ── */}
+        {/* ── TAM EKRAN VİDEO SAHNESİ ── */}
         <div className="absolute inset-0 flex items-center justify-center bg-[#05070b]">
           <video
             ref={videoRef}
             autoPlay
             playsInline
+            disableRemotePlayback
+            x-webkit-airplay="deny"
             muted={isMuted}
             onLoadedMetadata={(e) => {
+              liveStartedRef.current = true;
               setIsLoadingStream(false);
               setIsVideoLivePlaying(true);
               const v = e.currentTarget;
               if (v) {
                 v.volume = volume;
-                v.muted = isMuted;
               }
             }}
             onCanPlay={(e) => {
+              liveStartedRef.current = true;
               setIsLoadingStream(false);
               setIsVideoLivePlaying(true);
               const v = e.currentTarget;
               if (v) {
                 v.volume = volume;
-                v.muted = isMuted;
               }
             }}
             onLoadedData={() => {
+              liveStartedRef.current = true;
               setIsLoadingStream(false);
               setIsVideoLivePlaying(true);
             }}
             onPlaying={(e) => {
+              liveStartedRef.current = true;
               setIsLoadingStream(false);
               setIsPlaying(true);
               setIsVideoLivePlaying(true);
               const v = e.currentTarget;
               if (v) {
                 v.volume = volume;
-                v.muted = isMuted;
               }
             }}
             onTimeUpdate={(e) => {
@@ -805,42 +979,57 @@ export default function CameraModal({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 flex items-center justify-center bg-black/35 backdrop-blur-[2px] pointer-events-none"
+                className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-black/40 backdrop-blur-[2px] pointer-events-none"
               >
-                <Loader2 size={28} className="text-white/80 animate-spin" />
+                <Loader2 size={26} className="text-white/80 animate-spin" />
+                <span className="text-xs font-medium text-slate-300 tracking-tight">
+                  {mode === 'live' ? 'Canlı görüntü bağlanıyor' : 'Kayıt yükleniyor'}
+                </span>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Çevrimdışı / Araç Kontağı Kapalı / Uyku Modu Durumu */}
+          {/* Mobil Tarayıcı Otomatik Sessize Alma Bildirimi — Tek Dokunuşla Kabin Sesini Aç */}
+          {autoMutedByBrowser && isMuted && isVideoLivePlaying && (
+            <button
+              type="button"
+              onClick={handleToggleMute}
+              className="absolute bottom-5 left-4 sm:bottom-6 sm:left-6 z-20 inline-flex items-center gap-2 min-h-[40px] px-3.5 py-2 rounded-2xl bg-[#0a0d14]/90 hover:bg-[#131924] border border-white/10 text-slate-100 text-xs font-semibold backdrop-blur-xl shadow-2xl active:scale-95 transition-all cursor-pointer"
+            >
+              <VolumeX size={15} className="text-amber-400" />
+              <span>Sesi Aç</span>
+            </button>
+          )}
+
+          {/* Park / Uyku Modu Kartı */}
           {mode === 'live' && streamStatus.offline && !isLoadingStream && (
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-3 z-10 px-4">
-              <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center backdrop-blur-md shadow-2xl">
-                <VideoOff size={24} className="text-slate-400" />
+              <div className="w-12 h-12 rounded-2xl bg-[#0a0d14] border border-white/[0.08] flex items-center justify-center shadow-2xl">
+                <VideoOff size={20} className="text-slate-400" />
               </div>
               <div className="text-center max-w-sm">
-                <p className="text-sm font-semibold text-slate-200">
-                  {streamStatus.offline ? 'Kamera Çevrimdışı' : 'Kamera Bekleme Modunda (Kontak Kapalı)'}
+                <p className="text-sm font-semibold text-slate-100">
+                  Kamera Uyku Modunda
                 </p>
                 <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                  {streamStatus.message || 'Canlı video aktarımı için cihazı uyandırabilir veya araç kontağını açabilirsiniz.'}
+                  {streamStatus.message || 'Canlı görüntü için cihazı uyandırabilir veya geçmiş kayıtları izleyebilirsiniz.'}
                 </p>
                 {wakeFeedback && (
-                  <p className="text-xs text-emerald-400 mt-2.5 font-medium animate-pulse">
+                  <p className="text-xs text-emerald-400 mt-2.5 font-medium">
                     {wakeFeedback}
                   </p>
                 )}
-                <div className="mt-4 pointer-events-auto flex items-center justify-center gap-2">
+                <div className="mt-4 pointer-events-auto flex flex-wrap items-center justify-center gap-2">
                   <button
                     type="button"
                     onClick={handleWakeUp}
                     disabled={isWakingUp}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-xs font-semibold shadow-lg shadow-emerald-950/50 border border-emerald-400/40 active:scale-95 transition-all disabled:opacity-60 cursor-pointer"
+                    className="inline-flex items-center gap-2 min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold border border-emerald-400/30 active:scale-95 transition-all disabled:opacity-60 cursor-pointer"
                   >
                     {isWakingUp ? (
                       <>
                         <Loader2 size={14} className="animate-spin text-white" />
-                        <span>Cihaz Uyandırılıyor...</span>
+                        <span>Uyandırılıyor...</span>
                       </>
                     ) : (
                       <>
@@ -849,25 +1038,34 @@ export default function CameraModal({
                       </>
                     )}
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleModeSwitch('history')}
+                    className="inline-flex items-center gap-2 min-h-[40px] px-4 py-2 rounded-xl bg-[#0d1219] hover:bg-white/[0.08] text-slate-200 text-xs font-semibold border border-white/10 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Clock size={14} className="text-amber-400" />
+                    <span>Geçmiş Kayıtlar</span>
+                  </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Sağ Alt Köşede Erişilebilir "Kamerayı Uyandır" Butonu - Yalnızca yayın akmıyorken */}
-          {mode === 'live' && !isVideoLivePlaying && (
+          {/* Sağ Alt Köşede Erişilebilir "Kamerayı Uyandır" Butonu - Yalnızca bağlantı aşamasında */}
+          {mode === 'live' && !isVideoLivePlaying && !streamStatus.offline && (
             <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 z-20 pointer-events-auto flex">
               <button
                 type="button"
                 onClick={handleWakeUp}
                 disabled={isWakingUp}
-                className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-[#0D1219]/90 hover:bg-[#141b24] border border-white/10 hover:border-emerald-500/40 text-slate-200 hover:text-white text-xs font-semibold backdrop-blur-xl shadow-2xl transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                className="inline-flex items-center gap-2 min-h-[40px] px-3.5 sm:px-4 py-2 rounded-2xl bg-[#0a0d14]/90 hover:bg-[#141b24] border border-white/10 hover:border-emerald-500/40 text-slate-200 hover:text-white text-xs font-semibold backdrop-blur-xl shadow-2xl transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
                 title="Kamerayı 4G üzerinden uyandır"
               >
                 {isWakingUp ? (
                   <>
                     <Loader2 size={14} className="animate-spin text-emerald-400" />
-                    <span>Cihaz Uyandırılıyor...</span>
+                    <span>Uyandırılıyor...</span>
                   </>
                 ) : (
                   <>
@@ -982,7 +1180,7 @@ export default function CameraModal({
           <button
             onClick={handleSnapshot}
             disabled={isCapturingPhoto}
-            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-[#0D1219]/90 hover:bg-[#141c27] backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.75)] flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition-all cursor-pointer shrink-0 ${isCapturingPhoto ? 'opacity-70 cursor-wait' : ''}`}
+            className={`w-10 h-10 rounded-2xl bg-[#0D1219]/90 hover:bg-[#141c27] backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.75)] flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition-all cursor-pointer shrink-0 ${isCapturingPhoto ? 'opacity-70 cursor-wait' : ''}`}
             title="Cihazdan Orijinal Fotoğraf Çek (SNAP#)"
           >
             {isCapturingPhoto ? (
@@ -996,7 +1194,7 @@ export default function CameraModal({
           <div className="flex items-center rounded-2xl bg-[#0D1219]/90 hover:bg-[#141c27] backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.75)] p-1 sm:p-1.5 transition-all">
             <button
               onClick={handleToggleMute}
-              className="w-7 h-7 rounded-xl flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition-all cursor-pointer"
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition-all cursor-pointer"
               title={isMuted ? 'Sesi Aç' : `Ses Seviyesi: %${Math.round(volume * 100)}`}
             >
               {isMuted || volume === 0 ? (
@@ -1051,7 +1249,7 @@ export default function CameraModal({
           )}
         </AnimatePresence>
 
-        {/* ── MASAÜSTÜ & iPAD SOL MENÜ KAPALIYKEN AÇMA BUTONU (RouteHistory ile Birebir Aynı) ── */}
+        {/* ── MASAÜSTÜ & iPAD SOL MENÜ KAPALIYKEN AÇMA BUTONU ── */}
         <AnimatePresence>
           {mode === 'history' && !showHistorySidebar && (
             <motion.button
@@ -1125,7 +1323,7 @@ export default function CameraModal({
           )}
         </AnimatePresence>
 
-        {/* ── MOBİL YÜZEN ALT GEÇMİŞ KARTI (Görüntünün Üzerinde & Gizlenebilir) ── */}
+        {/* ── MOBİL YÜZEN ALT GEÇMİŞ KARTI ── */}
         <AnimatePresence>
           {mode === 'history' && (
             <motion.div

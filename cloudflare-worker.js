@@ -17,6 +17,7 @@ const lastD1LiveWrite = new Map();     // deviceId -> { time: ms, lat, lon, isMo
 const lastRoutePointWrite = new Map(); // deviceId -> { time: ms, lat, lon, heading, speed }
 const d1TrailCache = new Map();        // deviceId -> { time: ms, tripStartTime: ms, trail: [] }
 let cachedGeofences = { time: 0, list: [] };
+let lastJc182EdgeSyncAt = 0;
 const debugLogs = [];
 
 function logEvent(type, data) {
@@ -136,7 +137,7 @@ export default {
     // Telemetri harici tüm istekleri orijine (Vercel) yönlendir
     const isSaveLocationPath = url.pathname.includes('save-location') || url.pathname.includes('location');
     const queryAction = url.searchParams.get('action');
-    const isTelemetryAction = queryAction && ['test_d1', 'get_debug', 'sync_geofences', 'get_history', 'get_live', 'get_vehicles', 'delete_device'].includes(queryAction);
+    const isTelemetryAction = queryAction && ['test_d1', 'get_debug', 'sync_geofences', 'get_history', 'get_period_stats', 'get_live', 'get_vehicles', 'delete_device'].includes(queryAction);
 
     if (!isSaveLocationPath && !isTelemetryAction) {
       return fetch(request);
@@ -245,7 +246,7 @@ export default {
             const startOfDayMs = Date.UTC(y, m - 1, d, 0, 0, 0) - (3 * 3600 * 1000);
             const endOfDayMs = startOfDayMs + (24 * 3600 * 1000) - 1;
 
-            let sql = 'SELECT device_id, lat, lon, speed, altitude, timestamp, point_time FROM route_points WHERE point_time >= ? AND point_time <= ?';
+            let sql = 'SELECT device_id, lat, lon, speed, altitude, acc, timestamp, point_time FROM route_points WHERE point_time >= ? AND point_time <= ?';
             const params = [startOfDayMs, endOfDayMs];
             if (driverId) {
               sql += ' AND device_id = ?';
@@ -253,7 +254,13 @@ export default {
             }
             sql += ' ORDER BY point_time ASC LIMIT 5000';
 
-            const { results } = await env.DB.prepare(sql).bind(...params).all();
+            let results;
+            try {
+              ({ results } = await env.DB.prepare(sql).bind(...params).all());
+            } catch {
+              const fallbackSql = sql.replace(', acc,', ',');
+              ({ results } = await env.DB.prepare(fallbackSql).bind(...params).all());
+            }
             return new Response(JSON.stringify({
               success: true,
               source: 'cloudflare_d1',
@@ -270,8 +277,152 @@ export default {
         }
       }
 
+      // ── 3.1 DÖNEMSEL TELEMETRİ ÖZETİ (Yakıt & Rölanti Analizi - D1 SQL) ──
+      if (action === 'get_period_stats') {
+        const driverId = String(data.driverId || data.deviceId || url.searchParams.get('driverId') || 'Göksel').trim();
+        const period = String(data.period || url.searchParams.get('period') || 'all').trim();
+        const nowTr = getTurkeyDateStr();
+        const [curY, curM] = nowTr.split('-').map(Number);
+
+        let startDate = '2025-01-01';
+        let endDate = nowTr;
+        if (/^\d{4}-\d{2}$/.test(period)) {
+          const [y, m] = period.split('-').map(Number);
+          const lastDay = new Date(y, m, 0).getDate();
+          startDate = `${period}-01`;
+          endDate = `${period}-${String(lastDay).padStart(2, '0')}`;
+        } else if (period === 'year') {
+          startDate = `${curY}-01-01`;
+        } else if (period === '3months') {
+          const d3 = new Date(Date.UTC(curY, curM - 3, 1));
+          startDate = d3.toISOString().slice(0, 10);
+        }
+        if (endDate > nowTr) endDate = nowTr;
+
+        if (env.DB) {
+          try {
+            const JC182_ACTIVATION_DATE = '2026-11-04';
+            const isCameraTruck = driverId === 'Göksel' || driverId === 'Goksel';
+            let results;
+            try {
+              ({ results } = await env.DB.prepare(`
+                SELECT lat, lon, speed, acc, date, point_time
+                FROM route_points
+                WHERE device_id = ? AND date >= ? AND date <= ?
+                ORDER BY point_time ASC
+                LIMIT 25000
+              `).bind(driverId, startDate, endDate).all());
+            } catch {
+              ({ results } = await env.DB.prepare(`
+                SELECT lat, lon, speed, date, point_time
+                FROM route_points
+                WHERE device_id = ? AND date >= ? AND date <= ?
+                ORDER BY point_time ASC
+                LIMIT 25000
+              `).bind(driverId, startDate, endDate).all());
+            }
+
+            const pts = results || [];
+            let gpsKm = 0;
+            let idleMs = 0;
+            let pendingIdleMs = 0;
+            let stopStartMs = 0;
+            let lastMoveMs = 0;
+            let tripCount = 0;
+            let inTrip = false;
+            const periodHasAccData = isCameraTruck && endDate >= JC182_ACTIVATION_DATE;
+
+            for (let i = 1; i < pts.length; i++) {
+              const p1 = pts[i - 1];
+              const p2 = pts[i];
+              const t1 = Number(p1.point_time) || 0;
+              const t2 = Number(p2.point_time) || 0;
+              const dt = t2 - t1;
+              if (dt <= 0) continue;
+
+              const dist = haversineKm(Number(p1.lat), Number(p1.lon), Number(p2.lat), Number(p2.lon));
+              if (dist > 0.003 && dist < 8) {
+                gpsKm += dist;
+              }
+              const s2Kmh = (Number(p2.speed) || 0) * 1.852;
+              const s1Kmh = (Number(p1.speed) || 0) * 1.852;
+              const ptDate = p2.date || getTurkeyDateStr(t2);
+              const canMeasureIdle = isCameraTruck && ptDate >= JC182_ACTIVATION_DATE;
+              const hasExplicitAcc = p1.acc !== undefined && p1.acc !== null;
+
+              if (s2Kmh >= 5) {
+                if (canMeasureIdle) {
+                  if (hasExplicitAcc) {
+                    if (Number(p1.acc) === 1 && s1Kmh < 3 && dt <= 30 * 60 * 1000) {
+                      idleMs += dt;
+                    }
+                  } else if (inTrip && s1Kmh < 3) {
+                    const fullStopMs = t2 - (stopStartMs || t1);
+                    if (fullStopMs > 0 && fullStopMs <= 10 * 60 * 1000) {
+                      idleMs += fullStopMs;
+                    }
+                  }
+                }
+                if (!inTrip || (lastMoveMs > 0 && (t2 - lastMoveMs) > 30 * 60 * 1000)) {
+                  tripCount += 1;
+                  inTrip = true;
+                }
+                pendingIdleMs = 0;
+                stopStartMs = 0;
+                lastMoveMs = t2;
+              } else if (canMeasureIdle) {
+                if (hasExplicitAcc) {
+                  pendingIdleMs = 0;
+                  stopStartMs = 0;
+                  if (Number(p1.acc) === 1 && s1Kmh < 3 && dt <= 30 * 60 * 1000) {
+                    idleMs += dt;
+                  }
+                  if (Number(p1.acc) === 0 || Number(p2.acc) === 0) {
+                    inTrip = false;
+                  }
+                } else if (inTrip && s1Kmh < 3) {
+                  if (!stopStartMs) stopStartMs = t1;
+                  if ((t2 - stopStartMs) > 10 * 60 * 1000) {
+                    pendingIdleMs = 0;
+                    inTrip = false;
+                  }
+                }
+              } else if (dt > 30 * 60 * 1000) {
+                inTrip = false;
+              }
+            }
+
+            return new Response(JSON.stringify({
+              success: true,
+              source: 'cloudflare_d1_period_v2',
+              driverId,
+              period,
+              gpsKm: Number(gpsKm.toFixed(1)),
+              idleMinutes: periodHasAccData ? Math.round(idleMs / 60000) : 0,
+              tripCount,
+              hasHardwareAcc: periodHasAccData
+            }), {
+              status: 200,
+              headers: { ...CORS_HEADERS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
+            });
+          } catch (pErr) {
+            logEvent('get_period_stats_error', { message: pErr.message });
+          }
+        }
+      }
+
       // ── 4. CANLI FİLO VE AKTİF SEFER SORGUSU (get_live / get_vehicles) ──
       if (action === 'get_live' || action === 'get_vehicles') {
+        const nowSyncMs = Date.now();
+        if (nowSyncMs - lastJc182EdgeSyncAt >= 12000 && request.headers.get('X-Edge-Internal') !== '1') {
+          lastJc182EdgeSyncAt = nowSyncMs;
+          ctx.waitUntil(
+            fetch(`${url.origin}/api/camera-stream?action=telemetry&imei=869058070168628&sync_gps=1`, {
+              headers: { 'X-Edge-Internal': '1' }
+            }).catch(() => {})
+          );
+        }
+
         let vehiclesMap = new Map();
         const nowMs = Date.now();
 
@@ -360,6 +511,9 @@ export default {
             existing.timestamp = memVeh.timestamp;
             existing.updatedAt = memVeh.updatedAt;
             existing.isOnline = isOnline;
+            if (memVeh.acc !== undefined) existing.acc = memVeh.acc;
+            if (memVeh.isIdling !== undefined) existing.isIdling = memVeh.isIdling;
+            if (memVeh.stationaryMinutes !== undefined) existing.stationaryMinutes = memVeh.stationaryMinutes;
             if (memVeh.dailyKm !== undefined && memVeh.dailyKm > existing.dailyKm) {
               existing.dailyKm = memVeh.dailyKm;
             }
@@ -408,6 +562,7 @@ export default {
 
       // Bu bir GPS isteği mi?
       const hasCoords = (data.lat !== undefined && data.lon !== undefined) ||
+                        (data.latitude !== undefined && data.longitude !== undefined) ||
                         (data.location && data.location.coords) ||
                         (data.coords);
       const isSaveLocation = url.pathname.includes('save-location') || url.pathname.includes('location') || hasCoords;
@@ -500,8 +655,20 @@ export default {
       }
 
       // Goksel veya JC182 IMEI -> Göksel İsim Normalizasyonu
-      if (deviceId === 'Goksel' || (env.GOKSEL_IMEI && deviceId === String(env.GOKSEL_IMEI))) {
+      if (deviceId === 'Goksel' || deviceId === '869058070168628' || (env.GOKSEL_IMEI && deviceId === String(env.GOKSEL_IMEI))) {
         deviceId = 'Göksel';
+      }
+
+      // Göksel için yalnızca JC182 kamera donanımı GPS ve ACC otoritesidir; eski telefon GPS pinglemelerini yoksay
+      if (deviceId === 'Göksel' && !data.msgType && !data.deviceImei && data.source !== 'jc182_camera') {
+        return new Response(JSON.stringify({
+          success: true,
+          ignored: true,
+          message: 'Göksel JC182 donanımı ile takip edilmektedir, telefon sinyali devredışıdır.'
+        }), {
+          status: 200,
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+        });
       }
 
       if (isNaN(rawLat) || isNaN(rawLon) || rawLat < -90 || rawLat > 90 || rawLon < -180 || rawLon > 180) {
@@ -530,6 +697,24 @@ export default {
 
       // Önceki konuma göre istikamet açısı tamamlama (cihaz heading göndermiyorsa)
       const prevMem = liveFleet.get(deviceId);
+      let hwAcc = prevMem?.acc ?? null;
+      if (data.acc !== undefined && data.acc !== null && data.acc !== '') {
+        hwAcc = Number(data.acc) ? 1 : 0;
+      } else if (data.msgType === 'jimi.push.device.status' && data.status) {
+        if (String(data.status).includes('ACC_ON')) hwAcc = 1;
+        else if (String(data.status).includes('ACC_OFF')) hwAcc = 0;
+      }
+      const speedKmh = speed * 1.852;
+      const hwIsIdling =
+        data.isIdling !== undefined
+          ? Boolean(Number(data.isIdling) || data.isIdling === true)
+          : data.staticType === 'IDLING' || (hwAcc === 1 && speedKmh <= 3);
+      const hwStationaryMin = Number.isFinite(Number(data.stationaryMinutes))
+        ? Number(data.stationaryMinutes)
+        : null;
+      const accChanged = prevMem && prevMem.acc !== undefined && prevMem.acc !== null && hwAcc !== null && prevMem.acc !== hwAcc;
+      const accOffSince = hwAcc === 0 ? (prevMem?.acc === 0 && prevMem?.accOffSince ? prevMem.accOffSince : pointTime) : null;
+
       let calculatedHeading = rawHeading;
       if (!calculatedHeading && prevMem && prevMem.lat && prevMem.lon) {
         const dMove = haversineKm(prevMem.lat, prevMem.lon, rawLat, rawLon);
@@ -601,7 +786,7 @@ export default {
               activeGeofenceId = currentGeofence.id;
               geofenceEntryTime = pointTime;
               geofenceEventTriggered = true;
-              notifyDiscord(`📍 [GEOFENCE GİRİŞ] **${deviceId}** '${currentGeofence.name}' bölgesine giriş yaptı.`);
+              notifyDiscord(`[GEOFENCE GİRİŞ] **${deviceId}** '${currentGeofence.name}' bölgesine giriş yaptı.`);
             }
           } else {
             // Tır özel bölge DIŞINDA
@@ -612,7 +797,7 @@ export default {
                 // Tesis kapısından yola çıktı -> YENİ SEFERİ BAŞLAT
                 activeTripStartTime = pointTime;
                 geofenceEventTriggered = true;
-                notifyDiscord(`🚀 [YENİ SEFER] **${deviceId}** özel bölgeden çıkış yaptı. Yeni sefer başlatıldı.`);
+                notifyDiscord(`[YENİ SEFER] **${deviceId}** özel bölgeden çıkış yaptı. Yeni sefer başlatıldı.`);
                 // Bellekteki eski rota izini temizle
                 if (prevMem) prevMem.recentTrail = [];
                 d1TrailCache.delete(deviceId);
@@ -622,12 +807,23 @@ export default {
             }
           }
 
+          // Donanım Kontak (ACC 0 -> 1) Sefer Bölme Kuralı (En az 5 dk kapalı kaldıktan sonra kontak açılırsa)
+          if (prevMem && prevMem.acc === 0 && hwAcc === 1) {
+            const offDurationMs = prevMem.accOffSince ? (pointTime - prevMem.accOffSince) : 0;
+            if (offDurationMs >= 5 * 60 * 1000) {
+              activeTripStartTime = pointTime;
+              geofenceEventTriggered = true;
+              if (prevMem) prevMem.recentTrail = [];
+              d1TrailCache.delete(deviceId);
+            }
+          }
+
           // 30 Dakika Mola Kuralı
           if (lastPointForKm && lastPointForKm.updated_at) {
             const timeSinceLastUpdateMin = (pointTime - new Date(lastPointForKm.updated_at).getTime()) / 60000;
             if (timeSinceLastUpdateMin >= 30 && speed > 5) {
               activeTripStartTime = pointTime;
-              notifyDiscord(`🟢 [MOLA BİTTİ] **${deviceId}** 30 dakikalık duraklamanın ardından tekrar seyre başladı.`);
+              notifyDiscord(`[MOLA BİTTİ] **${deviceId}** 30 dakikalık duraklamanın ardından tekrar seyre başladı.`);
               if (prevMem) prevMem.recentTrail = [];
             }
           }
@@ -703,10 +899,9 @@ export default {
 
           let shouldRecordPoint = false;
           if (!isCurrentlyMoving) {
-            // Dururken (Hız < 3 km/s):
-            // Sadece durma anını işaretlemek için ilk duruş noktasını kaydet (sefer bitişi).
-            // Araç park halinde kaldığı sürece (ptDistKm < 50m) diske mükerrer 0 km/h noktası yazma!
-            if (lastPt.speed >= 3 || lastPt.time === 0) {
+            // Dururken (Hız < 3 knot):
+            // İlk duruş noktasını veya kontak (ACC) değişimini işaretle
+            if (lastPt.speed >= 3 || lastPt.time === 0 || accChanged) {
               shouldRecordPoint = true;
             } else if (ptDistKm >= 0.05) {
               shouldRecordPoint = true;
@@ -732,10 +927,25 @@ export default {
           }
 
           if (shouldRecordPoint) {
-            await env.DB.prepare(`
-              INSERT INTO route_points (device_id, lat, lon, speed, altitude, timestamp, point_time, date)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `).bind(deviceId, rawLat, rawLon, speed, altitude, pointTimestamp, pointTime, dateStr).run();
+            try {
+              await env.DB.prepare(`
+                INSERT INTO route_points (device_id, lat, lon, speed, altitude, acc, timestamp, point_time, date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `).bind(deviceId, rawLat, rawLon, speed, altitude, hwAcc, pointTimestamp, pointTime, dateStr).run();
+            } catch {
+              try {
+                await env.DB.prepare('ALTER TABLE route_points ADD COLUMN acc INTEGER').run();
+                await env.DB.prepare(`
+                  INSERT INTO route_points (device_id, lat, lon, speed, altitude, acc, timestamp, point_time, date)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `).bind(deviceId, rawLat, rawLon, speed, altitude, hwAcc, pointTimestamp, pointTime, dateStr).run();
+              } catch {
+                await env.DB.prepare(`
+                  INSERT INTO route_points (device_id, lat, lon, speed, altitude, timestamp, point_time, date)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `).bind(deviceId, rawLat, rawLon, speed, altitude, pointTimestamp, pointTime, dateStr).run();
+              }
+            }
 
             lastRoutePointWrite.set(deviceId, {
               time: pointTime,
@@ -765,6 +975,10 @@ export default {
           speed,
           altitude,
           heading: Math.round(calculatedHeading),
+          acc: hwAcc,
+          isIdling: hwIsIdling,
+          stationaryMinutes: hwStationaryMin,
+          accOffSince,
           timestamp: pointTimestamp,
           updatedAt: isoNow,
           isOnline: true,
@@ -780,6 +994,10 @@ export default {
         vehicle.speed = speed;
         vehicle.altitude = altitude;
         vehicle.heading = Math.round(calculatedHeading);
+        if (hwAcc !== null) vehicle.acc = hwAcc;
+        vehicle.isIdling = hwIsIdling;
+        if (hwStationaryMin !== null) vehicle.stationaryMinutes = hwStationaryMin;
+        vehicle.accOffSince = accOffSince;
         vehicle.timestamp = pointTimestamp;
         vehicle.updatedAt = isoNow;
         vehicle.isOnline = true;
@@ -794,6 +1012,7 @@ export default {
         lat: rawLat,
         lon: rawLon,
         speed,
+        ...(hwAcc !== null ? { acc: hwAcc } : {}),
         altitude,
         timestamp: pointTimestamp
       });
@@ -821,5 +1040,13 @@ export default {
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
       });
     }
+  },
+
+  async scheduled(_event, _env, ctx) {
+    ctx.waitUntil(
+      fetch('https://inaner.tr/api/camera-stream?action=telemetry&imei=869058070168628&sync_gps=1', {
+        headers: { 'X-Edge-Internal': '1' }
+      }).catch(() => {})
+    );
   }
 };

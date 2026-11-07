@@ -159,19 +159,83 @@ export async function triggerCameraSnapshot(deviceId) {
 }
 
 /**
- * Aracın anlık kontak (ACC), park durumu, akü voltajı, uydu ve 4G telemetrisini döndürür.
- * @param {string} deviceId
+ * Epoch milisaniyeyi Türkiye yerel kamera saatine ("YYYY-MM-DD HH:mm:ss", UTC+3) çevirir.
+ * Tracksolid sortBeginTime alanı +3 saat kayma ürettiği için daima bu fonksiyon kullanılır.
  */
-export async function fetchCameraTelemetry(deviceId) {
+export function toTurkeyCameraTimeStr(epochInput) {
+  const ms = typeof epochInput === 'number' ? epochInput : new Date(epochInput).getTime();
+  if (!Number.isFinite(ms)) return '';
+  const trDate = new Date(ms + 3 * 3600 * 1000);
+  return trDate.toISOString().slice(0, 19).replace('T', ' ');
+}
+
+/**
+ * Kamera SD kart zaman dizgesini ("YYYY-MM-DD HH:mm:ss", UTC+3) gerçek Epoch milisaniyeye çevirir.
+ */
+export function parseTurkeyCameraTimeMs(trTimeStr) {
+  if (!trTimeStr || typeof trTimeStr !== 'string') return NaN;
+  const clean = trTimeStr.trim();
+  if (!/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/.test(clean)) {
+    return new Date(clean).getTime();
+  }
+  return new Date(`${clean.replace(/\s+/, 'T')}+03:00`).getTime();
+}
+
+/**
+ * Aracın anlık kontak (ACC), rölanti, park durumu, uydu ve 4G heartbeat telemetrisini döndürür.
+ * @param {string} deviceId
+ * @param {boolean} syncGps - true ise kamera GPS koordinatını Edge D1 / Firestore'a senkronize eder
+ */
+export async function fetchCameraTelemetry(deviceId, syncGps = false) {
   const cfg = getCameraConfig(deviceId);
   if (!cfg) return null;
   try {
-    const res = await fetch(`/api/camera-stream?action=telemetry&imei=${encodeURIComponent(cfg.imei)}`);
+    const res = await fetch(
+      `/api/camera-stream?action=telemetry&imei=${encodeURIComponent(cfg.imei)}${syncGps ? '&sync_gps=1' : ''}`
+    );
     if (!res.ok) return null;
     const data = await res.json();
     return data;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Seçili dönem (YYYY-MM, 3months, year, all) için GPS mesafe ve rölanti istatistiklerini döndürür.
+ * @param {string} driverId
+ * @param {string} period
+ */
+export async function fetchPeriodTelemetry(driverId, period = 'all') {
+  if (!driverId) return null;
+  try {
+    const res = await fetch(
+      `/api/camera-stream?action=period_telemetry&driverId=${encodeURIComponent(driverId)}&period=${encodeURIComponent(period)}`
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cihazın son donanım olaylarını (titreşim, çarpışma, sert fren, park uyarısı) döndürür.
+ * @param {string} deviceId
+ * @param {number} pageSize
+ */
+export async function fetchCameraAlarms(deviceId, pageSize = 10) {
+  const cfg = getCameraConfig(deviceId);
+  if (!cfg) return [];
+  try {
+    const res = await fetch(
+      `/api/camera-stream?action=alarms&imei=${encodeURIComponent(cfg.imei)}&pageSize=${encodeURIComponent(pageSize)}`
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data?.alarms) ? data.alarms : [];
+  } catch {
+    return [];
   }
 }
 
@@ -197,6 +261,7 @@ export async function fetchLiveStreamUrl(deviceId, quality = 'sd', setQualityCmd
     if (data?.url) {
       return {
         url: data.url,
+        fallbackUrl: data.fallbackUrl || data.rawUrl || null,
         rawUrl: data.rawUrl || data.url,
         format: (data.rawUrl || data.url).includes('.flv') ? 'flv' : 'native',
         quality,
@@ -209,8 +274,9 @@ export async function fetchLiveStreamUrl(deviceId, quality = 'sd', setQualityCmd
     }
     return {
       url: null,
+      fallbackUrl: null,
       offline: Boolean(data?.offline),
-      message: data?.message || 'Kamera çevrimdışı veya araç kontağı kapalı.',
+      message: data?.message || 'Araç park modunda. Canlı görüntü için kamerayı uyandırabilirsiniz.',
       telemetry: data?.telemetry || null,
       appId,
     };
@@ -222,7 +288,7 @@ export async function fetchLiveStreamUrl(deviceId, quality = 'sd', setQualityCmd
 /**
  * Seçili gün için SD karttaki geçmiş video kayıt parçalarını döndürür.
  */
-export async function fetchCameraHistorySegments(deviceId, dateStr, quality = 'sd') {
+export async function fetchCameraHistorySegments(deviceId, dateStr, quality = 'sd', forceRefresh = false) {
   const cfg = getCameraConfig(deviceId);
   if (!cfg) return { segments: [], recordedDates: [] };
 
@@ -230,7 +296,7 @@ export async function fetchCameraHistorySegments(deviceId, dateStr, quality = 's
     const codeType = quality === 'hd' ? 1 : 2;
     const appId = getSessionAppId();
     const res = await fetch(
-      `/api/camera-stream?action=history&imei=${encodeURIComponent(cfg.imei)}&date=${encodeURIComponent(dateStr)}&channel=${cfg.channel}&codeType=${codeType}&appId=${appId}`
+      `/api/camera-stream?action=history&imei=${encodeURIComponent(cfg.imei)}&date=${encodeURIComponent(dateStr)}&channel=${cfg.channel}&codeType=${codeType}&appId=${appId}${forceRefresh ? '&force=1' : ''}`
     );
     if (!res.ok) return { segments: [], recordedDates: [] };
     const data = await res.json();
@@ -240,6 +306,185 @@ export async function fetchCameraHistorySegments(deviceId, dateStr, quality = 's
     };
   } catch {
     return { segments: [], recordedDates: [] };
+  }
+}
+
+// Günlük SD kart segment önbelleği (Rota Geçmişi ve Kamera Modal üzerinde 4G sorgu gecikmesini önlemek için)
+const historySegmentsCache = new Map();
+
+/**
+ * Seçili gün için SD karttaki geçmiş video kayıt parçalarını önbellekli olarak döndürür.
+ * Boş sonuçları asla önbellekte tutmaz, böylece geçici 4G gecikmelerinde tekrar sorgulanabilir.
+ */
+export async function fetchCachedCameraHistorySegments(deviceId, dateStr, forceRefresh = false, quality = 'sd') {
+  const cfg = getCameraConfig(deviceId);
+  if (!cfg || !dateStr) return { segments: [], recordedDates: [] };
+
+  const cacheKey = `${cfg.imei}_${dateStr}`;
+  const now = Date.now();
+  const cached = historySegmentsCache.get(cacheKey);
+  const todayTr = toTurkeyCameraTimeStr(now).slice(0, 10);
+
+  if (!forceRefresh && cached) {
+    if (cached.promise) return cached.promise;
+    const ttlMs = dateStr === todayTr ? 60 * 1000 : 10 * 60 * 1000;
+    if (cached.segments?.length > 0 && now - cached.ts < ttlMs) {
+      return { segments: cached.segments, recordedDates: cached.recordedDates };
+    }
+  }
+
+  const reqPromise = fetchCameraHistorySegments(deviceId, dateStr, quality, forceRefresh)
+    .then((result) => {
+      const segs = result.segments || [];
+      if (segs.length > 0) {
+        historySegmentsCache.set(cacheKey, {
+          ts: Date.now(),
+          segments: segs,
+          recordedDates: result.recordedDates?.length ? result.recordedDates : [dateStr],
+          promise: null,
+        });
+      } else {
+        historySegmentsCache.delete(cacheKey);
+      }
+      return result;
+    })
+    .catch(() => {
+      historySegmentsCache.delete(cacheKey);
+      return { segments: [], recordedDates: [] };
+    });
+
+  historySegmentsCache.set(cacheKey, {
+    ts: now,
+    segments: cached?.segments || [],
+    recordedDates: cached?.recordedDates || [],
+    promise: reqPromise,
+  });
+
+  return reqPromise;
+}
+
+/**
+ * Rota üzerindeki tam bir zaman damgası (epochMs) için SD karttaki ilgili kesiti bulur ve
+ * tam o saniyeden başlayan WSS-FLV akış URL'sini çözümler.
+ */
+export async function resolveHistoryTimestampStream(deviceId, targetEpochMs, preloadedSegments = null) {
+  const cfg = getCameraConfig(deviceId);
+  if (!cfg || !Number.isFinite(targetEpochMs)) {
+    return { found: false, reason: 'Geçersiz zaman damgası.' };
+  }
+
+  const targetTrStr = toTurkeyCameraTimeStr(targetEpochMs);
+  const dateStr = targetTrStr.slice(0, 10);
+
+  let segments = Array.isArray(preloadedSegments) ? preloadedSegments : null;
+  if (!segments) {
+    const res = await fetchCachedCameraHistorySegments(deviceId, dateStr);
+    segments = res.segments || [];
+  }
+
+  if (!segments.length) {
+    return {
+      found: false,
+      noSegments: true,
+      dateStr,
+      reason: 'Kamera SD kart listesi alınamadı veya uyku modunda.',
+    };
+  }
+
+  const parsedSegments = segments
+    .map((seg) => ({
+      ...seg,
+      startMs: parseTurkeyCameraTimeMs(seg.beginTime),
+      endMs: parseTurkeyCameraTimeMs(seg.endTimeFull),
+    }))
+    .filter((seg) => Number.isFinite(seg.startMs) && Number.isFinite(seg.endMs) && seg.endMs > seg.startMs)
+    .sort((a, b) => a.startMs - b.startMs);
+
+  // 1. Tam eşleşen segmenti ara
+  let matchedIdx = parsedSegments.findIndex(
+    (seg) => targetEpochMs >= seg.startMs && targetEpochMs < seg.endMs
+  );
+
+  // 2. Tam eşleşme yoksa ±90 saniye komşuluğundaki en yakın segmenti seç
+  if (matchedIdx === -1) {
+    let bestDiff = Infinity;
+    parsedSegments.forEach((seg, idx) => {
+      const diff =
+        targetEpochMs < seg.startMs
+          ? seg.startMs - targetEpochMs
+          : targetEpochMs - seg.endMs;
+      if (diff <= 90 * 1000 && diff < bestDiff) {
+        bestDiff = diff;
+        matchedIdx = idx;
+      }
+    });
+  }
+
+  if (matchedIdx === -1) {
+    return {
+      found: false,
+      noSegments: false,
+      dateStr,
+      reason: 'Seçili saatte SD kart video kaydı bulunmuyor.',
+    };
+  }
+
+  const matched = parsedSegments[matchedIdx];
+  const actualStartMs = Math.max(
+    matched.startMs,
+    Math.min(targetEpochMs, matched.endMs - 2000)
+  );
+
+  // Kesintisiz oynatma için bitişik (<= 5 sn boşluklu) segmentleri en fazla 8 dakikaya kadar birleştir
+  let continuousEndMs = matched.endMs;
+  for (let i = matchedIdx + 1; i < parsedSegments.length; i++) {
+    const nextSeg = parsedSegments[i];
+    if (nextSeg.startMs - continuousEndMs <= 5000) {
+      continuousEndMs = nextSeg.endMs;
+      if (continuousEndMs - actualStartMs >= 8 * 60 * 1000) break;
+    } else {
+      break;
+    }
+  }
+  const streamEndMs = Math.min(continuousEndMs, actualStartMs + 8 * 60 * 1000);
+
+  const beginTime = toTurkeyCameraTimeStr(actualStartMs);
+  const endTime = toTurkeyCameraTimeStr(streamEndMs);
+
+  try {
+    const appId = getSessionAppId();
+    const params = new URLSearchParams({
+      action: 'history_stream',
+      imei: cfg.imei,
+      channel: String(matched.channel || cfg.channel),
+      beginTime,
+      endTime,
+      appId,
+    });
+    const res = await fetch(`/api/camera-stream?${params.toString()}`);
+    if (!res.ok) {
+      return { found: false, reason: 'Video akış sunucusuna ulaşılamadı.' };
+    }
+    const data = await res.json();
+    if (!data?.url) {
+      return {
+        found: false,
+        noSegments: true,
+        reason: 'Kamera bağlantısı kurulamadı.',
+      };
+    }
+    return {
+      found: true,
+      url: data.url,
+      fallbackUrl: data.fallbackUrl || data.rawUrl || null,
+      startEpochMs: actualStartMs,
+      endEpochMs: streamEndMs,
+      beginTime,
+      endTime,
+      segment: matched,
+    };
+  } catch {
+    return { found: false, reason: '4G video akışı başlatılamadı.' };
   }
 }
 
@@ -295,7 +540,8 @@ export async function closeCameraStream(deviceId, mode = 'live') {
 }
 
 /**
- * Tracksolid Pro WSS-FLV / HTTP-FLV yayınları için mpegts.js dinamik yükleyici.
+ * Tracksolid Pro WSS-FLV / HTTP-FLV yayınları için mpegts.js@1.8.0 dinamik yükleyici.
+ * v1.8.0 iOS 17.1+ Safari ManagedMediaSource desteğine sahiptir.
  */
 let mpegtsPromise = null;
 function loadMpegtsLibrary() {
@@ -305,23 +551,55 @@ function loadMpegtsLibrary() {
   if (!mpegtsPromise) {
     mpegtsPromise = new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.js';
+      script.src = 'https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.js';
       script.async = true;
+      script.crossOrigin = 'anonymous';
       script.onload = () => resolve(window.mpegts);
-      script.onerror = reject;
+      script.onerror = (err) => {
+        mpegtsPromise = null;
+        reject(err);
+      };
       document.head.appendChild(script);
     });
   }
   return mpegtsPromise;
 }
 
-export async function attachStreamToVideo(videoEl, streamUrl, onStats = null) {
+/**
+ * Akışı HTMLVideoElement üzerine bağlar (iOS Safari ManagedMediaSource, Android Chrome ve Masaüstü MSE uyumlu).
+ * @param {HTMLVideoElement} videoEl
+ * @param {string} streamUrl
+ * @param {Function | { hasAudio?: boolean, isLive?: boolean, fallbackUrl?: string | null, onStats?: Function, onAutoMuted?: Function, onError?: Function }} optionsOrOnStats
+ */
+export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats = null) {
   if (!videoEl || !streamUrl) return null;
 
-  // Döngüye düşmeyi kesinlikle engelle
+  const opts =
+    typeof optionsOrOnStats === 'function'
+      ? { onStats: optionsOrOnStats }
+      : optionsOrOnStats || {};
+
+  const {
+    hasAudio = true,
+    isLive = true,
+    fallbackUrl = null,
+    onStats = null,
+    onAutoMuted = null,
+    onError = null,
+  } = opts;
+
+  // iOS Safari ManagedMediaSource için disableRemotePlayback zorunludur
   try {
     videoEl.loop = false;
-  } catch {}
+    videoEl.playsInline = true;
+    videoEl.setAttribute('playsinline', '');
+    videoEl.setAttribute('webkit-playsinline', '');
+    videoEl.disableRemotePlayback = true;
+    videoEl.setAttribute('disableRemotePlayback', '');
+    videoEl.setAttribute('x-webkit-airplay', 'deny');
+  } catch {
+    // ignore readonly attribute warning
+  }
 
   const isFlv =
     streamUrl.includes('.flv') ||
@@ -333,76 +611,135 @@ export async function attachStreamToVideo(videoEl, streamUrl, onStats = null) {
     try {
       const mpegts = await loadMpegtsLibrary();
       if (mpegts && mpegts.isSupported()) {
-        // Jimi JC182 araç kamerası AAC stereo ses (FLV Audio Tag 8, format 10) akışını iletir.
-        // hasAudio: true ile MediaSource audio SourceBuffer oluşturularak kabin içi ses canlı olarak oynatılır.
-        const player = mpegts.createPlayer(
-          {
-            type: 'flv',
-            isLive: true,
-            url: streamUrl,
-            hasAudio: true,
-            hasVideo: true,
-          },
-          {
-            enableWorker: true,
-            enableStashBuffer: true,
-            stashInitialSize: 384,
-            lazyLoad: false,
-            autoCleanupSourceBuffer: true,
-            autoCleanupMaxBackwardDuration: 15,
-            autoCleanupMinBackwardDuration: 6,
-            liveBufferLatencyChasing: false,
-            liveBufferLatencyMaxLatency: 4.5,
-            liveBufferLatencyMinRemain: 1.2,
-            fixAudioTimestampGap: true,
-            accurateSeek: false,
-          }
-        );
-        player.attachMediaElement(videoEl);
-        player.load();
-        const playPromise = player.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(() => {
-            // Tarayıcı otomatik ses politikasında ilk etapta sessiz başlat, kullanıcı tıklamasıyla sesi aç
-            videoEl.muted = true;
-            player.play().catch(() => {});
-          });
-        }
+        let activePlayer = null;
+        let destroyed = false;
+        let hasDecodedAnyFrame = false;
+        let didTryFallback = false;
 
-        // Gerçek zamanlı ağ ve veri akış hızı (Throughput & Latency) istatistiklerini yakala
-        const statsEvent = mpegts.Events?.STATISTICS_INFO || 'statistics_info';
-        player.on(statsEvent, (stats) => {
-          if (typeof onStats === 'function' && stats) {
-            onStats({
-              speedKBps: Math.round(stats.speed || 0),
-              speedKbps: Math.round((stats.speed || 0) * 8),
-              latencySec: stats.currentLatency != null ? Number(stats.currentLatency).toFixed(1) : null,
-              decodedFrames: stats.decodedFrames || 0,
-              droppedFrames: stats.droppedFrames || 0,
-            });
-          }
-        });
+        const effectiveFallbackUrl =
+          fallbackUrl ||
+          (streamUrl.startsWith('wss://') ? streamUrl.replace(/^wss:\/\//, 'https://') : null);
 
-        // mpegts.js yerleşik liveBufferLatencyChasing motoru ile akışı pürüzsüz ve kesintisiz senkronize tutar.
-        return () => {
+        const destroyActivePlayer = () => {
+          if (!activePlayer) return;
+          const p = activePlayer;
+          activePlayer = null;
           try {
-            player.pause();
-            player.unload();
-            player.detachMediaElement();
-            player.destroy();
+            p.pause();
+            p.unload();
+            p.detachMediaElement();
+            p.destroy();
           } catch {
             // ignore cleanup errors
           }
         };
+
+        const startPlayerWithUrl = (targetUrl) => {
+          if (destroyed || !targetUrl) return;
+          destroyActivePlayer();
+
+          const isWsStream = targetUrl.startsWith('ws://') || targetUrl.startsWith('wss://');
+          const player = mpegts.createPlayer(
+            {
+              type: 'flv',
+              isLive: Boolean(isLive),
+              url: targetUrl,
+              hasAudio: Boolean(hasAudio),
+              hasVideo: true,
+            },
+            {
+              enableWorker: false,
+              enableStashBuffer: !isWsStream,
+              stashInitialSize: 128,
+              lazyLoad: false,
+              autoCleanupSourceBuffer: true,
+              autoCleanupMaxBackwardDuration: 15,
+              autoCleanupMinBackwardDuration: 6,
+              liveBufferLatencyChasing: Boolean(isLive),
+              liveBufferLatencyMaxLatency: 3.5,
+              liveBufferLatencyMinRemain: 0.8,
+              fixAudioTimestampGap: true,
+              accurateSeek: false,
+            }
+          );
+
+          activePlayer = player;
+          player.attachMediaElement(videoEl);
+          player.load();
+
+          const playPromise = player.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(() => {
+              if (destroyed) return;
+              // Mobil tarayıcı sesli otomatik oynatmayı engellediğinde videoyu dondurmadan sessiz başlat
+              videoEl.muted = true;
+              if (typeof onAutoMuted === 'function') {
+                onAutoMuted();
+              }
+              player.play().catch(() => {});
+            });
+          }
+
+          const statsEvent = mpegts.Events?.STATISTICS_INFO || 'statistics_info';
+          player.on(statsEvent, (stats) => {
+            if (stats?.decodedFrames > 0) {
+              hasDecodedAnyFrame = true;
+            }
+            if (typeof onStats === 'function' && stats) {
+              onStats({
+                speedKBps: Math.round(stats.speed || 0),
+                speedKbps: Math.round((stats.speed || 0) * 8),
+                latencySec: stats.currentLatency != null ? Number(stats.currentLatency).toFixed(1) : null,
+                decodedFrames: stats.decodedFrames || 0,
+                droppedFrames: stats.droppedFrames || 0,
+              });
+            }
+          });
+
+          const errorEvent = mpegts.Events?.ERROR || 'error';
+          player.on(errorEvent, (errorType, errorDetail) => {
+            if (destroyed) return;
+            if (!hasDecodedAnyFrame && !didTryFallback && effectiveFallbackUrl && effectiveFallbackUrl !== targetUrl) {
+              didTryFallback = true;
+              startPlayerWithUrl(effectiveFallbackUrl);
+              return;
+            }
+            if (typeof onError === 'function') {
+              onError(errorType, errorDetail);
+            }
+          });
+        };
+
+        startPlayerWithUrl(streamUrl);
+
+        return () => {
+          destroyed = true;
+          destroyActivePlayer();
+        };
       }
-    } catch {
-      // Fallback to native src
+    } catch (err) {
+      if (typeof onError === 'function') {
+        onError('PlayerInitError', err?.message || 'Oynatıcı başlatılamadı');
+      }
     }
+  }
+
+  // FLV oynatılamayan eski tarayıcılarda (ör. iOS < 17.1) ham .flv dosyasını <video src> içine basmak
+  // sessiz siyah ekrana yol açacağından açık hata bildirimi dönülür.
+  if (isFlv) {
+    if (typeof onError === 'function') {
+      onError('UnsupportedBrowser', 'Tarayıcınız canlı FLV video çözücüsünü desteklemiyor (iOS 17.1+ gereklidir).');
+    }
+    return () => {};
   }
 
   videoEl.src = streamUrl;
   videoEl.load();
-  videoEl.play().catch(() => {});
+  videoEl.play().catch(() => {
+    videoEl.muted = true;
+    if (typeof onAutoMuted === 'function') onAutoMuted();
+    videoEl.play().catch(() => {});
+  });
   return () => {
     try {
       videoEl.pause();

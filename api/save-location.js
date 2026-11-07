@@ -12,7 +12,7 @@ function getHaversineKm(lat1, lon1, lat2, lon2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const CAMERA_ACTIONS = new Set(['live', 'history', 'history_stream', 'close_stream', 'command', 'location', 'telemetry', 'proxy_flv', 'wakeup', 'enable_audio', 'snap', 'proxy_img']);
+const CAMERA_ACTIONS = new Set(['live', 'history', 'history_stream', 'close_stream', 'command', 'location', 'telemetry', 'period_telemetry', 'alarms', 'proxy_flv', 'wakeup', 'enable_audio', 'snap', 'proxy_img']);
 
 export default async function handler(req, res) {
     const reqData = { ...(req.query || {}), ...(req.body || {}) };
@@ -73,6 +73,10 @@ export default async function handler(req, res) {
                         lat: d.lat,
                         lon: d.lon,
                         speed: d.speed || 0,
+                        heading: d.heading ?? 0,
+                        acc: d.acc ?? null,
+                        isIdling: Boolean(d.isIdling),
+                        stationaryMinutes: d.stationaryMinutes ?? null,
                         altitude: d.altitude || 0,
                         timestamp: d.timestamp,
                         updatedAt: d.recordedAt || d.timestamp,
@@ -246,14 +250,19 @@ export default async function handler(req, res) {
 
         // Göksel artık araçta takılı Jimi JC182 kamera ve telemetri donanımı üzerinden takip edilmektedir.
         // Eski telefon GPS (Traccar iOS / OsmAnd) sinyallerinin donanım konumunu ezmesini engelle:
-        if ((cleanDeviceId === 'Göksel' || cleanDeviceId === 'Goksel') && !data.msgType && !data.deviceImei) {
+        if ((cleanDeviceId === 'Göksel' || cleanDeviceId === 'Goksel') && !data.msgType && !data.deviceImei && data.source !== 'jc182_camera') {
             return res.status(200).json({ success: true, message: 'Göksel JC182 donanımı ile takip edilmektedir, telefon sinyali devredışıdır.' });
         }
 
         const dateStr = getTurkeyDateStr(formattedTimestamp);
+        const hwAcc = data.acc !== undefined && data.acc !== null ? (Number(data.acc) ? 1 : 0) : null;
+        const hwIsIdling = Boolean(data.isIdling || data.staticType === 'IDLING');
+        const hwStationaryMin = Number.isFinite(Number(data.stationaryMinutes)) ? Number(data.stationaryMinutes) : null;
+        const hwHeading = Number.isFinite(Number(data.direction ?? data.heading)) ? Number(data.direction ?? data.heading) : 0;
 
-        // Discord'a ham veri sinyalini anında düşür (teşhis ve canlı kontrol için)
-        notifyDiscord(`📡 [VERCEL GPS] Cihaz: **${cleanDeviceId}** | Lat: ${lat.toFixed(5)} | Lon: ${lon.toFixed(5)} | Hız: ${speed.toFixed(1)} km/s | Saat: ${formattedTimestamp}`);
+        if (data.source !== 'jc182_camera') {
+            notifyDiscord(`[VERCEL GPS] Cihaz: **${cleanDeviceId}** | Lat: ${lat.toFixed(5)} | Lon: ${lon.toFixed(5)} | Hız: ${speed.toFixed(1)} kn | Saat: ${formattedTimestamp}`);
+        }
 
         const plainLocationData = {
             driverId: cleanDeviceId,
@@ -336,6 +345,8 @@ export default async function handler(req, res) {
                 lat: Number(lat.toFixed(5)),
                 lon: Number(lon.toFixed(5)),
                 speed: Number(speed.toFixed(1)),
+                heading: hwHeading,
+                ...(hwAcc !== null ? { acc: hwAcc, isIdling: hwIsIdling, stationaryMinutes: hwStationaryMin } : {}),
                 altitude: Number(altitude.toFixed(1)),
                 timestamp: formattedTimestamp,
                 recordedAt: new Date().toISOString(),
@@ -359,6 +370,7 @@ export default async function handler(req, res) {
                         lat: Number(lat.toFixed(5)),
                         lon: Number(lon.toFixed(5)),
                         speed: Number(speed.toFixed(1)),
+                        ...(hwAcc !== null ? { acc: hwAcc } : {}),
                         altitude: Number(altitude.toFixed(1)),
                         timestamp: formattedTimestamp
                     })
