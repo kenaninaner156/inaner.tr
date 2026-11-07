@@ -128,6 +128,18 @@ let edgePollerInterval = null;
 let latestCameraHw = null;
 let lastCameraHwFetchAt = 0;
 let cameraHwFetching = false;
+let cameraLiveTrail = []; // Göksel için yalnızca JC182 GPS noktalarından oluşan ileri yönlü saf iz
+let lastAppendedCamGpsTime = '';
+
+// Telefon (Traccar) noktaları küsuratlı rakım (ör. 1142.4888) ve >7 ondalık basamak üretir; JC182 altitude=0 gönderir
+const isPhoneGpsTrailPoint = (pt) => {
+  if (!pt) return true;
+  const alt = Number(pt.altitude || 0);
+  if (alt !== 0) return true;
+  const latDec = String(pt.lat ?? '').split('.')[1] || '';
+  const lonDec = String(pt.lon ?? '').split('.')[1] || '';
+  return latDec.length > 7 || lonDec.length > 7;
+};
 
 const refreshCameraHardwareGps = async () => {
   if (cameraHwFetching) return;
@@ -137,6 +149,38 @@ const refreshCameraHardwareGps = async () => {
   try {
     const hw = await fetchCameraTelemetry('Göksel', true);
     if (hw && Number.isFinite(Number(hw.lat)) && Number.isFinite(Number(hw.lon))) {
+      const nextLat = Number(hw.lat);
+      const nextLon = Number(hw.lon);
+      const gpsKey = String(hw.gpsTime || hw.gpsTimeIso || '');
+
+      // Sadece yeni uydu zaman damgası geldiğinde (veya ilk noktada) saf kamera izine ekle — asla geri sıçrama yapmaz
+      if (gpsKey && gpsKey !== lastAppendedCamGpsTime) {
+        const prevPt = cameraLiveTrail[cameraLiveTrail.length - 1];
+        const fixMs = hw.gpsTimeIso ? new Date(hw.gpsTimeIso).getTime() : Date.now();
+        const prevMs = prevPt ? getPointTime(prevPt) : 0;
+
+        if (!prevPt || fixMs >= prevMs) {
+          const jumpKm = prevPt ? haversineKm(prevPt.lat, prevPt.lon, nextLat, nextLon) : 999;
+          if (prevPt && jumpKm > 2.5) {
+            cameraLiveTrail = [];
+          }
+          if (!prevPt || jumpKm >= 0.004) {
+            cameraLiveTrail.push({
+              lat: nextLat,
+              lon: nextLon,
+              speed: (Number(hw.speed) || 0) / 1.852,
+              altitude: 0,
+              heading: Number(hw.heading) || 0,
+              acc: hw.acc ?? null,
+              timestamp: new Date(Number.isFinite(fixMs) ? fixMs : Date.now()).toISOString(),
+            });
+            if (cameraLiveTrail.length > 80) {
+              cameraLiveTrail = cameraLiveTrail.slice(-80);
+            }
+          }
+          lastAppendedCamGpsTime = gpsKey;
+        }
+      }
       latestCameraHw = hw;
     }
   } catch {
@@ -151,7 +195,7 @@ const pollEdgeLive = async (companyId) => {
     const nowMs = Date.now();
     if (!latestCameraHw && !cameraHwFetching) {
       await refreshCameraHardwareGps();
-    } else if (nowMs - lastCameraHwFetchAt >= 3000 && !cameraHwFetching) {
+    } else if (nowMs - lastCameraHwFetchAt >= 2500 && !cameraHwFetching) {
       refreshCameraHardwareGps();
     }
 
@@ -161,15 +205,14 @@ const pollEdgeLive = async (companyId) => {
     const data = res.ok ? await res.json() : { success: true, vehicles: [] };
     const rawVehicles = Array.isArray(data?.vehicles) ? [...data.vehicles] : [];
 
-    // Göksel için yalnızca JC182 kamera donanımı GPS + Kontak (ACC) otoritesidir
+    // Göksel için yalnızca JC182 kamera donanımı GPS + Kontak (ACC) otoritesidir (telefon noktaları tamamen dışlanır)
     if (latestCameraHw && Number.isFinite(Number(latestCameraHw.lat)) && Number.isFinite(Number(latestCameraHw.lon))) {
       const hwLat = Number(latestCameraHw.lat);
       const hwLon = Number(latestCameraHw.lon);
       const hwSpeedKnots = (Number(latestCameraHw.speed) || 0) / 1.852;
-      const hwRawMs = latestCameraHw.timestampIso ? new Date(latestCameraHw.timestampIso).getTime() : nowMs;
-      // cleanGpsSpikes zaman sıralamasında kamera noktasının daima en son (lastPoint) olmasını garanti et
-      const hwEffectiveMs = Number.isFinite(hwRawMs) ? Math.max(hwRawMs, nowMs) : nowMs;
-      const hwTs = new Date(hwEffectiveMs).toISOString();
+      const hwFixIso = latestCameraHw.timestampIso || latestCameraHw.gpsTimeIso;
+      const hwFixMs = hwFixIso ? new Date(hwFixIso).getTime() : nowMs;
+      const hwTs = new Date(Number.isFinite(hwFixMs) ? hwFixMs : nowMs).toISOString();
       const hwStatus = latestCameraHw.hwStatus || latestCameraHw.status || '';
       const isMovingHw = Boolean(latestCameraHw.isMoving || hwStatus === 'MOVE' || Number(latestCameraHw.speed) >= 2);
 
@@ -178,18 +221,25 @@ const pollEdgeLive = async (companyId) => {
         return vid === 'Göksel' || vid === 'Goksel' || vid === '869058070168628';
       });
 
+      // İlk açılışta geçmiş kamera noktalarını (telefon GPS'i hariç) bir kez tohumla
+      if (cameraLiveTrail.length <= 1 && gokselIdx >= 0 && Array.isArray(rawVehicles[gokselIdx]?.recentTrail)) {
+        const edgeCamPts = rawVehicles[gokselIdx].recentTrail.filter(
+          (pt) => !isPhoneGpsTrailPoint(pt) && getPointTime(pt) < hwFixMs - 500
+        );
+        if (edgeCamPts.length > 0) {
+          cameraLiveTrail = [...edgeCamPts.slice(-60), ...cameraLiveTrail];
+        }
+      }
+
+      // Aktif kamera noktasından daha ileride/sonra tarihli hiçbir iz noktası bırakma
+      const cleanTrail = cameraLiveTrail.filter(
+        (pt) =>
+          getPointTime(pt) < hwFixMs - 200 &&
+          haversineKm(Number(pt.lat), Number(pt.lon), hwLat, hwLon) >= 0.003
+      );
+
       if (gokselIdx >= 0) {
         const curVeh = rawVehicles[gokselIdx];
-        let cleanTrail = Array.isArray(curVeh.recentTrail)
-          ? curVeh.recentTrail.filter((pt) => getPointTime(pt) < hwEffectiveMs - 500)
-          : [];
-        if (cleanTrail.length > 0) {
-          const lastTrailPt = cleanTrail[cleanTrail.length - 1];
-          const jumpKm = haversineKm(Number(lastTrailPt.lat), Number(lastTrailPt.lon), hwLat, hwLon);
-          if (jumpKm > 1.5 && !isMovingHw) {
-            cleanTrail = [];
-          }
-        }
         rawVehicles[gokselIdx] = {
           ...curVeh,
           id: 'Göksel',
@@ -198,7 +248,8 @@ const pollEdgeLive = async (companyId) => {
           lat: hwLat,
           lon: hwLon,
           speed: hwSpeedKnots,
-          heading: Number(latestCameraHw.heading) || curVeh.heading || 0,
+          altitude: 0,
+          heading: Number(latestCameraHw.heading) || 0,
           acc: latestCameraHw.acc,
           hwStatus,
           isMovingHw,

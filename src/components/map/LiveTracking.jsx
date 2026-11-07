@@ -322,6 +322,70 @@ function MapController({
 function VehicleMarker({ driverId, lastPoint, isOnline, isFollowed, isMoving, isMapped, setFollowedDriverId, setIsCameraFollowActive, showSidebar }) {
   const map = useMap();
   const markerRef = useRef(null);
+  const animFrameRef = useRef(null);
+  const displayPosRef = useRef(
+    lastPoint && !isNaN(lastPoint.lat) ? [Number(lastPoint.lat), Number(lastPoint.lon)] : null
+  );
+  const [initialPos] = useState(() =>
+    lastPoint && !isNaN(lastPoint.lat) ? [Number(lastPoint.lat), Number(lastPoint.lon)] : [39.92, 32.85]
+  );
+
+  const targetLat = lastPoint ? Number(lastPoint.lat) : NaN;
+  const targetLon = lastPoint ? Number(lastPoint.lon) : NaN;
+
+  // Yeni GPS konumu geldiğinde simgeyi sıçratmak yerine pürüzsüzce kaydır
+  useEffect(() => {
+    if (isNaN(targetLat) || isNaN(targetLon)) return;
+    const marker = markerRef.current;
+    if (!marker) {
+      displayPosRef.current = [targetLat, targetLon];
+      return;
+    }
+
+    const prev = displayPosRef.current;
+    if (!prev) {
+      displayPosRef.current = [targetLat, targetLon];
+      marker.setLatLng([targetLat, targetLon]);
+      return;
+    }
+
+    const [startLat, startLon] = prev;
+    if (Math.abs(targetLat - startLat) < 0.000002 && Math.abs(targetLon - startLon) < 0.000002) {
+      return;
+    }
+
+    const distDeg = Math.hypot(targetLat - startLat, targetLon - startLon);
+    // > ~600m sıçramalarda doğrudan taşı, normal seyirde 900ms pürüzsüz süzülme uygula
+    if (distDeg > 0.006) {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      displayPosRef.current = [targetLat, targetLon];
+      marker.setLatLng([targetLat, targetLon]);
+      return;
+    }
+
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    const startTime = performance.now();
+    const durationMs = 900;
+
+    const step = (now) => {
+      const t = Math.min(1, (now - startTime) / durationMs);
+      const eased = 1 - (1 - t) * (1 - t);
+      const curLat = startLat + (targetLat - startLat) * eased;
+      const curLon = startLon + (targetLon - startLon) * eased;
+      displayPosRef.current = [curLat, curLon];
+      if (markerRef.current) {
+        markerRef.current.setLatLng([curLat, curLon]);
+      }
+      if (t < 1) {
+        animFrameRef.current = requestAnimationFrame(step);
+      }
+    };
+
+    animFrameRef.current = requestAnimationFrame(step);
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [targetLat, targetLon]);
 
   if (!lastPoint || isNaN(lastPoint.lat)) return null;
 
@@ -336,7 +400,7 @@ function VehicleMarker({ driverId, lastPoint, isOnline, isFollowed, isMoving, is
   return (
     <Marker
       ref={markerRef}
-      position={[lastPoint.lat, lastPoint.lon]}
+      position={initialPos}
       icon={icon}
       zIndexOffset={isFollowed ? 1000 : 0}
       eventHandlers={{ click: handleClick }}
