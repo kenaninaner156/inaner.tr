@@ -1578,7 +1578,10 @@ export default function RouteHistory({
   const [seekTargetEpochMs, setSeekTargetEpochMs] = useState(null);
   const seekDebounceRef = useRef(null);
   const routeVideoControlRef = useRef(null);
-  const hasCamera = Boolean(getCameraConfig(selectedDriver));
+  const JC182_ACTIVATION_DATE = '2026-11-04';
+  const hasCameraConfig = Boolean(getCameraConfig(selectedDriver));
+  // Yalnızca aracın kamera donanımı varsa ve seçili gün kameranın takıldığı tarihten (4 Kasım 2026) sonraysa göster
+  const hasCamera = Boolean(hasCameraConfig && historyDate && historyDate >= JC182_ACTIVATION_DATE);
 
   // Kameralı araç + gün seçildiğinde SD kart kayıt listesini arka planda sessizce önbelleğe ısıt
   useEffect(() => {
