@@ -130,6 +130,28 @@ let lastCameraHwFetchAt = 0;
 let cameraHwFetching = false;
 let cameraLiveTrail = []; // Göksel için yalnızca JC182 GPS noktalarından oluşan ileri yönlü saf iz
 let lastAppendedCamGpsTime = '';
+let isCameraTrailSeeded = false;
+
+const seedCameraTrailFromTrackHistory = async () => {
+  if (isCameraTrailSeeded) return;
+  isCameraTrailSeeded = true;
+  try {
+    const todayStr = getTurkeyTodayStr();
+    const res = await fetch(`/api/camera-stream?action=track_history&driverId=Göksel&date=${todayStr}&_t=${Date.now()}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data?.success && Array.isArray(data.points) && data.points.length > 0) {
+      const sorted = [...data.points].sort((a, b) => getPointTime(a) - getPointTime(b));
+      cameraLiveTrail = sorted.slice(-1000);
+      if (sorted.length > 0) {
+        const last = sorted[sorted.length - 1];
+        lastAppendedCamGpsTime = String(last.timestamp || '');
+      }
+    }
+  } catch (_) {
+    // sessiz geç
+  }
+};
 
 // Telefon (Traccar) noktaları küsuratlı rakım (ör. 1142.4888) ve >7 ondalık basamak üretir; JC182 altitude=0 gönderir
 const isPhoneGpsTrailPoint = (pt) => {
@@ -161,7 +183,7 @@ const refreshCameraHardwareGps = async () => {
 
         if (!prevPt || fixMs >= prevMs) {
           const jumpKm = prevPt ? haversineKm(prevPt.lat, prevPt.lon, nextLat, nextLon) : 999;
-          if (prevPt && jumpKm > 2.5) {
+          if (prevPt && jumpKm > 5.0) {
             cameraLiveTrail = [];
           }
           if (!prevPt || jumpKm >= 0.004) {
@@ -174,8 +196,8 @@ const refreshCameraHardwareGps = async () => {
               acc: hw.acc ?? null,
               timestamp: new Date(Number.isFinite(fixMs) ? fixMs : Date.now()).toISOString(),
             });
-            if (cameraLiveTrail.length > 80) {
-              cameraLiveTrail = cameraLiveTrail.slice(-80);
+            if (cameraLiveTrail.length > 1000) {
+              cameraLiveTrail = cameraLiveTrail.slice(-1000);
             }
           }
           lastAppendedCamGpsTime = gpsKey;
@@ -191,11 +213,16 @@ const refreshCameraHardwareGps = async () => {
 };
 
 const pollEdgeLive = async (companyId) => {
+  if (typeof document !== 'undefined' && document.hidden) return;
   try {
     const nowMs = Date.now();
+    if (!isCameraTrailSeeded) {
+      void seedCameraTrailFromTrackHistory();
+    }
+
     if (!latestCameraHw && !cameraHwFetching) {
       await refreshCameraHardwareGps();
-    } else if (nowMs - lastCameraHwFetchAt >= 2500 && !cameraHwFetching) {
+    } else if (nowMs - lastCameraHwFetchAt >= 3500 && !cameraHwFetching) {
       refreshCameraHardwareGps();
     }
 
@@ -220,16 +247,6 @@ const pollEdgeLive = async (companyId) => {
         const vid = String(v.deviceId || v.driverId || v.id || '').trim();
         return vid === 'Göksel' || vid === 'Goksel' || vid === '869058070168628';
       });
-
-      // İlk açılışta geçmiş kamera noktalarını (telefon GPS'i hariç) bir kez tohumla
-      if (cameraLiveTrail.length <= 1 && gokselIdx >= 0 && Array.isArray(rawVehicles[gokselIdx]?.recentTrail)) {
-        const edgeCamPts = rawVehicles[gokselIdx].recentTrail.filter(
-          (pt) => !isPhoneGpsTrailPoint(pt) && getPointTime(pt) < hwFixMs - 500
-        );
-        if (edgeCamPts.length > 0) {
-          cameraLiveTrail = [...edgeCamPts.slice(-60), ...cameraLiveTrail];
-        }
-      }
 
       // Aktif kamera noktasından daha ileride/sonra tarihli hiçbir iz noktası bırakma
       const cleanTrail = cameraLiveTrail.filter(
@@ -435,15 +452,38 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
     } catch (_) {}
   }
 
-  // Cloudflare Edge Canlı Akışını Başlat (Sıfır Firestore Kotası, 1 saniyede bir gerçek zamanlı)
+  // Cloudflare Edge Canlı Akışını Başlat (Sıfır Firestore Kotası, 3.5 saniyede bir optimize edilmiş akış)
   if (!edgePollerInterval) {
     pollEdgeLive(companyId);
-    edgePollerInterval = setInterval(() => pollEdgeLive(companyId), 1000);
+    edgePollerInterval = setInterval(() => pollEdgeLive(companyId), 3500);
+  }
+
+  // Sekme arka plana geçtiğinde gereksiz yoklamaları durdurarak kotaları koru
+  const handleVisibilityChange = () => {
+    if (typeof document === 'undefined') return;
+    if (document.hidden) {
+      if (edgePollerInterval) {
+        clearInterval(edgePollerInterval);
+        edgePollerInterval = null;
+      }
+    } else {
+      if (!edgePollerInterval && globalListeners.size > 0) {
+        pollEdgeLive(companyId);
+        edgePollerInterval = setInterval(() => pollEdgeLive(companyId), 3500);
+      }
+    }
+  };
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
   }
 
   return () => {
     globalListeners.delete(listener);
-    // Haritadan tamamen çıkıldığında kota tasarrufu için 5 dakikalık bekleme süresi
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
+    // Haritadan tamamen çıkıldığında kota tasarrufu için 3 dakikalık bekleme süresi
     if (globalListeners.size === 0) {
       cleanupTimeout = setTimeout(() => {
         if (globalListeners.size === 0) {
@@ -454,9 +494,8 @@ const subscribeToLiveLocations = (companyId, onUpdate, onError) => {
           globalLoading = true;
           globalLocations = [];
           lastCompanyId = null;
-          console.log("Canlı takip aboneliği inaktivite nedeniyle durduruldu.");
         }
-      }, 5 * 60 * 1000); // 5 dakika
+      }, 3 * 60 * 1000); // 3 dakika
     }
   };
 };

@@ -1217,7 +1217,7 @@ export default function RouteHistory({
 
     const doFetch = async () => {
       try {
-        const snapId = `${activeCompanyId || 'default'}_${selectedDriver}_${historyDate}_v7_${manualSplits?.length || 0}_${manualMerges?.length || 0}_${manualDeletes?.length || 0}`; // _v7 cache
+        const snapId = `${activeCompanyId || 'default'}_${selectedDriver}_${historyDate}_v8_${manualSplits?.length || 0}_${manualMerges?.length || 0}_${manualDeletes?.length || 0}`; // _v8 cache
         const cacheRef = doc(db, 'vehicle_daily_stats', snapId);
         
         const todayStr = getTurkeyTodayIso();
@@ -1271,7 +1271,23 @@ export default function RouteHistory({
           }
         }
 
-        // 2.2 Öncelikli: Cloudflare D1 SQL üzerinden günün tüm noktalarını çek (Sıfır Firestore kotası)
+        // 2.2 Öncelikli: JC182 Kameralı Araç (Göksel) için Tracksolid Pro EU Bulut Rota Motoru (Sıfır Kayıp)
+        const isCameraDevice = selectedDriver === 'Göksel' || selectedDriver === 'Goksel' || selectedDriver === '869058070168628';
+        if (points.length === 0 && isCameraDevice && historyDate >= '2026-11-04') {
+          try {
+            const camRes = await fetch(`/api/camera-stream?action=track_history&date=${historyDate}&driverId=${encodeURIComponent(selectedDriver)}&_t=${Date.now()}`);
+            if (camRes.ok) {
+              const camData = await camRes.json();
+              if (camData.success && Array.isArray(camData.points) && camData.points.length > 0) {
+                points = camData.points;
+              }
+            }
+          } catch (camErr) {
+            console.warn("JC182 track_history okuma uyarısı (D1 fallback deneniyor):", camErr);
+          }
+        }
+
+        // 2.3 Cloudflare D1 SQL üzerinden günün tüm noktalarını çek (Sıfır Firestore kotası)
         if (points.length === 0) {
           try {
             const d1Res = await fetch(`https://inaner.tr/api/save-location?action=get_history&date=${historyDate}&driverId=${encodeURIComponent(selectedDriver)}&_t=${Date.now()}`);

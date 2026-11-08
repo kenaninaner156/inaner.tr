@@ -271,6 +271,25 @@ export async function fetchPeriodTelemetry(driverId, period = 'all') {
 }
 
 /**
+ * Aracın seçili güne ait eksiksiz Tracksolid Pro EU bulut rota geçmişini döndürür.
+ * @param {string} deviceId
+ * @param {string} date - 'YYYY-MM-DD'
+ */
+export async function fetchTrackHistory(deviceId, date) {
+  const cfg = getCameraConfig(deviceId);
+  const imei = cfg?.imei || '869058070168628';
+  try {
+    const res = await fetch(
+      `/api/camera-stream?action=track_history&driverId=${encodeURIComponent(deviceId)}&imei=${encodeURIComponent(imei)}&date=${encodeURIComponent(date)}`
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Cihazın son donanım olaylarını (titreşim, çarpışma, sert fren, park uyarısı) döndürür.
  * @param {string} deviceId
  * @param {number} pageSize
