@@ -537,49 +537,128 @@ function InlineCameraPreview({
     };
   }, [driverId, camConfig, isActiveViewport, isTabHidden]);
 
-  // Canlı yayın adresini yalnızca aktif ekranda, sekme görünürken ve modal kapalıyken al
+  // Canlı yayın adresini al ve WSS-FLV akışını doğrudan sessiz video katmanına bağla
   useEffect(() => {
     if (!camConfig || !isActiveViewport || isModalOpen || isTabHidden || quotaPaused) {
-      let handoverTimer = null;
       if (cleanupRef.current) {
-        const prevCleanup = cleanupRef.current;
+        cleanupRef.current();
         cleanupRef.current = null;
-        if (isModalOpen) {
-          // Tam ekrana geçerken Tracksolid medya sunucusunun akışı düşürmemesi için önizleme soketini 650ms örtüştür
-          handoverTimer = setTimeout(() => prevCleanup(), 650);
-        } else {
-          prevCleanup();
-        }
       }
       Promise.resolve().then(() => {
         setStreamInfo(null);
         setIsVideoReady(false);
         videoReadyRef.current = false;
       });
-      return () => {
-        if (handoverTimer) clearTimeout(handoverTimer);
-      };
+      return;
     }
 
     let cancelled = false;
+    let connectTimer = null;
+    let retryTimer = null;
+
     Promise.resolve().then(() => {
       if (cancelled) return;
       setIsVideoReady(false);
       videoReadyRef.current = false;
     });
 
-    fetchLiveStreamUrl(driverId, quality, false, isLiveLightEnabledRef.current).then((info) => {
+    const startPreviewAttempt = async (attemptIndex = 0, forceFresh = false) => {
       if (cancelled) return;
-      if (info?.url) {
-        hadStreamRef.current = true;
-        setStreamInfo(info);
-      } else {
-        setStreamInfo(null);
+      if (connectTimer) {
+        clearTimeout(connectTimer);
+        connectTimer = null;
       }
-    });
+
+      const info = await fetchLiveStreamUrl(
+        driverId,
+        quality,
+        false,
+        isLiveLightEnabledRef.current,
+        forceFresh
+      );
+      if (cancelled) return;
+
+      if (!info?.url || !videoRef.current) {
+        if (attemptIndex < 1) {
+          retryTimer = setTimeout(() => startPreviewAttempt(attemptIndex + 1, true), 900);
+          return;
+        }
+        setStreamInfo(null);
+        return;
+      }
+
+      hadStreamRef.current = true;
+      setStreamInfo(info);
+
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
+
+      connectTimer = setTimeout(() => {
+        if (!cancelled && !videoReadyRef.current && !isModalOpenRef.current) {
+          if (cleanupRef.current) {
+            cleanupRef.current();
+            cleanupRef.current = null;
+          }
+          if (attemptIndex < 1) {
+            startPreviewAttempt(attemptIndex + 1, true);
+            return;
+          }
+          if (hadStreamRef.current) {
+            closeCameraStream(driverId, 'live');
+            hadStreamRef.current = false;
+          }
+          setStreamInfo(null);
+        }
+      }, 9000);
+
+      const cleanup = await attachStreamToVideo(videoRef.current, info.url, {
+        hasAudio: false,
+        isLive: true,
+        fallbackUrl: info.fallbackUrl || null,
+        onFirstFrame: () => {
+          if (!cancelled) {
+            if (connectTimer) {
+              clearTimeout(connectTimer);
+              connectTimer = null;
+            }
+            videoReadyRef.current = true;
+            setIsVideoReady(true);
+          }
+        },
+        onError: () => {
+          if (!cancelled && !videoReadyRef.current) {
+            if (connectTimer) {
+              clearTimeout(connectTimer);
+              connectTimer = null;
+            }
+            if (attemptIndex < 1) {
+              retryTimer = setTimeout(() => startPreviewAttempt(attemptIndex + 1, true), 700);
+              return;
+            }
+            setStreamInfo(null);
+          }
+        },
+      });
+
+      if (cancelled) {
+        if (cleanup) cleanup();
+        return;
+      }
+      cleanupRef.current = cleanup;
+    };
+
+    startPreviewAttempt(0, false);
 
     return () => {
       cancelled = true;
+      if (connectTimer) clearTimeout(connectTimer);
+      if (retryTimer) clearTimeout(retryTimer);
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
     };
   }, [driverId, quality, camConfig, isActiveViewport, isModalOpen, isTabHidden, quotaPaused, retryCount]);
 
@@ -592,65 +671,6 @@ function InlineCameraPreview({
     }, 48000);
     return () => clearInterval(keepAliveId);
   }, [isVideoReady, isModalOpen, isTabHidden, isActiveViewport, driverId, isLiveLightEnabled]);
-
-  // WSS-FLV akışını sessiz video katmanına bağla (hasAudio: false ile anında ilk kare çözümü)
-  useEffect(() => {
-    if (!streamInfo?.url || !videoRef.current || !isActiveViewport || isModalOpen || isTabHidden) return;
-    let cancelled = false;
-
-    const connectTimer = setTimeout(() => {
-      if (!cancelled && !videoReadyRef.current && !isModalOpenRef.current) {
-        if (cleanupRef.current) {
-          cleanupRef.current();
-          cleanupRef.current = null;
-        }
-        if (hadStreamRef.current) {
-          closeCameraStream(driverId, 'live');
-          hadStreamRef.current = false;
-        }
-        setStreamInfo(null);
-      }
-    }, 10000);
-
-    const connect = async () => {
-      if (cleanupRef.current) {
-        cleanupRef.current();
-        cleanupRef.current = null;
-      }
-      const cleanup = await attachStreamToVideo(videoRef.current, streamInfo.url, {
-        hasAudio: false,
-        isLive: true,
-        fallbackUrl: streamInfo.fallbackUrl || null,
-        onFirstFrame: () => {
-          if (!cancelled) {
-            videoReadyRef.current = true;
-            setIsVideoReady(true);
-          }
-        },
-        onError: () => {
-          if (!cancelled && !videoReadyRef.current) {
-            clearTimeout(connectTimer);
-            setStreamInfo(null);
-          }
-        },
-      });
-      if (cancelled) {
-        if (cleanup) cleanup();
-        return;
-      }
-      cleanupRef.current = cleanup;
-    };
-
-    connect();
-    return () => {
-      cancelled = true;
-      clearTimeout(connectTimer);
-      if (cleanupRef.current && !isModalOpenRef.current) {
-        cleanupRef.current();
-        cleanupRef.current = null;
-      }
-    };
-  }, [streamInfo, isActiveViewport, isModalOpen, isTabHidden, driverId]);
 
   if (!camConfig) return null;
 
@@ -674,25 +694,26 @@ function InlineCameraPreview({
             }}
             className="relative w-full h-[136px] rounded-xl overflow-hidden border border-white/[0.06] hover:border-white/[0.14] bg-[#0a0d14] cursor-pointer group transition-colors select-none flex flex-col justify-between"
           >
-            {/* Canlı Video Katmanı */}
-            {streamInfo?.url && (
-              <video
-                ref={videoRef}
-                autoPlay
-                muted
-                playsInline
-                disableRemotePlayback
-                x-webkit-airplay="deny"
-                onLoadedData={markVideoPlaying}
-                onCanPlay={markVideoPlaying}
-                onPlaying={markVideoPlaying}
-                onError={() => {
+            {/* Canlı Video Katmanı (DOM'da sabit tutularak anında akış bağlanması sağlanır) */}
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              disableRemotePlayback
+              x-webkit-airplay="deny"
+              onLoadedMetadata={markVideoPlaying}
+              onLoadedData={markVideoPlaying}
+              onCanPlay={markVideoPlaying}
+              onPlaying={markVideoPlaying}
+              onError={() => {
+                if (!streamInfo?.url) {
                   videoReadyRef.current = false;
                   setIsVideoReady(false);
-                }}
-                className="absolute inset-0 w-full h-full object-cover z-10"
-              />
-            )}
+                }
+              }}
+              className="absolute inset-0 w-full h-full object-cover z-10"
+            />
 
             {/* Üst ve Alt Kontrast Geçişleri */}
             <div className="absolute inset-x-0 top-0 h-11 bg-gradient-to-b from-black/75 to-transparent z-10 pointer-events-none" />
@@ -1462,6 +1483,13 @@ export default function LiveTracking({
         initialMode={activeCameraInitialMode}
         initialQuality={cameraQuality}
         onQualityChange={setCameraQuality}
+        keepStreamOnClose={Boolean(
+          followedDriverId &&
+          followedDriverId === activeCameraDriverId &&
+          showSidebar &&
+          !isBelowMd &&
+          isVisible
+        )}
       />
     </>
   );

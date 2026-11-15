@@ -68,6 +68,7 @@ export default function CameraModal({
   initialQuality = 'sd',
   initialDate = null,
   onQualityChange,
+  keepStreamOnClose = false,
 }) {
   const [mode, setMode] = useState(initialMode); // 'live' | 'history'
   const [quality, setQuality] = useState(initialQuality); // 'sd' (480p) | 'hd' (2K)
@@ -197,11 +198,11 @@ export default function CameraModal({
       cleanupStreamRef.current();
       cleanupStreamRef.current = null;
     }
-    if (deviceId) {
+    if (deviceId && !(mode === 'live' && keepStreamOnClose)) {
       closeCameraStream(deviceId, mode);
     }
     onClose();
-  }, [deviceId, mode, onClose]);
+  }, [deviceId, mode, keepStreamOnClose, onClose]);
 
   const handleQualitySwitch = (newQuality) => {
     if (newQuality === quality) return;
@@ -296,7 +297,6 @@ export default function CameraModal({
   useEffect(() => {
     if (!isOpen || mode !== 'live' || !deviceId) return;
     let cancelled = false;
-    let autoRetryTimer = null;
     let retryDelayTimer = null;
     let didAutoWake = false;
     liveStartedRef.current = false;
@@ -309,17 +309,13 @@ export default function CameraModal({
     });
 
     const clearPendingTimers = () => {
-      if (autoRetryTimer) {
-        clearTimeout(autoRetryTimer);
-        autoRetryTimer = null;
-      }
       if (retryDelayTimer) {
         clearTimeout(retryDelayTimer);
         retryDelayTimer = null;
       }
     };
 
-    // 18 saniye içinde görüntü karesi gelmezse sonsuz yükleme ekranını sonlandırıp uyku kartını göster
+    // 15 saniye içinde görüntü karesi gelmezse sonsuz yükleme ekranını sonlandırıp uyku kartını göster
     const streamTimeout = setTimeout(() => {
       if (!cancelled && !liveStartedRef.current) {
         clearPendingTimers();
@@ -333,7 +329,7 @@ export default function CameraModal({
           message: 'Araç park halinde. Canlı görüntü için kamerayı uyandırabilir veya geçmiş kayıtları izleyebilirsiniz.',
         });
       }
-    }, 18000);
+    }, 15000);
 
     const connectAttempt = async (attemptIndex = 0, forceFreshUrl = false) => {
       if (cancelled || liveStartedRef.current) return;
@@ -353,12 +349,12 @@ export default function CameraModal({
       if (cancelled || liveStartedRef.current) return;
 
       if (!streamInfo?.url || !videoRef.current) {
-        if (attemptIndex < 2) {
+        if (attemptIndex < 1) {
           if (!didAutoWake) {
             didAutoWake = true;
             wakeUpCamera(deviceId).catch(() => {});
           }
-          retryDelayTimer = setTimeout(() => connectAttempt(attemptIndex + 1, true), 900);
+          retryDelayTimer = setTimeout(() => connectAttempt(attemptIndex + 1, true), 1000);
           return;
         }
         clearTimeout(streamTimeout);
@@ -375,19 +371,6 @@ export default function CameraModal({
       if (cleanupStreamRef.current) {
         cleanupStreamRef.current();
         cleanupStreamRef.current = null;
-      }
-
-      // İlk denemede 4.5 saniye içinde kare çözülmezse (kamera soğuk/park uykusundaysa) arka planda uyandırıp taze akış aç
-      if (attemptIndex < 2) {
-        autoRetryTimer = setTimeout(() => {
-          if (!cancelled && !liveStartedRef.current) {
-            if (!didAutoWake) {
-              didAutoWake = true;
-              wakeUpCamera(deviceId).catch(() => {});
-            }
-            connectAttempt(attemptIndex + 1, true);
-          }
-        }, attemptIndex === 0 ? 4500 : 6500);
       }
 
       const cleanup = await attachStreamToVideo(videoRef.current, streamInfo.url, {
@@ -412,14 +395,14 @@ export default function CameraModal({
           if (cancelled || liveStartedRef.current) return;
           clearPendingTimers();
           if (
-            attemptIndex < 2 &&
+            attemptIndex < 1 &&
             !(typeof errDetail === 'string' && errDetail.includes('iOS'))
           ) {
             if (!didAutoWake) {
               didAutoWake = true;
               wakeUpCamera(deviceId).catch(() => {});
             }
-            retryDelayTimer = setTimeout(() => connectAttempt(attemptIndex + 1, true), 550);
+            retryDelayTimer = setTimeout(() => connectAttempt(attemptIndex + 1, true), 650);
             return;
           }
           clearTimeout(streamTimeout);
@@ -1034,12 +1017,12 @@ export default function CameraModal({
             x-webkit-airplay="deny"
             muted={isMuted}
             onLoadedMetadata={(e) => {
+              liveStartedRef.current = true;
+              setIsLoadingStream(false);
+              setIsVideoLivePlaying(true);
               const v = e.currentTarget;
               if (v) {
                 v.volume = volume;
-              }
-              if (mode === 'history') {
-                setIsLoadingStream(false);
               }
             }}
             onCanPlay={(e) => {
