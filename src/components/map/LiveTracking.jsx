@@ -11,7 +11,9 @@ import {
   attachStreamToVideo,
   fetchCameraTelemetry,
   closeCameraStream,
+  setCameraWatchLight,
 } from '../../services/cameraService';
+import { useCompany } from '../../context/CompanyContext';
 
 // ── Tema renkleri — site ile tam uyumlu ──────────────────────────────────
 const PANEL_BORDER = '1px solid rgba(255, 255, 255, 0.05)';
@@ -434,6 +436,12 @@ function InlineCameraPreview({
   onOpenCamera,
 }) {
   const camConfig = getCameraConfig(driverId);
+  const { companyData } = useCompany() || {};
+  const isLiveLightEnabled = companyData?.cameraLiveLightEnabled !== false;
+  const isLiveLightEnabledRef = useRef(isLiveLightEnabled);
+  useEffect(() => {
+    isLiveLightEnabledRef.current = isLiveLightEnabled;
+  }, [isLiveLightEnabled]);
   const [streamInfo, setStreamInfo] = useState(null);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [telemetry, setTelemetry] = useState(null);
@@ -549,7 +557,7 @@ function InlineCameraPreview({
       videoReadyRef.current = false;
     });
 
-    fetchLiveStreamUrl(driverId, quality).then((info) => {
+    fetchLiveStreamUrl(driverId, quality, false, isLiveLightEnabledRef.current).then((info) => {
       if (cancelled) return;
       if (info?.url) {
         hadStreamRef.current = true;
@@ -563,6 +571,15 @@ function InlineCameraPreview({
       cancelled = true;
     };
   }, [driverId, quality, camConfig, isActiveViewport, isModalOpen, isTabHidden, quotaPaused, retryCount]);
+
+  // Ön izleme canlı izlendiği sürece kamera beyaz ışığını (LIGHT,60#) 48 saniyede bir yenile
+  useEffect(() => {
+    if (!isVideoReady || isModalOpen || isTabHidden || !isActiveViewport || !driverId || !isLiveLightEnabled) return;
+    const keepAliveId = setInterval(() => {
+      setCameraWatchLight(driverId, '60');
+    }, 48000);
+    return () => clearInterval(keepAliveId);
+  }, [isVideoReady, isModalOpen, isTabHidden, isActiveViewport, driverId, isLiveLightEnabled]);
 
   // WSS-FLV akışını sessiz video katmanına bağla (hasAudio: false ile anında ilk kare çözümü)
   useEffect(() => {
@@ -1092,6 +1109,9 @@ export default function LiveTracking({
   }, []);
 
   const handleOpenCamera = (driverId, targetMode = 'live') => {
+    if (targetMode === 'history' && driverId) {
+      closeCameraStream(driverId, 'live');
+    }
     setActiveCameraInitialMode(targetMode);
     setActiveCameraDriverId(driverId);
   };

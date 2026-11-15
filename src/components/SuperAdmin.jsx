@@ -1,11 +1,19 @@
 ﻿import React, { useState, useEffect, useContext } from 'react';
-import { ShieldAlert, Building2, Plus, Server, Activity, Trash2, Key, Edit2, PauseCircle, PlayCircle, Users, Truck, Check, X, AlertOctagon, LogIn, Download, Database, Shield, Menu } from 'lucide-react';
+import { ShieldAlert, Building2, Plus, Server, Activity, Trash2, Key, Edit2, PauseCircle, PlayCircle, Users, Truck, Check, X, AlertOctagon, LogIn, Download, Database, Shield, Menu, Video } from 'lucide-react';
 import { db } from '../services/firebaseConfig';
 import { collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, writeBatch, where, getDocs } from 'firebase/firestore';
 import { useCompany } from '../context/CompanyContext';
 import { DataContext } from '../context/DataContext';
 import { sendDiscordAlert } from '../services/discordWebhook';
 import AdminLog from './AdminLog';
+
+const CAMERA_HW_TOGGLES = [
+    { field: 'cameraLiveLightEnabled', label: 'Kamera İzlenirken Beyaz Işık' },
+    { field: 'sosAlertEnabled', label: 'SOS Acil Durum Bildirimi' },
+    { field: 'batteryAlertEnabled', label: '24V Akü & Güç Kesintisi Uyarısı' },
+    { field: 'crashAlertEnabled', label: 'Çarpışma & Park Sarsıntı Kalkanı' },
+    { field: 'idleAlertEnabled', label: 'Uzun Rölanti Uyarısı (30+ dk)' },
+];
 
 const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
     const { activeCompanyId, setActiveCompanyId } = useCompany();
@@ -77,6 +85,12 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
                 personnelEnabled: false,
                 mapEnabled: false,
                 earsivEnabled: false,
+                cameraLiveLightEnabled: true,
+                sosAlertEnabled: true,
+                batteryAlertEnabled: true,
+                crashAlertEnabled: true,
+                smartVibrationAlertEnabled: true,
+                idleAlertEnabled: true,
                 createdAt: new Date().toISOString()
             });
 
@@ -91,7 +105,7 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
             // A1: Yeni şirket bildirimi
             sendDiscordAlert({
               type: 'success',
-              title: '🏢 Yeni Şirket Oluşturuldu',
+              title: 'Yeni Şirket Oluşturuldu',
               description: `**${compName || '—'}** sisteme eklendi.`,
             });
 
@@ -127,10 +141,10 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
                     // A2: Şirket askıya alma bildirimi
                     sendDiscordAlert({
                         type: 'danger',
-                        title: '🚫 Şirket Askıya Alındı',
+                        title: 'Şirket Askıya Alındı',
                         description: `Bir şirket erişimi engellendi.`,
                         fields: [
-                            { name: '🏢 Şirket', value: String(company?.name || docRefId || '—'), inline: true },
+                            { name: 'Şirket', value: String(company?.name || docRefId || '—'), inline: true },
                         ]
                     });
                 }
@@ -162,6 +176,21 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
         } catch { /* empty */ }
     };
 
+    const handleToggleCompanySetting = async (docRefId, fieldName, currentVal) => {
+        try {
+            const effectiveCurrent = currentVal !== false;
+            const nextVal = !effectiveCurrent;
+            const updates = { [fieldName]: nextVal };
+            if (fieldName === 'crashAlertEnabled') {
+                updates.smartVibrationAlertEnabled = nextVal;
+            }
+            await updateDoc(doc(db, 'companies', docRefId), updates);
+            if (fieldName === 'cameraLiveLightEnabled' && nextVal === false) {
+                fetch('/api/camera-stream?action=light&imei=869058070168628&mode=OFF').catch(() => {});
+            }
+        } catch { /* empty */ }
+    };
+
     const handleDeleteCompany = async (company) => {
         const confirmMsg = `DİKKAT! ${company.name} şirketini siliyorsunuz!\n\nBu işlem şirketi ve o şirkete ait TÜM kullanıcıları, araçları ve kayıtları DERİNLEMESİNE silecektir. Bu işlem GERİ ALINAMAZ!\n\nEmin misiniz?`;
         if (window.confirm(confirmMsg)) {
@@ -188,10 +217,10 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
                     // A3: Şirket silme bildirimi
                     sendDiscordAlert({
                         type: 'danger',
-                        title: '💣 ŞİRKET SİLİNDİ — TÜM VERİLER GİTTİ!',
+                        title: 'ŞİRKET SİLİNDİ — TÜM VERİLER GİTTİ',
                         description: `Bir şirket ve tüm verisi sistemden kaldırıldı. Bu işlem geri alınamaz!`,
                         fields: [
-                            { name: '🏢 Şirket', value: String(company?.name || company?.id || '—'), inline: true },
+                            { name: 'Şirket', value: String(company?.name || company?.id || '—'), inline: true },
                         ]
                     });
                 } catch { /* empty */ }
@@ -246,7 +275,7 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
             // A8: Veritabanı yedeği bildirimi
             sendDiscordAlert({
                 type: 'admin',
-                title: '💾 Veritabanı Yedeği Alındı',
+                title: 'Veritabanı Yedeği Alındı',
                 description: 'Tüm sistem verisi JSON olarak indirildi.',
             });
 
@@ -600,6 +629,35 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                                     />
                                                 </button>
                                             </div>
+                                        </div>
+
+                                        {/* Kamera & Donanım Kontrolü (SaaS) */}
+                                        <div className="space-y-1.5 py-2.5 border-t border-white/[0.06]">
+                                            <div className="flex items-center gap-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                                <Video size={11} className="text-sky-400" />
+                                                <span>Kamera & Donanım Kontrolü (SaaS)</span>
+                                            </div>
+                                            {CAMERA_HW_TOGGLES.map((item) => {
+                                                const isEnabled = comp[item.field] !== false;
+                                                return (
+                                                    <div key={item.field} className="flex items-center justify-between text-xs">
+                                                        <span className="text-[11px] text-slate-400 font-medium">{item.label}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleToggleCompanySetting(comp.docRefId, item.field, comp[item.field])}
+                                                            className={`w-8 h-4.5 rounded-full p-0.5 transition-colors duration-200 outline-none flex items-center cursor-pointer ${
+                                                                isEnabled ? 'bg-sky-500' : 'bg-slate-800 border border-slate-700'
+                                                            }`}
+                                                        >
+                                                            <div
+                                                                className={`w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 ${
+                                                                    isEnabled ? 'translate-x-3.5' : 'translate-x-0'
+                                                                }`}
+                                                            />
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
 
                                         {/* Alt Bar: ID ve Aksiyonlar */}

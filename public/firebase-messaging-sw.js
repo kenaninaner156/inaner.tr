@@ -38,6 +38,7 @@ messaging.onBackgroundMessage((payload) => {
   const title = payload.data?.title || payload.notification?.title || "İnaner Lojistik";
   const body = payload.data?.body || payload.notification?.body || "";
   const targetTab = payload.data?.targetTab || 'detaylar';
+  const isUrgent = payload.data?.urgent === 'true';
   
   let actions = [];
   if (payload.data?.buttons) {
@@ -46,11 +47,11 @@ messaging.onBackgroundMessage((payload) => {
       if (Array.isArray(parsedBtns)) {
         parsedBtns.slice(0, 3).forEach(b => {
           if (b.actionType === 'ack_approved') {
-            actions.push({ action: 'ack_approved', title: b.label || '👍 Onayladım' });
+            actions.push({ action: 'ack_approved', title: b.label || 'Onayladım' });
           } else if (b.actionType === 'ack_rejected') {
-            actions.push({ action: 'ack_rejected', title: b.label || '❌ Sorun Var' });
+            actions.push({ action: 'ack_rejected', title: b.label || 'Sorun Var' });
           } else if (b.actionType === 'navigate' || b.targetTab) {
-            actions.push({ action: `nav_${b.targetTab || 'detaylar'}`, title: b.label || '🚀 Sayfayı Aç' });
+            actions.push({ action: `nav_${b.targetTab || 'detaylar'}`, title: b.label || 'Sayfayı Aç' });
           }
         });
       }
@@ -64,8 +65,10 @@ messaging.onBackgroundMessage((payload) => {
     icon: '/tir-clear.png',
     badge: '/tir-clear.png',
     tag: payload.data?.notificationId ? `inaner-${payload.data.notificationId}` : 'inaner-alert',
-    renotify: false,
-    silent: true, // Tamamen sessiz, OS sesi kapalı
+    renotify: isUrgent,
+    silent: !isUrgent,
+    requireInteraction: isUrgent,
+    vibrate: isUrgent ? [300, 100, 300, 100, 300] : undefined,
     data: {
       url: targetTab ? `/#tab=${targetTab}` : '/',
       notificationId: payload.data?.notificationId || null,

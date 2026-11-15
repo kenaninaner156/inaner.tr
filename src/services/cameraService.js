@@ -314,8 +314,9 @@ export async function fetchCameraAlarms(deviceId, pageSize = 10) {
  * @param {string} deviceId - Araç / sürücü kimliği ('Göksel')
  * @param {'sd' | 'hd'} quality - 'sd' (480p, codeType=2, 50GB kotayı korur) veya 'hd' (2K, codeType=1)
  * @param {boolean} setQualityCmd - Kalite değiştirme komutu gönderilsin mi
+ * @param {boolean} lightEnabled - Canlı yayın açıldığında uyarı ışığı yakılsın mı
  */
-export async function fetchLiveStreamUrl(deviceId, quality = 'sd', setQualityCmd = false) {
+export async function fetchLiveStreamUrl(deviceId, quality = 'sd', setQualityCmd = false, lightEnabled = true) {
   const cfg = getCameraConfig(deviceId);
   if (!cfg) return null;
 
@@ -324,7 +325,7 @@ export async function fetchLiveStreamUrl(deviceId, quality = 'sd', setQualityCmd
     const codeType = quality === 'hd' ? 1 : 2;
     const appId = getSessionAppId();
     const res = await fetch(
-      `/api/camera-stream?action=live&imei=${encodeURIComponent(cfg.imei)}&channel=${cfg.channel}&codeType=${codeType}&appId=${appId}${setQualityCmd ? '&setQuality=1' : ''}`
+      `/api/camera-stream?action=live&imei=${encodeURIComponent(cfg.imei)}&channel=${cfg.channel}&codeType=${codeType}&appId=${appId}${setQualityCmd ? '&setQuality=1' : ''}${lightEnabled ? '' : '&light=0'}`
     );
     if (!res.ok) return null;
     const data = await res.json();
@@ -589,12 +590,33 @@ export async function resolveHistorySegmentStream(deviceId, segment) {
 }
 
 /**
+ * Kamera izleme beyaz ışığını kontrol eder (LIGHT,60# / LIGHT,OFF#).
+ * @param {string} deviceId
+ * @param {'60' | '30' | '10' | 'ON' | 'OFF'} mode
+ */
+export async function setCameraWatchLight(deviceId, mode = '60') {
+  const cfg = getCameraConfig(deviceId);
+  if (!cfg) return null;
+
+  try {
+    const res = await fetch(
+      `/api/camera-stream?action=light&imei=${encodeURIComponent(cfg.imei)}&mode=${encodeURIComponent(mode)}`
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Kamera menüsü kapatıldığında 4G akışını sonlandırır.
  * Aylık 50 GB SIM kart kotasının gereksiz harcanmasını engeller.
  * @param {string} deviceId
  * @param {'live' | 'history'} mode
+ * @param {boolean} keepLight
  */
-export async function closeCameraStream(deviceId, mode = 'live') {
+export async function closeCameraStream(deviceId, mode = 'live', keepLight = false) {
   const cfg = getCameraConfig(deviceId);
   if (!cfg) return;
 
@@ -602,7 +624,7 @@ export async function closeCameraStream(deviceId, mode = 'live') {
     const appId = getSessionAppId();
     const type = mode === 'history' ? '1' : '0';
     await fetch(
-      `/api/camera-stream?action=close_stream&imei=${encodeURIComponent(cfg.imei)}&channel=${cfg.channel}&type=${type}&appId=${appId}`
+      `/api/camera-stream?action=close_stream&imei=${encodeURIComponent(cfg.imei)}&channel=${cfg.channel}&type=${type}&appId=${appId}${keepLight ? '&keepLight=1' : ''}`
     );
   } catch {
     // ignore network error on close

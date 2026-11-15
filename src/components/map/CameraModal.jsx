@@ -31,7 +31,9 @@ import {
   wakeUpCamera,
   enableCameraAudio,
   triggerCameraSnapshot,
+  setCameraWatchLight,
 } from '../../services/cameraService';
+import { useCompany } from '../../context/CompanyContext';
 
 function getTodayIso() {
   try {
@@ -72,6 +74,12 @@ export default function CameraModal({
   const [isMuted, setIsMuted] = useState(false);
   const [autoMutedByBrowser, setAutoMutedByBrowser] = useState(false);
   const [volume, setVolume] = useState(1.0);
+  const { companyData } = useCompany() || {};
+  const isLiveLightEnabled = companyData?.cameraLiveLightEnabled !== false;
+  const isLiveLightEnabledRef = useRef(isLiveLightEnabled);
+  useEffect(() => {
+    isLiveLightEnabledRef.current = isLiveLightEnabled;
+  }, [isLiveLightEnabled]);
 
   const videoRef = useRef(null);
   const cleanupStreamRef = useRef(null);
@@ -271,6 +279,15 @@ export default function CameraModal({
     };
   }, [isOpen, mode, deviceId, isVideoLivePlaying]);
 
+  // Canlı yayın izlendiği sürece kamera beyaz uyarı ışığını (LIGHT,60#) 48 saniyede bir yenile
+  useEffect(() => {
+    if (!isOpen || mode !== 'live' || !isVideoLivePlaying || !deviceId || !isLiveLightEnabled) return;
+    const keepAliveId = setInterval(() => {
+      setCameraWatchLight(deviceId, '60');
+    }, 48000);
+    return () => clearInterval(keepAliveId);
+  }, [isOpen, mode, isVideoLivePlaying, deviceId, isLiveLightEnabled]);
+
   // Canlı yayın akışını yükle (WSS-FLV düşük gecikmeli bağlantı)
   useEffect(() => {
     if (!isOpen || mode !== 'live' || !deviceId) return;
@@ -300,7 +317,7 @@ export default function CameraModal({
       }
     }, 14000);
 
-    fetchLiveStreamUrl(deviceId, quality, true).then(async (streamInfo) => {
+    fetchLiveStreamUrl(deviceId, quality, true, isLiveLightEnabledRef.current).then(async (streamInfo) => {
       if (cancelled) return;
       if (!streamInfo?.url || !videoRef.current) {
         clearTimeout(streamTimeout);
