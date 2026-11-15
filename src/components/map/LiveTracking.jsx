@@ -437,7 +437,7 @@ function InlineCameraPreview({
 }) {
   const camConfig = getCameraConfig(driverId);
   const { companyData } = useCompany() || {};
-  const isLiveLightEnabled = companyData?.cameraLiveLightEnabled !== false;
+  const isLiveLightEnabled = companyData?.cameraStatusLedEnabled !== false;
   const isLiveLightEnabledRef = useRef(isLiveLightEnabled);
   useEffect(() => {
     isLiveLightEnabledRef.current = isLiveLightEnabled;
@@ -488,8 +488,18 @@ function InlineCameraPreview({
         setRetryCount((c) => c + 1);
       }
     };
+    const onPageHide = () => {
+      if (!isModalOpenRef.current && hadStreamRef.current) {
+        closeCameraStream(driverId, 'live');
+        hadStreamRef.current = false;
+      }
+    };
     document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', onPageHide);
+    };
   }, [driverId]);
 
   // 75 Saniyelik Görünmez SIM Kota Koruması (kullanıcıya uyarı göstermeden yumuşakça katlanır)
@@ -662,14 +672,10 @@ function InlineCameraPreview({
     };
   }, [driverId, quality, camConfig, isActiveViewport, isModalOpen, isTabHidden, quotaPaused, retryCount]);
 
-  // Ön izleme canlı izlendiği sürece kamera beyaz ışığını (LIGHT,60#) yak ve 48 saniyede bir yenile
+  // Ön izleme canlı izlendiği sürece kamera kabin durum LED'lerini (LEDSW,ON#) aç
   useEffect(() => {
     if (!isVideoReady || isModalOpen || isTabHidden || !isActiveViewport || !driverId || !isLiveLightEnabled) return;
-    setCameraWatchLight(driverId, '60');
-    const keepAliveId = setInterval(() => {
-      setCameraWatchLight(driverId, '60');
-    }, 48000);
-    return () => clearInterval(keepAliveId);
+    setCameraWatchLight(driverId, 'ON');
   }, [isVideoReady, isModalOpen, isTabHidden, isActiveViewport, driverId, isLiveLightEnabled]);
 
   if (!camConfig) return null;
@@ -702,7 +708,6 @@ function InlineCameraPreview({
               playsInline
               disableRemotePlayback
               x-webkit-airplay="deny"
-              onLoadedMetadata={markVideoPlaying}
               onLoadedData={markVideoPlaying}
               onCanPlay={markVideoPlaying}
               onPlaying={markVideoPlaying}

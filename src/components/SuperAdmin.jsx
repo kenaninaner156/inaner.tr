@@ -8,7 +8,7 @@ import { sendDiscordAlert } from '../services/discordWebhook';
 import AdminLog from './AdminLog';
 
 const CAMERA_HW_TOGGLES = [
-    { field: 'cameraLiveLightEnabled', label: 'Kamera İzlenirken Beyaz Işık' },
+    { field: 'cameraStatusLedEnabled', label: 'Kamera İzlenirken Kabin LED (LEDSW)' },
     { field: 'sosAlertEnabled', label: 'SOS Acil Durum Bildirimi' },
     { field: 'batteryAlertEnabled', label: '24V Akü & Güç Kesintisi Uyarısı' },
     { field: 'crashAlertEnabled', label: 'Çarpışma & Park Sarsıntı Kalkanı' },
@@ -116,7 +116,7 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
                 personnelEnabled: false,
                 mapEnabled: false,
                 earsivEnabled: false,
-                cameraLiveLightEnabled: true,
+                cameraStatusLedEnabled: true,
                 sosAlertEnabled: true,
                 batteryAlertEnabled: true,
                 crashAlertEnabled: true,
@@ -216,8 +216,8 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
                 updates.smartVibrationAlertEnabled = nextVal;
             }
             await updateDoc(doc(db, 'companies', docRefId), updates);
-            if (fieldName === 'cameraLiveLightEnabled' && nextVal === false) {
-                fetch('/api/camera-stream?action=light&imei=869058070168628&mode=OFF').catch(() => {});
+            if (fieldName === 'cameraStatusLedEnabled' && nextVal === false) {
+                fetch('/api/camera-stream?action=status_led&imei=869058070168628&mode=OFF').catch(() => {});
             }
         } catch { /* empty */ }
     };

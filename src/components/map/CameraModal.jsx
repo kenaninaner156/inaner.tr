@@ -76,7 +76,7 @@ export default function CameraModal({
   const [autoMutedByBrowser, setAutoMutedByBrowser] = useState(false);
   const [volume, setVolume] = useState(1.0);
   const { companyData } = useCompany() || {};
-  const isLiveLightEnabled = companyData?.cameraLiveLightEnabled !== false;
+  const isLiveLightEnabled = companyData?.cameraStatusLedEnabled !== false;
   const isLiveLightEnabledRef = useRef(isLiveLightEnabled);
   useEffect(() => {
     isLiveLightEnabledRef.current = isLiveLightEnabled;
@@ -276,21 +276,26 @@ export default function CameraModal({
       }, 3 * 60 * 1000);
     }
 
+    const onPageHide = () => {
+      if (liveStartedRef.current) {
+        closeCameraStream(deviceId, 'live');
+        liveStartedRef.current = false;
+      }
+    };
+
     document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', onPageHide);
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', onPageHide);
       if (idleTimer) clearTimeout(idleTimer);
     };
   }, [isOpen, mode, deviceId, isVideoLivePlaying]);
 
-  // Canlı yayın izlendiği sürece kamera beyaz uyarı ışığını (LIGHT,60#) yak ve 48 saniyede bir yenile
+  // Canlı yayın izlendiği sürece kamera kabin durum LED'lerini (LEDSW,ON#) aç
   useEffect(() => {
     if (!isOpen || mode !== 'live' || !isVideoLivePlaying || !deviceId || !isLiveLightEnabled) return;
-    setCameraWatchLight(deviceId, '60');
-    const keepAliveId = setInterval(() => {
-      setCameraWatchLight(deviceId, '60');
-    }, 48000);
-    return () => clearInterval(keepAliveId);
+    setCameraWatchLight(deviceId, 'ON');
   }, [isOpen, mode, isVideoLivePlaying, deviceId, isLiveLightEnabled]);
 
   // Canlı yayın akışını yükle (WSS-FLV düşük gecikmeli bağlantı + otomatik 4G uyandırma & yeniden bağlanma)
@@ -1017,9 +1022,6 @@ export default function CameraModal({
             x-webkit-airplay="deny"
             muted={isMuted}
             onLoadedMetadata={(e) => {
-              liveStartedRef.current = true;
-              setIsLoadingStream(false);
-              setIsVideoLivePlaying(true);
               const v = e.currentTarget;
               if (v) {
                 v.volume = volume;

@@ -646,17 +646,21 @@ export async function resolveHistorySegmentStream(deviceId, segment) {
 }
 
 /**
- * Kamera izleme beyaz ışığını kontrol eder (LIGHT,60# / LIGHT,OFF#).
+ * Kamera izleme kabin durum LED'lerini kontrol eder (LEDSW,ON# / LEDSW,OFF#).
  * @param {string} deviceId
- * @param {'60' | '30' | '10' | 'ON' | 'OFF'} mode
+ * @param {'ON' | 'OFF'} mode
  */
-export async function setCameraWatchLight(deviceId, mode = '60') {
+export async function setCameraWatchLight(deviceId, mode = 'ON') {
   const cfg = getCameraConfig(deviceId);
   if (!cfg) return null;
 
+  const upperMode = String(mode || 'ON').toUpperCase();
+  const normalizedMode = upperMode === 'OFF' || upperMode === '0' ? 'OFF' : 'ON';
+
   try {
     const res = await fetch(
-      `/api/camera-stream?action=light&imei=${encodeURIComponent(cfg.imei)}&mode=${encodeURIComponent(mode)}`
+      `/api/camera-stream?action=status_led&imei=${encodeURIComponent(cfg.imei)}&mode=${encodeURIComponent(normalizedMode)}`,
+      normalizedMode === 'OFF' ? { keepalive: true } : undefined
     );
     if (!res.ok) return null;
     return await res.json();
@@ -684,7 +688,8 @@ export async function closeCameraStream(deviceId, mode = 'live', keepLight = fal
     const appId = getSessionAppId();
     const type = mode === 'history' ? '1' : '0';
     await fetch(
-      `/api/camera-stream?action=close_stream&imei=${encodeURIComponent(cfg.imei)}&channel=${cfg.channel}&type=${type}&appId=${appId}${keepLight ? '&keepLight=1' : ''}`
+      `/api/camera-stream?action=close_stream&imei=${encodeURIComponent(cfg.imei)}&channel=${cfg.channel}&type=${type}&appId=${appId}${keepLight ? '&keepLight=1' : ''}`,
+      { keepalive: true }
     );
   } catch {
     // ignore network error on close
@@ -774,7 +779,9 @@ export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats =
         let hasDecodedAnyFrame = false;
         let didNotifyFirstFrame = false;
         let didTryFallback = false;
+        let didFallbackToNoAudio = false;
         let startupSyncTimer = null;
+        let latencyGuardTimer = null;
 
         const effectiveFallbackUrl =
           fallbackUrl ||
@@ -787,8 +794,16 @@ export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats =
           }
         };
 
+        const clearLatencyGuardTimer = () => {
+          if (latencyGuardTimer) {
+            clearInterval(latencyGuardTimer);
+            latencyGuardTimer = null;
+          }
+        };
+
         const destroyActivePlayer = () => {
           clearStartupSyncTimer();
+          clearLatencyGuardTimer();
           if (!activePlayer) return;
           const p = activePlayer;
           activePlayer = null;
@@ -811,18 +826,19 @@ export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats =
           }
         };
 
-        const startPlayerWithUrl = (targetUrl) => {
+        const startPlayerWithUrl = (targetUrl, useAudio = Boolean(hasAudio)) => {
           if (destroyed || !targetUrl) return;
           destroyActivePlayer();
 
           const isWsStream = targetUrl.startsWith('ws://') || targetUrl.startsWith('wss://');
+          let firstBytesAt = 0;
 
           const player = mpegts.createPlayer(
             {
               type: 'flv',
               isLive: Boolean(isLive),
               url: targetUrl,
-              hasAudio: Boolean(hasAudio),
+              hasAudio: Boolean(useAudio),
               hasVideo: true,
             },
             {
@@ -833,10 +849,10 @@ export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats =
               autoCleanupSourceBuffer: true,
               autoCleanupMaxBackwardDuration: 15,
               autoCleanupMinBackwardDuration: 6,
-              liveBufferLatencyChasing: Boolean(isLive),
-              liveBufferLatencyChasingOnPaused: Boolean(isLive),
-              liveBufferLatencyMaxLatency: 1.8,
-              liveBufferLatencyMinRemain: 0.5,
+              // Dahili 1.8s/0.5s kovalaması park modundaki 1fps akışı ilk kare çözülmeden sıfırladığı için kapalı tutulur;
+              // canlı gecikme yalnızca ilk kare çözüldükten sonra güvenli (>=1.5s paylı) koruma ile dengelenir.
+              liveBufferLatencyChasing: false,
+              liveBufferLatencyChasingOnPaused: false,
               fixAudioTimestampGap: true,
               accurateSeek: false,
             }
@@ -864,12 +880,16 @@ export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats =
 
           tryPlayVideo();
 
-          // JC182 FLV akışında ilk H.264 IDR karesi 0.000sn'de, ilk AAC ses paketi ~0.120sn'de başlar.
+          // JC182 FLV akışında ilk H.264 IDR karesi 0.000sn'de, ilk AAC ses paketi ~1.15sn'de gelebilir.
           // MSE kesişim tamponu oluştuğu an currentTime tamponun gerisindeyse tampon başlangıcına sıçrat.
           const syncBufferGapAndPlay = () => {
             if (destroyed || !videoEl) return;
             try {
-              if (videoEl.readyState >= 1 && videoEl.videoWidth > 0) {
+              const q = videoEl.getVideoPlaybackQuality ? videoEl.getVideoPlaybackQuality() : null;
+              if (
+                (q && q.totalVideoFrames > 0) ||
+                (videoEl.readyState >= 2 && videoEl.videoWidth > 0 && (!videoEl.paused || videoEl.currentTime > 0))
+              ) {
                 notifyFirstFrameOnce();
               }
               const buf = videoEl.buffered;
@@ -877,13 +897,10 @@ export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats =
                 const start = buf.start(0);
                 const end = buf.end(buf.length - 1);
                 if (videoEl.currentTime < start - 0.005 && end > start) {
-                  videoEl.currentTime = Math.min(start + 0.01, end);
+                  videoEl.currentTime = Math.min(start + 0.02, end);
                 }
                 if (videoEl.paused) {
                   tryPlayVideo();
-                }
-                if (videoEl.readyState >= 2) {
-                  notifyFirstFrameOnce();
                 }
               }
             } catch {
@@ -902,14 +919,45 @@ export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats =
             }
           }, 120);
 
+          if (isLive) {
+            latencyGuardTimer = setInterval(() => {
+              if (destroyed || !videoEl || !hasDecodedAnyFrame || videoEl.paused || videoEl.readyState < 3) return;
+              try {
+                const buf = videoEl.buffered;
+                if (!buf || buf.length === 0) return;
+                const tailStart = buf.start(buf.length - 1);
+                const tailEnd = buf.end(buf.length - 1);
+                if (tailEnd - tailStart >= 4.0 && tailEnd - videoEl.currentTime > 5.5) {
+                  videoEl.currentTime = Math.max(tailStart, tailEnd - 1.5);
+                }
+              } catch {
+                // ignore seek errors
+              }
+            }, 1000);
+          }
+
           const statsEvent = mpegts.Events?.STATISTICS_INFO || 'statistics_info';
           player.on(statsEvent, (stats) => {
             if (destroyed) return;
+            if ((stats?.speed || 0) > 0 && !firstBytesAt) {
+              firstBytesAt = Date.now();
+            }
             if (stats?.decodedFrames > 0) {
               hasDecodedAnyFrame = true;
               notifyFirstFrameOnce();
             } else {
               syncBufferGapAndPlay();
+              if (
+                useAudio &&
+                !didFallbackToNoAudio &&
+                firstBytesAt > 0 &&
+                Date.now() - firstBytesAt > 5000 &&
+                (!videoEl.buffered || videoEl.buffered.length === 0)
+              ) {
+                didFallbackToNoAudio = true;
+                startPlayerWithUrl(targetUrl, false);
+                return;
+              }
             }
             if (typeof onStats === 'function' && stats) {
               onStats({
@@ -927,7 +975,7 @@ export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats =
             if (destroyed) return;
             if (!hasDecodedAnyFrame && !didTryFallback && effectiveFallbackUrl && effectiveFallbackUrl !== targetUrl) {
               didTryFallback = true;
-              startPlayerWithUrl(effectiveFallbackUrl);
+              startPlayerWithUrl(effectiveFallbackUrl, useAudio);
               return;
             }
             if (typeof onError === 'function') {
@@ -936,7 +984,7 @@ export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats =
           });
         };
 
-        startPlayerWithUrl(streamUrl);
+        startPlayerWithUrl(streamUrl, Boolean(hasAudio));
 
         return () => {
           destroyed = true;
