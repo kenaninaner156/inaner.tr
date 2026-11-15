@@ -1,5 +1,5 @@
-﻿import React, { useState, useEffect, useContext } from 'react';
-import { ShieldAlert, Building2, Plus, Server, Activity, Trash2, Key, Edit2, PauseCircle, PlayCircle, Users, Truck, Check, X, AlertOctagon, LogIn, Download, Database, Shield, Menu, Video } from 'lucide-react';
+﻿import React, { useState, useEffect, useContext, useCallback } from 'react';
+import { ShieldAlert, Building2, Plus, Server, Activity, Trash2, Key, Edit2, PauseCircle, PlayCircle, Users, Truck, Check, X, AlertOctagon, LogIn, Download, Database, Shield, Menu, Video, RotateCw, RefreshCw, Wifi } from 'lucide-react';
 import { db } from '../services/firebaseConfig';
 import { collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc, writeBatch, where, getDocs } from 'firebase/firestore';
 import { useCompany } from '../context/CompanyContext';
@@ -34,6 +34,35 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
     const [stats, setStats] = useState({});
     const [editingCompanyId, setEditingCompanyId] = useState(null);
     const [editForm, setEditForm] = useState({ name: '', adminId: '' });
+    const [cameraUsage, setCameraUsage] = useState({
+        loading: false,
+        monthlyGb: null,
+        monthlyMb: null,
+        todayMb: null,
+    });
+    const [rebootState, setRebootState] = useState({ loading: false, text: '' });
+
+    const fetchCameraUsage = useCallback(async (force = false) => {
+        setCameraUsage((prev) => ({ ...prev, loading: true }));
+        try {
+            const res = await fetch(
+                `/api/camera-stream?action=data_usage&imei=869058070168628${force ? '&force=1' : ''}`
+            );
+            const data = await res.json();
+            if (data?.ok) {
+                setCameraUsage({
+                    loading: false,
+                    monthlyGb: data.monthlyGb ?? 0,
+                    monthlyMb: data.monthlyMb ?? 0,
+                    todayMb: data.todayMb ?? 0,
+                });
+                return;
+            }
+        } catch {
+            // ignore
+        }
+        setCameraUsage((prev) => ({ ...prev, loading: false }));
+    }, []);
 
     useEffect(() => {
         const q = query(collection(db, 'companies'), orderBy('createdAt', 'desc'));
@@ -70,8 +99,10 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
             setStats(prev => ({ ...prev, users: counts, drivers: driverCounts }));
         });
 
+        fetchCameraUsage(false);
+
         return () => { unsub(); unsubTrucks(); unsubUsers(); };
-    }, []);
+    }, [fetchCameraUsage]);
 
     const handleAddCompany = async (e) => {
         e.preventDefault();
@@ -189,6 +220,30 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
                 fetch('/api/camera-stream?action=light&imei=869058070168628&mode=OFF').catch(() => {});
             }
         } catch { /* empty */ }
+    };
+
+    const handleRebootCamera = async () => {
+        if (rebootState.loading) return;
+        if (!window.confirm('06 FTN 692 plakalı araç kamerasını (JC182) uzaktan yeniden başlatmak istediğinize emin misiniz?')) {
+            return;
+        }
+        setRebootState({ loading: true, text: 'Komut iletiliyor...' });
+        try {
+            const res = await fetch('/api/camera-stream?action=reboot&imei=869058070168628', {
+                method: 'POST',
+            });
+            const data = await res.json();
+            if (data?.ok) {
+                setRebootState({ loading: false, text: 'Yeniden başlatıldı (OK)' });
+            } else {
+                setRebootState({ loading: false, text: data?.message || 'Yanıt alınamadı' });
+            }
+        } catch {
+            setRebootState({ loading: false, text: 'Bağlantı hatası' });
+        }
+        setTimeout(() => {
+            setRebootState((prev) => (prev.loading ? prev : { loading: false, text: '' }));
+        }, 5000);
     };
 
     const handleDeleteCompany = async (company) => {
@@ -658,6 +713,61 @@ const SuperAdmin = ({ onOpenMenu, isMobile } = {}) => {
                                                     </div>
                                                 );
                                             })}
+
+                                            {/* Aylık 4G Akış Veri Kullanımı & Kamera Reboot */}
+                                            {comp.id === 'inaner_logistics' && (
+                                                <div className="pt-2 mt-2 border-t border-white/[0.05] space-y-2">
+                                                    <div className="bg-[#0d1117] border border-white/[0.06] rounded-xl px-2.5 py-2 flex items-center justify-between gap-2">
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
+                                                                <Wifi size={11} className="text-sky-400 shrink-0" />
+                                                                <span>Bu Ay Kamera Verisi (06 FTN 692)</span>
+                                                            </div>
+                                                            <div className="flex items-baseline gap-2 mt-0.5">
+                                                                <span className="text-xs font-bold text-white font-mono">
+                                                                    {cameraUsage.monthlyGb !== null
+                                                                        ? `${cameraUsage.monthlyGb} GB (${Math.round(cameraUsage.monthlyMb)} MB)`
+                                                                        : cameraUsage.loading
+                                                                        ? 'Hesaplanıyor...'
+                                                                        : '—'}
+                                                                </span>
+                                                                {cameraUsage.todayMb !== null && (
+                                                                    <span className="text-[10px] text-sky-400 font-mono font-semibold">
+                                                                        Bugün: {cameraUsage.todayMb} MB
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => fetchCameraUsage(true)}
+                                                            disabled={cameraUsage.loading}
+                                                            className="w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer shrink-0 disabled:opacity-50"
+                                                            title="Veri kullanımını yenile"
+                                                        >
+                                                            <RefreshCw size={12} className={cameraUsage.loading ? 'animate-spin text-sky-400' : ''} />
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleRebootCamera}
+                                                            disabled={rebootState.loading}
+                                                            className="w-full bg-[#0d1117] hover:bg-slate-800/80 border border-white/[0.08] hover:border-sky-500/40 text-slate-200 hover:text-white rounded-xl px-3 py-1.5 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                                                        >
+                                                            <RotateCw size={12} className={rebootState.loading ? 'animate-spin text-sky-400' : 'text-sky-400'} />
+                                                            <span>
+                                                                {rebootState.loading
+                                                                    ? 'Kamera Yeniden Başlatılıyor...'
+                                                                    : rebootState.text
+                                                                    ? rebootState.text
+                                                                    : 'Kamerayı Yeniden Başlat (REBOOT)'}
+                                                            </span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Alt Bar: ID ve Aksiyonlar */}
