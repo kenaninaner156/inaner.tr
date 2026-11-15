@@ -24,12 +24,12 @@ import {
 } from 'lucide-react';
 import {
   fetchLiveStreamUrl,
+  invalidateLiveStreamCache,
   fetchCachedCameraHistorySegments,
   resolveHistorySegmentStream,
   closeCameraStream,
   attachStreamToVideo,
   wakeUpCamera,
-  enableCameraAudio,
   triggerCameraSnapshot,
   setCameraWatchLight,
 } from '../../services/cameraService';
@@ -163,22 +163,25 @@ export default function CameraModal({
   const handleWakeUp = async () => {
     if (!deviceId || isWakingUp) return;
     setIsWakingUp(true);
+    setIsLoadingStream(true);
+    setStreamStatus({ offline: false, message: '' });
     setWakeFeedback('Cihaza 4G üzerinden uyandırma sinyali iletiliyor...');
     try {
       const res = await wakeUpCamera(deviceId);
       if (res.success) {
         setWakeFeedback('Uyandırma sinyali iletildi, görüntü başlatılıyor...');
       } else {
-        setWakeFeedback(res.message || 'Cihaz yanıt vermedi.');
+        setWakeFeedback(res.message || 'Cihaz yanıt vermedi, bağlantı tekrar deneniyor...');
       }
     } catch {
       setWakeFeedback('Uyandırma isteği iletilemedi.');
     }
+    invalidateLiveStreamCache(deviceId);
     setTimeout(() => {
       setReloadLiveTrigger((c) => c + 1);
       setIsWakingUp(false);
-      setTimeout(() => setWakeFeedback(''), 4500);
-    }, 3000);
+      setTimeout(() => setWakeFeedback(''), 3500);
+    }, 350);
   };
 
   // Harita tıklama/kaydırma sızıntılarını engelle
@@ -279,19 +282,23 @@ export default function CameraModal({
     };
   }, [isOpen, mode, deviceId, isVideoLivePlaying]);
 
-  // Canlı yayın izlendiği sürece kamera beyaz uyarı ışığını (LIGHT,60#) 48 saniyede bir yenile
+  // Canlı yayın izlendiği sürece kamera beyaz uyarı ışığını (LIGHT,60#) yak ve 48 saniyede bir yenile
   useEffect(() => {
     if (!isOpen || mode !== 'live' || !isVideoLivePlaying || !deviceId || !isLiveLightEnabled) return;
+    setCameraWatchLight(deviceId, '60');
     const keepAliveId = setInterval(() => {
       setCameraWatchLight(deviceId, '60');
     }, 48000);
     return () => clearInterval(keepAliveId);
   }, [isOpen, mode, isVideoLivePlaying, deviceId, isLiveLightEnabled]);
 
-  // Canlı yayın akışını yükle (WSS-FLV düşük gecikmeli bağlantı)
+  // Canlı yayın akışını yükle (WSS-FLV düşük gecikmeli bağlantı + otomatik 4G uyandırma & yeniden bağlanma)
   useEffect(() => {
     if (!isOpen || mode !== 'live' || !deviceId) return;
     let cancelled = false;
+    let autoRetryTimer = null;
+    let retryDelayTimer = null;
+    let didAutoWake = false;
     liveStartedRef.current = false;
 
     Promise.resolve().then(() => {
@@ -299,12 +306,23 @@ export default function CameraModal({
       setIsLoadingStream(true);
       setIsVideoLivePlaying(false);
       setStreamStatus({ offline: false, message: '' });
-      enableCameraAudio(deviceId).catch(() => {});
     });
 
-    // 14 saniye içinde görüntü karesi gelmezse sonsuz yükleme ekranını sonlandırıp uyku kartını göster
+    const clearPendingTimers = () => {
+      if (autoRetryTimer) {
+        clearTimeout(autoRetryTimer);
+        autoRetryTimer = null;
+      }
+      if (retryDelayTimer) {
+        clearTimeout(retryDelayTimer);
+        retryDelayTimer = null;
+      }
+    };
+
+    // 18 saniye içinde görüntü karesi gelmezse sonsuz yükleme ekranını sonlandırıp uyku kartını göster
     const streamTimeout = setTimeout(() => {
       if (!cancelled && !liveStartedRef.current) {
+        clearPendingTimers();
         if (cleanupStreamRef.current) {
           cleanupStreamRef.current();
           cleanupStreamRef.current = null;
@@ -315,11 +333,34 @@ export default function CameraModal({
           message: 'Araç park halinde. Canlı görüntü için kamerayı uyandırabilir veya geçmiş kayıtları izleyebilirsiniz.',
         });
       }
-    }, 14000);
+    }, 18000);
 
-    fetchLiveStreamUrl(deviceId, quality, true, isLiveLightEnabledRef.current).then(async (streamInfo) => {
-      if (cancelled) return;
+    const connectAttempt = async (attemptIndex = 0, forceFreshUrl = false) => {
+      if (cancelled || liveStartedRef.current) return;
+      clearPendingTimers();
+
+      if (forceFreshUrl) {
+        invalidateLiveStreamCache(deviceId);
+      }
+
+      const streamInfo = await fetchLiveStreamUrl(
+        deviceId,
+        quality,
+        false,
+        isLiveLightEnabledRef.current,
+        forceFreshUrl
+      );
+      if (cancelled || liveStartedRef.current) return;
+
       if (!streamInfo?.url || !videoRef.current) {
+        if (attemptIndex < 2) {
+          if (!didAutoWake) {
+            didAutoWake = true;
+            wakeUpCamera(deviceId).catch(() => {});
+          }
+          retryDelayTimer = setTimeout(() => connectAttempt(attemptIndex + 1, true), 900);
+          return;
+        }
         clearTimeout(streamTimeout);
         setIsLoadingStream(false);
         setStreamStatus({
@@ -336,10 +377,31 @@ export default function CameraModal({
         cleanupStreamRef.current = null;
       }
 
+      // İlk denemede 4.5 saniye içinde kare çözülmezse (kamera soğuk/park uykusundaysa) arka planda uyandırıp taze akış aç
+      if (attemptIndex < 2) {
+        autoRetryTimer = setTimeout(() => {
+          if (!cancelled && !liveStartedRef.current) {
+            if (!didAutoWake) {
+              didAutoWake = true;
+              wakeUpCamera(deviceId).catch(() => {});
+            }
+            connectAttempt(attemptIndex + 1, true);
+          }
+        }, attemptIndex === 0 ? 4500 : 6500);
+      }
+
       const cleanup = await attachStreamToVideo(videoRef.current, streamInfo.url, {
         hasAudio: true,
         isLive: true,
         fallbackUrl: streamInfo.fallbackUrl || null,
+        onFirstFrame: () => {
+          if (cancelled) return;
+          liveStartedRef.current = true;
+          clearTimeout(streamTimeout);
+          clearPendingTimers();
+          setIsLoadingStream(false);
+          setIsVideoLivePlaying(true);
+        },
         onAutoMuted: () => {
           if (!cancelled) {
             setIsMuted(true);
@@ -348,6 +410,18 @@ export default function CameraModal({
         },
         onError: (_errType, errDetail) => {
           if (cancelled || liveStartedRef.current) return;
+          clearPendingTimers();
+          if (
+            attemptIndex < 2 &&
+            !(typeof errDetail === 'string' && errDetail.includes('iOS'))
+          ) {
+            if (!didAutoWake) {
+              didAutoWake = true;
+              wakeUpCamera(deviceId).catch(() => {});
+            }
+            retryDelayTimer = setTimeout(() => connectAttempt(attemptIndex + 1, true), 550);
+            return;
+          }
           clearTimeout(streamTimeout);
           setIsLoadingStream(false);
           setStreamStatus({
@@ -365,11 +439,18 @@ export default function CameraModal({
         return;
       }
       cleanupStreamRef.current = cleanup;
-    });
+    };
+
+    connectAttempt(0, reloadLiveTrigger > 0);
 
     return () => {
       cancelled = true;
       clearTimeout(streamTimeout);
+      clearPendingTimers();
+      if (cleanupStreamRef.current) {
+        cleanupStreamRef.current();
+        cleanupStreamRef.current = null;
+      }
     };
   }, [isOpen, mode, deviceId, quality, reloadLiveTrigger]);
 
@@ -445,6 +526,9 @@ export default function CameraModal({
       const cleanup = await attachStreamToVideo(videoRef.current, streamUrl, {
         hasAudio: true,
         isLive: false,
+        onFirstFrame: () => {
+          if (!cancelled) setIsLoadingStream(false);
+        },
         onAutoMuted: () => {
           if (!cancelled) {
             setIsMuted(true);
@@ -469,8 +553,12 @@ export default function CameraModal({
     attach();
     return () => {
       cancelled = true;
+      if (cleanupStreamRef.current) {
+        cleanupStreamRef.current();
+        cleanupStreamRef.current = null;
+      }
     };
-  }, [isOpen, mode, deviceId, selectedSegment, playbackRate]);
+  }, [isOpen, mode, deviceId, selectedSegment]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Unmount temizliği
   useEffect(() => {
@@ -946,12 +1034,12 @@ export default function CameraModal({
             x-webkit-airplay="deny"
             muted={isMuted}
             onLoadedMetadata={(e) => {
-              liveStartedRef.current = true;
-              setIsLoadingStream(false);
-              setIsVideoLivePlaying(true);
               const v = e.currentTarget;
               if (v) {
                 v.volume = volume;
+              }
+              if (mode === 'history') {
+                setIsLoadingStream(false);
               }
             }}
             onCanPlay={(e) => {

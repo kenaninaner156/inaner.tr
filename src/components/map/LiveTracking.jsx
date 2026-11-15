@@ -470,6 +470,7 @@ function InlineCameraPreview({
     const onVisibilityChange = () => {
       const hidden = document.hidden;
       setIsTabHidden(hidden);
+      if (isModalOpenRef.current) return;
       if (hidden) {
         if (cleanupRef.current) {
           cleanupRef.current();
@@ -493,8 +494,9 @@ function InlineCameraPreview({
 
   // 75 Saniyelik Görünmez SIM Kota Koruması (kullanıcıya uyarı göstermeden yumuşakça katlanır)
   useEffect(() => {
-    if (!isVideoReady) return;
+    if (!isVideoReady || isModalOpen) return;
     const guardTimer = setTimeout(() => {
+      if (isModalOpenRef.current) return;
       if (cleanupRef.current) {
         cleanupRef.current();
         cleanupRef.current = null;
@@ -509,7 +511,7 @@ function InlineCameraPreview({
       setQuotaPaused(true);
     }, 75000);
     return () => clearTimeout(guardTimer);
-  }, [isVideoReady, driverId]);
+  }, [isVideoReady, isModalOpen, driverId]);
 
   // Araç kartından çıkıldığında (tam ekran modal açılmadıysa) 4G yayınını kapatıp 50 GB SIM kotasını koru
   useEffect(() => {
@@ -538,16 +540,25 @@ function InlineCameraPreview({
   // Canlı yayın adresini yalnızca aktif ekranda, sekme görünürken ve modal kapalıyken al
   useEffect(() => {
     if (!camConfig || !isActiveViewport || isModalOpen || isTabHidden || quotaPaused) {
+      let handoverTimer = null;
       if (cleanupRef.current) {
-        cleanupRef.current();
+        const prevCleanup = cleanupRef.current;
         cleanupRef.current = null;
+        if (isModalOpen) {
+          // Tam ekrana geçerken Tracksolid medya sunucusunun akışı düşürmemesi için önizleme soketini 650ms örtüştür
+          handoverTimer = setTimeout(() => prevCleanup(), 650);
+        } else {
+          prevCleanup();
+        }
       }
       Promise.resolve().then(() => {
         setStreamInfo(null);
         setIsVideoReady(false);
         videoReadyRef.current = false;
       });
-      return;
+      return () => {
+        if (handoverTimer) clearTimeout(handoverTimer);
+      };
     }
 
     let cancelled = false;
@@ -572,9 +583,10 @@ function InlineCameraPreview({
     };
   }, [driverId, quality, camConfig, isActiveViewport, isModalOpen, isTabHidden, quotaPaused, retryCount]);
 
-  // Ön izleme canlı izlendiği sürece kamera beyaz ışığını (LIGHT,60#) 48 saniyede bir yenile
+  // Ön izleme canlı izlendiği sürece kamera beyaz ışığını (LIGHT,60#) yak ve 48 saniyede bir yenile
   useEffect(() => {
     if (!isVideoReady || isModalOpen || isTabHidden || !isActiveViewport || !driverId || !isLiveLightEnabled) return;
+    setCameraWatchLight(driverId, '60');
     const keepAliveId = setInterval(() => {
       setCameraWatchLight(driverId, '60');
     }, 48000);
@@ -587,7 +599,7 @@ function InlineCameraPreview({
     let cancelled = false;
 
     const connectTimer = setTimeout(() => {
-      if (!cancelled && !videoReadyRef.current) {
+      if (!cancelled && !videoReadyRef.current && !isModalOpenRef.current) {
         if (cleanupRef.current) {
           cleanupRef.current();
           cleanupRef.current = null;
@@ -609,6 +621,12 @@ function InlineCameraPreview({
         hasAudio: false,
         isLive: true,
         fallbackUrl: streamInfo.fallbackUrl || null,
+        onFirstFrame: () => {
+          if (!cancelled) {
+            videoReadyRef.current = true;
+            setIsVideoReady(true);
+          }
+        },
         onError: () => {
           if (!cancelled && !videoReadyRef.current) {
             clearTimeout(connectTimer);
@@ -627,7 +645,7 @@ function InlineCameraPreview({
     return () => {
       cancelled = true;
       clearTimeout(connectTimer);
-      if (cleanupRef.current) {
+      if (cleanupRef.current && !isModalOpenRef.current) {
         cleanupRef.current();
         cleanupRef.current = null;
       }

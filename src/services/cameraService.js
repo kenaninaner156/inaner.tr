@@ -309,51 +309,106 @@ export async function fetchCameraAlarms(deviceId, pageSize = 10) {
   }
 }
 
+// ── Aktif Canlı Yayın URL Önbelleği ve Eşzamanlı İstek Birleştirici (Önizleme -> Tam Ekran Sıfır Bekleme) ──
+const liveStreamUrlCache = new Map();
+const liveStreamInflight = new Map();
+const LIVE_STREAM_CACHE_TTL_MS = 40 * 1000;
+
+export function invalidateLiveStreamCache(deviceId = null) {
+  if (!deviceId) {
+    liveStreamUrlCache.clear();
+    liveStreamInflight.clear();
+    return;
+  }
+  const cfg = getCameraConfig(deviceId);
+  const imeiPrefix = cfg ? `${cfg.imei}_` : `${deviceId}_`;
+  for (const key of liveStreamUrlCache.keys()) {
+    if (key.startsWith(imeiPrefix)) liveStreamUrlCache.delete(key);
+  }
+  for (const key of liveStreamInflight.keys()) {
+    if (key.startsWith(imeiPrefix)) liveStreamInflight.delete(key);
+  }
+}
+
 /**
  * Canlı yayın URL'sini döndürür (Tracksolid Pro /v3/new/newVideo/getLiveStreamUrl).
  * @param {string} deviceId - Araç / sürücü kimliği ('Göksel')
  * @param {'sd' | 'hd'} quality - 'sd' (480p, codeType=2, 50GB kotayı korur) veya 'hd' (2K, codeType=1)
  * @param {boolean} setQualityCmd - Kalite değiştirme komutu gönderilsin mi
  * @param {boolean} lightEnabled - Canlı yayın açıldığında uyarı ışığı yakılsın mı
+ * @param {boolean} forceRefresh - Önbelleği atlayıp yeni oturum aç
  */
-export async function fetchLiveStreamUrl(deviceId, quality = 'sd', setQualityCmd = false, lightEnabled = true) {
+export async function fetchLiveStreamUrl(
+  deviceId,
+  quality = 'sd',
+  setQualityCmd = false,
+  lightEnabled = true,
+  forceRefresh = false
+) {
   const cfg = getCameraConfig(deviceId);
   if (!cfg) return null;
 
-  try {
-    // 50 GB hücresel veri kotasını korumak için varsayılan olarak 480p sub-stream (codeType: 2) kullanılır
-    const codeType = quality === 'hd' ? 1 : 2;
-    const appId = getSessionAppId();
-    const res = await fetch(
-      `/api/camera-stream?action=live&imei=${encodeURIComponent(cfg.imei)}&channel=${cfg.channel}&codeType=${codeType}&appId=${appId}${setQualityCmd ? '&setQuality=1' : ''}${lightEnabled ? '' : '&light=0'}`
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data?.url) {
-      return {
-        url: data.url,
-        fallbackUrl: data.fallbackUrl || data.rawUrl || null,
-        rawUrl: data.rawUrl || data.url,
-        format: (data.rawUrl || data.url).includes('.flv') ? 'flv' : 'native',
-        quality,
-        codeType,
-        channel: cfg.channel,
-        imei: cfg.imei,
-        appId,
-        offline: false,
-      };
+  const codeType = quality === 'hd' ? 1 : 2;
+  const cacheKey = `${cfg.imei}_${codeType}`;
+  const now = Date.now();
+
+  if (!forceRefresh) {
+    const cached = liveStreamUrlCache.get(cacheKey);
+    if (cached && now < cached.expiresAt && cached.data?.url) {
+      return cached.data;
     }
-    return {
-      url: null,
-      fallbackUrl: null,
-      offline: Boolean(data?.offline),
-      message: data?.message || 'Araç park modunda. Canlı görüntü için kamerayı uyandırabilirsiniz.',
-      telemetry: data?.telemetry || null,
-      appId,
-    };
-  } catch {
-    return null;
+    const inflight = liveStreamInflight.get(cacheKey);
+    if (inflight) {
+      return inflight;
+    }
   }
+
+  const requestPromise = (async () => {
+    try {
+      const appId = getSessionAppId();
+      const res = await fetch(
+        `/api/camera-stream?action=live&imei=${encodeURIComponent(cfg.imei)}&channel=${cfg.channel}&codeType=${codeType}&appId=${appId}${setQualityCmd ? '&setQuality=1' : ''}${lightEnabled ? '' : '&light=0'}`
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data?.url) {
+        const result = {
+          url: data.url,
+          fallbackUrl: data.fallbackUrl || data.rawUrl || null,
+          rawUrl: data.rawUrl || data.url,
+          format: (data.rawUrl || data.url).includes('.flv') ? 'flv' : 'native',
+          quality,
+          codeType,
+          channel: cfg.channel,
+          imei: cfg.imei,
+          appId,
+          offline: false,
+        };
+        liveStreamUrlCache.set(cacheKey, {
+          expiresAt: Date.now() + LIVE_STREAM_CACHE_TTL_MS,
+          data: result,
+        });
+        return result;
+      }
+      return {
+        url: null,
+        fallbackUrl: null,
+        offline: Boolean(data?.offline),
+        message: data?.message || 'Araç park modunda. Canlı görüntü için kamerayı uyandırabilirsiniz.',
+        telemetry: data?.telemetry || null,
+        appId,
+      };
+    } catch {
+      return null;
+    } finally {
+      if (liveStreamInflight.get(cacheKey) === requestPromise) {
+        liveStreamInflight.delete(cacheKey);
+      }
+    }
+  })();
+
+  liveStreamInflight.set(cacheKey, requestPromise);
+  return requestPromise;
 }
 
 /**
@@ -620,6 +675,10 @@ export async function closeCameraStream(deviceId, mode = 'live', keepLight = fal
   const cfg = getCameraConfig(deviceId);
   if (!cfg) return;
 
+  if (mode === 'live') {
+    invalidateLiveStreamCache(deviceId);
+  }
+
   try {
     const appId = getSessionAppId();
     const type = mode === 'history' ? '1' : '0';
@@ -657,11 +716,16 @@ function loadMpegtsLibrary() {
   return mpegtsPromise;
 }
 
+// Tarayıcı ortamında mpegts.js kütüphanesini önceden ısıt (kamera açıldığında 0ms bekleme)
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  void loadMpegtsLibrary().catch(() => {});
+}
+
 /**
  * Akışı HTMLVideoElement üzerine bağlar (iOS Safari ManagedMediaSource, Android Chrome ve Masaüstü MSE uyumlu).
  * @param {HTMLVideoElement} videoEl
  * @param {string} streamUrl
- * @param {Function | { hasAudio?: boolean, isLive?: boolean, fallbackUrl?: string | null, onStats?: Function, onAutoMuted?: Function, onError?: Function }} optionsOrOnStats
+ * @param {Function | { hasAudio?: boolean, isLive?: boolean, fallbackUrl?: string | null, onStats?: Function, onFirstFrame?: Function, onAutoMuted?: Function, onError?: Function }} optionsOrOnStats
  */
 export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats = null) {
   if (!videoEl || !streamUrl) return null;
@@ -676,6 +740,7 @@ export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats =
     isLive = true,
     fallbackUrl = null,
     onStats = null,
+    onFirstFrame = null,
     onAutoMuted = null,
     onError = null,
   } = opts;
@@ -706,13 +771,24 @@ export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats =
         let activePlayer = null;
         let destroyed = false;
         let hasDecodedAnyFrame = false;
+        let didNotifyFirstFrame = false;
         let didTryFallback = false;
+        let didFallbackToNoAudio = false;
+        let startupSyncTimer = null;
 
         const effectiveFallbackUrl =
           fallbackUrl ||
           (streamUrl.startsWith('wss://') ? streamUrl.replace(/^wss:\/\//, 'https://') : null);
 
+        const clearStartupSyncTimer = () => {
+          if (startupSyncTimer) {
+            clearInterval(startupSyncTimer);
+            startupSyncTimer = null;
+          }
+        };
+
         const destroyActivePlayer = () => {
+          clearStartupSyncTimer();
           if (!activePlayer) return;
           const p = activePlayer;
           activePlayer = null;
@@ -726,30 +802,46 @@ export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats =
           }
         };
 
-        const startPlayerWithUrl = (targetUrl) => {
+        const notifyFirstFrameOnce = () => {
+          if (didNotifyFirstFrame || destroyed) return;
+          didNotifyFirstFrame = true;
+          hasDecodedAnyFrame = true;
+          if (typeof onFirstFrame === 'function') {
+            onFirstFrame();
+          }
+        };
+
+        const startPlayerWithUrl = (targetUrl, useAudio = Boolean(hasAudio)) => {
           if (destroyed || !targetUrl) return;
           destroyActivePlayer();
 
           const isWsStream = targetUrl.startsWith('ws://') || targetUrl.startsWith('wss://');
+          let firstBytesAt = 0;
+
           const player = mpegts.createPlayer(
             {
               type: 'flv',
               isLive: Boolean(isLive),
               url: targetUrl,
-              hasAudio: Boolean(hasAudio),
+              hasAudio: Boolean(useAudio),
               hasVideo: true,
             },
             {
               enableWorker: false,
               enableStashBuffer: !isWsStream,
-              stashInitialSize: 128,
+              stashInitialSize: 64,
               lazyLoad: false,
               autoCleanupSourceBuffer: true,
               autoCleanupMaxBackwardDuration: 15,
               autoCleanupMinBackwardDuration: 6,
               liveBufferLatencyChasing: Boolean(isLive),
-              liveBufferLatencyMaxLatency: 3.5,
-              liveBufferLatencyMinRemain: 0.8,
+              liveBufferLatencyChasingOnPaused: Boolean(isLive),
+              liveBufferLatencyMaxLatency: 1.5,
+              liveBufferLatencyMinRemain: 0.4,
+              liveSync: Boolean(isLive),
+              liveSyncMaxLatency: 1.2,
+              liveSyncTargetLatency: 0.6,
+              liveSyncPlaybackRate: 1.15,
               fixAudioTimestampGap: true,
               accurateSeek: false,
             }
@@ -759,23 +851,84 @@ export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats =
           player.attachMediaElement(videoEl);
           player.load();
 
-          const playPromise = player.play();
-          if (playPromise !== undefined) {
-            playPromise.catch(() => {
-              if (destroyed) return;
-              // Mobil tarayıcı sesli otomatik oynatmayı engellediğinde videoyu dondurmadan sessiz başlat
-              videoEl.muted = true;
-              if (typeof onAutoMuted === 'function') {
-                onAutoMuted();
+          const tryPlayVideo = () => {
+            if (destroyed) return;
+            const playPromise = player.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(() => {
+                if (destroyed) return;
+                // Tarayıcı sesli otomatik oynatmayı engellediğinde videoyu dondurmadan sessiz başlat
+                videoEl.muted = true;
+                if (typeof onAutoMuted === 'function') {
+                  onAutoMuted();
+                }
+                player.play().catch(() => {});
+              });
+            }
+          };
+
+          tryPlayVideo();
+
+          // JC182 FLV akışında ilk H.264 IDR karesi 0.000sn'de, ilk AAC ses paketi ~0.120sn'de başlar.
+          // MSE kesişim tamponu [0.120, ...] olduğundan currentTime=0.000 tampon dışında kalıp 3.5sn bekletir.
+          // Tampon oluştuğu an currentTime'ı tampon başlangıcına sıçratarak görüntüyü milisaniyede başlat.
+          const syncBufferGapAndPlay = () => {
+            if (destroyed || !videoEl) return;
+            try {
+              const buf = videoEl.buffered;
+              if (buf && buf.length > 0) {
+                const start = buf.start(0);
+                const end = buf.end(buf.length - 1);
+                if (videoEl.currentTime < start - 0.005 && end > start) {
+                  videoEl.currentTime = Math.min(start + 0.02, end);
+                } else if (isLive && end - videoEl.currentTime > 2.2) {
+                  videoEl.currentTime = Math.max(start, end - 0.35);
+                }
+                if (videoEl.paused) {
+                  tryPlayVideo();
+                }
+                if (videoEl.readyState >= 2) {
+                  notifyFirstFrameOnce();
+                }
               }
-              player.play().catch(() => {});
-            });
-          }
+            } catch {
+              // ignore buffer check errors
+            }
+          };
+
+          startupSyncTimer = setInterval(() => {
+            if (destroyed) {
+              clearStartupSyncTimer();
+              return;
+            }
+            syncBufferGapAndPlay();
+            if (hasDecodedAnyFrame && !videoEl.paused && videoEl.readyState >= 3) {
+              clearStartupSyncTimer();
+            }
+          }, 100);
 
           const statsEvent = mpegts.Events?.STATISTICS_INFO || 'statistics_info';
           player.on(statsEvent, (stats) => {
+            if (destroyed) return;
+            if ((stats?.speed || 0) > 0 && !firstBytesAt) {
+              firstBytesAt = Date.now();
+            }
             if (stats?.decodedFrames > 0) {
-              hasDecodedAnyFrame = true;
+              notifyFirstFrameOnce();
+            } else {
+              syncBufferGapAndPlay();
+              // Veri aktığı halde ses izi eksikliği yüzünden MSE kesişim tamponu 2.2sn boyunca oluşmadıysa sessiz видео moduna geç
+              if (
+                useAudio &&
+                !didFallbackToNoAudio &&
+                firstBytesAt > 0 &&
+                Date.now() - firstBytesAt > 2200 &&
+                (!videoEl.buffered || videoEl.buffered.length === 0)
+              ) {
+                didFallbackToNoAudio = true;
+                startPlayerWithUrl(targetUrl, false);
+                return;
+              }
             }
             if (typeof onStats === 'function' && stats) {
               onStats({
@@ -793,7 +946,7 @@ export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats =
             if (destroyed) return;
             if (!hasDecodedAnyFrame && !didTryFallback && effectiveFallbackUrl && effectiveFallbackUrl !== targetUrl) {
               didTryFallback = true;
-              startPlayerWithUrl(effectiveFallbackUrl);
+              startPlayerWithUrl(effectiveFallbackUrl, useAudio);
               return;
             }
             if (typeof onError === 'function') {
@@ -802,7 +955,7 @@ export async function attachStreamToVideo(videoEl, streamUrl, optionsOrOnStats =
           });
         };
 
-        startPlayerWithUrl(streamUrl);
+        startPlayerWithUrl(streamUrl, Boolean(hasAudio));
 
         return () => {
           destroyed = true;
