@@ -10,7 +10,6 @@ import {
   X,
   Volume2,
   VolumeX,
-  Camera,
   Download,
   Play,
   Pause,
@@ -30,7 +29,6 @@ import {
   closeCameraStream,
   attachStreamToVideo,
   wakeUpCamera,
-  triggerCameraSnapshot,
   setCameraWatchLight,
 } from '../../services/cameraService';
 import { useCompany } from '../../context/CompanyContext';
@@ -83,20 +81,9 @@ export default function CameraModal({
   }, [isLiveLightEnabled]);
 
   const videoRef = useRef(null);
+  const volumeControlRef = useRef(null);
   const cleanupStreamRef = useRef(null);
   const liveStartedRef = useRef(false);
-
-  // Modal açıldığında hedef sekmeyi senkronize et ('live' veya 'history')
-  useEffect(() => {
-    if (!isOpen) return;
-    Promise.resolve().then(() => {
-      setMode(initialMode || 'live');
-      if (initialDate) {
-        setHistoryDate(initialDate);
-      }
-      setAutoMutedByBrowser(false);
-    });
-  }, [isOpen, initialMode, initialDate]);
 
   // Ses ayar yöneticisi (Kamera mikrofon ve canlı kabin sesi)
   const handleVolumeChange = (newVol) => {
@@ -135,9 +122,20 @@ export default function CameraModal({
   const [isVideoLivePlaying, setIsVideoLivePlaying] = useState(false);
   const [isWakingUp, setIsWakingUp] = useState(false);
   const [wakeFeedback, setWakeFeedback] = useState('');
-  const [photoFeedback, setPhotoFeedback] = useState('');
-  const [isCapturingPhoto, setIsCapturingPhoto] = useState(false);
+  const [isVolumeOpen, setIsVolumeOpen] = useState(false);
   const [reloadLiveTrigger, setReloadLiveTrigger] = useState(0);
+
+  // Ses paneli dışına tıklandığında animasyonla kapat
+  useEffect(() => {
+    if (!isVolumeOpen) return;
+    const handlePointerDownOutside = (e) => {
+      if (volumeControlRef.current && !volumeControlRef.current.contains(e.target)) {
+        setIsVolumeOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDownOutside);
+    return () => document.removeEventListener('pointerdown', handlePointerDownOutside);
+  }, [isVolumeOpen]);
 
   // Sol / Alt Geçmiş menüsü gizleme durumu
   const [showHistorySidebar, setShowHistorySidebar] = useState(true);
@@ -153,6 +151,19 @@ export default function CameraModal({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyReloadNonce, setHistoryReloadNonce] = useState(0);
   const switchedFromLiveAtRef = useRef(0);
+
+  // Modal açıldığında hedef sekmeyi senkronize et ('live' veya 'history')
+  useEffect(() => {
+    if (!isOpen) return;
+    Promise.resolve().then(() => {
+      setMode(initialMode || 'live');
+      if (initialDate) {
+        setHistoryDate(initialDate);
+      }
+      setAutoMutedByBrowser(false);
+      setIsVolumeOpen(false);
+    });
+  }, [isOpen, initialMode, initialDate]);
 
   // Geçmiş video oynatıcı kontrolleri
   const [isPlaying, setIsPlaying] = useState(true);
@@ -194,6 +205,7 @@ export default function CameraModal({
   }, []);
 
   const handleClose = useCallback(() => {
+    setIsVolumeOpen(false);
     if (cleanupStreamRef.current) {
       cleanupStreamRef.current();
       cleanupStreamRef.current = null;
@@ -565,69 +577,42 @@ export default function CameraModal({
     }
   }, [playbackRate]);
 
-  // Cihaz Donanımından Orijinal Fotoğraf Çekme (SNAP# & 4G Cat-1 Dosya Aktarımı)
-  const handleSnapshot = useCallback(async () => {
-    if (isCapturingPhoto) return;
-    setIsCapturingPhoto(true);
-    setPhotoFeedback('Cihazdan Fotoğraf Alınıyor...');
-
-    const nowTurkeyIso = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 19).replace(/[:T]/g, '-');
-
-    try {
-      const res = await triggerCameraSnapshot(deviceId);
-
-      if (res?.success && res?.photoUrl) {
-        const downloadUrl = res.proxyUrl || res.photoUrl;
-        const filename = `kamera_${deviceId}_orijinal_${nowTurkeyIso}.jpg`;
-
-        try {
-          const fileRes = await fetch(downloadUrl);
-          const blob = await fileRes.blob();
-          const blobUrl = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = blobUrl;
-          link.download = filename;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-        } catch {
-          window.open(downloadUrl, '_blank');
-        }
-
-        setPhotoFeedback('Orijinal Fotoğraf İndirildi');
-        setTimeout(() => setPhotoFeedback(''), 4000);
-        setIsCapturingPhoto(false);
-        return;
-      }
-
-      // Fallback: 4G yükleme zaman aşımına uğrarsa canlı yayından anlık kare al
-      const v = videoRef.current;
-      if (v && v.videoWidth > 0) {
-        const canvas = document.createElement('canvas');
-        canvas.width = v.videoWidth;
-        canvas.height = v.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-
-        const filename = `kamera_${deviceId}_canli_${nowTurkeyIso}.jpg`;
-        const link = document.createElement('a');
-        link.download = filename;
-        link.href = canvas.toDataURL('image/jpeg', 0.95);
-        link.click();
-        setPhotoFeedback('Canlı Akış Karesi Kaydedildi');
-        setTimeout(() => setPhotoFeedback(''), 4000);
-      } else {
-        setPhotoFeedback('Fotoğraf Alınamadı');
-        setTimeout(() => setPhotoFeedback(''), 3000);
-      }
-    } catch {
-      setPhotoFeedback('Hata: Fotoğraf Alınamadı');
-      setTimeout(() => setPhotoFeedback(''), 3000);
-    } finally {
-      setIsCapturingPhoto(false);
+  // Ses durumu ve kontrol içeriği
+  const renderVolumeIcon = (size = 15) => {
+    if (isMuted || volume === 0) {
+      return <VolumeX size={size} className="text-slate-400" />;
     }
-  }, [deviceId, isCapturingPhoto]);
+    if (volume < 0.5) {
+      return <Volume1 size={size} className="text-emerald-400" />;
+    }
+    return <Volume2 size={size} className="text-emerald-400" />;
+  };
+
+  const renderVolumeSliderBody = () => (
+    <>
+      <button
+        type="button"
+        onClick={handleToggleMute}
+        className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/[0.06] active:scale-95 transition-all cursor-pointer shrink-0"
+        title={isMuted ? 'Sesi Aç' : 'Sessize Al'}
+      >
+        {renderVolumeIcon(15)}
+      </button>
+      <input
+        type="range"
+        min="0"
+        max="1"
+        step="0.05"
+        value={isMuted ? 0 : volume}
+        onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+        className="w-24 md:w-16 lg:w-20 h-1 bg-slate-700/80 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+        title={`Ses: %${Math.round((isMuted ? 0 : volume) * 100)}`}
+      />
+      <span className="text-[10px] font-mono text-slate-300 w-7 text-right font-semibold select-none shrink-0">
+        {isMuted ? '0%' : `${Math.round(volume * 100)}%`}
+      </span>
+    </>
+  );
 
   const togglePlayPause = () => {
     const v = videoRef.current;
@@ -1251,68 +1236,85 @@ export default function CameraModal({
           </div>
         </div>
 
-        {/* ── SAĞ ÜST YÜZEN MİNİMAL ARAÇLAR (Kare Yakala & Ses Seviyesi) ── */}
+        {/* ── SAĞ ÜST SES KONTROLÜ (ÜST BAR İLE AYNI HİZADA, ANİMASYONLU AÇILIR/KAPANIR) ── */}
         <div
-          className="absolute right-3 sm:right-4 z-20 flex items-center gap-1.5 sm:gap-2"
+          ref={volumeControlRef}
+          className="absolute right-3 sm:right-4 z-30 pointer-events-auto"
           style={{
-            top: 'calc(var(--safe-top, 0px) + 5.25rem)',
+            top: 'calc(var(--safe-top, 0px) + 1.25rem)',
           }}
         >
-          {/* Fotoğraf Bildirimi */}
-          {photoFeedback && (
-            <span className="text-[10px] font-mono font-semibold text-emerald-400 bg-[#0D1219]/95 border border-emerald-500/30 px-2.5 py-1.5 rounded-xl shadow-xl backdrop-blur-xl shrink-0 flex items-center gap-1.5">
-              {isCapturingPhoto && <Loader2 size={11} className="animate-spin text-emerald-400 shrink-0" />}
-              {photoFeedback}
-            </span>
-          )}
-
-          {/* Orijinal Donanımsal Fotoğraf Çek */}
-          <button
-            onClick={handleSnapshot}
-            disabled={isCapturingPhoto}
-            className={`w-10 h-10 rounded-2xl bg-[#0D1219]/90 hover:bg-[#141c27] backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.75)] flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition-all cursor-pointer shrink-0 ${isCapturingPhoto ? 'opacity-70 cursor-wait' : ''}`}
-            title="Cihazdan Orijinal Fotoğraf Çek (SNAP#)"
-          >
-            {isCapturingPhoto ? (
-              <Loader2 size={16} className="animate-spin text-emerald-400" />
-            ) : (
-              <Camera size={16} />
-            )}
-          </button>
-
-          {/* Ses Yükseklik Ayarı & Mute Kontrolü */}
-          <div className="flex items-center rounded-2xl bg-[#0D1219]/90 hover:bg-[#141c27] backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.75)] p-1 sm:p-1.5 transition-all">
-            <button
-              onClick={handleToggleMute}
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition-all cursor-pointer"
-              title={isMuted ? 'Sesi Aç' : `Ses Seviyesi: %${Math.round(volume * 100)}`}
-            >
-              {isMuted || volume === 0 ? (
-                <VolumeX size={15} className="text-slate-400" />
-              ) : volume < 0.5 ? (
-                <Volume1 size={15} className="text-emerald-400" />
-              ) : (
-                <Volume2 size={15} className="text-emerald-400" />
+          <div className="flex bg-[#0D1219]/95 backdrop-blur-xl p-1 sm:p-1.5 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.85)] border border-white/10 items-center select-none ring-1 ring-black/40 transition-colors">
+            <AnimatePresence initial={false}>
+              {isVolumeOpen && (
+                <motion.div
+                  key="desktop-volume-tray"
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 'auto', opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ duration: 0.24, ease: [0.23, 1, 0.32, 1] }}
+                  className="hidden md:flex items-center overflow-hidden"
+                >
+                  <div className="flex items-center gap-2 pl-0.5 pr-2 whitespace-nowrap">
+                    {renderVolumeSliderBody()}
+                  </div>
+                  <div className="w-px h-5 bg-white/10 mr-1.5 shrink-0" />
+                </motion.div>
               )}
-            </button>
+            </AnimatePresence>
 
-            {/* Ses Kaydırıcı (Slider) - Masaüstü ve geniş ekranlarda görünür */}
-            <div className="hidden sm:flex items-center gap-2 px-2">
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={isMuted ? 0 : volume}
-                onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-                className="w-16 sm:w-20 h-1 bg-slate-700/80 rounded-lg appearance-none cursor-pointer accent-emerald-400"
-                title={`Ses: %${Math.round((isMuted ? 0 : volume) * 100)}`}
-              />
-              <span className="text-[10px] font-mono text-slate-300 w-7 text-right font-semibold select-none">
-                {isMuted ? '0%' : `${Math.round(volume * 100)}%`}
-              </span>
-            </div>
+            <button
+              type="button"
+              onClick={() => setIsVolumeOpen((prev) => !prev)}
+              className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0 ${
+                isVolumeOpen
+                  ? 'bg-white/[0.08] text-white'
+                  : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
+              }`}
+              title={
+                isVolumeOpen
+                  ? 'Ses Kontrolünü Kapat'
+                  : isMuted || volume === 0
+                    ? 'Ses Kapalı — Ayarlamak için Tıklayın'
+                    : `Ses Seviyesi: %${Math.round(volume * 100)}`
+              }
+              aria-expanded={isVolumeOpen}
+            >
+              <motion.span
+                key={isVolumeOpen ? 'vol-open' : 'vol-closed'}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.16 }}
+                className="flex items-center justify-center"
+              >
+                {isVolumeOpen ? (
+                  <>
+                    <ChevronRight size={15} className="hidden md:block text-slate-300" />
+                    <span className="md:hidden flex items-center justify-center">
+                      {renderVolumeIcon(15)}
+                    </span>
+                  </>
+                ) : (
+                  renderVolumeIcon(15)
+                )}
+              </motion.span>
+            </button>
           </div>
+
+          <AnimatePresence>
+            {isVolumeOpen && (
+              <motion.div
+                key="mobile-volume-popover"
+                initial={{ opacity: 0, y: -8, scale: 0.94 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.94 }}
+                transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                className="md:hidden absolute right-0 top-full mt-2 flex items-center gap-2 bg-[#0D1219]/95 backdrop-blur-xl px-2 py-1.5 min-h-[44px] rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.85)] border border-white/10 ring-1 ring-black/40"
+              >
+                {renderVolumeSliderBody()}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <AnimatePresence>
